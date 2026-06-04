@@ -1,0 +1,6 @@
+streamlit
+anthropic
+pypdf
+numpy
+requests
+python-dotenv
