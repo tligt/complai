@@ -141,7 +141,7 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    top_k = st.slider("Chunks to retrieve per query", min_value=1, max_value=10, value=4)
+    top_k = st.slider("Chunks to retrieve per query", min_value=1, max_value=10, value=6)
 
     st.divider()
     st.markdown("**Regulatory Knowledge Base**")
