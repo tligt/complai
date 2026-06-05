@@ -11,7 +11,7 @@ load_dotenv()
 st.set_page_config(page_title="COMPLAI", page_icon="⚖️", layout="centered")
 
 st.title("COMPLAI")
-st.caption("Upload regulatory documents or company files, then ask compliance questions.")
+st.caption("AI-powered compliance assistant for GDPR, NIS2, and the EU AI Act.")
 
 
 def extract_text(uploaded_file) -> str:
@@ -93,13 +93,14 @@ for key, default in [
         st.session_state[key] = default
 
 with st.sidebar:
-    st.header("Knowledge Base")
+    st.header("Company Documents")
+    st.caption("The regulatory knowledge base (GDPR, NIS2, EU AI Act) is pre-loaded. Upload your own documents to check them for compliance.")
 
     uploaded_files = st.file_uploader(
-        "Upload files",
+        "Upload company documents",
         type=["txt", "pdf"],
         accept_multiple_files=True,
-        help="Upload regulatory texts or company documents.",
+        help="Upload T&Cs, privacy policies, internal procedures, etc.",
     )
 
     if uploaded_files:
@@ -111,9 +112,7 @@ with st.sidebar:
                 with st.spinner(f"Processing {f.name}..."):
                     text = extract_text(f)
                     if not text.strip():
-                        st.error(
-                            f"{f.name}: No text found — may be a scanned/image PDF."
-                        )
+                        st.error(f"{f.name}: No text found — may be a scanned/image PDF.")
                         continue
                     raw_chunks = chunk_text(text)
                     chunks = [Chunk(text=c, source=f.name) for c in raw_chunks]
@@ -123,7 +122,7 @@ with st.sidebar:
 
     if st.session_state.documents:
         st.divider()
-        st.markdown(f"**{len(st.session_state.documents)} document(s) loaded**")
+        st.markdown(f"**{len(st.session_state.documents)} company document(s) loaded**")
         st.caption(f"{len(st.session_state.all_chunks)} total chunks")
 
         for name in list(st.session_state.documents.keys()):
@@ -142,52 +141,41 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
-    top_k = st.slider(
-        "Chunks to retrieve per query", min_value=1, max_value=10, value=4
-    )
+    top_k = st.slider("Chunks to retrieve per query", min_value=1, max_value=10, value=4)
 
-has_index = bool(st.session_state.documents)
+    st.divider()
+    st.markdown("**Regulatory Knowledge Base**")
+    st.caption("✅ GDPR (EN/FR/NL)")
+    st.caption("✅ NIS2 (EN/FR/NL)")
+    st.caption("✅ EU AI Act (EN/FR/NL)")
 
-if not has_index:
-    st.info("Upload regulatory documents or company files in the sidebar to get started.")
-    with st.expander("How it works"):
-        st.markdown(
-            """
-            1. **Upload** any number of `.pdf` or `.txt` files (regulatory texts, company policies, etc.).
-            2. Each file is split into overlapping **chunks** for better coverage.
-            3. All chunks are indexed using **Mistral semantic embeddings** — retrieval understands meaning, not just keywords.
-            4. When you ask a question, the most relevant chunks are **retrieved** across all documents.
-            5. Those chunks are sent to **Mistral Large** for a structured compliance answer.
 
-            > PDFs must contain selectable text. Scanned/image-only PDFs are not supported.
-            """
-        )
-else:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    if prompt := st.chat_input("Ask a compliance question..."):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+if prompt := st.chat_input("Ask a compliance question..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Retrieving context and generating answer..."):
-                context_chunks = retrieve(
-                    prompt,
-                    st.session_state.all_chunks,
-                    st.session_state.embeddings,
-                    top_k=top_k,
-                )
-                history = st.session_state.messages[:-1]
-                answer = answer_question(prompt, context_chunks, history)
+    with st.chat_message("assistant"):
+        with st.spinner("Retrieving context and generating answer..."):
+            context_chunks = retrieve(
+                prompt,
+                st.session_state.all_chunks,
+                st.session_state.embeddings,
+                top_k=top_k,
+                language="en",
+            )
+            history = st.session_state.messages[:-1]
+            answer = answer_question(prompt, context_chunks, history)
 
-            st.markdown(answer)
+        st.markdown(answer)
 
-            with st.expander("Sources used"):
-                for i, chunk in enumerate(context_chunks, 1):
-                    st.markdown(f"**{i}. {chunk.source}**")
-                    st.text(chunk.text[:400] + ("..." if len(chunk.text) > 400 else ""))
+        with st.expander("Sources used"):
+            for i, chunk in enumerate(context_chunks, 1):
+                st.markdown(f"**{i}. {chunk.source}**")
+                st.text(chunk.text[:400] + ("..." if len(chunk.text) > 400 else ""))
 
-        st.session_state.messages.append({"role": "assistant", "content": answer})
+    st.session_state.messages.append({"role": "assistant", "content": answer})

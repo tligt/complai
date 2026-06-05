@@ -4,14 +4,24 @@ import requests
 import numpy as np
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from qdrant_client import QdrantClient
 
 load_dotenv()
+
+COLLECTION_NAME = "regulations"
 
 
 @dataclass
 class Chunk:
     text: str
     source: str
+
+
+def get_qdrant_client() -> QdrantClient:
+    return QdrantClient(
+        url=os.environ["QDRANT_URL"],
+        api_key=os.environ["QDRANT_API_KEY"],
+    )
 
 
 def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
@@ -38,35 +48,72 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         },
-        json={
-            "model": "mistral-embed",
-            "input": texts,
-        }
+        json={"model": "mistral-embed", "input": texts},
     )
     response.raise_for_status()
-    data = response.json()
-    return [item["embedding"] for item in data["data"]]
+    return [item["embedding"] for item in response.json()["data"]]
 
 
 def build_index(chunks: list[Chunk]) -> np.ndarray:
+    """Build in-memory index for company documents (session only)."""
     texts = [c.text for c in chunks]
     all_embeddings = []
     batch_size = 50
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
-        batch_embeddings = get_embeddings(batch)
-        all_embeddings.extend(batch_embeddings)
+        all_embeddings.extend(get_embeddings(batch))
     return np.array(all_embeddings)
 
 
-def retrieve(
+def retrieve_from_qdrant(query: str, top_k: int = 4, language: str = "en") -> list[Chunk]:
+    """Retrieve from persistent regulatory knowledge base."""
+    client = get_qdrant_client()
+    query_embedding = get_embeddings([query])[0]
+
+    results = client.search(
+        collection_name=COLLECTION_NAME,
+        query_vector=query_embedding,
+        limit=top_k,
+        query_filter={
+            "must": [{"key": "language", "match": {"value": language}}]
+        },
+    )
+    return [
+        Chunk(text=r.payload["text"], source=r.payload["source"])
+        for r in results
+    ]
+
+
+def retrieve_from_memory(
     query: str,
     chunks: list[Chunk],
     embeddings: np.ndarray,
     top_k: int = 4,
 ) -> list[Chunk]:
+    """Retrieve from in-memory company document index."""
     query_embedding = np.array(get_embeddings([query])[0])
     norms = np.linalg.norm(embeddings, axis=1) * np.linalg.norm(query_embedding)
     scores = np.dot(embeddings, query_embedding) / (norms + 1e-10)
     top_indices = np.argsort(scores)[::-1][:top_k]
     return [chunks[i] for i in top_indices]
+
+
+def retrieve(
+    query: str,
+    chunks: list[Chunk],
+    embeddings: np.ndarray | None,
+    top_k: int = 4,
+    language: str = "en",
+) -> list[Chunk]:
+    """
+    Combined retrieval:
+    - Always retrieves from Qdrant (regulatory knowledge base)
+    - Also retrieves from memory if company documents are loaded
+    """
+    regulatory_chunks = retrieve_from_qdrant(query, top_k=top_k, language=language)
+
+    company_chunks = []
+    if embeddings is not None and len(chunks) > 0:
+        company_chunks = retrieve_from_memory(query, chunks, embeddings, top_k=top_k)
+
+    return regulatory_chunks + company_chunks
