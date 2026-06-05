@@ -5,6 +5,7 @@ import numpy as np
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 
 load_dotenv()
 
@@ -70,14 +71,15 @@ def retrieve_from_qdrant(query: str, top_k: int = 4, language: str = "en") -> li
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
 
-    results = client.search(
+    results = client.query_points(
         collection_name=COLLECTION_NAME,
-        query_vector=query_embedding,
+        query=query_embedding,
         limit=top_k,
-        query_filter={
-            "must": [{"key": "language", "match": {"value": language}}]
-        },
-    )
+        query_filter=Filter(
+            must=[FieldCondition(key="language", match=MatchValue(value=language))]
+        ),
+    ).points
+
     return [
         Chunk(text=r.payload["text"], source=r.payload["source"])
         for r in results
