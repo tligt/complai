@@ -193,33 +193,56 @@ with st.sidebar:
                     selected_source = st.selectbox("Select document", options=source_names, key="edit_source")
                     selected_meta = next((i for i in kb if i["source"] == selected_source), {})
 
-                    new_name = st.text_input("New source name (leave blank to keep)", key="edit_name")
+                    # Show current metadata clearly
+                    st.markdown("**Current metadata:**")
+                    col1, col2 = st.columns(2)
+                    col1.caption(f"Language: **{selected_meta.get('language', '?').upper()}**")
+                    col1.caption(f"Country: **{selected_meta.get('country', '?').upper()}**")
+                    col2.caption(f"Type: **{selected_meta.get('doc_type', '?')}**")
+                    col2.caption(f"Regulation: **{selected_meta.get('parent_regulation', '?')}**")
+
+                    st.divider()
+                    st.markdown("**New values:**")
+
+                    new_name = st.text_input("Source name (leave blank to keep)", key="edit_name")
+
+                    country_keys = list(COUNTRY_OPTIONS.keys())
+                    current_country = selected_meta.get("country", "EU")
+                    country_index = country_keys.index(current_country) if current_country in country_keys else 0
                     new_country = st.selectbox(
                         "Country",
-                        options=list(COUNTRY_OPTIONS.keys()),
-                        index=list(COUNTRY_OPTIONS.keys()).index(selected_meta.get("country", "EU")),
+                        options=country_keys,
+                        index=country_index,
                         format_func=lambda x: COUNTRY_OPTIONS[x],
                         key="edit_country"
                     )
+
+                    current_lang = selected_meta.get("language", "en")
+                    lang_index = ["en", "fr", "nl"].index(current_lang) if current_lang in ["en", "fr", "nl"] else 0
                     new_lang = st.selectbox(
                         "Language",
                         options=["en", "fr", "nl"],
-                        index=["en", "fr", "nl"].index(selected_meta.get("language", "en")),
+                        index=lang_index,
                         format_func=lambda x: LANG_LABELS[x],
                         key="edit_lang"
                     )
+
+                    current_doc_type = selected_meta.get("doc_type", "supplementary")
                     new_doc_type = st.radio(
                         "Document type",
                         options=["core", "supplementary"],
-                        index=0 if selected_meta.get("doc_type") == "core" else 1,
+                        index=0 if current_doc_type == "core" else 1,
                         format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary",
                         key="edit_doc_type",
                         horizontal=True,
                     )
+
+                    current_parent = selected_meta.get("parent_regulation", "general")
+                    parent_index = REGULATION_OPTIONS.index(current_parent) if current_parent in REGULATION_OPTIONS else 3
                     new_parent_reg = st.selectbox(
                         "Related regulation",
                         options=REGULATION_OPTIONS,
-                        index=REGULATION_OPTIONS.index(selected_meta.get("parent_regulation", "general")) if selected_meta.get("parent_regulation") in REGULATION_OPTIONS else 3,
+                        index=parent_index,
                         key="edit_parent_reg"
                     )
 
