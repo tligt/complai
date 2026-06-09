@@ -67,7 +67,7 @@ def build_index(chunks: list[Chunk]) -> np.ndarray:
     return np.array(all_embeddings)
 
 
-def ingest_to_qdrant(text: str, source: str, language: str) -> int:
+def ingest_to_qdrant(text: str, source: str, language: str, doc_type: str = "supplementary") -> int:
     """Ingest a document permanently into Qdrant. Returns number of chunks ingested."""
     client = get_qdrant_client()
     chunks = chunk_text(text)
@@ -85,6 +85,7 @@ def ingest_to_qdrant(text: str, source: str, language: str) -> int:
                     "text": chunk_text_val,
                     "source": source,
                     "language": language,
+                    "doc_type": doc_type,
                 }
             ))
 
@@ -98,18 +99,63 @@ def ingest_to_qdrant(text: str, source: str, language: str) -> int:
     return len(points)
 
 
-def retrieve_from_qdrant(query: str, top_k: int = 6, language: str = "en") -> list[Chunk]:
+def get_knowledge_base_summary() -> list[dict]:
+    """Query Qdrant for distinct sources and their metadata."""
+    client = get_qdrant_client()
+    
+    sources = {}
+    offset = None
+    
+    while True:
+        results, offset = client.scroll(
+            collection_name=COLLECTION_NAME,
+            limit=100,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        
+        for point in results:
+            payload = point.payload
+            source = payload.get("source", "Unknown")
+            language = payload.get("language", "?")
+            doc_type = payload.get("doc_type", "core")
+            key = f"{source}_{language}"
+            
+            if key not in sources:
+                sources[key] = {
+                    "source": source,
+                    "language": language,
+                    "doc_type": doc_type,
+                    "chunks": 0,
+                }
+            sources[key]["chunks"] += 1
+        
+        if offset is None:
+            break
+    
+    return sorted(sources.values(), key=lambda x: (x["doc_type"], x["source"]))
+
+
+def retrieve_from_qdrant(
+    query: str,
+    top_k: int = 6,
+    language: str = "en",
+    doc_type: str | None = None,
+) -> list[Chunk]:
     """Retrieve from persistent regulatory knowledge base."""
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
+
+    must_conditions = [FieldCondition(key="language", match=MatchValue(value=language))]
+    if doc_type:
+        must_conditions.append(FieldCondition(key="doc_type", match=MatchValue(value=doc_type)))
 
     results = client.query_points(
         collection_name=COLLECTION_NAME,
         query=query_embedding,
         limit=top_k,
-        query_filter=Filter(
-            must=[FieldCondition(key="language", match=MatchValue(value=language))]
-        ),
+        query_filter=Filter(must=must_conditions),
     ).points
 
     return [
@@ -122,7 +168,7 @@ def retrieve_from_memory(
     query: str,
     chunks: list[Chunk],
     embeddings: np.ndarray,
-    top_k: int = 6,
+    top_k: int = 4,
 ) -> list[Chunk]:
     """Retrieve from in-memory company document index."""
     query_embedding = np.array(get_embeddings([query])[0])
@@ -141,13 +187,15 @@ def retrieve(
 ) -> list[Chunk]:
     """
     Combined retrieval:
-    - Always retrieves from Qdrant (regulatory knowledge base)
-    - Also retrieves from memory if company documents are loaded
+    - Retrieves from core regulations (always)
+    - Retrieves from supplementary documents (always)
+    - Retrieves from in-memory company documents if loaded
     """
-    regulatory_chunks = retrieve_from_qdrant(query, top_k=top_k, language=language)
+    core_chunks = retrieve_from_qdrant(query, top_k=top_k // 2 or 3, language=language, doc_type="core")
+    supplementary_chunks = retrieve_from_qdrant(query, top_k=top_k // 2 or 3, language=language, doc_type="supplementary")
 
     company_chunks = []
     if embeddings is not None and len(chunks) > 0:
-        company_chunks = retrieve_from_memory(query, chunks, embeddings, top_k=top_k)
+        company_chunks = retrieve_from_memory(query, chunks, embeddings, top_k=4)
 
-    return regulatory_chunks + company_chunks
+    return core_chunks + supplementary_chunks + company_chunks

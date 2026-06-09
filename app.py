@@ -4,7 +4,7 @@ import requests
 import streamlit as st
 from pypdf import PdfReader
 from dotenv import load_dotenv
-from rag import Chunk, build_index, chunk_text, retrieve, ingest_to_qdrant
+from rag import Chunk, build_index, chunk_text, retrieve, ingest_to_qdrant, get_knowledge_base_summary
 
 load_dotenv()
 
@@ -108,7 +108,7 @@ for key, default in [
     ("all_chunks", []),
     ("embeddings", None),
     ("messages", []),
-    ("admin_open", False),
+    ("recent_queries", []),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -130,6 +130,15 @@ with st.sidebar:
             "Source name",
             placeholder="e.g. CCB NIS2 Guide Belgium",
             key="admin_source_name",
+        )
+
+        doc_type = st.radio(
+            "Document type",
+            options=["core", "supplementary"],
+            index=1,
+            format_func=lambda x: "📜 Core regulation" if x == "core" else "📎 Supplementary guidance",
+            key="admin_doc_type",
+            horizontal=True,
         )
 
         if admin_file and source_name:
@@ -156,10 +165,33 @@ with st.sidebar:
                                 text=admin_text,
                                 source=source_name,
                                 language=confirmed_lang,
+                                doc_type=doc_type,
                             )
                             st.success(f"✅ {count} chunks ingested from '{source_name}'")
+                            st.cache_data.clear()
                         except Exception as e:
                             st.error(f"Ingestion failed: {e}")
+
+    st.divider()
+
+    # ── Knowledge Base summary ─────────────────────────────────
+    with st.expander("📚 Regulatory Knowledge Base"):
+        try:
+            kb_summary = get_knowledge_base_summary()
+            if kb_summary:
+                lang_labels = {"en": "🇬🇧", "fr": "🇫🇷", "nl": "🇧🇪"}
+                current_type = None
+                for item in kb_summary:
+                    if item["doc_type"] != current_type:
+                        current_type = item["doc_type"]
+                        label = "Core Regulations" if current_type == "core" else "Supplementary Guidance"
+                        st.markdown(f"**{label}**")
+                    flag = lang_labels.get(item["language"], "🌐")
+                    st.caption(f"{flag} {item['source']} — {item['chunks']} chunks")
+            else:
+                st.caption("No documents found.")
+        except Exception as e:
+            st.caption(f"Could not load knowledge base: {e}")
 
     st.divider()
 
@@ -214,18 +246,26 @@ with st.sidebar:
     st.divider()
     top_k = st.slider("Chunks to retrieve per query", min_value=1, max_value=10, value=6)
 
-    st.divider()
-    st.markdown("**Regulatory Knowledge Base**")
-    st.caption("✅ GDPR (EN/FR/NL)")
-    st.caption("✅ NIS2 (EN/FR/NL)")
-    st.caption("✅ EU AI Act (EN/FR/NL)")
+    # ── Recent queries ─────────────────────────────────────────
+    if st.session_state.recent_queries:
+        st.divider()
+        st.markdown("**Recent queries**")
+        for q in reversed(st.session_state.recent_queries[-8:]):
+            if st.button(f"↩ {q[:45]}{'...' if len(q) > 45 else ''}", key=f"rq_{q[:45]}", use_container_width=True):
+                st.session_state.messages.append({"role": "user", "content": q})
+                st.rerun()
 
 
+# ── Main chat area ─────────────────────────────────────────────
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 if prompt := st.chat_input("Ask a compliance question..."):
+    # Track recent queries
+    if prompt not in st.session_state.recent_queries:
+        st.session_state.recent_queries.append(prompt)
+
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
