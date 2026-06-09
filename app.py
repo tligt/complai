@@ -4,7 +4,7 @@ import requests
 import streamlit as st
 from pypdf import PdfReader
 from dotenv import load_dotenv
-from rag import Chunk, build_index, chunk_text, retrieve
+from rag import Chunk, build_index, chunk_text, retrieve, ingest_to_qdrant
 
 load_dotenv()
 
@@ -15,11 +15,31 @@ st.caption("AI-powered compliance assistant for GDPR, NIS2, and the EU AI Act.")
 
 
 def extract_text(uploaded_file) -> str:
-    if uploaded_file.name.lower().endswith(".pdf"):
+    name = uploaded_file.name.lower()
+    if name.endswith(".pdf"):
         reader = PdfReader(io.BytesIO(uploaded_file.read()))
         pages = [page.extract_text() or "" for page in reader.pages]
         return "\n\n".join(pages)
+    elif name.endswith(".docx"):
+        try:
+            import docx
+            doc = docx.Document(io.BytesIO(uploaded_file.read()))
+            return "\n\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+        except ImportError:
+            st.error("python-docx not installed. Please use PDF or TXT.")
+            return ""
     return uploaded_file.read().decode("utf-8", errors="replace")
+
+
+def detect_language(text: str) -> str:
+    try:
+        from langdetect import detect
+        lang = detect(text[:2000])
+        if lang in ["en", "fr", "nl"]:
+            return lang
+        return "en"
+    except Exception:
+        return "en"
 
 
 def rebuild_index():
@@ -88,17 +108,68 @@ for key, default in [
     ("all_chunks", []),
     ("embeddings", None),
     ("messages", []),
+    ("admin_open", False),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
 
 with st.sidebar:
+
+    # ── Admin section ──────────────────────────────────────────
+    with st.expander("⚙️ Admin — Add to Knowledge Base"):
+        st.caption("Permanently ingest a document into the regulatory knowledge base.")
+
+        admin_file = st.file_uploader(
+            "Upload document",
+            type=["pdf", "txt", "docx"],
+            key="admin_upload",
+            help="PDF, TXT, or DOCX file to add permanently to Qdrant.",
+        )
+
+        source_name = st.text_input(
+            "Source name",
+            placeholder="e.g. CCB NIS2 Guide Belgium",
+            key="admin_source_name",
+        )
+
+        if admin_file and source_name:
+            with st.spinner("Detecting language..."):
+                admin_text = extract_text(admin_file)
+                detected_lang = detect_language(admin_text)
+
+            lang_labels = {"en": "English", "fr": "French", "nl": "Dutch"}
+            confirmed_lang = st.selectbox(
+                "Detected language (confirm or correct)",
+                options=["en", "fr", "nl"],
+                index=["en", "fr", "nl"].index(detected_lang),
+                format_func=lambda x: lang_labels[x],
+                key="admin_lang",
+            )
+
+            if st.button("Ingest into Knowledge Base", type="primary"):
+                if not admin_text.strip():
+                    st.error("No text found in document.")
+                else:
+                    with st.spinner(f"Ingesting {admin_file.name}..."):
+                        try:
+                            count = ingest_to_qdrant(
+                                text=admin_text,
+                                source=source_name,
+                                language=confirmed_lang,
+                            )
+                            st.success(f"✅ {count} chunks ingested from '{source_name}'")
+                        except Exception as e:
+                            st.error(f"Ingestion failed: {e}")
+
+    st.divider()
+
+    # ── Company documents ──────────────────────────────────────
     st.header("Company Documents")
-    st.caption("The regulatory knowledge base (GDPR, NIS2, EU AI Act) is pre-loaded. Upload your own documents to check them for compliance.")
+    st.caption("Upload your own documents to check them for compliance.")
 
     uploaded_files = st.file_uploader(
         "Upload company documents",
-        type=["txt", "pdf"],
+        type=["txt", "pdf", "docx"],
         accept_multiple_files=True,
         help="Upload T&Cs, privacy policies, internal procedures, etc.",
     )
@@ -112,7 +183,7 @@ with st.sidebar:
                 with st.spinner(f"Processing {f.name}..."):
                     text = extract_text(f)
                     if not text.strip():
-                        st.error(f"{f.name}: No text found — may be a scanned/image PDF.")
+                        st.error(f"{f.name}: No text found.")
                         continue
                     raw_chunks = chunk_text(text)
                     chunks = [Chunk(text=c, source=f.name) for c in raw_chunks]

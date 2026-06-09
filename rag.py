@@ -1,11 +1,12 @@
 import os
 import re
+import uuid
 import requests
 import numpy as np
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
+from qdrant_client.models import Filter, FieldCondition, MatchValue, PointStruct
 
 load_dotenv()
 
@@ -66,7 +67,38 @@ def build_index(chunks: list[Chunk]) -> np.ndarray:
     return np.array(all_embeddings)
 
 
-def retrieve_from_qdrant(query: str, top_k: int = 4, language: str = "en") -> list[Chunk]:
+def ingest_to_qdrant(text: str, source: str, language: str) -> int:
+    """Ingest a document permanently into Qdrant. Returns number of chunks ingested."""
+    client = get_qdrant_client()
+    chunks = chunk_text(text)
+    points = []
+
+    batch_size = 50
+    for i in range(0, len(chunks), batch_size):
+        batch = chunks[i:i + batch_size]
+        embeddings = get_embeddings(batch)
+        for chunk_text_val, embedding in zip(batch, embeddings):
+            points.append(PointStruct(
+                id=str(uuid.uuid4()),
+                vector=embedding,
+                payload={
+                    "text": chunk_text_val,
+                    "source": source,
+                    "language": language,
+                }
+            ))
+
+    batch_size_upload = 100
+    for i in range(0, len(points), batch_size_upload):
+        client.upsert(
+            collection_name=COLLECTION_NAME,
+            points=points[i:i + batch_size_upload],
+        )
+
+    return len(points)
+
+
+def retrieve_from_qdrant(query: str, top_k: int = 6, language: str = "en") -> list[Chunk]:
     """Retrieve from persistent regulatory knowledge base."""
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
@@ -90,7 +122,7 @@ def retrieve_from_memory(
     query: str,
     chunks: list[Chunk],
     embeddings: np.ndarray,
-    top_k: int = 4,
+    top_k: int = 6,
 ) -> list[Chunk]:
     """Retrieve from in-memory company document index."""
     query_embedding = np.array(get_embeddings([query])[0])
@@ -104,7 +136,7 @@ def retrieve(
     query: str,
     chunks: list[Chunk],
     embeddings: np.ndarray | None,
-    top_k: int = 4,
+    top_k: int = 6,
     language: str = "en",
 ) -> list[Chunk]:
     """
