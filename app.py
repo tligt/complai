@@ -4,7 +4,10 @@ import requests
 import streamlit as st
 from pypdf import PdfReader
 from dotenv import load_dotenv
-from rag import Chunk, build_index, chunk_text, retrieve, ingest_to_qdrant, get_knowledge_base_summary
+from rag import (
+    Chunk, build_index, chunk_text, retrieve,
+    ingest_to_qdrant, get_knowledge_base_summary, rebuild_knowledge_base
+)
 
 load_dotenv()
 
@@ -12,6 +15,20 @@ st.set_page_config(page_title="COMPLAI", page_icon="⚖️", layout="centered")
 
 st.title("COMPLAI")
 st.caption("AI-powered compliance assistant for GDPR, NIS2, and the EU AI Act.")
+
+COUNTRY_OPTIONS = {
+    "EU": "🇪🇺 EU only",
+    "be": "🇧🇪 Belgium",
+    "fr": "🇫🇷 France",
+    "nl": "🇳🇱 Netherlands",
+    "de": "🇩🇪 Germany",
+    "lu": "🇱🇺 Luxembourg",
+}
+
+REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT", "general"]
+
+LANG_LABELS = {"en": "🇬🇧 English", "fr": "🇫🇷 French", "nl": "🇧🇪 Dutch"}
+LANG_FLAGS = {"en": "🇬🇧", "fr": "🇫🇷", "nl": "🇧🇪"}
 
 
 def extract_text(uploaded_file) -> str:
@@ -35,9 +52,7 @@ def detect_language(text: str) -> str:
     try:
         from langdetect import detect
         lang = detect(text[:2000])
-        if lang in ["en", "fr", "nl"]:
-            return lang
-        return "en"
+        return lang if lang in ["en", "fr", "nl"] else "en"
     except Exception:
         return "en"
 
@@ -109,6 +124,8 @@ for key, default in [
     ("embeddings", None),
     ("messages", []),
     ("recent_queries", []),
+    ("selected_country", "EU"),
+    ("selected_language", "en"),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -116,22 +133,19 @@ for key, default in [
 with st.sidebar:
 
     # ── Admin section ──────────────────────────────────────────
-    with st.expander("⚙️ Admin — Add to Knowledge Base"):
-        st.caption("Permanently ingest a document into the regulatory knowledge base.")
+    with st.expander("⚙️ Admin — Knowledge Base"):
 
+        st.markdown("**Add a document**")
         admin_file = st.file_uploader(
             "Upload document",
             type=["pdf", "txt", "docx"],
             key="admin_upload",
-            help="PDF, TXT, or DOCX file to add permanently to Qdrant.",
         )
-
         source_name = st.text_input(
             "Source name",
             placeholder="e.g. CCB NIS2 Guide Belgium",
             key="admin_source_name",
         )
-
         doc_type = st.radio(
             "Document type",
             options=["core", "supplementary"],
@@ -140,21 +154,28 @@ with st.sidebar:
             key="admin_doc_type",
             horizontal=True,
         )
+        parent_reg = st.selectbox(
+            "Related regulation",
+            options=REGULATION_OPTIONS,
+            key="admin_parent_reg",
+        )
+        admin_country = st.selectbox(
+            "Country scope",
+            options=list(COUNTRY_OPTIONS.keys()),
+            format_func=lambda x: COUNTRY_OPTIONS[x],
+            key="admin_country",
+        )
 
         if admin_file and source_name:
-            with st.spinner("Detecting language..."):
-                admin_text = extract_text(admin_file)
-                detected_lang = detect_language(admin_text)
-
-            lang_labels = {"en": "English", "fr": "French", "nl": "Dutch"}
+            admin_text = extract_text(admin_file)
+            detected_lang = detect_language(admin_text)
             confirmed_lang = st.selectbox(
                 "Detected language (confirm or correct)",
                 options=["en", "fr", "nl"],
                 index=["en", "fr", "nl"].index(detected_lang),
-                format_func=lambda x: lang_labels[x],
+                format_func=lambda x: LANG_LABELS[x],
                 key="admin_lang",
             )
-
             if st.button("Ingest into Knowledge Base", type="primary"):
                 if not admin_text.strip():
                     st.error("No text found in document.")
@@ -165,12 +186,37 @@ with st.sidebar:
                                 text=admin_text,
                                 source=source_name,
                                 language=confirmed_lang,
+                                country=admin_country,
                                 doc_type=doc_type,
+                                parent_regulation=parent_reg,
                             )
                             st.success(f"✅ {count} chunks ingested from '{source_name}'")
-                            st.cache_data.clear()
                         except Exception as e:
                             st.error(f"Ingestion failed: {e}")
+
+        st.divider()
+        st.markdown("**Rebuild full knowledge base**")
+        st.caption("Clears Qdrant and re-ingests all core EU regulatory texts. Takes 5–10 minutes.")
+
+        if st.button("🔄 Rebuild Knowledge Base", type="secondary"):
+            progress_text = st.empty()
+            progress_bar = st.progress(0)
+
+            def update_progress(msg, idx, total):
+                progress_text.caption(msg)
+                progress_bar.progress((idx) / total)
+
+            try:
+                results = rebuild_knowledge_base(progress_callback=update_progress)
+                progress_bar.progress(1.0)
+                progress_text.caption("✅ Rebuild complete.")
+                for r in results:
+                    if r["status"] == "ok":
+                        st.caption(f"✅ {r['source']} — {r['chunks']} chunks")
+                    else:
+                        st.caption(f"❌ {r['source']} — {r['status']}")
+            except Exception as e:
+                st.error(f"Rebuild failed: {e}")
 
     st.divider()
 
@@ -179,19 +225,42 @@ with st.sidebar:
         try:
             kb_summary = get_knowledge_base_summary()
             if kb_summary:
-                lang_labels = {"en": "🇬🇧", "fr": "🇫🇷", "nl": "🇧🇪"}
                 current_type = None
                 for item in kb_summary:
                     if item["doc_type"] != current_type:
                         current_type = item["doc_type"]
                         label = "Core Regulations" if current_type == "core" else "Supplementary Guidance"
                         st.markdown(f"**{label}**")
-                    flag = lang_labels.get(item["language"], "🌐")
-                    st.caption(f"{flag} {item['source']} — {item['chunks']} chunks")
+                    flag = LANG_FLAGS.get(item["language"], "🌐")
+                    country = item["country"]
+                    st.caption(f"{flag} [{country}] {item['source']} — {item['chunks']} chunks")
             else:
                 st.caption("No documents found.")
         except Exception as e:
             st.caption(f"Could not load knowledge base: {e}")
+
+    st.divider()
+
+    # ── Query settings ─────────────────────────────────────────
+    st.markdown("**Query settings**")
+
+    selected_country = st.selectbox(
+        "Country context",
+        options=list(COUNTRY_OPTIONS.keys()),
+        format_func=lambda x: COUNTRY_OPTIONS[x],
+        key="country_selector",
+    )
+    st.session_state.selected_country = selected_country
+
+    selected_language = st.selectbox(
+        "Language",
+        options=["en", "fr", "nl"],
+        format_func=lambda x: LANG_LABELS[x],
+        key="language_selector",
+    )
+    st.session_state.selected_language = selected_language
+
+    top_k = st.slider("Chunks to retrieve per query", min_value=2, max_value=12, value=6)
 
     st.divider()
 
@@ -203,13 +272,11 @@ with st.sidebar:
         "Upload company documents",
         type=["txt", "pdf", "docx"],
         accept_multiple_files=True,
-        help="Upload T&Cs, privacy policies, internal procedures, etc.",
     )
 
     if uploaded_files:
         new_names = {f.name for f in uploaded_files}
         added = new_names - st.session_state.documents.keys()
-
         for f in uploaded_files:
             if f.name in added:
                 with st.spinner(f"Processing {f.name}..."):
@@ -227,24 +294,19 @@ with st.sidebar:
         st.divider()
         st.markdown(f"**{len(st.session_state.documents)} company document(s) loaded**")
         st.caption(f"{len(st.session_state.all_chunks)} total chunks")
-
         for name in list(st.session_state.documents.keys()):
             col1, col2 = st.columns([5, 1])
             col1.caption(f"📄 {name}")
-            if col2.button("✕", key=f"remove_{name}", help=f"Remove {name}"):
+            if col2.button("✕", key=f"remove_{name}"):
                 del st.session_state.documents[name]
                 rebuild_index()
                 st.session_state.messages = []
                 st.rerun()
-
         if st.button("Clear all", use_container_width=True):
             st.session_state.documents = {}
             st.session_state.messages = []
             rebuild_index()
             st.rerun()
-
-    st.divider()
-    top_k = st.slider("Chunks to retrieve per query", min_value=1, max_value=10, value=6)
 
     # ── Recent queries ─────────────────────────────────────────
     if st.session_state.recent_queries:
@@ -262,7 +324,6 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 if prompt := st.chat_input("Ask a compliance question..."):
-    # Track recent queries
     if prompt not in st.session_state.recent_queries:
         st.session_state.recent_queries.append(prompt)
 
@@ -277,7 +338,8 @@ if prompt := st.chat_input("Ask a compliance question..."):
                 st.session_state.all_chunks,
                 st.session_state.embeddings,
                 top_k=top_k,
-                language="en",
+                language=st.session_state.selected_language,
+                country=st.session_state.selected_country,
             )
             history = st.session_state.messages[:-1]
             answer = answer_question(prompt, context_chunks, history)

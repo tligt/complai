@@ -1,16 +1,39 @@
 import os
 import re
+import io
 import uuid
+import time
 import requests
 import numpy as np
+from pypdf import PdfReader
 from dataclasses import dataclass
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, PointStruct
+from qdrant_client.models import (
+    Filter, FieldCondition, MatchValue, PointStruct,
+    Distance, VectorParams, PayloadSchemaType
+)
 
 load_dotenv()
 
 COLLECTION_NAME = "regulations"
+VECTOR_SIZE = 1024
+
+# Core regulatory documents — EU level
+CORE_DOCUMENTS = [
+    # NIS2
+    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32022L2555", "source": "NIS2 Directive", "parent_regulation": "NIS2", "language": "en", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32022L2555", "source": "Directive NIS2", "parent_regulation": "NIS2", "language": "fr", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32022L2555", "source": "NIS2 Richtlijn", "parent_regulation": "NIS2", "language": "nl", "country": "EU", "doc_type": "core"},
+    # GDPR
+    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32016R0679", "source": "GDPR", "parent_regulation": "GDPR", "language": "en", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32016R0679", "source": "RGPD", "parent_regulation": "GDPR", "language": "fr", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32016R0679", "source": "AVG", "parent_regulation": "GDPR", "language": "nl", "country": "EU", "doc_type": "core"},
+    # EU AI Act
+    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689", "source": "EU AI Act", "parent_regulation": "EU_AI_ACT", "language": "en", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32024R1689", "source": "Acte IA européen", "parent_regulation": "EU_AI_ACT", "language": "fr", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32024R1689", "source": "EU AI Verordening", "parent_regulation": "EU_AI_ACT", "language": "nl", "country": "EU", "doc_type": "core"},
+]
 
 
 @dataclass
@@ -44,16 +67,23 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         raise ValueError("MISTRAL_API_KEY not found in environment")
-    response = requests.post(
-        "https://api.mistral.ai/v1/embeddings",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
-        json={"model": "mistral-embed", "input": texts},
-    )
-    response.raise_for_status()
-    return [item["embedding"] for item in response.json()["data"]]
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                "https://api.mistral.ai/v1/embeddings",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": "mistral-embed", "input": texts},
+            )
+            response.raise_for_status()
+            return [item["embedding"] for item in response.json()["data"]]
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(10)
+            else:
+                raise
 
 
 def build_index(chunks: list[Chunk]) -> np.ndarray:
@@ -67,13 +97,23 @@ def build_index(chunks: list[Chunk]) -> np.ndarray:
     return np.array(all_embeddings)
 
 
-def ingest_to_qdrant(text: str, source: str, language: str, doc_type: str = "supplementary") -> int:
+def ingest_to_qdrant(
+    text: str,
+    source: str,
+    language: str,
+    country: str = "EU",
+    doc_type: str = "supplementary",
+    parent_regulation: str = "general",
+    progress_callback=None,
+) -> int:
     """Ingest a document permanently into Qdrant. Returns number of chunks ingested."""
     client = get_qdrant_client()
     chunks = chunk_text(text)
     points = []
 
     batch_size = 50
+    total_batches = (len(chunks) - 1) // batch_size + 1
+
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i:i + batch_size]
         embeddings = get_embeddings(batch)
@@ -85,9 +125,13 @@ def ingest_to_qdrant(text: str, source: str, language: str, doc_type: str = "sup
                     "text": chunk_text_val,
                     "source": source,
                     "language": language,
+                    "country": country,
                     "doc_type": doc_type,
+                    "parent_regulation": parent_regulation,
                 }
             ))
+        if progress_callback:
+            progress_callback(i // batch_size + 1, total_batches)
 
     batch_size_upload = 100
     for i in range(0, len(points), batch_size_upload):
@@ -99,13 +143,66 @@ def ingest_to_qdrant(text: str, source: str, language: str, doc_type: str = "sup
     return len(points)
 
 
+def rebuild_knowledge_base(progress_callback=None) -> dict:
+    """
+    Clear and rebuild the full regulatory knowledge base from EUR-Lex.
+    Returns summary of ingested documents.
+    """
+    client = get_qdrant_client()
+
+    # Recreate collection
+    existing = [c.name for c in client.get_collections().collections]
+    if COLLECTION_NAME in existing:
+        client.delete_collection(COLLECTION_NAME)
+
+    client.create_collection(
+        collection_name=COLLECTION_NAME,
+        vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
+    )
+
+    # Create payload indexes
+    for field in ["language", "country", "doc_type", "parent_regulation"]:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name=field,
+            field_schema=PayloadSchemaType.KEYWORD,
+        )
+
+    results = []
+    total_docs = len(CORE_DOCUMENTS)
+
+    for idx, doc in enumerate(CORE_DOCUMENTS):
+        if progress_callback:
+            progress_callback(f"Fetching {doc['source']} ({doc['language'].upper()})...", idx, total_docs)
+
+        try:
+            response = requests.get(doc["url"], timeout=60)
+            response.raise_for_status()
+            reader = PdfReader(io.BytesIO(response.content))
+            text = "\n\n".join([p.extract_text() or "" for p in reader.pages])
+
+            count = ingest_to_qdrant(
+                text=text,
+                source=doc["source"],
+                language=doc["language"],
+                country=doc["country"],
+                doc_type=doc["doc_type"],
+                parent_regulation=doc["parent_regulation"],
+            )
+            results.append({"source": doc["source"], "chunks": count, "status": "ok"})
+
+        except Exception as e:
+            results.append({"source": doc["source"], "chunks": 0, "status": f"error: {e}"})
+
+    return results
+
+
 def get_knowledge_base_summary() -> list[dict]:
     """Query Qdrant for distinct sources and their metadata."""
     client = get_qdrant_client()
-    
     sources = {}
     offset = None
-    
+
     while True:
         results, offset = client.scroll(
             collection_name=COLLECTION_NAME,
@@ -114,40 +211,47 @@ def get_knowledge_base_summary() -> list[dict]:
             with_payload=True,
             with_vectors=False,
         )
-        
+
         for point in results:
-            payload = point.payload
-            source = payload.get("source", "Unknown")
-            language = payload.get("language", "?")
-            doc_type = payload.get("doc_type", "core")
-            key = f"{source}_{language}"
-            
+            p = point.payload
+            key = f"{p.get('source')}_{p.get('language')}_{p.get('country')}"
             if key not in sources:
                 sources[key] = {
-                    "source": source,
-                    "language": language,
-                    "doc_type": doc_type,
+                    "source": p.get("source", "Unknown"),
+                    "language": p.get("language", "?"),
+                    "country": p.get("country", "EU"),
+                    "doc_type": p.get("doc_type", "core"),
+                    "parent_regulation": p.get("parent_regulation", ""),
                     "chunks": 0,
                 }
             sources[key]["chunks"] += 1
-        
+
         if offset is None:
             break
-    
-    return sorted(sources.values(), key=lambda x: (x["doc_type"], x["source"]))
+
+    return sorted(sources.values(), key=lambda x: (x["doc_type"], x["country"], x["source"]))
 
 
 def retrieve_from_qdrant(
     query: str,
-    top_k: int = 6,
+    top_k: int = 3,
     language: str = "en",
+    country: str = "EU",
     doc_type: str | None = None,
 ) -> list[Chunk]:
     """Retrieve from persistent regulatory knowledge base."""
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
 
-    must_conditions = [FieldCondition(key="language", match=MatchValue(value=language))]
+    # Always include EU docs + selected country docs
+    country_values = ["EU"]
+    if country != "EU":
+        country_values.append(country)
+
+    must_conditions = [
+        FieldCondition(key="language", match=MatchValue(value=language)),
+        FieldCondition(key="country", match={"any": country_values}),
+    ]
     if doc_type:
         must_conditions.append(FieldCondition(key="doc_type", match=MatchValue(value=doc_type)))
 
@@ -184,15 +288,17 @@ def retrieve(
     embeddings: np.ndarray | None,
     top_k: int = 6,
     language: str = "en",
+    country: str = "EU",
 ) -> list[Chunk]:
     """
     Combined retrieval:
-    - Retrieves from core regulations (always)
-    - Retrieves from supplementary documents (always)
-    - Retrieves from in-memory company documents if loaded
+    - Core regulation chunks (EU + selected country)
+    - Supplementary guidance chunks (EU + selected country)
+    - In-memory company documents if loaded
     """
-    core_chunks = retrieve_from_qdrant(query, top_k=top_k // 2 or 3, language=language, doc_type="core")
-    supplementary_chunks = retrieve_from_qdrant(query, top_k=top_k // 2 or 3, language=language, doc_type="supplementary")
+    half = max(top_k // 2, 3)
+    core_chunks = retrieve_from_qdrant(query, top_k=half, language=language, country=country, doc_type="core")
+    supplementary_chunks = retrieve_from_qdrant(query, top_k=half, language=language, country=country, doc_type="supplementary")
 
     company_chunks = []
     if embeddings is not None and len(chunks) > 0:
