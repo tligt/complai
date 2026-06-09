@@ -6,7 +6,7 @@ from pypdf import PdfReader
 from dotenv import load_dotenv
 from rag import (
     Chunk, build_index, chunk_text, retrieve,
-    ingest_to_qdrant, get_knowledge_base_summary, rebuild_knowledge_base
+    ingest_to_qdrant, get_knowledge_base_summary
 )
 
 load_dotenv()
@@ -194,29 +194,7 @@ with st.sidebar:
                         except Exception as e:
                             st.error(f"Ingestion failed: {e}")
 
-        st.divider()
-        st.markdown("**Rebuild full knowledge base**")
-        st.caption("Clears Qdrant and re-ingests all core EU regulatory texts. Takes 5–10 minutes.")
 
-        if st.button("🔄 Rebuild Knowledge Base", type="secondary"):
-            progress_text = st.empty()
-            progress_bar = st.progress(0)
-
-            def update_progress(msg, idx, total):
-                progress_text.caption(msg)
-                progress_bar.progress((idx) / total)
-
-            try:
-                results = rebuild_knowledge_base(progress_callback=update_progress)
-                progress_bar.progress(1.0)
-                progress_text.caption("✅ Rebuild complete.")
-                for r in results:
-                    if r["status"] == "ok":
-                        st.caption(f"✅ {r['source']} — {r['chunks']} chunks")
-                    else:
-                        st.caption(f"❌ {r['source']} — {r['status']}")
-            except Exception as e:
-                st.error(f"Rebuild failed: {e}")
 
     st.divider()
 
