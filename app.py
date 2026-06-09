@@ -204,45 +204,45 @@ with st.sidebar:
                     st.divider()
                     st.markdown("**New values:**")
 
-                    new_name = st.text_input("Source name (leave blank to keep)", key="edit_name")
-
+                    # Force widget values to match selected document via session state
                     country_keys = list(COUNTRY_OPTIONS.keys())
                     current_country = selected_meta.get("country", "EU")
-                    country_index = country_keys.index(current_country) if current_country in country_keys else 0
+                    current_lang = selected_meta.get("language", "en")
+                    current_doc_type = selected_meta.get("doc_type", "supplementary")
+                    current_parent = selected_meta.get("parent_regulation", "general")
+
+                    st.session_state["edit_country"] = current_country if current_country in country_keys else "EU"
+                    st.session_state["edit_lang"] = current_lang if current_lang in ["en", "fr", "nl"] else "en"
+                    st.session_state["edit_doc_type"] = current_doc_type
+                    st.session_state["edit_parent_reg"] = current_parent if current_parent in REGULATION_OPTIONS else "general"
+
+                    new_name = st.text_input("Source name (leave blank to keep)", key="edit_name")
+
                     new_country = st.selectbox(
                         "Country",
                         options=country_keys,
-                        index=country_index,
                         format_func=lambda x: COUNTRY_OPTIONS[x],
                         key="edit_country"
                     )
 
-                    current_lang = selected_meta.get("language", "en")
-                    lang_index = ["en", "fr", "nl"].index(current_lang) if current_lang in ["en", "fr", "nl"] else 0
                     new_lang = st.selectbox(
                         "Language",
                         options=["en", "fr", "nl"],
-                        index=lang_index,
                         format_func=lambda x: LANG_LABELS[x],
                         key="edit_lang"
                     )
 
-                    current_doc_type = selected_meta.get("doc_type", "supplementary")
                     new_doc_type = st.radio(
                         "Document type",
                         options=["core", "supplementary"],
-                        index=0 if current_doc_type == "core" else 1,
                         format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary",
                         key="edit_doc_type",
                         horizontal=True,
                     )
 
-                    current_parent = selected_meta.get("parent_regulation", "general")
-                    parent_index = REGULATION_OPTIONS.index(current_parent) if current_parent in REGULATION_OPTIONS else 3
                     new_parent_reg = st.selectbox(
                         "Related regulation",
                         options=REGULATION_OPTIONS,
-                        index=parent_index,
                         key="edit_parent_reg"
                     )
 
