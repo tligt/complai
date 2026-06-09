@@ -7,9 +7,9 @@
 
 # Step 2: Set your API keys (replace values)
 import os
-os.environ["MISTRAL_API_KEY"] = "YOUR_MISTRAL_API_KEY"
-os.environ["QDRANT_URL"]      = "YOUR_QDRANT_URL"
-os.environ["QDRANT_API_KEY"]  = "YOUR_QDRANT_API_KEY"
+os.environ["MISTRAL_API_KEY"] = "MYDyzfOV42m77wESlznavmH90aFbrJKq"
+os.environ["QDRANT_URL"]      = "https://8e1a861e-e4f6-4b7b-802d-1b691ab4a9dc.eu-central-1-0.aws.cloud.qdrant.io"
+os.environ["QDRANT_API_KEY"]  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwic3ViamVjdCI6ImFwaS1rZXk6NWU5N2ZkZjAtYWEzMi00YTZmLWFmYWItODljMmViYjVjYjIxIn0.WSUvimgjed5vMOHJ3ueE6fg_Qu1ZJYar05YG8Jp8YB0"
 
 # ============================================================
 # Step 3: Run the full rebuild
