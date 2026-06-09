@@ -176,7 +176,9 @@ def rebuild_knowledge_base(progress_callback=None) -> dict:
             progress_callback(f"Fetching {doc['source']} ({doc['language'].upper()})...", idx, total_docs)
 
         try:
-            response = requests.get(doc["url"], timeout=60)
+            response = requests.get(doc["url"], timeout=60, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
             response.raise_for_status()
             reader = PdfReader(io.BytesIO(response.content))
             text = "\n\n".join([p.extract_text() or "" for p in reader.pages])
