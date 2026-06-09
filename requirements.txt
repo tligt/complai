@@ -6,3 +6,4 @@ python-dotenv
 qdrant-client
 langdetect
 python-docx
+beautifulsoup4

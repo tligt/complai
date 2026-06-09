@@ -6,7 +6,8 @@ from pypdf import PdfReader
 from dotenv import load_dotenv
 from rag import (
     Chunk, build_index, chunk_text, retrieve,
-    ingest_to_qdrant, get_knowledge_base_summary
+    ingest_to_qdrant, get_knowledge_base_summary,
+    update_source_metadata, delete_source, fetch_html_text
 )
 
 load_dotenv()
@@ -26,9 +27,8 @@ COUNTRY_OPTIONS = {
 }
 
 REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT", "general"]
-
-LANG_LABELS = {"en": "🇬🇧 English", "fr": "🇫🇷 French", "nl": "🇧🇪 Dutch"}
-LANG_FLAGS = {"en": "🇬🇧", "fr": "🇫🇷", "nl": "🇧🇪"}
+LANG_LABELS = {"en": "EN — English", "fr": "FR — French", "nl": "NL — Dutch"}
+LANG_FLAGS = {"en": "EN", "fr": "FR", "nl": "NL"}
 
 
 def extract_text(uploaded_file) -> str:
@@ -70,11 +70,7 @@ def rebuild_index():
         st.session_state.embeddings = None
 
 
-def answer_question(
-    question: str,
-    context_chunks: list[Chunk],
-    history: list[dict],
-) -> str:
+def answer_question(question: str, context_chunks: list[Chunk], history: list[dict]) -> str:
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         raise ValueError("MISTRAL_API_KEY not found in environment")
@@ -97,17 +93,11 @@ def answer_question(
     messages = []
     for msg in history:
         messages.append({"role": msg["role"], "content": msg["content"]})
-    messages.append({
-        "role": "user",
-        "content": f"Context:\n{context}\n\nQuestion: {question}"
-    })
+    messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
 
     response = requests.post(
         "https://api.mistral.ai/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        },
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": "mistral-large-latest",
             "messages": [{"role": "system", "content": system_prompt}] + messages,
@@ -135,57 +125,52 @@ with st.sidebar:
     # ── Admin section ──────────────────────────────────────────
     with st.expander("⚙️ Admin — Knowledge Base"):
 
-        st.markdown("**Add a document**")
-        admin_file = st.file_uploader(
-            "Upload document",
-            type=["pdf", "txt", "docx"],
-            key="admin_upload",
-        )
-        source_name = st.text_input(
-            "Source name",
-            placeholder="e.g. CCB NIS2 Guide Belgium",
-            key="admin_source_name",
-        )
-        doc_type = st.radio(
-            "Document type",
-            options=["core", "supplementary"],
-            index=1,
-            format_func=lambda x: "📜 Core regulation" if x == "core" else "📎 Supplementary guidance",
-            key="admin_doc_type",
-            horizontal=True,
-        )
-        parent_reg = st.selectbox(
-            "Related regulation",
-            options=REGULATION_OPTIONS,
-            key="admin_parent_reg",
-        )
-        admin_country = st.selectbox(
-            "Country scope",
-            options=list(COUNTRY_OPTIONS.keys()),
-            format_func=lambda x: COUNTRY_OPTIONS[x],
-            key="admin_country",
-        )
+        admin_tab1, admin_tab2, admin_tab3 = st.tabs(["➕ Add", "✏️ Edit", "🗑️ Delete"])
 
-        if admin_file and source_name:
-            admin_text = extract_text(admin_file)
-            detected_lang = detect_language(admin_text)
-            confirmed_lang = st.selectbox(
-                "Detected language (confirm or correct)",
-                options=["en", "fr", "nl"],
-                index=["en", "fr", "nl"].index(detected_lang),
-                format_func=lambda x: LANG_LABELS[x],
-                key="admin_lang",
+        # ── Add document ──
+        with admin_tab1:
+            st.caption("Upload a file or ingest from a URL.")
+
+            input_method = st.radio("Input method", ["📄 File upload", "🌐 URL (HTML page)"], horizontal=True, key="input_method")
+
+            if input_method == "📄 File upload":
+                admin_file = st.file_uploader("Upload document", type=["pdf", "txt", "docx"], key="admin_upload")
+                admin_url = None
+            else:
+                admin_url = st.text_input("Page URL", placeholder="https://...", key="admin_url")
+                admin_file = None
+
+            source_name = st.text_input("Source name", placeholder="e.g. CCB NIS2 Guide Belgium", key="admin_source_name")
+            doc_type = st.radio(
+                "Document type",
+                options=["core", "supplementary"],
+                index=1,
+                format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary",
+                key="admin_doc_type",
+                horizontal=True,
             )
-            if st.button("Ingest into Knowledge Base", type="primary"):
-                if not admin_text.strip():
-                    st.error("No text found in document.")
-                else:
-                    with st.spinner(f"Ingesting {admin_file.name}..."):
+            parent_reg = st.selectbox("Related regulation", options=REGULATION_OPTIONS, key="admin_parent_reg")
+            admin_country = st.selectbox("Country scope", options=list(COUNTRY_OPTIONS.keys()), format_func=lambda x: COUNTRY_OPTIONS[x], key="admin_country")
+            admin_lang = st.selectbox("Language", options=["en", "fr", "nl"], format_func=lambda x: LANG_LABELS[x], key="admin_lang")
+
+            if st.button("Ingest into Knowledge Base", type="primary", key="btn_ingest"):
+                admin_text = ""
+                if input_method == "📄 File upload" and admin_file and source_name:
+                    admin_text = extract_text(admin_file)
+                elif input_method == "🌐 URL (HTML page)" and admin_url and source_name:
+                    with st.spinner("Fetching page..."):
+                        try:
+                            admin_text = fetch_html_text(admin_url)
+                        except Exception as e:
+                            st.error(f"Could not fetch URL: {e}")
+
+                if admin_text.strip() and source_name:
+                    with st.spinner("Ingesting..."):
                         try:
                             count = ingest_to_qdrant(
                                 text=admin_text,
                                 source=source_name,
-                                language=confirmed_lang,
+                                language=admin_lang,
                                 country=admin_country,
                                 doc_type=doc_type,
                                 parent_regulation=parent_reg,
@@ -193,8 +178,86 @@ with st.sidebar:
                             st.success(f"✅ {count} chunks ingested from '{source_name}'")
                         except Exception as e:
                             st.error(f"Ingestion failed: {e}")
+                elif not source_name:
+                    st.warning("Please enter a source name.")
+                else:
+                    st.warning("No content found to ingest.")
 
+        # ── Edit document ──
+        with admin_tab2:
+            st.caption("Update metadata for an existing document.")
+            try:
+                kb = get_knowledge_base_summary()
+                source_names = [item["source"] for item in kb]
+                if source_names:
+                    selected_source = st.selectbox("Select document", options=source_names, key="edit_source")
+                    selected_meta = next((i for i in kb if i["source"] == selected_source), {})
 
+                    new_name = st.text_input("New source name (leave blank to keep)", key="edit_name")
+                    new_country = st.selectbox(
+                        "Country",
+                        options=list(COUNTRY_OPTIONS.keys()),
+                        index=list(COUNTRY_OPTIONS.keys()).index(selected_meta.get("country", "EU")),
+                        format_func=lambda x: COUNTRY_OPTIONS[x],
+                        key="edit_country"
+                    )
+                    new_lang = st.selectbox(
+                        "Language",
+                        options=["en", "fr", "nl"],
+                        index=["en", "fr", "nl"].index(selected_meta.get("language", "en")),
+                        format_func=lambda x: LANG_LABELS[x],
+                        key="edit_lang"
+                    )
+                    new_doc_type = st.radio(
+                        "Document type",
+                        options=["core", "supplementary"],
+                        index=0 if selected_meta.get("doc_type") == "core" else 1,
+                        format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary",
+                        key="edit_doc_type",
+                        horizontal=True,
+                    )
+                    new_parent_reg = st.selectbox(
+                        "Related regulation",
+                        options=REGULATION_OPTIONS,
+                        index=REGULATION_OPTIONS.index(selected_meta.get("parent_regulation", "general")) if selected_meta.get("parent_regulation") in REGULATION_OPTIONS else 3,
+                        key="edit_parent_reg"
+                    )
+
+                    if st.button("Save changes", type="primary", key="btn_edit"):
+                        with st.spinner("Updating..."):
+                            count = update_source_metadata(
+                                old_source=selected_source,
+                                new_source=new_name if new_name else None,
+                                new_country=new_country,
+                                new_language=new_lang,
+                                new_doc_type=new_doc_type,
+                                new_parent_regulation=new_parent_reg,
+                            )
+                            st.success(f"✅ Updated {count} chunks for '{selected_source}'")
+                else:
+                    st.caption("No documents in knowledge base.")
+            except Exception as e:
+                st.error(f"Could not load documents: {e}")
+
+        # ── Delete document ──
+        with admin_tab3:
+            st.caption("Permanently remove a document from the knowledge base.")
+            try:
+                kb = get_knowledge_base_summary()
+                source_names = [item["source"] for item in kb]
+                if source_names:
+                    del_source = st.selectbox("Select document to delete", options=source_names, key="del_source")
+                    del_meta = next((i for i in kb if i["source"] == del_source), {})
+                    st.caption(f"{del_meta.get('chunks', '?')} chunks will be removed.")
+
+                    if st.button("🗑️ Delete permanently", type="secondary", key="btn_delete"):
+                        with st.spinner("Deleting..."):
+                            count = delete_source(del_source)
+                            st.success(f"✅ Deleted {count} chunks for '{del_source}'")
+                else:
+                    st.caption("No documents in knowledge base.")
+            except Exception as e:
+                st.error(f"Could not load documents: {e}")
 
     st.divider()
 
@@ -209,9 +272,9 @@ with st.sidebar:
                         current_type = item["doc_type"]
                         label = "Core Regulations" if current_type == "core" else "Supplementary Guidance"
                         st.markdown(f"**{label}**")
-                    flag = LANG_FLAGS.get(item["language"], "🌐")
-                    country = item["country"]
-                    st.caption(f"{flag} [{country}] {item['source']} — {item['chunks']} chunks")
+                    lang = LANG_FLAGS.get(item["language"], item["language"].upper())
+                    country = item["country"].upper()
+                    st.caption(f"{lang} [{country}] {item['source']} — {item['chunks']} chunks")
             else:
                 st.caption("No documents found.")
         except Exception as e:
@@ -246,11 +309,7 @@ with st.sidebar:
     st.header("Company Documents")
     st.caption("Upload your own documents to check them for compliance.")
 
-    uploaded_files = st.file_uploader(
-        "Upload company documents",
-        type=["txt", "pdf", "docx"],
-        accept_multiple_files=True,
-    )
+    uploaded_files = st.file_uploader("Upload company documents", type=["txt", "pdf", "docx"], accept_multiple_files=True)
 
     if uploaded_files:
         new_names = {f.name for f in uploaded_files}

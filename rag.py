@@ -19,19 +19,15 @@ load_dotenv()
 COLLECTION_NAME = "regulations"
 VECTOR_SIZE = 1024
 
-# Core regulatory documents — EU level
 CORE_DOCUMENTS = [
-    # NIS2
-    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32022L2555", "source": "NIS2 Directive", "parent_regulation": "NIS2", "language": "en", "country": "EU", "doc_type": "core"},
-    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32022L2555", "source": "Directive NIS2", "parent_regulation": "NIS2", "language": "fr", "country": "EU", "doc_type": "core"},
-    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32022L2555", "source": "NIS2 Richtlijn", "parent_regulation": "NIS2", "language": "nl", "country": "EU", "doc_type": "core"},
-    # GDPR
-    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32016R0679", "source": "GDPR", "parent_regulation": "GDPR", "language": "en", "country": "EU", "doc_type": "core"},
-    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32016R0679", "source": "RGPD", "parent_regulation": "GDPR", "language": "fr", "country": "EU", "doc_type": "core"},
-    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32016R0679", "source": "AVG", "parent_regulation": "GDPR", "language": "nl", "country": "EU", "doc_type": "core"},
-    # EU AI Act
-    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689", "source": "EU AI Act", "parent_regulation": "EU_AI_ACT", "language": "en", "country": "EU", "doc_type": "core"},
-    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32024R1689", "source": "Acte IA européen", "parent_regulation": "EU_AI_ACT", "language": "fr", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32022L2555", "source": "NIS2 Directive",    "parent_regulation": "NIS2",      "language": "en", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32022L2555", "source": "Directive NIS2",    "parent_regulation": "NIS2",      "language": "fr", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32022L2555", "source": "NIS2 Richtlijn",    "parent_regulation": "NIS2",      "language": "nl", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32016R0679", "source": "GDPR",              "parent_regulation": "GDPR",      "language": "en", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32016R0679", "source": "RGPD",              "parent_regulation": "GDPR",      "language": "fr", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32016R0679", "source": "AVG",               "parent_regulation": "GDPR",      "language": "nl", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:32024R1689", "source": "EU AI Act",         "parent_regulation": "EU_AI_ACT", "language": "en", "country": "EU", "doc_type": "core"},
+    {"url": "https://eur-lex.europa.eu/legal-content/FR/TXT/PDF/?uri=CELEX:32024R1689", "source": "Acte IA européen",  "parent_regulation": "EU_AI_ACT", "language": "fr", "country": "EU", "doc_type": "core"},
     {"url": "https://eur-lex.europa.eu/legal-content/NL/TXT/PDF/?uri=CELEX:32024R1689", "source": "EU AI Verordening", "parent_regulation": "EU_AI_ACT", "language": "nl", "country": "EU", "doc_type": "core"},
 ]
 
@@ -86,6 +82,28 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
                 raise
 
 
+def fetch_html_text(url: str) -> str:
+    """Fetch a web page and extract plain text from HTML."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        raise ImportError("beautifulsoup4 not installed")
+
+    response = requests.get(url, timeout=30, headers={
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    })
+    response.raise_for_status()
+    soup = BeautifulSoup(response.content, "html.parser")
+
+    # Remove scripts, styles, nav elements
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+
+    text = soup.get_text(separator="\n")
+    text = re.sub(r"\n{3,}", "\n\n", text.strip())
+    return text
+
+
 def build_index(chunks: list[Chunk]) -> np.ndarray:
     """Build in-memory index for company documents (session only)."""
     texts = [c.text for c in chunks]
@@ -104,7 +122,6 @@ def ingest_to_qdrant(
     country: str = "EU",
     doc_type: str = "supplementary",
     parent_regulation: str = "general",
-    progress_callback=None,
 ) -> int:
     """Ingest a document permanently into Qdrant. Returns number of chunks ingested."""
     client = get_qdrant_client()
@@ -112,8 +129,6 @@ def ingest_to_qdrant(
     points = []
 
     batch_size = 50
-    total_batches = (len(chunks) - 1) // batch_size + 1
-
     for i in range(0, len(chunks), batch_size):
         batch = chunks[i:i + batch_size]
         embeddings = get_embeddings(batch)
@@ -130,73 +145,78 @@ def ingest_to_qdrant(
                     "parent_regulation": parent_regulation,
                 }
             ))
-        if progress_callback:
-            progress_callback(i // batch_size + 1, total_batches)
 
-    batch_size_upload = 100
-    for i in range(0, len(points), batch_size_upload):
-        client.upsert(
-            collection_name=COLLECTION_NAME,
-            points=points[i:i + batch_size_upload],
-        )
+    for i in range(0, len(points), 100):
+        client.upsert(collection_name=COLLECTION_NAME, points=points[i:i + 100])
 
     return len(points)
 
 
-def rebuild_knowledge_base(progress_callback=None) -> dict:
-    """
-    Clear and rebuild the full regulatory knowledge base from EUR-Lex.
-    Returns summary of ingested documents.
-    """
+def update_source_metadata(
+    old_source: str,
+    new_source: str | None = None,
+    new_country: str | None = None,
+    new_language: str | None = None,
+    new_doc_type: str | None = None,
+    new_parent_regulation: str | None = None,
+) -> int:
+    """Update metadata for all chunks matching a source name. Returns number of chunks updated."""
     client = get_qdrant_client()
 
-    # Recreate collection
-    existing = [c.name for c in client.get_collections().collections]
-    if COLLECTION_NAME in existing:
-        client.delete_collection(COLLECTION_NAME)
+    # Build updated payload
+    payload = {}
+    if new_source:
+        payload["source"] = new_source
+    if new_country:
+        payload["country"] = new_country
+    if new_language:
+        payload["language"] = new_language
+    if new_doc_type:
+        payload["doc_type"] = new_doc_type
+    if new_parent_regulation:
+        payload["parent_regulation"] = new_parent_regulation
 
-    client.create_collection(
+    if not payload:
+        return 0
+
+    # Count affected chunks first
+    results, _ = client.scroll(
         collection_name=COLLECTION_NAME,
-        vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
+        scroll_filter=Filter(must=[FieldCondition(key="source", match=MatchValue(value=old_source))]),
+        limit=10000,
+        with_vectors=False,
     )
+    count = len(results)
 
-    # Create payload indexes
-    for field in ["language", "country", "doc_type", "parent_regulation"]:
-        client.create_payload_index(
+    if count > 0:
+        client.set_payload(
             collection_name=COLLECTION_NAME,
-            field_name=field,
-            field_schema=PayloadSchemaType.KEYWORD,
+            payload=payload,
+            points=Filter(must=[FieldCondition(key="source", match=MatchValue(value=old_source))]),
         )
 
-    results = []
-    total_docs = len(CORE_DOCUMENTS)
+    return count
 
-    for idx, doc in enumerate(CORE_DOCUMENTS):
-        if progress_callback:
-            progress_callback(f"Fetching {doc['source']} ({doc['language'].upper()})...", idx, total_docs)
 
-        try:
-            response = requests.get(doc["url"], timeout=60, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            })
-            response.raise_for_status()
-            reader = PdfReader(io.BytesIO(response.content))
-            text = "\n\n".join([p.extract_text() or "" for p in reader.pages])
+def delete_source(source: str) -> int:
+    """Delete all chunks for a given source. Returns number of chunks deleted."""
+    client = get_qdrant_client()
 
-            count = ingest_to_qdrant(
-                text=text,
-                source=doc["source"],
-                language=doc["language"],
-                country=doc["country"],
-                doc_type=doc["doc_type"],
-                parent_regulation=doc["parent_regulation"],
-            )
-            results.append({"source": doc["source"], "chunks": count, "status": "ok"})
+    results, _ = client.scroll(
+        collection_name=COLLECTION_NAME,
+        scroll_filter=Filter(must=[FieldCondition(key="source", match=MatchValue(value=source))]),
+        limit=10000,
+        with_vectors=False,
+    )
+    count = len(results)
 
-        except Exception as e:
-            results.append({"source": doc["source"], "chunks": 0, "status": f"error: {e}"})
+    if count > 0:
+        client.delete(
+            collection_name=COLLECTION_NAME,
+            points_selector=Filter(must=[FieldCondition(key="source", match=MatchValue(value=source))]),
+        )
 
-    return results
+    return count
 
 
 def get_knowledge_base_summary() -> list[dict]:
@@ -213,7 +233,6 @@ def get_knowledge_base_summary() -> list[dict]:
             with_payload=True,
             with_vectors=False,
         )
-
         for point in results:
             p = point.payload
             key = f"{p.get('source')}_{p.get('language')}_{p.get('country')}"
@@ -241,11 +260,9 @@ def retrieve_from_qdrant(
     country: str = "EU",
     doc_type: str | None = None,
 ) -> list[Chunk]:
-    """Retrieve from persistent regulatory knowledge base."""
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
 
-    # Always include EU docs + selected country docs
     country_values = ["EU"]
     if country != "EU":
         country_values.append(country)
@@ -264,10 +281,7 @@ def retrieve_from_qdrant(
         query_filter=Filter(must=must_conditions),
     ).points
 
-    return [
-        Chunk(text=r.payload["text"], source=r.payload["source"])
-        for r in results
-    ]
+    return [Chunk(text=r.payload["text"], source=r.payload["source"]) for r in results]
 
 
 def retrieve_from_memory(
@@ -276,7 +290,6 @@ def retrieve_from_memory(
     embeddings: np.ndarray,
     top_k: int = 4,
 ) -> list[Chunk]:
-    """Retrieve from in-memory company document index."""
     query_embedding = np.array(get_embeddings([query])[0])
     norms = np.linalg.norm(embeddings, axis=1) * np.linalg.norm(query_embedding)
     scores = np.dot(embeddings, query_embedding) / (norms + 1e-10)
@@ -292,12 +305,6 @@ def retrieve(
     language: str = "en",
     country: str = "EU",
 ) -> list[Chunk]:
-    """
-    Combined retrieval:
-    - Core regulation chunks (EU + selected country)
-    - Supplementary guidance chunks (EU + selected country)
-    - In-memory company documents if loaded
-    """
     half = max(top_k // 2, 3)
     core_chunks = retrieve_from_qdrant(query, top_k=half, language=language, country=country, doc_type="core")
     supplementary_chunks = retrieve_from_qdrant(query, top_k=half, language=language, country=country, doc_type="supplementary")
