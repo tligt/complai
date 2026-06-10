@@ -59,9 +59,9 @@ def _has_page(result: CrawlResult, *keys) -> tuple[bool, str]:
 
 def run_checklist(result: CrawlResult) -> AuditResult:
     checks = []
-    homepage = result.homepage
+    homepage_text = result.homepage_text
     homepage_html = result.homepage_html
-    all_text = homepage + " ".join(result.found_pages.values())
+    all_text = homepage_text + " ".join(result.found_pages.values())
 
     # ── GDPR checks ──────────────────────────────────────────────────────────
 
@@ -323,7 +323,7 @@ def run_checklist(result: CrawlResult) -> AuditResult:
 
     # R3 — Company legal identity disclosed
     has_legal, legal_text = _has_page(result, "legal", "mentions", "imprint", "impressum", "wettelijke")
-    company_in_footer = _contains(homepage,
+    company_in_footer = _contains(homepage_text,
                                     "registered company", "company number", "registration number",
                                     "vat number", "tva:", "btw:", "kvk:", "rcs:", "be 0",
                                     "siret", "kbo", "ondernemingsnummer")
@@ -338,7 +338,7 @@ def run_checklist(result: CrawlResult) -> AuditResult:
 
     # R4 — Contact information present
     has_contact, _ = _has_page(result, "contact")
-    contact_in_page = _contains(homepage, "@", "contact", "support", "email", "phone", "tel")
+    contact_in_page = _contains(homepage_text, "@", "contact", "support", "email", "phone", "tel")
     has_contact_info = has_contact or contact_in_page
     checks.append(CheckResult(
         id="R4", regulation="Consumer Rights", category="Legal Identity",
