@@ -104,7 +104,7 @@ def render_results(audit_result, pdf_bytes, is_authenticated=False):
                     COMPLAI shows you exactly how to remediate each issue, generates your privacy policy,
                     cookie policy, and T&Cs, and monitors your compliance continuously.
                 </p>
-                <a href="/app" style="display:inline-block;background:#0F6E56;color:white;
+                <a href="/" style="display:inline-block;background:#0F6E56;color:white;
                     padding:12px 32px;border-radius:6px;text-decoration:none;
                     font-weight:bold;font-size:15px;">
                     Fix it now — start free trial →
@@ -203,7 +203,7 @@ else:
                     "Subscribe to COMPLAI to run fresh audits and access remediation guidance."
                 )
                 st.markdown(
-                    '<a href="/app" style="display:inline-block;background:#0F6E56;color:white;'
+                    '<a href="/" style="display:inline-block;background:#0F6E56;color:white;'
                     'padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">'
                     'Start free trial →</a>',
                     unsafe_allow_html=True
