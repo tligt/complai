@@ -4,6 +4,11 @@ import requests
 import streamlit as st
 from pypdf import PdfReader
 from dotenv import load_dotenv
+from auth import init_auth, is_logged_in, login_ui, logout, get_user_id
+from database import (
+    load_clients, create_client_record, update_client_record, delete_client_record,
+    load_chat_history, save_message, clear_chat_history, build_client_context
+)
 from rag import (
     Chunk, build_index, chunk_text, retrieve,
     ingest_to_qdrant, get_knowledge_base_summary,
@@ -14,29 +19,52 @@ load_dotenv()
 
 st.set_page_config(page_title="COMPLAI", page_icon="⚖️", layout="centered")
 
-st.title("COMPLAI")
-st.caption("AI-powered compliance assistant for GDPR, NIS2, and the EU AI Act.")
+# ── Constants ─────────────────────────────────────────────────────────────────
 
 COUNTRY_OPTIONS = {
+    "BE": "🇧🇪 Belgium",
+    "FR": "🇫🇷 France",
     "EU": "🇪🇺 EU only",
-    "be": "🇧🇪 Belgium",
-    "fr": "🇫🇷 France",
     "nl": "🇳🇱 Netherlands",
     "de": "🇩🇪 Germany",
     "lu": "🇱🇺 Luxembourg",
 }
 
-REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT", "general"]
+QUERY_COUNTRY_OPTIONS = {
+    "EU": "🇪🇺 EU only",
+    "BE": "🇧🇪 Belgium",
+    "FR": "🇫🇷 France",
+    "nl": "🇳🇱 Netherlands",
+    "de": "🇩🇪 Germany",
+    "lu": "🇱🇺 Luxembourg",
+}
+
+SECTOR_OPTIONS = [
+    "SaaS / Technology",
+    "Professional services",
+    "Healthcare / Medtech",
+    "Manufacturing",
+    "Finance / Fintech",
+    "Logistics / Transport",
+    "Retail / E-commerce",
+    "Education",
+    "Other",
+]
+
+SIZE_OPTIONS = ["1-10", "11-50", "51-150", "150+"]
+REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT"]
 LANG_LABELS = {"en": "EN — English", "fr": "FR — French", "nl": "NL — Dutch"}
 LANG_FLAGS = {"en": "EN", "fr": "FR", "nl": "NL"}
+ALL_REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT", "general"]
 
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def extract_text(uploaded_file) -> str:
     name = uploaded_file.name.lower()
     if name.endswith(".pdf"):
         reader = PdfReader(io.BytesIO(uploaded_file.read()))
-        pages = [page.extract_text() or "" for page in reader.pages]
-        return "\n\n".join(pages)
+        return "\n\n".join([page.extract_text() or "" for page in reader.pages])
     elif name.endswith(".docx"):
         try:
             import docx
@@ -62,15 +90,14 @@ def rebuild_index():
     for doc in st.session_state.documents.values():
         all_chunks.extend(doc["chunks"])
     if all_chunks:
-        embeddings = build_index(all_chunks)
         st.session_state.all_chunks = all_chunks
-        st.session_state.embeddings = embeddings
+        st.session_state.embeddings = build_index(all_chunks)
     else:
         st.session_state.all_chunks = []
         st.session_state.embeddings = None
 
 
-def answer_question(question: str, context_chunks: list[Chunk], history: list[dict]) -> str:
+def answer_question(question: str, context_chunks: list[Chunk], history: list[dict], client_context: str = "") -> str:
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         raise ValueError("MISTRAL_API_KEY not found in environment")
@@ -78,21 +105,24 @@ def answer_question(question: str, context_chunks: list[Chunk], history: list[di
     context_parts = [f"[Source: {c.source}]\n{c.text}" for c in context_chunks]
     context = "\n\n---\n\n".join(context_parts)
 
+    client_section = f"\n\n{client_context}\n" if client_context else ""
+
     system_prompt = (
         "You are a compliance expert assistant helping EU SMEs understand and comply with "
         "GDPR, NIS2, and the EU AI Act. Answer questions strictly based on the provided "
         "context passages. Each passage is labelled with its source document. "
         "You also have access to the conversation history — use it to understand follow-up "
         "questions and references to earlier answers. "
+        f"{client_section}"
+        "When a client profile is provided, tailor your answer to their specific situation: "
+        "their country, sector, size, and which regulations apply to them. "
         "Structure your answers clearly: identify the relevant regulation, explain the "
         "obligation or requirement, and where possible indicate the specific article or section. "
         "If the answer is not in the context, say so clearly. "
         "Do not use knowledge outside the provided context."
     )
 
-    messages = []
-    for msg in history:
-        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages = [{"role": msg["role"], "content": msg["content"]} for msg in history]
     messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
 
     response = requests.post(
@@ -108,29 +138,217 @@ def answer_question(question: str, context_chunks: list[Chunk], history: list[di
     return response.json()["choices"][0]["message"]["content"]
 
 
-for key, default in [
-    ("documents", {}),
-    ("all_chunks", []),
-    ("embeddings", None),
-    ("messages", []),
-    ("recent_queries", []),
-    ("selected_country", "EU"),
-    ("selected_language", "en"),
-]:
-    if key not in st.session_state:
-        st.session_state[key] = default
+def init_session():
+    defaults = {
+        "documents": {},
+        "all_chunks": [],
+        "embeddings": None,
+        "messages": [],
+        "recent_queries": [],
+        "selected_country": "EU",
+        "selected_language": "en",
+        "selected_client": None,
+        "clients": [],
+        "show_new_client_form": False,
+        "show_edit_client_form": False,
+    }
+    for key, val in defaults.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+
+def select_client(client: dict):
+    """Switch to a client — load their chat history."""
+    st.session_state.selected_client = client
+    st.session_state.show_new_client_form = False
+    st.session_state.show_edit_client_form = False
+    user_id = get_user_id()
+    history = load_chat_history(client["id"], user_id)
+    st.session_state.messages = history
+    # Reset company documents when switching clients
+    st.session_state.documents = {}
+    st.session_state.all_chunks = []
+    st.session_state.embeddings = None
+
+
+# ── Client form ───────────────────────────────────────────────────────────────
+
+def client_form(existing: dict | None = None) -> dict | None:
+    """Render a create/edit client form. Returns profile dict on submit, None otherwise."""
+    is_edit = existing is not None
+    label = "Edit client" if is_edit else "New client"
+
+    with st.form(key="client_form"):
+        st.markdown(f"**{label}**")
+        company_name = st.text_input(
+            "Company name *",
+            value=existing.get("company_name", "") if is_edit else ""
+        )
+        sector = st.selectbox(
+            "Sector",
+            options=SECTOR_OPTIONS,
+            index=SECTOR_OPTIONS.index(existing["sector"]) if is_edit and existing.get("sector") in SECTOR_OPTIONS else 0
+        )
+        country = st.selectbox(
+            "Country",
+            options=list(COUNTRY_OPTIONS.keys()),
+            format_func=lambda x: COUNTRY_OPTIONS[x],
+            index=list(COUNTRY_OPTIONS.keys()).index(existing["country"]) if is_edit and existing.get("country") in COUNTRY_OPTIONS else 0
+        )
+        company_size = st.selectbox(
+            "Company size",
+            options=SIZE_OPTIONS,
+            index=SIZE_OPTIONS.index(existing["company_size"]) if is_edit and existing.get("company_size") in SIZE_OPTIONS else 1
+        )
+        regulations = st.multiselect(
+            "Applicable regulations",
+            options=REGULATION_OPTIONS,
+            default=existing.get("regulations", ["GDPR"]) if is_edit else ["GDPR"]
+        )
+
+        col1, col2 = st.columns(2)
+        submitted = col1.form_submit_button("Save", type="primary", use_container_width=True)
+        cancelled = col2.form_submit_button("Cancel", use_container_width=True)
+
+        if cancelled:
+            st.session_state.show_new_client_form = False
+            st.session_state.show_edit_client_form = False
+            st.rerun()
+
+        if submitted:
+            if not company_name.strip():
+                st.error("Company name is required.")
+                return None
+            if not regulations:
+                st.error("Please select at least one regulation.")
+                return None
+            return {
+                "company_name": company_name.strip(),
+                "sector": sector,
+                "country": country,
+                "company_size": company_size,
+                "regulations": regulations,
+            }
+    return None
+
+
+# ── App entry point ───────────────────────────────────────────────────────────
+
+init_auth()
+init_session()
+
+if not is_logged_in():
+    login_ui()
+    st.stop()
+
+# Logged in — load clients if not yet loaded
+user_id = get_user_id()
+if not st.session_state.clients:
+    st.session_state.clients = load_clients(user_id)
+
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
 
-    # ── Admin section ──────────────────────────────────────────
+    # ── User info + logout ─────────────────────────────────────────
+    col1, col2 = st.columns([3, 1])
+    col1.caption(f"👤 {st.session_state.user.email}")
+    if col2.button("Log out", key="btn_logout"):
+        logout()
+
+    st.divider()
+
+    # ── Client selector ────────────────────────────────────────────
+    st.markdown("**Clients**")
+
+    clients = st.session_state.clients
+    selected = st.session_state.selected_client
+
+    if clients:
+        client_names = [c["company_name"] for c in clients]
+        selected_index = 0
+        if selected:
+            matching = [i for i, c in enumerate(clients) if c["id"] == selected["id"]]
+            if matching:
+                selected_index = matching[0]
+
+        chosen_name = st.selectbox(
+            "Select client",
+            options=client_names,
+            index=selected_index,
+            label_visibility="collapsed",
+        )
+        chosen_client = next((c for c in clients if c["company_name"] == chosen_name), None)
+
+        if chosen_client and (not selected or chosen_client["id"] != selected["id"]):
+            select_client(chosen_client)
+            st.rerun()
+
+        # Client profile summary
+        if selected:
+            regs = selected.get("regulations") or []
+            if isinstance(regs, list):
+                reg_str = " · ".join(regs)
+            else:
+                reg_str = str(regs)
+            st.caption(
+                f"{COUNTRY_OPTIONS.get(selected.get('country','BE'), selected.get('country',''))}  "
+                f"· {selected.get('sector','')}  "
+                f"· {selected.get('company_size','')} FTE\n"
+                f"{reg_str}"
+            )
+
+            col_edit, col_del = st.columns(2)
+            if col_edit.button("✏️ Edit", use_container_width=True, key="btn_edit_client"):
+                st.session_state.show_edit_client_form = True
+                st.session_state.show_new_client_form = False
+
+            if col_del.button("🗑️ Delete", use_container_width=True, key="btn_del_client"):
+                if delete_client_record(selected["id"], user_id):
+                    st.session_state.clients = load_clients(user_id)
+                    st.session_state.selected_client = None
+                    st.session_state.messages = []
+                    st.rerun()
+
+    else:
+        st.caption("No clients yet. Create your first client below.")
+
+    if st.button("➕ New client", use_container_width=True, key="btn_new_client"):
+        st.session_state.show_new_client_form = True
+        st.session_state.show_edit_client_form = False
+
+    # ── New client form ────────────────────────────────────────────
+    if st.session_state.show_new_client_form:
+        profile = client_form()
+        if profile:
+            new_client = create_client_record(user_id, profile)
+            if new_client:
+                st.session_state.clients = load_clients(user_id)
+                st.session_state.show_new_client_form = False
+                select_client(new_client)
+                st.rerun()
+
+    # ── Edit client form ───────────────────────────────────────────
+    if st.session_state.show_edit_client_form and selected:
+        profile = client_form(existing=selected)
+        if profile:
+            if update_client_record(selected["id"], user_id, profile):
+                st.session_state.clients = load_clients(user_id)
+                updated = next((c for c in st.session_state.clients if c["id"] == selected["id"]), None)
+                if updated:
+                    st.session_state.selected_client = updated
+                st.session_state.show_edit_client_form = False
+                st.rerun()
+
+    st.divider()
+
+    # ── Admin section ──────────────────────────────────────────────
     with st.expander("⚙️ Admin — Knowledge Base"):
 
         admin_tab1, admin_tab2, admin_tab3 = st.tabs(["➕ Add", "✏️ Edit", "🗑️ Delete"])
 
-        # ── Add document ──
         with admin_tab1:
             st.caption("Upload a file or ingest from a URL.")
-
             input_method = st.radio("Input method", ["📄 File upload", "🌐 URL (HTML page)"], horizontal=True, key="input_method")
 
             if input_method == "📄 File upload":
@@ -142,14 +360,11 @@ with st.sidebar:
 
             source_name = st.text_input("Source name", placeholder="e.g. CCB NIS2 Guide Belgium", key="admin_source_name")
             doc_type = st.radio(
-                "Document type",
-                options=["core", "supplementary"],
-                index=1,
+                "Document type", options=["core", "supplementary"], index=1,
                 format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary",
-                key="admin_doc_type",
-                horizontal=True,
+                key="admin_doc_type", horizontal=True,
             )
-            parent_reg = st.selectbox("Related regulation", options=REGULATION_OPTIONS, key="admin_parent_reg")
+            parent_reg = st.selectbox("Related regulation", options=ALL_REGULATION_OPTIONS, key="admin_parent_reg")
             admin_country = st.selectbox("Country scope", options=list(COUNTRY_OPTIONS.keys()), format_func=lambda x: COUNTRY_OPTIONS[x], key="admin_country")
             admin_lang = st.selectbox("Language", options=["en", "fr", "nl"], format_func=lambda x: LANG_LABELS[x], key="admin_lang")
 
@@ -168,12 +383,9 @@ with st.sidebar:
                     with st.spinner("Ingesting..."):
                         try:
                             count = ingest_to_qdrant(
-                                text=admin_text,
-                                source=source_name,
-                                language=admin_lang,
-                                country=admin_country,
-                                doc_type=doc_type,
-                                parent_regulation=parent_reg,
+                                text=admin_text, source=source_name,
+                                language=admin_lang, country=admin_country,
+                                doc_type=doc_type, parent_regulation=parent_reg,
                             )
                             st.success(f"✅ {count} chunks ingested from '{source_name}'")
                         except Exception as e:
@@ -183,7 +395,6 @@ with st.sidebar:
                 else:
                     st.warning("No content found to ingest.")
 
-        # ── Edit document ──
         with admin_tab2:
             st.caption("Update metadata for an existing document.")
             try:
@@ -191,70 +402,22 @@ with st.sidebar:
                 source_names = [item["source"] for item in kb]
                 if source_names:
                     selected_source = st.selectbox("Select document", options=source_names, key="edit_source")
-                    selected_meta = next((i for i in kb if i["source"] == selected_source), {})
+                    meta = next((i for i in kb if i["source"] == selected_source), {})
+                    st.caption(f"{meta.get('chunks','?')} chunks · {meta.get('language','?').upper()} · {meta.get('country','?').upper()} · {meta.get('doc_type','?')}")
 
-                    # Show current metadata clearly
-                    st.markdown("**Current metadata:**")
-                    col1, col2 = st.columns(2)
-                    col1.caption(f"Language: **{selected_meta.get('language', '?').upper()}**")
-                    col1.caption(f"Country: **{selected_meta.get('country', '?').upper()}**")
-                    col2.caption(f"Type: **{selected_meta.get('doc_type', '?')}**")
-                    col2.caption(f"Regulation: **{selected_meta.get('parent_regulation', '?')}**")
-
-                    st.divider()
-                    st.markdown("**New values:**")
-
-                    # Force widget values to match selected document via session state
-                    country_keys = list(COUNTRY_OPTIONS.keys())
-                    current_country = selected_meta.get("country", "EU")
-                    current_lang = selected_meta.get("language", "en")
-                    current_doc_type = selected_meta.get("doc_type", "supplementary")
-                    current_parent = selected_meta.get("parent_regulation", "general")
-
-                    st.session_state["edit_country"] = current_country if current_country in country_keys else "EU"
-                    st.session_state["edit_lang"] = current_lang if current_lang in ["en", "fr", "nl"] else "en"
-                    st.session_state["edit_doc_type"] = current_doc_type
-                    st.session_state["edit_parent_reg"] = current_parent if current_parent in REGULATION_OPTIONS else "general"
-
-                    new_name = st.text_input("Source name (leave blank to keep)", key="edit_name")
-
-                    new_country = st.selectbox(
-                        "Country",
-                        options=country_keys,
-                        format_func=lambda x: COUNTRY_OPTIONS[x],
-                        key="edit_country"
-                    )
-
-                    new_lang = st.selectbox(
-                        "Language",
-                        options=["en", "fr", "nl"],
-                        format_func=lambda x: LANG_LABELS[x],
-                        key="edit_lang"
-                    )
-
-                    new_doc_type = st.radio(
-                        "Document type",
-                        options=["core", "supplementary"],
-                        format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary",
-                        key="edit_doc_type",
-                        horizontal=True,
-                    )
-
-                    new_parent_reg = st.selectbox(
-                        "Related regulation",
-                        options=REGULATION_OPTIONS,
-                        key="edit_parent_reg"
-                    )
+                    new_name = st.text_input("New source name (optional)", key="edit_name")
+                    new_country = st.selectbox("Country scope", options=list(COUNTRY_OPTIONS.keys()), format_func=lambda x: COUNTRY_OPTIONS[x], key="edit_country")
+                    new_lang = st.selectbox("Language", options=["en", "fr", "nl"], format_func=lambda x: LANG_LABELS[x], key="edit_lang")
+                    new_doc_type = st.radio("Document type", options=["core", "supplementary"], format_func=lambda x: "📜 Core" if x == "core" else "📎 Supplementary", key="edit_doc_type", horizontal=True)
+                    new_parent_reg = st.selectbox("Related regulation", options=ALL_REGULATION_OPTIONS, key="edit_parent_reg")
 
                     if st.button("Save changes", type="primary", key="btn_edit"):
                         with st.spinner("Updating..."):
                             count = update_source_metadata(
                                 old_source=selected_source,
                                 new_source=new_name if new_name else None,
-                                new_country=new_country,
-                                new_language=new_lang,
-                                new_doc_type=new_doc_type,
-                                new_parent_regulation=new_parent_reg,
+                                new_country=new_country, new_language=new_lang,
+                                new_doc_type=new_doc_type, new_parent_regulation=new_parent_reg,
                             )
                             st.success(f"✅ Updated {count} chunks for '{selected_source}'")
                 else:
@@ -262,7 +425,6 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"Could not load documents: {e}")
 
-        # ── Delete document ──
         with admin_tab3:
             st.caption("Permanently remove a document from the knowledge base.")
             try:
@@ -271,8 +433,7 @@ with st.sidebar:
                 if source_names:
                     del_source = st.selectbox("Select document to delete", options=source_names, key="del_source")
                     del_meta = next((i for i in kb if i["source"] == del_source), {})
-                    st.caption(f"{del_meta.get('chunks', '?')} chunks will be removed.")
-
+                    st.caption(f"{del_meta.get('chunks','?')} chunks will be removed.")
                     if st.button("🗑️ Delete permanently", type="secondary", key="btn_delete"):
                         with st.spinner("Deleting..."):
                             count = delete_source(del_source)
@@ -284,7 +445,7 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Knowledge Base summary ─────────────────────────────────
+    # ── Knowledge base summary ─────────────────────────────────────
     with st.expander("📚 Regulatory Knowledge Base"):
         try:
             kb_summary = get_knowledge_base_summary()
@@ -296,8 +457,7 @@ with st.sidebar:
                         label = "Core Regulations" if current_type == "core" else "Supplementary Guidance"
                         st.markdown(f"**{label}**")
                     lang = LANG_FLAGS.get(item["language"], item["language"].upper())
-                    country = item["country"].upper()
-                    st.caption(f"{lang} [{country}] {item['source']} — {item['chunks']} chunks")
+                    st.caption(f"{lang} [{item['country'].upper()}] {item['source']} — {item['chunks']} chunks")
             else:
                 st.caption("No documents found.")
         except Exception as e:
@@ -305,35 +465,31 @@ with st.sidebar:
 
     st.divider()
 
-    # ── Query settings ─────────────────────────────────────────
+    # ── Query settings ─────────────────────────────────────────────
     st.markdown("**Query settings**")
-
     selected_country = st.selectbox(
-        "Country context",
-        options=list(COUNTRY_OPTIONS.keys()),
-        format_func=lambda x: COUNTRY_OPTIONS[x],
-        key="country_selector",
+        "Country context", options=list(QUERY_COUNTRY_OPTIONS.keys()),
+        format_func=lambda x: QUERY_COUNTRY_OPTIONS[x], key="country_selector",
     )
     st.session_state.selected_country = selected_country
 
     selected_language = st.selectbox(
-        "Language",
-        options=["en", "fr", "nl"],
-        format_func=lambda x: LANG_LABELS[x],
-        key="language_selector",
+        "Language", options=["en", "fr", "nl"],
+        format_func=lambda x: LANG_LABELS[x], key="language_selector",
     )
     st.session_state.selected_language = selected_language
 
-    top_k = st.slider("Chunks to retrieve per query", min_value=2, max_value=12, value=6)
+    top_k = st.slider("Chunks to retrieve per query", min_value=2, max_value=20, value=6)
 
     st.divider()
 
-    # ── Company documents ──────────────────────────────────────
+    # ── Company documents ──────────────────────────────────────────
     st.header("Company Documents")
-    st.caption("Upload your own documents to check them for compliance.")
+    st.caption("Upload documents to check them for compliance.")
 
-    uploaded_files = st.file_uploader("Upload company documents", type=["txt", "pdf", "docx"], accept_multiple_files=True)
-
+    uploaded_files = st.file_uploader(
+        "Upload company documents", type=["txt", "pdf", "docx"], accept_multiple_files=True
+    )
     if uploaded_files:
         new_names = {f.name for f in uploaded_files}
         added = new_names - st.session_state.documents.keys()
@@ -352,7 +508,7 @@ with st.sidebar:
 
     if st.session_state.documents:
         st.divider()
-        st.markdown(f"**{len(st.session_state.documents)} company document(s) loaded**")
+        st.markdown(f"**{len(st.session_state.documents)} document(s) loaded**")
         st.caption(f"{len(st.session_state.all_chunks)} total chunks")
         for name in list(st.session_state.documents.keys()):
             col1, col2 = st.columns([5, 1])
@@ -360,7 +516,6 @@ with st.sidebar:
             if col2.button("✕", key=f"remove_{name}"):
                 del st.session_state.documents[name]
                 rebuild_index()
-                st.session_state.messages = []
                 st.rerun()
         if st.button("Clear all", use_container_width=True):
             st.session_state.documents = {}
@@ -368,7 +523,7 @@ with st.sidebar:
             rebuild_index()
             st.rerun()
 
-    # ── Recent queries ─────────────────────────────────────────
+    # ── Recent queries ─────────────────────────────────────────────
     if st.session_state.recent_queries:
         st.divider()
         st.markdown("**Recent queries**")
@@ -378,19 +533,53 @@ with st.sidebar:
                 st.rerun()
 
 
-# ── Main chat area ─────────────────────────────────────────────
+# ── Main area ─────────────────────────────────────────────────────────────────
+
+st.title("COMPLAI ⚖️")
+st.caption("AI-powered compliance assistant for GDPR, NIS2, and the EU AI Act.")
+
+selected_client = st.session_state.selected_client
+
+if not selected_client:
+    st.info("👈 Select a client from the sidebar or create a new one to start.")
+    st.stop()
+
+# Client header
+regs = selected_client.get("regulations") or []
+reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
+st.markdown(f"### {selected_client['company_name']}")
+st.caption(
+    f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')}  ·  "
+    f"{selected_client.get('sector','')}  ·  "
+    f"{selected_client.get('company_size','')} FTE  ·  {reg_str}"
+)
+
+# Clear history button
+if st.session_state.messages:
+    if st.button("🗑️ Clear chat history", key="btn_clear_history"):
+        clear_chat_history(selected_client["id"], user_id)
+        st.session_state.messages = []
+        st.rerun()
+
+st.divider()
+
+# Render chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
+# Chat input
 if prompt := st.chat_input("Ask a compliance question..."):
     if prompt not in st.session_state.recent_queries:
         st.session_state.recent_queries.append(prompt)
 
+    # Save and display user message
+    save_message(selected_client["id"], user_id, "user", prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Generate and display answer
     with st.chat_message("assistant"):
         with st.spinner("Retrieving context and generating answer..."):
             context_chunks = retrieve(
@@ -401,8 +590,9 @@ if prompt := st.chat_input("Ask a compliance question..."):
                 language=st.session_state.selected_language,
                 country=st.session_state.selected_country,
             )
+            client_context = build_client_context(selected_client)
             history = st.session_state.messages[:-1]
-            answer = answer_question(prompt, context_chunks, history)
+            answer = answer_question(prompt, context_chunks, history, client_context)
 
         st.markdown(answer)
 
@@ -411,4 +601,6 @@ if prompt := st.chat_input("Ask a compliance question..."):
                 st.markdown(f"**{i}. {chunk.source}**")
                 st.text(chunk.text[:400] + ("..." if len(chunk.text) > 400 else ""))
 
+    # Save and store assistant message
+    save_message(selected_client["id"], user_id, "assistant", answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})

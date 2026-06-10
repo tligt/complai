@@ -1,0 +1,159 @@
+import os
+import streamlit as st
+from supabase import create_client, Client
+
+
+def get_supabase() -> Client:
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    return create_client(url, key)
+
+
+# ── Clients ───────────────────────────────────────────────────────────────────
+
+def load_clients(user_id: str) -> list[dict]:
+    """Load all clients for the logged-in user."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("clients") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .order("company_name") \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        st.error(f"Could not load clients: {e}")
+        return []
+
+
+def create_client_record(user_id: str, profile: dict) -> dict | None:
+    """Create a new client profile. Returns the created record."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("clients").insert({
+            "user_id": user_id,
+            "company_name": profile["company_name"],
+            "sector": profile.get("sector", ""),
+            "country": profile.get("country", "BE"),
+            "company_size": profile.get("company_size", ""),
+            "regulations": profile.get("regulations", ["GDPR"]),
+        }).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        st.error(f"Could not create client: {e}")
+        return None
+
+
+def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
+    """Update an existing client profile."""
+    try:
+        supabase = get_supabase()
+        supabase.table("clients").update({
+            "company_name": profile["company_name"],
+            "sector": profile.get("sector", ""),
+            "country": profile.get("country", "BE"),
+            "company_size": profile.get("company_size", ""),
+            "regulations": profile.get("regulations", ["GDPR"]),
+        }).eq("id", client_id).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not update client: {e}")
+        return False
+
+
+def delete_client_record(client_id: str, user_id: str) -> bool:
+    """Delete a client and all their chat history."""
+    try:
+        supabase = get_supabase()
+        supabase.table("clients") \
+            .delete() \
+            .eq("id", client_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not delete client: {e}")
+        return False
+
+
+# ── Chat history ──────────────────────────────────────────────────────────────
+
+def load_chat_history(client_id: str, user_id: str) -> list[dict]:
+    """Load chat history for a client, ordered chronologically."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("chat_history") \
+            .select("role, content") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .order("created_at") \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        st.error(f"Could not load chat history: {e}")
+        return []
+
+
+def save_message(client_id: str, user_id: str, role: str, content: str) -> bool:
+    """Save a single message to chat history."""
+    try:
+        supabase = get_supabase()
+        supabase.table("chat_history").insert({
+            "client_id": client_id,
+            "user_id": user_id,
+            "role": role,
+            "content": content,
+        }).execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not save message: {e}")
+        return False
+
+
+def clear_chat_history(client_id: str, user_id: str) -> bool:
+    """Delete all chat history for a client."""
+    try:
+        supabase = get_supabase()
+        supabase.table("chat_history") \
+            .delete() \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not clear chat history: {e}")
+        return False
+
+
+# ── Client profile → system prompt ───────────────────────────────────────────
+
+def build_client_context(client: dict) -> str:
+    """Convert a client profile into a context string for the system prompt."""
+    if not client:
+        return ""
+
+    regulations = client.get("regulations") or ["GDPR"]
+    if isinstance(regulations, list):
+        reg_str = ", ".join(regulations)
+    else:
+        reg_str = str(regulations)
+
+    size_map = {
+        "1-10": "1 to 10 employees",
+        "11-50": "11 to 50 employees",
+        "51-150": "51 to 150 employees",
+        "150+": "more than 150 employees",
+    }
+    size_str = size_map.get(client.get("company_size", ""), client.get("company_size", "unknown size"))
+
+    country_map = {"BE": "Belgium", "FR": "France", "EU": "EU (no specific country)"}
+    country_str = country_map.get(client.get("country", "BE"), client.get("country", "Belgium"))
+
+    return (
+        f"CLIENT PROFILE:\n"
+        f"- Company: {client.get('company_name', 'Unknown')}\n"
+        f"- Sector: {client.get('sector', 'Not specified')}\n"
+        f"- Country: {country_str}\n"
+        f"- Size: {size_str}\n"
+        f"- Applicable regulations: {reg_str}\n"
+    )
