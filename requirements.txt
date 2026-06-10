@@ -7,3 +7,4 @@ qdrant-client
 langdetect
 python-docx
 beautifulsoup4
+supabase
