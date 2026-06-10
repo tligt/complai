@@ -8,3 +8,5 @@ langdetect
 python-docx
 beautifulsoup4
 supabase
+reportlab
+resend
