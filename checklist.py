@@ -323,8 +323,10 @@ def run_checklist(result: CrawlResult) -> AuditResult:
 
     # R3 — Company legal identity disclosed
     has_legal, legal_text = _has_page(result, "legal", "mentions", "imprint", "impressum", "wettelijke")
-    company_in_footer = _contains(homepage_text, "bv", "srl", "sa", "nv", "sarl", "gmbh", "ltd",
-                                    "registered", "vat", "tva", "btw", "kvk", "rcs")
+    company_in_footer = _contains(homepage_text,
+                                    "registered company", "company number", "registration number",
+                                    "vat number", "tva:", "btw:", "kvk:", "rcs:", "be 0",
+                                    "siret", "kbo", "ondernemingsnummer")
     has_identity = has_legal or company_in_footer
     checks.append(CheckResult(
         id="R3", regulation="Consumer Rights", category="Legal Identity",
