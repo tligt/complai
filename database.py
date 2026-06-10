@@ -6,7 +6,12 @@ from supabase import create_client, Client
 def get_supabase() -> Client:
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
-    return create_client(url, key)
+    client = create_client(url, key)
+    # Pass the user's session token so RLS policies are applied correctly
+    token = st.session_state.get("access_token")
+    if token:
+        client.postgrest.auth(token)
+    return client
 
 
 # ── Clients ───────────────────────────────────────────────────────────────────
