@@ -285,26 +285,108 @@ def smart_chunk(text: str, doc_meta: dict) -> list:
             "chunk_method":     method,
         })
 
+    # Post-processing: split any chunks still exceeding the limit
+    enriched = enforce_chunk_size(enriched, MAX_CHARS_PER_CHUNK)
+
     return enriched
 
 
 # ── Cell 5: Embeddings ────────────────────────────────────────
 
-MAX_CHARS_PER_CHUNK = 4000  # Mistral embed limit ~8192 tokens ≈ 4000 chars safe
+MAX_CHARS_PER_CHUNK = 3800  # Safe limit for Mistral embed (~8192 tokens, 4 chars/token)
 
-def truncate_texts(texts: list) -> list:
-    """Truncate any chunk exceeding the safe character limit."""
-    truncated = []
-    for t in texts:
-        if len(t) > MAX_CHARS_PER_CHUNK:
-            print(f"  ⚠️  Truncating chunk from {len(t)} to {MAX_CHARS_PER_CHUNK} chars")
-            truncated.append(t[:MAX_CHARS_PER_CHUNK])
+def split_at_sentences(text: str, max_chars: int) -> list:
+    """
+    Split a text that exceeds max_chars at sentence boundaries.
+    Never truncates — all content is preserved across the resulting parts.
+    """
+    if len(text) <= max_chars:
+        return [text]
+
+    # Split into sentences using period + space + uppercase as boundary
+    # Also handle common abbreviations by requiring sentence length > 20 chars
+    import re
+    sentence_endings = re.compile(r'(?<=[.!?])\s+(?=[A-Z"(])')
+    sentences = sentence_endings.split(text)
+
+    parts = []
+    current = []
+    current_len = 0
+
+    for sentence in sentences:
+        sentence_len = len(sentence)
+
+        # Single sentence exceeds limit — split at word boundaries
+        if sentence_len > max_chars:
+            if current:
+                parts.append(' '.join(current))
+                current = []
+                current_len = 0
+            # Split long sentence at word boundaries
+            words = sentence.split()
+            word_chunk = []
+            word_len = 0
+            for word in words:
+                if word_len + len(word) + 1 > max_chars and word_chunk:
+                    parts.append(' '.join(word_chunk))
+                    word_chunk = [word]
+                    word_len = len(word)
+                else:
+                    word_chunk.append(word)
+                    word_len += len(word) + 1
+            if word_chunk:
+                current = word_chunk
+                current_len = word_len
+            continue
+
+        if current_len + sentence_len + 1 > max_chars and current:
+            parts.append(' '.join(current))
+            current = [sentence]
+            current_len = sentence_len
         else:
-            truncated.append(t)
-    return truncated
+            current.append(sentence)
+            current_len += sentence_len + 1
+
+    if current:
+        parts.append(' '.join(current))
+
+    return [p.strip() for p in parts if p.strip()]
+
+
+def enforce_chunk_size(chunks: list, max_chars: int) -> list:
+    """
+    Post-processing pass: split any chunk exceeding max_chars at sentence boundaries.
+    Preserves all metadata — sub-chunks inherit the parent chunk's metadata.
+    No content is ever lost.
+    """
+    result = []
+    split_count = 0
+
+    for chunk in chunks:
+        text = chunk["text"]
+        if len(text) <= max_chars:
+            result.append(chunk)
+            continue
+
+        # Split at sentence boundaries
+        parts = split_at_sentences(text, max_chars)
+        split_count += len(parts) - 1
+
+        for i, part in enumerate(parts):
+            new_chunk = chunk.copy()
+            new_chunk["text"] = part
+            # Update part number to reflect split
+            base_part = chunk.get("article_part", 1)
+            new_chunk["article_part"] = f"{base_part}.{i+1}" if len(parts) > 1 else base_part
+            result.append(new_chunk)
+
+    if split_count > 0:
+        print(f"  📐 Split {split_count} oversized chunks at sentence boundaries")
+
+    return result
+
 
 def get_embeddings(texts: list) -> list:
-    texts = truncate_texts(texts)
     all_embeddings = []
     batch_size = 50
 
