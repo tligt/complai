@@ -59,9 +59,9 @@ PDF_DOCUMENTS = [
     {"filename": "nis2_fr.pdf",           "source": "Directive NIS2",                            "parent_regulation": "NIS2",           "language": "fr", "country": "EU", "doc_type": "core"},
     {"filename": "nis2_nl.pdf",           "source": "NIS2 Richtlijn",                            "parent_regulation": "NIS2",           "language": "nl", "country": "EU", "doc_type": "core"},
     # ── EU AI Act ──────────────────────────────────────────────
-    {"filename": "eu_ai_act_en.pdf",      "source": "EU AI Act",                                 "parent_regulation": "EU_AI_ACT",      "language": "en", "country": "EU", "doc_type": "core"},
-    {"filename": "eu_ai_act_fr.pdf",      "source": "Acte IA européen",                          "parent_regulation": "EU_AI_ACT",      "language": "fr", "country": "EU", "doc_type": "core"},
-    {"filename": "eu_ai_act_nl.pdf",      "source": "EU AI Verordening",                         "parent_regulation": "EU_AI_ACT",      "language": "nl", "country": "EU", "doc_type": "core"},
+    {"filename": "aiact_en.pdf",      "source": "EU AI Act",                                 "parent_regulation": "EU_AI_ACT",      "language": "en", "country": "EU", "doc_type": "core"},
+    {"filename": "aiact_fr.pdf",      "source": "Acte IA européen",                          "parent_regulation": "EU_AI_ACT",      "language": "fr", "country": "EU", "doc_type": "core"},
+    {"filename": "aiact_nl.pdf",      "source": "EU AI Verordening",                         "parent_regulation": "EU_AI_ACT",      "language": "nl", "country": "EU", "doc_type": "core"},
     # ── ePrivacy ──────────────────────────────────────────────
     {"filename": "CELEX_32002L0058_EN_TXT.pdf", "source": "ePrivacy Directive",                  "parent_regulation": "EPRIVACY",       "language": "en", "country": "EU", "doc_type": "core"},
     {"filename": "CELEX_32002L0058_FR_TXT.pdf", "source": "Directive ePrivacy",                  "parent_regulation": "EPRIVACY",       "language": "fr", "country": "EU", "doc_type": "core"},
@@ -290,7 +290,21 @@ def smart_chunk(text: str, doc_meta: dict) -> list:
 
 # ── Cell 5: Embeddings ────────────────────────────────────────
 
+MAX_CHARS_PER_CHUNK = 4000  # Mistral embed limit ~8192 tokens ≈ 4000 chars safe
+
+def truncate_texts(texts: list) -> list:
+    """Truncate any chunk exceeding the safe character limit."""
+    truncated = []
+    for t in texts:
+        if len(t) > MAX_CHARS_PER_CHUNK:
+            print(f"  ⚠️  Truncating chunk from {len(t)} to {MAX_CHARS_PER_CHUNK} chars")
+            truncated.append(t[:MAX_CHARS_PER_CHUNK])
+        else:
+            truncated.append(t)
+    return truncated
+
 def get_embeddings(texts: list) -> list:
+    texts = truncate_texts(texts)
     all_embeddings = []
     batch_size = 50
 
@@ -346,6 +360,7 @@ def setup_qdrant() -> QdrantClient:
         ("article",            PayloadSchemaType.KEYWORD),
         ("status",             PayloadSchemaType.KEYWORD),
         ("provision_scope",    PayloadSchemaType.KEYWORD),
+        ("chunk_method",       PayloadSchemaType.KEYWORD),
     ]
     for field_name, schema_type in indexes:
         client.create_payload_index(
@@ -417,7 +432,25 @@ def ingest_url(client: QdrantClient, doc: dict) -> dict:
 
 # ── Cell 8: Main ingestion ────────────────────────────────────
 
-def run_full_ingestion():
+def run_full_ingestion()
+
+# ── Optional: re-run only specific files after fixing issues ─
+# Uncomment and edit the list below to re-ingest specific documents
+# without dropping the whole collection.
+#
+# def rerun_specific(filenames: list):
+#     client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+#     docs = [d for d in PDF_DOCUMENTS if d["filename"] in filenames]
+#     for doc in docs:
+#         ingest_pdf(client, doc)
+#
+# rerun_specific([
+#     "aiact_en.pdf",
+#     "aiact_fr.pdf",
+#     "aiact_nl.pdf",
+#     "CELEX_32019L0882_FR_TXT.pdf",
+#     "CELEX_32019L0882_NL_TXT.pdf",
+# ]):
     print("COMPLAI Sprint 7 — Full Knowledge Base Re-ingestion")
     print("=" * 60)
     print(f"PDF documents:  {len(PDF_DOCUMENTS)}")
