@@ -432,25 +432,7 @@ def ingest_url(client: QdrantClient, doc: dict) -> dict:
 
 # ── Cell 8: Main ingestion ────────────────────────────────────
 
-def run_full_ingestion()
-
-# ── Optional: re-run only specific files after fixing issues ─
-# Uncomment and edit the list below to re-ingest specific documents
-# without dropping the whole collection.
-#
-# def rerun_specific(filenames: list):
-#     client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-#     docs = [d for d in PDF_DOCUMENTS if d["filename"] in filenames]
-#     for doc in docs:
-#         ingest_pdf(client, doc)
-#
-# rerun_specific([
-#     "aiact_en.pdf",
-#     "aiact_fr.pdf",
-#     "aiact_nl.pdf",
-#     "CELEX_32019L0882_FR_TXT.pdf",
-#     "CELEX_32019L0882_NL_TXT.pdf",
-# ]):
+def run_full_ingestion():
     print("COMPLAI Sprint 7 — Full Knowledge Base Re-ingestion")
     print("=" * 60)
     print(f"PDF documents:  {len(PDF_DOCUMENTS)}")
@@ -504,6 +486,24 @@ def run_full_ingestion()
 
 
 run_full_ingestion()
+
+# ── Optional: re-run only specific files after fixing issues ─
+# Uncomment and edit the list below to re-ingest specific documents
+# without dropping the whole collection.
+#
+# def rerun_specific(filenames: list):
+#     client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+#     docs = [d for d in PDF_DOCUMENTS if d["filename"] in filenames]
+#     for doc in docs:
+#         ingest_pdf(client, doc)
+#
+# rerun_specific([
+#     "aiact_en.pdf",
+#     "aiact_fr.pdf",
+#     "aiact_nl.pdf",
+#     "CELEX_32019L0882_FR_TXT.pdf",
+#     "CELEX_32019L0882_NL_TXT.pdf",
+# ])
 
 
 # ── Cell 9: Verification ──────────────────────────────────────
