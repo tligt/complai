@@ -122,7 +122,7 @@ col1, col2 = st.columns(2)
 legal_name = col1.text_input(
     "Legal company name ✱",
     value=pf.get("legal_name") or pf.get("company_name", ""),
-    key=f"f_legal_name_{context_key}"
+    key=f"f_legal_name_{mode}_{client_id}"
 )
 
 country_options = {
@@ -137,7 +137,7 @@ country = col2.selectbox(
     options=list(country_options.keys()),
     format_func=lambda x: country_options[x],
     index=list(country_options.keys()).index(default_country),
-    key=f"f_country_{context_key}"
+    key=f"f_country_{mode}_{client_id}"
 )
 
 form_options = LEGAL_FORMS.get(country, LEGAL_FORMS["EU"])
@@ -147,31 +147,31 @@ legal_form = st.selectbox(
     "Legal form ✱",
     options=form_options,
     index=default_form_idx,
-    key=f"f_legal_form_{context_key}"
+    key=f"f_legal_form_{mode}_{client_id}"
 )
 
 website_url = st.text_input(
     "Website URL",
     value=pf.get("website_url", ""),
     placeholder="https://yourcompany.com",
-    key=f"f_url_{context_key}"
+    key=f"f_url_{mode}_{client_id}"
 )
 
 col3, col4 = st.columns(2)
 dpo_name = col3.text_input(
     "DPO name (if appointed)",
     value=pf.get("dpo_name", ""),
-    key=f"f_dpo_name_{context_key}"
+    key=f"f_dpo_name_{mode}_{client_id}"
 )
 dpo_email = col4.text_input(
     "DPO email",
     value=pf.get("dpo_email", ""),
-    key=f"f_dpo_email_{context_key}"
+    key=f"f_dpo_email_{mode}_{client_id}"
 )
 contact_email = st.text_input(
     "Contact email for data requests ✱",
     value=pf.get("contact_email", ""),
-    key=f"f_contact_{context_key}"
+    key=f"f_contact_{mode}_{client_id}"
 )
 
 # ── Structured field helpers ──────────────────────────────────
@@ -324,7 +324,7 @@ if doc_type in ["privacy_policy", "ropa", "cookie_policy"] and (selected_client 
         with st.spinner("Analysing your profile and generating suggestions..."):
             try:
                 client_for_suggest = selected_client or {
-                    "company_name": st.session_state.get(f"f_legal_name_{context_key}", ""),
+                    "company_name": st.session_state.get(f"f_legal_name_{mode}_{client_id}", ""),
                     "sector": "Unknown",
                     "country": country,
                     "company_size": "Unknown",
@@ -459,8 +459,8 @@ generate = st.button(
 
 if generate:
     # Read from session state to get actual typed values
-    _legal_name = st.session_state.get(f"f_legal_name_{context_key}", "") or ""
-    _contact_email = st.session_state.get(f"f_contact_{context_key}", "") or ""
+    _legal_name = st.session_state.get(f"f_legal_name_{mode}_{client_id}", "") or ""
+    _contact_email = st.session_state.get(f"f_contact_{mode}_{client_id}", "") or ""
     # Override variables with session state values
     legal_name = _legal_name or legal_name or ""
     contact_email = _contact_email or contact_email or ""
