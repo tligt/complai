@@ -162,3 +162,112 @@ def build_client_context(client: dict) -> str:
         f"- Size: {size_str}\n"
         f"- Applicable regulations: {reg_str}\n"
     )
+
+
+# ── Supabase Storage ──────────────────────────────────────────────────────────
+
+def get_supabase_admin() -> Client:
+    """Get Supabase client with service role for storage operations."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+    return create_client(url, key)
+
+
+def upload_file(bucket: str, path: str, file_bytes: bytes,
+                content_type: str = "application/octet-stream") -> str | None:
+    """Upload file to Supabase Storage. Returns storage path on success."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.storage.from_(bucket).upload(
+            path=path,
+            file=file_bytes,
+            file_options={"content-type": content_type, "upsert": "true"},
+        )
+        return path
+    except Exception as e:
+        st.warning(f"Could not upload file to storage: {e}")
+        return None
+
+
+def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str | None:
+    """Get a temporary signed URL for a private file."""
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.storage.from_(bucket).create_signed_url(path, expires_in)
+        return res.get("signedURL") or res.get("signed_url")
+    except Exception as e:
+        st.warning(f"Could not get signed URL: {e}")
+        return None
+
+
+def update_document_paths(doc_id: str, user_id: str,
+                           file_path_docx: str | None,
+                           file_path_pdf: str | None) -> bool:
+    """Save storage paths back to documents table."""
+    try:
+        supabase = get_supabase()
+        update = {}
+        if file_path_docx:
+            update["file_path_docx"] = file_path_docx
+        if file_path_pdf:
+            update["file_path_pdf"] = file_path_pdf
+        if not update:
+            return False
+        supabase.table("documents") \
+            .update(update) \
+            .eq("id", doc_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.warning(f"Could not update document paths: {e}")
+        return False
+
+
+def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
+    """Save storage path back to audits table."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("audits") \
+            .update({"file_path_pdf": file_path_pdf}) \
+            .eq("id", audit_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.warning(f"Could not update audit path: {e}")
+        return False
+
+
+def load_document_files(user_id: str, client_id: str | None) -> list[dict]:
+    """Load document records with file paths for history display."""
+    try:
+        supabase = get_supabase()
+        q = supabase.table("documents") \
+            .select("id, document_type, language, company_name, generated_at, file_path_docx, file_path_pdf") \
+            .eq("user_id", user_id) \
+            .order("generated_at", desc=True) \
+            .limit(20)
+        if client_id:
+            q = q.eq("client_id", client_id)
+        return q.execute().data or []
+    except Exception as e:
+        st.warning(f"Could not load document history: {e}")
+        return []
+
+
+def load_audit_files(email_domain: str | None = None,
+                     user_id: str | None = None) -> list[dict]:
+    """Load audit records with file paths."""
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("audits") \
+            .select("id, website_url, risk_level, created_at, file_path_pdf, email") \
+            .order("created_at", desc=True) \
+            .limit(10)
+        if email_domain:
+            q = q.eq("email_domain", email_domain)
+        if user_id:
+            q = q.eq("user_id", user_id)
+        return q.execute().data or []
+    except Exception as e:
+        return []
