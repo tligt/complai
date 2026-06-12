@@ -6,6 +6,7 @@ from crawler import crawl, extract_domain
 from checklist import run_checklist, OK, WARN, FAIL
 from report import generate_pdf
 from email_sender import send_audit_report, is_free_email, extract_email_domain
+from database import upload_file, update_audit_path
 
 st.set_page_config(page_title="COMPLAI — Free Website Audit", page_icon="⚖️", layout="centered")
 
@@ -169,6 +170,15 @@ if logged_in:
                         user_id=user_id,
                         client_id=client_id,
                     )
+                    # Upload PDF to storage
+                    try:
+                        from datetime import datetime
+                        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        safe_domain = email_domain.replace(".", "_")
+                        pdf_storage_path = f"{user_id}/{safe_domain}/{ts}_audit.pdf"
+                        stored_path = upload_file("audit-reports", pdf_storage_path, pdf_bytes, "application/pdf")
+                    except Exception:
+                        pass
                     st.success(f"Audit complete — {audit_result.risk_level} risk, score {audit_result.score}/100")
                     render_results(audit_result, pdf_bytes, is_authenticated=True)
 
@@ -222,6 +232,15 @@ else:
                             website_url=website_url.strip(),
                             audit_result=audit_result,
                         )
+                        # Upload PDF to storage
+                        try:
+                            from datetime import datetime
+                            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                            safe_domain = email_domain.replace(".", "_")
+                            pdf_storage_path = f"{safe_domain}/{ts}_audit.pdf"
+                            upload_file("audit-reports", pdf_storage_path, pdf_bytes, "application/pdf")
+                        except Exception:
+                            pass
                         try:
                             sent = send_audit_report(
                                 to_email=email.strip(),

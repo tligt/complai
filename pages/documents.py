@@ -4,7 +4,7 @@ from database import load_clients
 from document_generator import (
     DOCUMENT_TYPES, LEGAL_FORMS, DPA_CONTACTS,
     load_intake, save_intake, update_client_profile,
-    save_document_record, load_document_history,
+    save_document_with_files, load_document_history,
     suggest_processing_activities,
     get_regulatory_context, generate_document_text,
     build_docx, convert_docx_to_pdf, convert_docx_to_odt,
@@ -560,7 +560,16 @@ if generate:
         except Exception:
             odt_ok = False
 
-    save_document_record(user_id, client_id, doc_type, language, company_display)
+    # Save record + upload files to Supabase Storage
+    save_document_with_files(
+        user_id=user_id,
+        client_id=client_id,
+        document_type=doc_type,
+        language=language,
+        company_name=company_display,
+        docx_bytes=docx_bytes,
+        pdf_bytes=pdf_bytes if pdf_ok else None,
+    )
 
     st.markdown("**Download your document:**")
     fname = f"COMPLAI_{doc_type}_{company_display.replace(' ','_')}"
