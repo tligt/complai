@@ -484,10 +484,6 @@ generate = st.button(
 )
 
 if generate:
-    # Debug: show what's in session state
-    contact_keys = {k: v for k, v in st.session_state.items() 
-                   if "contact" in str(k).lower() or "email" in str(k).lower()}
-    st.write("DEBUG contact keys:", contact_keys)
     legal_name = st.session_state.get("f_legal_name_stable", "") or legal_name or ""
     contact_email = st.session_state.get("f_contact_stable", "") or contact_email or ""
 
@@ -504,39 +500,42 @@ if generate:
         st.error("Please add at least one processing activity.")
         st.stop()
 
+    # Helper to safely strip potentially None values
+    def s(v): return (v or "").strip()
+
     intake_data = {
-        "legal_name": legal_name.strip(),
-        "legal_form": legal_form,
-        "country": country,
-        "website_url": website_url.strip(),
-        "dpo_name": dpo_name.strip(),
-        "dpo_email": dpo_email.strip(),
-        "contact_email": contact_email.strip(),
-        "processing_activities": processing_activities_text,
-        "third_party_processors": third_party_processors_text,
-        "international_transfers": international_transfers,
-        "retention_periods": retention_periods_text,
-        "processor_name": processor_name or "",
-        "processor_country": processor_country or "",
-        "processing_purpose": processing_purpose or "",
-        "incident_response_contact": incident_response_contact or "",
-        "escalation_procedure": escalation_procedure or "",
+        "legal_name": s(legal_name),
+        "legal_form": legal_form or "",
+        "country": country or "BE",
+        "website_url": s(website_url),
+        "dpo_name": s(dpo_name),
+        "dpo_email": s(dpo_email),
+        "contact_email": s(contact_email),
+        "processing_activities": processing_activities_text or "",
+        "third_party_processors": third_party_processors_text or "",
+        "international_transfers": international_transfers or False,
+        "retention_periods": retention_periods_text or "",
+        "processor_name": s(processor_name),
+        "processor_country": s(processor_country),
+        "processing_purpose": s(processing_purpose),
+        "incident_response_contact": s(incident_response_contact),
+        "escalation_procedure": s(escalation_procedure),
     }
 
     if client_id:
         save_intake(client_id, user_id, doc_type, intake_data)
         update_client_profile(client_id, user_id, {
-            "website_url": website_url.strip() or None,
-            "dpo_name": dpo_name.strip() or None,
-            "dpo_email": dpo_email.strip() or None,
-            "contact_email": contact_email.strip() or None,
-            "legal_name": legal_name.strip() or None,
+            "website_url": s(website_url) or None,
+            "dpo_name": s(dpo_name) or None,
+            "dpo_email": s(dpo_email) or None,
+            "contact_email": s(contact_email) or None,
+            "legal_name": s(legal_name) or None,
             "legal_form": legal_form or None,
         })
         # Update prefill cache
         st.session_state.doc_prefill.update(intake_data)
 
-    company_display = f"{legal_name.strip()} {legal_form}".strip()
+    company_display = f"{s(legal_name)} {legal_form or ''}".strip()
 
     with st.spinner(f"Generating {DOCUMENT_TYPES[doc_type]}..."):
         reg_context = get_regulatory_context(doc_type, language, country)
