@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from auth import init_auth, is_logged_in, login_ui, get_user_id
 from database import load_clients
@@ -596,14 +597,25 @@ if generate:
 # ── History ───────────────────────────────────────────────────
 
 
-from database import load_document_files, get_signed_url
+from database import load_document_files, get_signed_url, get_supabase_admin
 
 st.divider()
 st.subheader("📚 Document history")
 history = load_document_files(user_id, client_id if mode == "existing_client" else None)
 if history:
     for doc in history:
-        dt = doc.get("generated_at","")[:16].replace("T", " ")
+        try:
+            from zoneinfo import ZoneInfo
+            from datetime import datetime as _dt
+            raw_dt = doc.get("generated_at", "")
+            if raw_dt:
+                utc_dt = _dt.fromisoformat(raw_dt.replace("Z", "+00:00"))
+                local_dt = utc_dt.astimezone(ZoneInfo("Europe/Brussels"))
+                dt = local_dt.strftime("%Y-%m-%d %H:%M")
+            else:
+                dt = ""
+        except Exception:
+            dt = doc.get("generated_at", "")[:16].replace("T", " ")
         lbl = DOCUMENT_TYPES.get(doc.get("document_type",""), doc.get("document_type",""))
         company = doc.get("company_name","")
         lang = doc.get("language","").upper()
