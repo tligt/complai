@@ -130,6 +130,56 @@ def load_document_history(user_id: str, client_id: str | None) -> list:
 
 # ── AI suggestion engine ──────────────────────────────────────
 
+def save_document_with_files(
+    user_id: str,
+    client_id: str | None,
+    document_type: str,
+    language: str,
+    company_name: str,
+    docx_bytes: bytes,
+    pdf_bytes: bytes | None = None,
+) -> str | None:
+    """Save document record and upload files to Supabase Storage. Returns document ID."""
+    import re
+    from datetime import datetime
+    from database import upload_file, update_document_paths
+
+    try:
+        supabase = get_supabase()
+        res = supabase.table("documents").insert({
+            "user_id": user_id,
+            "client_id": client_id,
+            "document_type": document_type,
+            "language": language,
+            "company_name": company_name,
+        }).execute()
+        doc_id = res.data[0]["id"] if res.data else None
+    except Exception as e:
+        st.error(f"Could not save document record: {e}")
+        return None
+
+    if not doc_id:
+        return None
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_company = re.sub(r"[^a-zA-Z0-9_-]", "_", company_name)[:30]
+    base_path = f"{user_id}/{client_id or 'advisory'}/{timestamp}_{document_type}_{safe_company}"
+
+    docx_path = upload_file(
+        "compliance-files", f"{base_path}.docx", docx_bytes,
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    pdf_path = None
+    if pdf_bytes:
+        pdf_path = upload_file(
+            "compliance-files", f"{base_path}.pdf", pdf_bytes, "application/pdf"
+        )
+
+    update_document_paths(doc_id, user_id, docx_path, pdf_path)
+    return doc_id
+
+
+
 def suggest_processing_activities(client: dict) -> dict:
     """
     Use Mistral to suggest likely processing activities, third-party processors
