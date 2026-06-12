@@ -141,15 +141,13 @@ st.subheader("Company information")
 st.caption("Fields marked ✱ are required.")
 
 col1, col2 = st.columns(2)
-legal_name = col1.text_input(
+col1.text_input(
     "Legal company name ✱",
     value=st.session_state.doc_legal_name,
-    key="f_legal_name_stable",
-    on_change=lambda: setattr(st.session_state, "doc_legal_name",
-                              st.session_state.get("f_legal_name_stable", ""))
+    key="f_legal_name_stable"
 )
-st.session_state.doc_legal_name = st.session_state.get("f_legal_name_stable",
-                                                         st.session_state.doc_legal_name)
+# Read current value from session state — this works reliably
+legal_name = st.session_state.get("f_legal_name_stable", st.session_state.doc_legal_name)
 
 country_options = {
     "BE": "🇧🇪 Belgium", "FR": "🇫🇷 France", "NL": "🇳🇱 Netherlands",
@@ -194,15 +192,13 @@ dpo_email = col4.text_input(
     value=pf.get("dpo_email", ""),
     key=f"f_dpo_email_{mode}_{client_id}"
 )
-contact_email = st.text_input(
+st.text_input(
     "Contact email for data requests ✱",
     value=st.session_state.doc_contact_email,
-    key="f_contact_stable",
-    on_change=lambda: setattr(st.session_state, "doc_contact_email",
-                              st.session_state.get("f_contact_stable", ""))
+    key="f_contact_stable"
 )
-st.session_state.doc_contact_email = st.session_state.get("f_contact_stable",
-                                                            st.session_state.doc_contact_email)
+# Read current value from session state — this works reliably
+contact_email = st.session_state.get("f_contact_stable", st.session_state.doc_contact_email)
 
 # ── Structured field helpers ──────────────────────────────────
 
@@ -488,14 +484,14 @@ generate = st.button(
 )
 
 if generate:
-    # Read from stable session state vars
-    legal_name = st.session_state.doc_legal_name or legal_name or ""
-    contact_email = st.session_state.doc_contact_email or contact_email or ""
+    # Read from stable widget keys in session state
+    legal_name = st.session_state.get("f_legal_name_stable", "") or legal_name or ""
+    contact_email = st.session_state.get("f_contact_stable", "") or contact_email or ""
 
     if not legal_name.strip():
         st.error("Legal company name is required.")
         st.stop()
-    if doc_type in ["privacy_policy","ropa"] and not contact_email.strip():
+    if doc_type in ["privacy_policy", "ropa"] and not contact_email.strip():
         st.error("Contact email is required.")
         st.stop()
     if doc_type in ["privacy_policy", "ropa"] and not st.session_state.doc_confirmed:
