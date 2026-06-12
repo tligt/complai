@@ -458,6 +458,13 @@ generate = st.button(
 )
 
 if generate:
+    # Read from session state to get actual typed values
+    _legal_name = st.session_state.get(f"f_legal_name_{context_key}", "") or ""
+    _contact_email = st.session_state.get(f"f_contact_{context_key}", "") or ""
+    # Override variables with session state values
+    legal_name = _legal_name or legal_name or ""
+    contact_email = _contact_email or contact_email or ""
+
     if not legal_name.strip():
         st.error("Legal company name is required.")
         st.stop()
