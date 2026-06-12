@@ -10,3 +10,4 @@ beautifulsoup4
 supabase
 reportlab
 resend
+python-docx
