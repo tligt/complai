@@ -142,6 +142,7 @@ def answer_question(question: str, context_chunks: list[Chunk], history: list[di
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": "mistral-large-latest",
+            "temperature": 0.7,
             "messages": [{"role": "system", "content": system_prompt}] + messages,
             "max_tokens": 2048,
         }

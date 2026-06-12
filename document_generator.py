@@ -126,6 +126,122 @@ def load_document_history(user_id: str, client_id: str | None) -> list:
         return []
 
 
+
+
+# ── AI suggestion engine ──────────────────────────────────────
+
+def suggest_processing_activities(client: dict) -> dict:
+    """
+    Use Mistral to suggest likely processing activities, third-party processors
+    and retention periods based on the client profile.
+    Returns a dict with keys: activities, processors, retention.
+    """
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key:
+        raise ValueError("MISTRAL_API_KEY not set")
+
+    sector = client.get("sector", "Unknown")
+    size = client.get("company_size", "Unknown")
+    country = client.get("country", "BE")
+    regulations = client.get("regulations", ["GDPR"])
+    company_name = client.get("company_name", "the company")
+
+    country_names = {"BE": "Belgium", "FR": "France", "NL": "Netherlands",
+                     "DE": "Germany", "LU": "Luxembourg"}
+    country_name = country_names.get(country, country)
+
+    reg_str = ", ".join(regulations) if isinstance(regulations, list) else str(regulations)
+
+    system_prompt = """You are a GDPR compliance expert helping SMEs identify their personal data processing activities.
+Based on the company profile provided, generate a realistic and comprehensive list of:
+1. Processing activities (what personal data they likely collect and process)
+2. Third-party processors (tools and services they likely use)
+3. Retention periods (how long they should keep each data type)
+
+IMPORTANT:
+- Be realistic and sector-specific — think about what a real company in this sector actually does
+- Cover the obvious activities but also less obvious ones (employee data, security logs, etc.)
+- For legal basis, choose the most appropriate GDPR Article 6 basis
+- For processors, include common tools used in this sector
+- Retention periods should follow Belgian/French legal requirements where applicable
+- Return ONLY valid JSON, no other text
+
+Return exactly this JSON structure:
+{
+  "activities": [
+    {
+      "name": "activity name",
+      "subjects": "who the data is about",
+      "data": "what personal data",
+      "purpose": "why you collect it",
+      "legal_basis": "one of: Contract performance (Art. 6(1)(b)) / Consent (Art. 6(1)(a)) / Legal obligation (Art. 6(1)(c)) / Legitimate interests (Art. 6(1)(f)) / Vital interests (Art. 6(1)(d)) / Public task (Art. 6(1)(e))"
+    }
+  ],
+  "processors": [
+    {
+      "name": "service name",
+      "country": "country of the service",
+      "purpose": "what it does",
+      "data": "what data is shared"
+    }
+  ],
+  "retention": [
+    {
+      "data_type": "type of data",
+      "duration": "how long to keep it"
+    }
+  ]
+}"""
+
+    user_prompt = f"""Company profile:
+- Name: {company_name}
+- Sector: {sector}
+- Size: {size} employees
+- Country: {country_name}
+- Applicable regulations: {reg_str}
+
+Generate a realistic list of GDPR processing activities for this company.
+Include 5-8 processing activities, 3-6 processors, and 4-6 retention rules.
+Cover: customer/client data, employee data, marketing, website analytics, and any sector-specific processing."""
+
+    response = requests.post(
+        "https://api.mistral.ai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={
+            "model": "mistral-large-latest",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "max_tokens": 2048,
+            "temperature": 0.3,
+        },
+        timeout=60,
+    )
+    response.raise_for_status()
+
+    raw = response.json()["choices"][0]["message"]["content"]
+
+    # Strip markdown fences if present
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip().rstrip("```").strip()
+
+    result = json.loads(raw)
+
+    # Validate structure
+    if "activities" not in result:
+        result["activities"] = []
+    if "processors" not in result:
+        result["processors"] = []
+    if "retention" not in result:
+        result["retention"] = []
+
+    return result
+
 # ── RAG retrieval for document generation ────────────────────
 
 def get_regulatory_context(document_type: str, language: str, country: str) -> str:
@@ -212,6 +328,7 @@ REGULATORY CONTEXT:
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": "mistral-large-latest",
+            "temperature": 0.3,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": doc_prompt},
