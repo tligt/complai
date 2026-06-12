@@ -5,6 +5,7 @@ from document_generator import (
     DOCUMENT_TYPES, LEGAL_FORMS, DPA_CONTACTS,
     load_intake, save_intake, update_client_profile,
     save_document_record, load_document_history,
+    suggest_processing_activities,
     get_regulatory_context, generate_document_text,
     build_docx, convert_docx_to_pdf, convert_docx_to_odt,
 )
@@ -32,6 +33,7 @@ for key, default in [
     ("doc_activities", []),
     ("doc_processors", []),
     ("doc_retention", []),
+    ("doc_confirmed", False),     # confirmation checkbox state
     ("doc_context_key", None),   # tracks which client+mode is loaded
     ("doc_prefill", {}),         # cached prefill values
 ]:
@@ -89,6 +91,7 @@ if context_key != st.session_state.doc_context_key:
     st.session_state.doc_activities = []
     st.session_state.doc_processors = []
     st.session_state.doc_retention = []
+    st.session_state.doc_confirmed = False
 
     if mode == "existing_client" and client_id:
         # Load intake + client profile into prefill cache
@@ -307,6 +310,41 @@ def retention_editor():
     return "\n".join(lines)
 
 
+# ── AI suggestion button (for privacy_policy and ropa) ──────────
+if doc_type in ["privacy_policy", "ropa", "cookie_policy"] and (selected_client or mode == "external_company"):
+    st.divider()
+    col_ai1, col_ai2 = st.columns([3, 1])
+    col_ai1.markdown("**🤖 Let AI suggest processing activities based on your profile**")
+    col_ai1.caption(
+        "COMPLAI will analyse your company sector, size and country to suggest "
+        "likely processing activities, processors and retention periods. "
+        "You can then review, edit and complete the list before generating."
+    )
+    if col_ai2.button("Suggest activities", type="secondary", use_container_width=True, key=f"btn_suggest_{context_key}"):
+        with st.spinner("Analysing your profile and generating suggestions..."):
+            try:
+                client_for_suggest = selected_client or {
+                    "company_name": st.session_state.get(f"f_legal_name_{context_key}", ""),
+                    "sector": "Unknown",
+                    "country": country,
+                    "company_size": "Unknown",
+                    "regulations": ["GDPR"],
+                }
+                suggestions = suggest_processing_activities(client_for_suggest)
+                st.session_state.doc_activities = suggestions.get("activities", [])
+                st.session_state.doc_processors = suggestions.get("processors", [])
+                st.session_state.doc_retention = suggestions.get("retention", [])
+                st.session_state.doc_confirmed = False
+                st.success(
+                    f"✅ Suggested {len(st.session_state.doc_activities)} activities, "
+                    f"{len(st.session_state.doc_processors)} processors and "
+                    f"{len(st.session_state.doc_retention)} retention rules. "
+                    "Review and edit below, then confirm before generating."
+                )
+                st.rerun()
+            except Exception as e:
+                st.error(f"Could not generate suggestions: {e}")
+
 # ── Document-specific sections ────────────────────────────────
 st.divider()
 st.markdown(f"**{DOCUMENT_TYPES[doc_type]} — specific information**")
@@ -397,6 +435,19 @@ elif doc_type == "ai_transparency":
         key=f"f_aiprov_{context_key}"
     )
 
+# ── Confirmation checkbox ────────────────────────────────────────
+if doc_type in ["privacy_policy", "ropa"]:
+    st.divider()
+    st.session_state.doc_confirmed = st.checkbox(
+        "✅ I have reviewed all processing activities and, to the best of my knowledge, "
+        "have not missed any significant data processing my organisation carries out. "
+        "I understand this document is a starting point and should be reviewed by a legal professional.",
+        value=st.session_state.doc_confirmed,
+        key=f"f_confirmed_{context_key}"
+    )
+else:
+    st.session_state.doc_confirmed = True
+
 # ── Generate ──────────────────────────────────────────────────
 st.divider()
 generate = st.button(
@@ -412,6 +463,9 @@ if generate:
         st.stop()
     if doc_type in ["privacy_policy","ropa"] and not contact_email.strip():
         st.error("Contact email is required.")
+        st.stop()
+    if doc_type in ["privacy_policy", "ropa"] and not st.session_state.doc_confirmed:
+        st.error("Please confirm you have reviewed all processing activities before generating.")
         st.stop()
     if doc_type == "privacy_policy" and not st.session_state.doc_activities:
         st.error("Please add at least one processing activity.")
