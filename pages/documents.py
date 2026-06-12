@@ -594,16 +594,7 @@ if generate:
     )
 
 # ── History ───────────────────────────────────────────────────
-st.divider()
-st.subheader("📚 Document history")
-history = load_document_history(user_id, client_id if mode == "existing_client" else None)
-if history:
-    for doc in history:
-        dt = doc.get("generated_at","")[:10]
-        lbl = DOCUMENT_TYPES.get(doc.get("document_type",""), doc.get("document_type",""))
-        st.caption(f"📄 {lbl} — {doc.get('company_name','')} — {doc.get('language','').upper()} — {dt}")
-else:
-    st.caption("No documents generated yet.")
+
 
 from database import load_document_files, get_signed_url
 
@@ -612,7 +603,7 @@ st.subheader("📚 Document history")
 history = load_document_files(user_id, client_id if mode == "existing_client" else None)
 if history:
     for doc in history:
-        dt = doc.get("generated_at","")[:10]
+        dt = doc.get("generated_at","")[:16].replace("T", " ")
         lbl = DOCUMENT_TYPES.get(doc.get("document_type",""), doc.get("document_type",""))
         company = doc.get("company_name","")
         lang = doc.get("language","").upper()
