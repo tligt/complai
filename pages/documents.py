@@ -23,26 +23,23 @@ if not is_logged_in():
 
 user_id = get_user_id()
 
-# ── Page header ───────────────────────────────────────────────
 st.title("📄 Document Generation")
 st.caption("Generate compliance documents tailored to your client's profile.")
 st.divider()
 
 # ── Session state init ────────────────────────────────────────
-if "doc_activities" not in st.session_state:
-    st.session_state.doc_activities = []
-if "doc_processors" not in st.session_state:
-    st.session_state.doc_processors = []
-if "doc_retention" not in st.session_state:
-    st.session_state.doc_retention = []
-if "last_mode" not in st.session_state:
-    st.session_state.last_mode = None
-if "last_client_id" not in st.session_state:
-    st.session_state.last_client_id = None
+for key, default in [
+    ("doc_activities", []),
+    ("doc_processors", []),
+    ("doc_retention", []),
+    ("doc_context_key", None),   # tracks which client+mode is loaded
+    ("doc_prefill", {}),         # cached prefill values
+]:
+    if key not in st.session_state:
+        st.session_state[key] = default
 
 # ── Client / mode selection ───────────────────────────────────
 clients = load_clients(user_id)
-
 if not clients:
     st.info("👈 Create a client profile first before generating documents.")
     st.stop()
@@ -63,20 +60,9 @@ if mode == "existing_client":
     chosen = st.selectbox("Select client", options=client_names, key="doc_client_select")
     selected_client = next((c for c in clients if c["company_name"] == chosen), None)
     client_id = selected_client["id"] if selected_client else None
-else:
-    st.info("Advisory mode — fill in the external company details in the form below.")
-
-# Detect mode/client switch — clear structured fields if changed
-current_key = f"{mode}_{client_id}"
-if current_key != st.session_state.last_mode:
-    st.session_state.doc_activities = []
-    st.session_state.doc_processors = []
-    st.session_state.doc_retention = []
-    st.session_state.last_mode = current_key
 
 st.divider()
 
-# ── Document type + language ──────────────────────────────────
 doc_type = st.selectbox(
     "Document type",
     options=list(DOCUMENT_TYPES.keys()),
@@ -93,96 +79,123 @@ language = st.selectbox(
 
 st.divider()
 
-# ── Load existing intake ──────────────────────────────────────
-existing_intake = {}
-if client_id:
-    existing_intake = load_intake(client_id, user_id, doc_type)
+# ── Context change detection ──────────────────────────────────
+# Build a key representing the current context
+context_key = f"{mode}_{client_id}_{doc_type}"
 
-# Pre-fill helper — returns value only for existing clients, empty for external
-def pf(field, default=""):
-    """Pre-fill from intake or client profile only when in existing client mode."""
-    if mode == "external_company":
-        return default
-    val = existing_intake.get(field)
-    if val:
-        return val
-    if selected_client:
-        return selected_client.get(field, default)
-    return default
+if context_key != st.session_state.doc_context_key:
+    # Context changed — reload prefill and clear structured rows
+    st.session_state.doc_context_key = context_key
+    st.session_state.doc_activities = []
+    st.session_state.doc_processors = []
+    st.session_state.doc_retention = []
+
+    if mode == "existing_client" and client_id:
+        # Load intake + client profile into prefill cache
+        intake = load_intake(client_id, user_id, doc_type)
+        pf = {}
+        # Start from client profile
+        if selected_client:
+            for f in ["company_name", "country", "website_url", "dpo_name",
+                      "dpo_email", "contact_email", "legal_name", "legal_form", "sector"]:
+                pf[f] = selected_client.get(f, "")
+        # Override with saved intake (more specific)
+        for f, v in intake.items():
+            if v:
+                pf[f] = v
+        st.session_state.doc_prefill = pf
+    else:
+        # External company or no client — blank slate
+        st.session_state.doc_prefill = {}
+
+# Shortcut to prefill dict
+pf = st.session_state.doc_prefill
 
 # ── Universal fields ──────────────────────────────────────────
 st.subheader("Company information")
 st.caption("Fields marked ✱ are required.")
 
 col1, col2 = st.columns(2)
-legal_name = col1.text_input("Legal company name ✱", value=pf("legal_name"), key="f_legal_name")
+legal_name = col1.text_input(
+    "Legal company name ✱",
+    value=pf.get("legal_name") or pf.get("company_name", ""),
+    key=f"f_legal_name_{context_key}"
+)
 
 country_options = {
     "BE": "🇧🇪 Belgium", "FR": "🇫🇷 France", "NL": "🇳🇱 Netherlands",
     "DE": "🇩🇪 Germany", "LU": "🇱🇺 Luxembourg", "EU": "🇪🇺 Other EU"
 }
-default_country = pf("country", "BE")
+default_country = pf.get("country", "BE")
+if default_country not in country_options:
+    default_country = "BE"
 country = col2.selectbox(
     "Country ✱",
     options=list(country_options.keys()),
     format_func=lambda x: country_options[x],
-    index=list(country_options.keys()).index(default_country) if default_country in country_options else 0,
-    key="f_country"
+    index=list(country_options.keys()).index(default_country),
+    key=f"f_country_{context_key}"
 )
 
 form_options = LEGAL_FORMS.get(country, LEGAL_FORMS["EU"])
-default_form = pf("legal_form", "")
+default_form = pf.get("legal_form", "")
 default_form_idx = form_options.index(default_form) if default_form in form_options else 0
-legal_form = st.selectbox("Legal form ✱", options=form_options, index=default_form_idx, key="f_legal_form")
+legal_form = st.selectbox(
+    "Legal form ✱",
+    options=form_options,
+    index=default_form_idx,
+    key=f"f_legal_form_{context_key}"
+)
 
-website_url = st.text_input("Website URL", value=pf("website_url"), placeholder="https://yourcompany.com", key="f_url")
+website_url = st.text_input(
+    "Website URL",
+    value=pf.get("website_url", ""),
+    placeholder="https://yourcompany.com",
+    key=f"f_url_{context_key}"
+)
 
 col3, col4 = st.columns(2)
-dpo_name = col3.text_input("DPO name (if appointed)", value=pf("dpo_name"), key="f_dpo_name")
-dpo_email = col4.text_input("DPO email", value=pf("dpo_email"), key="f_dpo_email")
-contact_email = st.text_input("Contact email for data requests ✱", value=pf("contact_email"), key="f_contact")
+dpo_name = col3.text_input(
+    "DPO name (if appointed)",
+    value=pf.get("dpo_name", ""),
+    key=f"f_dpo_name_{context_key}"
+)
+dpo_email = col4.text_input(
+    "DPO email",
+    value=pf.get("dpo_email", ""),
+    key=f"f_dpo_email_{context_key}"
+)
+contact_email = st.text_input(
+    "Contact email for data requests ✱",
+    value=pf.get("contact_email", ""),
+    key=f"f_contact_{context_key}"
+)
 
-# ── Document-specific structured fields ───────────────────────
-st.divider()
-st.markdown(f"**{DOCUMENT_TYPES[doc_type]} — specific information**")
-
-processor_name = None; processor_country = None; processing_purpose = None
-incident_response_contact = None; escalation_procedure = None
-processing_activities_text = ""
-third_party_processors_text = ""
-retention_periods_text = ""
-international_transfers = False
-
-# ── Helpers for structured tables ────────────────────────────
+# ── Structured field helpers ──────────────────────────────────
 
 def activity_editor():
-    """Structured processing activities editor."""
     st.markdown("**Processing activities ✱**")
-    st.caption("Add one row per processing activity. The more detail you provide, the better the document.")
-
-    # Load from existing intake if not yet in session
-    if not st.session_state.doc_activities and existing_intake.get("processing_activities"):
-        # Parse back from saved text into rows if possible
-        pass
+    st.caption("Add one row per processing activity.")
 
     for i, act in enumerate(st.session_state.doc_activities):
-        with st.expander(f"Activity {i+1}: {act.get('name', 'Untitled')}", expanded=False):
+        with st.expander(f"Activity {i+1}: {act.get('name','Untitled')}", expanded=True):
             c1, c2 = st.columns(2)
             st.session_state.doc_activities[i]["name"] = c1.text_input(
-                "Activity name", value=act.get("name", ""), key=f"act_name_{i}"
+                "Activity name", value=act.get("name",""), key=f"act_name_{i}_{context_key}",
+                placeholder="e.g. Customer management"
             )
             st.session_state.doc_activities[i]["subjects"] = c2.text_input(
-                "Data subjects", value=act.get("subjects", ""), key=f"act_subj_{i}",
+                "Data subjects", value=act.get("subjects",""), key=f"act_subj_{i}_{context_key}",
                 placeholder="e.g. Customers, employees"
             )
             st.session_state.doc_activities[i]["data"] = st.text_input(
-                "Personal data collected", value=act.get("data", ""), key=f"act_data_{i}",
-                placeholder="e.g. Name, email, phone number"
+                "Personal data collected", value=act.get("data",""), key=f"act_data_{i}_{context_key}",
+                placeholder="e.g. Name, email, phone"
             )
             c3, c4 = st.columns(2)
             st.session_state.doc_activities[i]["purpose"] = c3.text_input(
-                "Purpose", value=act.get("purpose", ""), key=f"act_purp_{i}",
-                placeholder="e.g. Delivering the contracted service"
+                "Purpose", value=act.get("purpose",""), key=f"act_purp_{i}_{context_key}",
+                placeholder="e.g. Service delivery"
             )
             legal_bases = [
                 "Contract performance (Art. 6(1)(b))",
@@ -192,108 +205,116 @@ def activity_editor():
                 "Vital interests (Art. 6(1)(d))",
                 "Public task (Art. 6(1)(e))",
             ]
-            current_basis = act.get("legal_basis", legal_bases[0])
-            basis_idx = legal_bases.index(current_basis) if current_basis in legal_bases else 0
+            current = act.get("legal_basis", legal_bases[0])
+            basis_idx = legal_bases.index(current) if current in legal_bases else 0
             st.session_state.doc_activities[i]["legal_basis"] = c4.selectbox(
-                "Legal basis", options=legal_bases, index=basis_idx, key=f"act_basis_{i}"
+                "Legal basis", options=legal_bases, index=basis_idx,
+                key=f"act_basis_{i}_{context_key}"
             )
-            if st.button(f"Remove activity {i+1}", key=f"rm_act_{i}"):
+            if st.button(f"Remove", key=f"rm_act_{i}_{context_key}"):
                 st.session_state.doc_activities.pop(i)
                 st.rerun()
 
-    if st.button("➕ Add processing activity", key="add_activity"):
+    if st.button("➕ Add processing activity", key=f"add_act_{context_key}"):
         st.session_state.doc_activities.append({
-            "name": "", "subjects": "", "data": "", "purpose": "", "legal_basis": "Contract performance (Art. 6(1)(b))"
+            "name":"","subjects":"","data":"","purpose":"",
+            "legal_basis":"Contract performance (Art. 6(1)(b))"
         })
         st.rerun()
 
-    # Convert to text for generation
     lines = []
     for i, act in enumerate(st.session_state.doc_activities):
         if act.get("name"):
             lines.append(
-                f"{i+1}. {act['name']}: collects {act.get('data','—')} from {act.get('subjects','—')} "
-                f"for the purpose of {act.get('purpose','—')} — legal basis: {act.get('legal_basis','—')}"
+                f"{i+1}. {act['name']}: collects {act.get('data','—')} from "
+                f"{act.get('subjects','—')} for {act.get('purpose','—')} — "
+                f"legal basis: {act.get('legal_basis','—')}"
             )
     return "\n".join(lines)
 
 
 def processor_editor():
-    """Structured third-party processor editor."""
     st.markdown("**Third-party processors**")
     st.caption("Add one row per tool or service that processes personal data on your behalf.")
 
     for i, proc in enumerate(st.session_state.doc_processors):
-        with st.expander(f"Processor {i+1}: {proc.get('name', 'Untitled')}", expanded=False):
+        with st.expander(f"Processor {i+1}: {proc.get('name','Untitled')}", expanded=True):
             c1, c2 = st.columns(2)
             st.session_state.doc_processors[i]["name"] = c1.text_input(
-                "Service name", value=proc.get("name", ""), key=f"proc_name_{i}",
+                "Service name", value=proc.get("name",""), key=f"proc_name_{i}_{context_key}",
                 placeholder="e.g. Google Analytics"
             )
             st.session_state.doc_processors[i]["country"] = c2.text_input(
-                "Country", value=proc.get("country", ""), key=f"proc_country_{i}",
+                "Country", value=proc.get("country",""), key=f"proc_ctry_{i}_{context_key}",
                 placeholder="e.g. US, EU"
             )
             c3, c4 = st.columns(2)
             st.session_state.doc_processors[i]["purpose"] = c3.text_input(
-                "Purpose", value=proc.get("purpose", ""), key=f"proc_purp_{i}",
-                placeholder="e.g. Website analytics"
+                "Purpose", value=proc.get("purpose",""), key=f"proc_purp_{i}_{context_key}",
+                placeholder="e.g. Analytics"
             )
             st.session_state.doc_processors[i]["data"] = c4.text_input(
-                "Data shared", value=proc.get("data", ""), key=f"proc_data_{i}",
-                placeholder="e.g. IP address, page views"
+                "Data shared", value=proc.get("data",""), key=f"proc_data_{i}_{context_key}",
+                placeholder="e.g. IP address"
             )
-            if st.button(f"Remove processor {i+1}", key=f"rm_proc_{i}"):
+            if st.button("Remove", key=f"rm_proc_{i}_{context_key}"):
                 st.session_state.doc_processors.pop(i)
                 st.rerun()
 
-    if st.button("➕ Add processor", key="add_processor"):
-        st.session_state.doc_processors.append({"name": "", "country": "", "purpose": "", "data": ""})
+    if st.button("➕ Add processor", key=f"add_proc_{context_key}"):
+        st.session_state.doc_processors.append({"name":"","country":"","purpose":"","data":""})
         st.rerun()
 
     lines = []
     for proc in st.session_state.doc_processors:
         if proc.get("name"):
             lines.append(
-                f"{proc['name']} ({proc.get('country','—')}): {proc.get('purpose','—')} — data shared: {proc.get('data','—')}"
+                f"{proc['name']} ({proc.get('country','—')}): "
+                f"{proc.get('purpose','—')} — data: {proc.get('data','—')}"
             )
     return "\n".join(lines)
 
 
 def retention_editor():
-    """Structured retention periods editor."""
     st.markdown("**Retention periods**")
-    st.caption("Specify how long each type of data is kept.")
+    if st.session_state.doc_retention:
+        c1, c2, c3 = st.columns([3, 3, 1])
+        c1.caption("Data type")
+        c2.caption("Retention duration")
 
     for i, ret in enumerate(st.session_state.doc_retention):
-        c1, c2, c3 = st.columns([3, 2, 1])
+        c1, c2, c3 = st.columns([3, 3, 1])
         st.session_state.doc_retention[i]["data_type"] = c1.text_input(
-            "Data type", value=ret.get("data_type", ""), key=f"ret_type_{i}",
-            placeholder="e.g. Customer contact data", label_visibility="collapsed"
+            "Data type", value=ret.get("data_type",""), key=f"ret_type_{i}_{context_key}",
+            placeholder="e.g. Customer data", label_visibility="collapsed"
         )
         st.session_state.doc_retention[i]["duration"] = c2.text_input(
-            "Duration", value=ret.get("duration", ""), key=f"ret_dur_{i}",
+            "Duration", value=ret.get("duration",""), key=f"ret_dur_{i}_{context_key}",
             placeholder="e.g. 3 years after contract end", label_visibility="collapsed"
         )
-        if c3.button("✕", key=f"rm_ret_{i}"):
+        if c3.button("✕", key=f"rm_ret_{i}_{context_key}"):
             st.session_state.doc_retention.pop(i)
             st.rerun()
 
-    if not st.session_state.doc_retention:
-        st.caption("Data type → Duration")
-
-    if st.button("➕ Add retention rule", key="add_retention"):
-        st.session_state.doc_retention.append({"data_type": "", "duration": ""})
+    if st.button("➕ Add retention rule", key=f"add_ret_{context_key}"):
+        st.session_state.doc_retention.append({"data_type":"","duration":""})
         st.rerun()
 
-    lines = []
-    for ret in st.session_state.doc_retention:
-        if ret.get("data_type"):
-            lines.append(f"{ret['data_type']}: {ret.get('duration', '—')}")
+    lines = [
+        f"{r['data_type']}: {r.get('duration','—')}"
+        for r in st.session_state.doc_retention if r.get("data_type")
+    ]
     return "\n".join(lines)
 
 
-# ── Document-specific form sections ───────────────────────────
+# ── Document-specific sections ────────────────────────────────
+st.divider()
+st.markdown(f"**{DOCUMENT_TYPES[doc_type]} — specific information**")
+
+processor_name = processor_country = processing_purpose = None
+incident_response_contact = escalation_procedure = None
+processing_activities_text = third_party_processors_text = retention_periods_text = ""
+international_transfers = False
 
 if doc_type == "privacy_policy":
     processing_activities_text = activity_editor()
@@ -304,8 +325,8 @@ if doc_type == "privacy_policy":
     st.divider()
     international_transfers = st.checkbox(
         "Do you transfer personal data outside the EU/EEA?",
-        value=pf("international_transfers", False),
-        key="f_transfers"
+        value=bool(pf.get("international_transfers", False)),
+        key=f"f_transfers_{context_key}"
     )
 
 elif doc_type == "cookie_policy":
@@ -313,12 +334,18 @@ elif doc_type == "cookie_policy":
 
 elif doc_type == "dpa":
     processor_name = st.text_input(
-        "Processor name ✱", value=pf("processor_name"), key="f_proc_name",
-        placeholder="Company that processes data on your behalf"
+        "Processor name ✱", value=pf.get("processor_name",""),
+        key=f"f_proc_name_{context_key}", placeholder="Company processing data on your behalf"
     )
-    col_a, col_b = st.columns(2)
-    processor_country = col_a.text_input("Processor country", value=pf("processor_country"), key="f_proc_country")
-    processing_purpose = col_b.text_input("Purpose of processing ✱", value=pf("processing_purpose"), key="f_proc_purpose")
+    ca, cb = st.columns(2)
+    processor_country = ca.text_input(
+        "Processor country", value=pf.get("processor_country",""),
+        key=f"f_proc_ctry_{context_key}"
+    )
+    processing_purpose = cb.text_input(
+        "Purpose of processing ✱", value=pf.get("processing_purpose",""),
+        key=f"f_proc_purp_{context_key}"
+    )
     processing_activities_text = activity_editor()
 
 elif doc_type == "ropa":
@@ -330,61 +357,61 @@ elif doc_type == "ropa":
     st.divider()
     international_transfers = st.checkbox(
         "International transfers outside EU/EEA?",
-        value=pf("international_transfers", False),
-        key="f_transfers"
+        value=bool(pf.get("international_transfers", False)),
+        key=f"f_transfers_{context_key}"
     )
 
 elif doc_type == "incident_response":
     incident_response_contact = st.text_input(
         "Primary incident response contact ✱",
-        value=pf("incident_response_contact"),
+        value=pf.get("incident_response_contact",""),
         placeholder="Name, role, email, phone",
-        key="f_ir_contact"
+        key=f"f_ir_{context_key}"
     )
     escalation_procedure = st.text_area(
         "Escalation chain",
-        value=pf("escalation_procedure"),
+        value=pf.get("escalation_procedure",""),
         height=100,
-        placeholder="1. IT Manager → 2. CEO → 3. Legal counsel → 4. CCB/ANSSI (within 24h) → 5. Affected individuals",
-        key="f_escalation"
+        placeholder="1. IT Manager → 2. CEO → 3. Legal → 4. CCB/ANSSI (within 24h)",
+        key=f"f_esc_{context_key}"
     )
     processing_activities_text = st.text_area(
-        "Critical systems and assets to protect",
-        value=pf("processing_activities"),
+        "Critical systems and assets",
+        value=pf.get("processing_activities",""),
         height=80,
-        key="f_systems"
+        key=f"f_sys_{context_key}"
     )
 
 elif doc_type == "ai_transparency":
     processing_activities_text = st.text_area(
         "AI system description ✱",
-        value=pf("processing_activities"),
+        value=pf.get("processing_activities",""),
         height=120,
         placeholder="Describe your AI system and how users interact with it...",
-        key="f_ai_desc"
+        key=f"f_ai_{context_key}"
     )
     third_party_processors_text = st.text_input(
         "AI provider / model used",
-        value=pf("third_party_processors"),
-        placeholder="e.g. Mistral AI, OpenAI GPT-4",
-        key="f_ai_provider"
+        value=pf.get("third_party_processors",""),
+        placeholder="e.g. Mistral AI",
+        key=f"f_aiprov_{context_key}"
     )
 
-# ── Generate button ───────────────────────────────────────────
+# ── Generate ──────────────────────────────────────────────────
 st.divider()
 generate = st.button(
     f"⚡ Generate {DOCUMENT_TYPES[doc_type]}",
     type="primary",
     use_container_width=True,
-    key="btn_generate"
+    key=f"btn_gen_{context_key}"
 )
 
 if generate:
     if not legal_name.strip():
         st.error("Legal company name is required.")
         st.stop()
-    if not contact_email.strip() and doc_type in ["privacy_policy", "ropa"]:
-        st.error("Contact email for data requests is required.")
+    if doc_type in ["privacy_policy","ropa"] and not contact_email.strip():
+        st.error("Contact email is required.")
         st.stop()
     if doc_type == "privacy_policy" and not st.session_state.doc_activities:
         st.error("Please add at least one processing activity.")
@@ -419,16 +446,17 @@ if generate:
             "legal_name": legal_name.strip() or None,
             "legal_form": legal_form or None,
         })
+        # Update prefill cache
+        st.session_state.doc_prefill.update(intake_data)
 
     company_display = f"{legal_name.strip()} {legal_form}".strip()
 
-    with st.spinner(f"Retrieving regulatory context and generating {DOCUMENT_TYPES[doc_type]}..."):
+    with st.spinner(f"Generating {DOCUMENT_TYPES[doc_type]}..."):
         reg_context = get_regulatory_context(doc_type, language, country)
-        client_data = selected_client or {}
         doc_text = generate_document_text(
             document_type=doc_type,
             intake=intake_data,
-            client=client_data,
+            client=selected_client or {},
             language=language,
             regulatory_context=reg_context,
         )
@@ -436,72 +464,47 @@ if generate:
 
     st.success(f"✅ {DOCUMENT_TYPES[doc_type]} generated for {company_display}")
 
-    with st.spinner("Preparing PDF and ODT versions..."):
+    with st.spinner("Preparing PDF and ODT..."):
         try:
-            pdf_bytes = convert_docx_to_pdf(docx_bytes)
-            pdf_ok = True
-        except Exception as e:
-            pdf_ok = False; pdf_error = str(e)
-
+            pdf_bytes = convert_docx_to_pdf(docx_bytes); pdf_ok = True
+        except Exception:
+            pdf_ok = False
         try:
-            odt_bytes = convert_docx_to_odt(docx_bytes)
-            odt_ok = True
-        except Exception as e:
-            odt_ok = False; odt_error = str(e)
+            odt_bytes = convert_docx_to_odt(docx_bytes); odt_ok = True
+        except Exception:
+            odt_ok = False
 
     save_document_record(user_id, client_id, doc_type, language, company_display)
 
     st.markdown("**Download your document:**")
-    filename_base = f"COMPLAI_{doc_type}_{company_display.replace(' ', '_')}"
-
-    col1, col2, col3 = st.columns(3)
-    col1.download_button(
-        label="📝 Download DOCX",
-        data=docx_bytes,
-        file_name=f"{filename_base}.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        use_container_width=True,
-        type="primary",
-    )
+    fname = f"COMPLAI_{doc_type}_{company_display.replace(' ','_')}"
+    c1, c2, c3 = st.columns(3)
+    c1.download_button("📝 DOCX", docx_bytes, f"{fname}.docx",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        use_container_width=True, type="primary")
     if pdf_ok:
-        col2.download_button(
-            label="📄 Download PDF",
-            data=pdf_bytes,
-            file_name=f"{filename_base}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-        )
-    else:
-        col2.caption(f"PDF unavailable")
-
+        c2.download_button("📄 PDF", pdf_bytes, f"{fname}.pdf",
+            "application/pdf", use_container_width=True)
     if odt_ok:
-        col3.download_button(
-            label="📋 Download ODT",
-            data=odt_bytes,
-            file_name=f"{filename_base}.odt",
-            mime="application/vnd.oasis.opendocument.text",
-            use_container_width=True,
-        )
-    else:
-        col3.caption(f"ODT unavailable")
+        c3.download_button("📋 ODT", odt_bytes, f"{fname}.odt",
+            "application/vnd.oasis.opendocument.text", use_container_width=True)
 
     st.divider()
-    with st.expander("📖 Preview generated content", expanded=False):
+    with st.expander("📖 Preview", expanded=False):
         st.markdown(doc_text)
-
     st.caption(
-        "⚠️ This document was generated by AI based on the information you provided and official EU regulatory sources. "
-        "It is a starting point — review with a qualified legal professional before use."
+        "⚠️ Generated by AI from official EU regulatory sources. "
+        "Review with a qualified legal professional before use."
     )
 
-# ── Document history ──────────────────────────────────────────
+# ── History ───────────────────────────────────────────────────
 st.divider()
 st.subheader("📚 Document history")
 history = load_document_history(user_id, client_id if mode == "existing_client" else None)
 if history:
     for doc in history:
-        generated_at = doc.get("generated_at", "")[:10] if doc.get("generated_at") else ""
-        doc_label = DOCUMENT_TYPES.get(doc.get("document_type", ""), doc.get("document_type", ""))
-        st.caption(f"📄 {doc_label} — {doc.get('company_name','')} — {doc.get('language','').upper()} — {generated_at}")
+        dt = doc.get("generated_at","")[:10]
+        lbl = DOCUMENT_TYPES.get(doc.get("document_type",""), doc.get("document_type",""))
+        st.caption(f"📄 {lbl} — {doc.get('company_name','')} — {doc.get('language','').upper()} — {dt}")
 else:
     st.caption("No documents generated yet.")
