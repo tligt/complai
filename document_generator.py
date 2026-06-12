@@ -311,8 +311,12 @@ def generate_document_text(
 
 IMPORTANT RULES:
 - Write complete, legally sound documents ready for immediate use
-- Use clear section headings (numbered: 1., 2., 3. etc.)
-- Write in flowing legal prose — no bullet points inside sections
+- Use numbered section headings: "1. Title", "2. Title", "1.1 Sub-section" etc.
+- Write in flowing legal prose paragraphs
+- Use "- item" for bullet lists where needed
+- Do NOT use markdown ## headers — use numbered headings only
+- Do NOT use **bold** markers — write plain text
+- Do NOT use [text](url) markdown links — write plain email addresses
 - Do not include placeholder text like [INSERT NAME] — use the actual data provided
 - Base all legal references on the regulatory context provided
 - Include specific article references where relevant
@@ -459,11 +463,13 @@ data processed by the AI system, contact for questions. Date: {today}"""
 
 def build_docx(document_text: str, document_type: str,
                company_name: str, language: str) -> bytes:
-    """Build a professional DOCX using python-docx."""
+    """Build a professional DOCX using python-docx with full markdown parsing."""
     import re
     from docx import Document as DocxDocument
-    from docx.shared import Pt, RGBColor, Inches
+    from docx.shared import Pt, RGBColor, Inches, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
 
     doc_title = DOCUMENT_TYPES.get(document_type, "Compliance Document")
     today = date.today().strftime("%d %B %Y")
@@ -472,87 +478,191 @@ def build_docx(document_text: str, document_type: str,
 
     # Page margins
     for section in doc.sections:
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(1.2)
-        section.right_margin = Inches(1.2)
+        section.top_margin = Cm(2.5)
+        section.bottom_margin = Cm(2.5)
+        section.left_margin = Cm(3)
+        section.right_margin = Cm(2.5)
 
-    # Helper functions
-    def add_title(text):
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        run = p.add_run(text)
-        run.bold = True
-        run.font.size = Pt(20)
-        run.font.color.rgb = RGBColor(0x1B, 0x2A, 0x4A)
-        return p
+    # Define styles
+    styles = doc.styles
 
-    def add_subtitle(text, color=(0x4A, 0x3B, 0x8C)):
-        p = doc.add_paragraph()
-        run = p.add_run(text)
-        run.font.size = Pt(12)
+    def set_run_font(run, size=10, bold=False, italic=False,
+                     color=(0x33,0x33,0x33)):
+        run.font.name = "Arial"
+        run.font.size = Pt(size)
+        run.font.bold = bold
+        run.font.italic = italic
         run.font.color.rgb = RGBColor(*color)
-        return p
 
-    def add_heading1(text):
-        p = doc.add_heading(text, level=1)
-        run = p.runs[0] if p.runs else p.add_run(text)
-        run.font.color.rgb = RGBColor(0x1B, 0x2A, 0x4A)
-        run.font.size = Pt(14)
-        return p
+    def add_para_spacing(p, before=0, after=6):
+        p.paragraph_format.space_before = Pt(before)
+        p.paragraph_format.space_after = Pt(after)
 
-    def add_heading2(text):
-        p = doc.add_heading(text, level=2)
-        run = p.runs[0] if p.runs else p.add_run(text)
-        run.font.color.rgb = RGBColor(0x4A, 0x3B, 0x8C)
-        run.font.size = Pt(12)
-        return p
+    def add_border_bottom(p, color="D3D1C7"):
+        """Add bottom border to paragraph."""
+        pPr = p._p.get_or_add_pPr()
+        pBdr = OxmlElement("w:pBdr")
+        bottom = OxmlElement("w:bottom")
+        bottom.set(qn("w:val"), "single")
+        bottom.set(qn("w:sz"), "4")
+        bottom.set(qn("w:space"), "1")
+        bottom.set(qn("w:color"), color)
+        pBdr.append(bottom)
+        pPr.append(pBdr)
 
-    def add_body(text):
-        p = doc.add_paragraph()
-        run = p.add_run(text)
-        run.font.size = Pt(10)
-        p.paragraph_format.space_after = Pt(6)
-        return p
+    def parse_inline(p, text):
+        """Parse inline markdown: **bold**, *italic*, strip [text](url) to text."""
+        # Strip markdown links: [text](url) -> text
+        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'', text)
+        # Parse bold+italic ***text***
+        parts = re.split(r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)', text)
+        for part in parts:
+            if part.startswith('***') and part.endswith('***'):
+                run = p.add_run(part[3:-3])
+                set_run_font(run, bold=True, italic=True)
+            elif part.startswith('**') and part.endswith('**'):
+                run = p.add_run(part[2:-2])
+                set_run_font(run, bold=True)
+            elif part.startswith('*') and part.endswith('*'):
+                run = p.add_run(part[1:-1])
+                set_run_font(run, italic=True)
+            elif part.startswith('`') and part.endswith('`'):
+                run = p.add_run(part[1:-1])
+                set_run_font(run, color=(0x44,0x44,0x44))
+            else:
+                if part:
+                    run = p.add_run(part)
+                    set_run_font(run)
 
-    # Document header
-    add_title(doc_title)
-    add_subtitle(company_name)
-    add_subtitle(today, color=(0x88, 0x88, 0x88))
-    doc.add_paragraph()
+    # ── Document header ───────────────────────────────────────
+    # Title block
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    add_para_spacing(p, before=0, after=4)
+    run = p.add_run(doc_title)
+    run.font.name = "Arial"
+    run.font.size = Pt(22)
+    run.font.bold = True
+    run.font.color.rgb = RGBColor(0x1B, 0x2A, 0x4A)
+    add_border_bottom(p, "1B2A4A")
 
-    # Process generated text
-    heading1_re = re.compile(r'^(\d+)\.\s+(.+)')
-    heading2_re = re.compile(r'^(\d+\.\d+)\s+(.+)')
+    p2 = doc.add_paragraph()
+    add_para_spacing(p2, before=6, after=2)
+    run2 = p2.add_run(company_name)
+    run2.font.name = "Arial"
+    run2.font.size = Pt(13)
+    run2.font.color.rgb = RGBColor(0x4A, 0x3B, 0x8C)
 
+    p3 = doc.add_paragraph()
+    add_para_spacing(p3, before=0, after=16)
+    run3 = p3.add_run(today)
+    run3.font.name = "Arial"
+    run3.font.size = Pt(10)
+    run3.font.italic = True
+    run3.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+
+    # ── Parse document text ───────────────────────────────────
     lines = document_text.strip().split('\n')
-    for line in lines:
-        line = line.strip()
-        if not line:
-            doc.add_paragraph()
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+
+        # Skip duplicate title lines that Mistral often adds
+        if line.strip('# ').strip() == doc_title or line.strip('# ').strip() == company_name:
+            i += 1
             continue
 
-        m2 = heading2_re.match(line)
-        m1 = heading1_re.match(line)
+        # Blank line
+        if not line.strip():
+            p = doc.add_paragraph()
+            add_para_spacing(p, before=0, after=2)
+            i += 1
+            continue
 
-        if m2:
-            add_heading2(line)
-        elif m1:
-            add_heading1(line)
-        else:
-            # Strip markdown bold markers
-            line = re.sub(r'\*\*(.+?)\*\*', r'\1', line)
-            add_body(line)
+        # H1: # Title or 1. Title
+        if re.match(r'^#{1,2}\s+', line) or re.match(r'^\d+\.\s+[A-Z]', line):
+            clean = re.sub(r'^#{1,2}\s+', '', line).strip()
+            clean = re.sub(r'^\d+\.\s+', '', clean)
+            # Restore number prefix for numbered headings
+            m = re.match(r'^(\d+\.\s+)(.*)', line)
+            if m:
+                clean = m.group(1) + re.sub(r'^#{1,2}\s+', '', m.group(2))
+            else:
+                clean = re.sub(r'^#{1,2}\s+', '', line)
+            p = doc.add_paragraph()
+            add_para_spacing(p, before=14, after=4)
+            add_border_bottom(p, "D3D1C7")
+            run = p.add_run(clean)
+            run.font.name = "Arial"
+            run.font.size = Pt(13)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(0x1B, 0x2A, 0x4A)
+            i += 1
+            continue
 
-    # Footer note
+        # H2: ## Title or 1.1 Title
+        if re.match(r'^###\s+', line) or re.match(r'^\d+\.\d+\s+[A-Z]', line):
+            clean = re.sub(r'^#{2,3}\s+', '', line).strip()
+            p = doc.add_paragraph()
+            add_para_spacing(p, before=10, after=3)
+            run = p.add_run(clean)
+            run.font.name = "Arial"
+            run.font.size = Pt(11)
+            run.font.bold = True
+            run.font.color.rgb = RGBColor(0x4A, 0x3B, 0x8C)
+            i += 1
+            continue
+
+        # Bullet: - or * or •
+        if re.match(r'^[-*•]\s+', line):
+            clean = re.sub(r'^[-*•]\s+', '', line)
+            p = doc.add_paragraph(style='List Bullet')
+            add_para_spacing(p, before=1, after=1)
+            p.paragraph_format.left_indent = Cm(1)
+            parse_inline(p, clean)
+            i += 1
+            continue
+
+        # Numbered list: 1. item (but NOT section headings)
+        m_num = re.match(r'^(\d+)\.\s+(.+)', line)
+        if m_num and not re.match(r'^\d+\.\s+[A-Z][A-Z]', line):
+            p = doc.add_paragraph(style='List Number')
+            add_para_spacing(p, before=1, after=1)
+            parse_inline(p, m_num.group(2))
+            i += 1
+            continue
+
+        # Horizontal rule ---
+        if re.match(r'^-{3,}$', line.strip()):
+            p = doc.add_paragraph()
+            add_border_bottom(p, "D3D1C7")
+            add_para_spacing(p, before=4, after=4)
+            i += 1
+            continue
+
+        # Body text
+        p = doc.add_paragraph()
+        add_para_spacing(p, before=0, after=5)
+        p.paragraph_format.line_spacing = Pt(14)
+        parse_inline(p, line)
+        i += 1
+
+    # Footer
     doc.add_paragraph()
     p = doc.add_paragraph()
-    run = p.add_run(f"Generated by COMPLAI · complai.be · {today}")
+    add_border_bottom(p, "D3D1C7")
+    add_para_spacing(p, before=0, after=4)
+    p = doc.add_paragraph()
+    add_para_spacing(p, before=4, after=0)
+    run = p.add_run(
+        f"Generated by COMPLAI · complai.be · {today} · "
+        "This document is a starting point and should be reviewed by a qualified legal professional."
+    )
+    run.font.name = "Arial"
     run.font.size = Pt(8)
-    run.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
-    run.italic = True
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
-    # Save to bytes
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
@@ -560,6 +670,15 @@ def build_docx(document_text: str, document_type: str,
 
 def convert_docx_to_pdf(docx_bytes: bytes) -> bytes:
     """Convert DOCX bytes to PDF using LibreOffice."""
+    import shutil
+
+    # Find soffice.py — try multiple locations
+    soffice_candidates = [
+        '/mnt/skills/public/docx/scripts/office/soffice.py',
+        '/mnt/skills/public/pptx/scripts/office/soffice.py',
+    ]
+    soffice_script = next((p for p in soffice_candidates if os.path.exists(p)), None)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, 'document.docx')
         pdf_path = os.path.join(tmpdir, 'document.pdf')
@@ -567,20 +686,34 @@ def convert_docx_to_pdf(docx_bytes: bytes) -> bytes:
         with open(docx_path, 'wb') as f:
             f.write(docx_bytes)
 
-        result = subprocess.run(
-            ['python3', '/mnt/skills/public/docx/scripts/office/soffice.py',
-             '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
-            capture_output=True, text=True, timeout=60
-        )
+        if soffice_script:
+            result = subprocess.run(
+                ['python3', soffice_script,
+                 '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
+                capture_output=True, text=True, timeout=60
+            )
+        else:
+            # Fallback: call soffice directly
+            result = subprocess.run(
+                ['soffice', '--headless', '--convert-to', 'pdf',
+                 '--outdir', tmpdir, docx_path],
+                capture_output=True, text=True, timeout=60
+            )
 
         if os.path.exists(pdf_path):
             with open(pdf_path, 'rb') as f:
                 return f.read()
-        raise RuntimeError(f"PDF conversion failed: {result.stderr}")
+        raise RuntimeError(f"PDF conversion failed: {result.stderr or result.stdout}")
 
 
 def convert_docx_to_odt(docx_bytes: bytes) -> bytes:
     """Convert DOCX bytes to ODT using LibreOffice."""
+    soffice_candidates = [
+        '/mnt/skills/public/docx/scripts/office/soffice.py',
+        '/mnt/skills/public/pptx/scripts/office/soffice.py',
+    ]
+    soffice_script = next((p for p in soffice_candidates if os.path.exists(p)), None)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, 'document.docx')
         odt_path = os.path.join(tmpdir, 'document.odt')
@@ -588,13 +721,20 @@ def convert_docx_to_odt(docx_bytes: bytes) -> bytes:
         with open(docx_path, 'wb') as f:
             f.write(docx_bytes)
 
-        result = subprocess.run(
-            ['python3', '/mnt/skills/public/docx/scripts/office/soffice.py',
-             '--headless', '--convert-to', 'odt', docx_path, '--outdir', tmpdir],
-            capture_output=True, text=True, timeout=60
-        )
+        if soffice_script:
+            result = subprocess.run(
+                ['python3', soffice_script,
+                 '--headless', '--convert-to', 'odt', docx_path, '--outdir', tmpdir],
+                capture_output=True, text=True, timeout=60
+            )
+        else:
+            result = subprocess.run(
+                ['soffice', '--headless', '--convert-to', 'odt',
+                 '--outdir', tmpdir, docx_path],
+                capture_output=True, text=True, timeout=60
+            )
 
         if os.path.exists(odt_path):
             with open(odt_path, 'rb') as f:
                 return f.read()
-        raise RuntimeError(f"ODT conversion failed: {result.stderr}")
+        raise RuntimeError(f"ODT conversion failed: {result.stderr or result.stdout}")
