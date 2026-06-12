@@ -484,7 +484,10 @@ generate = st.button(
 )
 
 if generate:
-    # Read from stable widget keys in session state
+    # Debug: show what's in session state
+    contact_keys = {k: v for k, v in st.session_state.items() 
+                   if "contact" in str(k).lower() or "email" in str(k).lower()}
+    st.write("DEBUG contact keys:", contact_keys)
     legal_name = st.session_state.get("f_legal_name_stable", "") or legal_name or ""
     contact_email = st.session_state.get("f_contact_stable", "") or contact_email or ""
 
