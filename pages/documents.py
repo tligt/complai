@@ -569,6 +569,7 @@ if generate:
         company_name=company_display,
         docx_bytes=docx_bytes,
         pdf_bytes=pdf_bytes if pdf_ok else None,
+        odt_bytes=odt_bytes if odt_ok else None,
     )
 
     st.markdown("**Download your document:**")
@@ -601,5 +602,49 @@ if history:
         dt = doc.get("generated_at","")[:10]
         lbl = DOCUMENT_TYPES.get(doc.get("document_type",""), doc.get("document_type",""))
         st.caption(f"📄 {lbl} — {doc.get('company_name','')} — {doc.get('language','').upper()} — {dt}")
+else:
+    st.caption("No documents generated yet.")
+
+from database import load_document_files, get_signed_url
+
+st.divider()
+st.subheader("📚 Document history")
+history = load_document_files(user_id, client_id if mode == "existing_client" else None)
+if history:
+    for doc in history:
+        dt = doc.get("generated_at","")[:10]
+        lbl = DOCUMENT_TYPES.get(doc.get("document_type",""), doc.get("document_type",""))
+        company = doc.get("company_name","")
+        lang = doc.get("language","").upper()
+
+        col_info, col_docx, col_pdf, col_odt = st.columns([4, 1, 1, 1])
+        col_info.caption(f"📄 {lbl} — {company} — {lang} — {dt}")
+
+        if doc.get("file_path_docx"):
+            url = get_signed_url("compliance-files", doc["file_path_docx"], expires_in=300)
+            if url:
+                col_docx.link_button("DOCX", url, use_container_width=True)
+            else:
+                col_docx.caption("—")
+        else:
+            col_docx.caption("—")
+
+        if doc.get("file_path_pdf"):
+            url = get_signed_url("compliance-files", doc["file_path_pdf"], expires_in=300)
+            if url:
+                col_pdf.link_button("PDF", url, use_container_width=True)
+            else:
+                col_pdf.caption("—")
+        else:
+            col_pdf.caption("—")
+
+        if doc.get("file_path_odt"):
+            url = get_signed_url("compliance-files", doc["file_path_odt"], expires_in=300)
+            if url:
+                col_odt.link_button("ODT", url, use_container_width=True)
+            else:
+                col_odt.caption("—")
+        else:
+            col_odt.caption("—")
 else:
     st.caption("No documents generated yet.")
