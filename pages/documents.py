@@ -33,9 +33,16 @@ for key, default in [
     ("doc_activities", []),
     ("doc_processors", []),
     ("doc_retention", []),
-    ("doc_confirmed", False),     # confirmation checkbox state
-    ("doc_context_key", None),   # tracks which client+mode is loaded
-    ("doc_prefill", {}),         # cached prefill values
+    ("doc_confirmed", False),
+    ("doc_context_key", None),
+    ("doc_prefill", {}),
+    ("doc_contact_email", ""),
+    ("doc_legal_name", ""),
+    ("doc_legal_form", ""),
+    ("doc_country", "BE"),
+    ("doc_website_url", ""),
+    ("doc_dpo_name", ""),
+    ("doc_dpo_email", ""),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -92,6 +99,13 @@ if context_key != st.session_state.doc_context_key:
     st.session_state.doc_processors = []
     st.session_state.doc_retention = []
     st.session_state.doc_confirmed = False
+    st.session_state.doc_contact_email = ""
+    st.session_state.doc_legal_name = ""
+    st.session_state.doc_legal_form = ""
+    st.session_state.doc_country = "BE"
+    st.session_state.doc_website_url = ""
+    st.session_state.doc_dpo_name = ""
+    st.session_state.doc_dpo_email = ""
 
     if mode == "existing_client" and client_id:
         # Load intake + client profile into prefill cache
@@ -107,6 +121,14 @@ if context_key != st.session_state.doc_context_key:
             if v:
                 pf[f] = v
         st.session_state.doc_prefill = pf
+        # Populate stable session state vars from prefill
+        st.session_state.doc_contact_email = pf.get("contact_email", "")
+        st.session_state.doc_legal_name = pf.get("legal_name") or pf.get("company_name", "")
+        st.session_state.doc_legal_form = pf.get("legal_form", "")
+        st.session_state.doc_country = pf.get("country", "BE")
+        st.session_state.doc_website_url = pf.get("website_url", "")
+        st.session_state.doc_dpo_name = pf.get("dpo_name", "")
+        st.session_state.doc_dpo_email = pf.get("dpo_email", "")
     else:
         # External company or no client — blank slate
         st.session_state.doc_prefill = {}
@@ -121,9 +143,13 @@ st.caption("Fields marked ✱ are required.")
 col1, col2 = st.columns(2)
 legal_name = col1.text_input(
     "Legal company name ✱",
-    value=pf.get("legal_name") or pf.get("company_name", ""),
-    key=f"f_legal_name_{mode}_{client_id}"
+    value=st.session_state.doc_legal_name,
+    key="f_legal_name_stable",
+    on_change=lambda: setattr(st.session_state, "doc_legal_name",
+                              st.session_state.get("f_legal_name_stable", ""))
 )
+st.session_state.doc_legal_name = st.session_state.get("f_legal_name_stable",
+                                                         st.session_state.doc_legal_name)
 
 country_options = {
     "BE": "🇧🇪 Belgium", "FR": "🇫🇷 France", "NL": "🇳🇱 Netherlands",
@@ -170,9 +196,13 @@ dpo_email = col4.text_input(
 )
 contact_email = st.text_input(
     "Contact email for data requests ✱",
-    value=pf.get("contact_email", ""),
-    key=f"f_contact_{mode}_{client_id}"
+    value=st.session_state.doc_contact_email,
+    key="f_contact_stable",
+    on_change=lambda: setattr(st.session_state, "doc_contact_email",
+                              st.session_state.get("f_contact_stable", ""))
 )
+st.session_state.doc_contact_email = st.session_state.get("f_contact_stable",
+                                                            st.session_state.doc_contact_email)
 
 # ── Structured field helpers ──────────────────────────────────
 
@@ -458,24 +488,9 @@ generate = st.button(
 )
 
 if generate:
-    # Find contact email from session state by scanning all keys
-    contact_email_key = f"f_contact_{mode}_{client_id}"
-    contact_email_val = st.session_state.get(contact_email_key, "")
-    if not contact_email_val:
-        # Try finding any key containing f_contact in session state
-        for k, v in st.session_state.items():
-            if "f_contact" in str(k) and v:
-                contact_email_val = str(v)
-                break
-    legal_name_key = f"f_legal_name_{mode}_{client_id}"
-    legal_name_val = st.session_state.get(legal_name_key, "")
-    if not legal_name_val:
-        for k, v in st.session_state.items():
-            if "f_legal_name" in str(k) and v:
-                legal_name_val = str(v)
-                break
-    legal_name = legal_name_val or legal_name or ""
-    contact_email = contact_email_val or contact_email or ""
+    # Read from stable session state vars
+    legal_name = st.session_state.doc_legal_name or legal_name or ""
+    contact_email = st.session_state.doc_contact_email or contact_email or ""
 
     if not legal_name.strip():
         st.error("Legal company name is required.")
