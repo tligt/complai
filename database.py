@@ -202,7 +202,8 @@ def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str | None
 
 def update_document_paths(doc_id: str, user_id: str,
                            file_path_docx: str | None,
-                           file_path_pdf: str | None) -> bool:
+                           file_path_pdf: str | None,
+                           file_path_odt: str | None = None) -> bool:
     """Save storage paths back to documents table."""
     try:
         supabase = get_supabase()
@@ -211,6 +212,8 @@ def update_document_paths(doc_id: str, user_id: str,
             update["file_path_docx"] = file_path_docx
         if file_path_pdf:
             update["file_path_pdf"] = file_path_pdf
+        if file_path_odt:
+            update["file_path_odt"] = file_path_odt
         if not update:
             return False
         supabase.table("documents") \
@@ -243,7 +246,7 @@ def load_document_files(user_id: str, client_id: str | None) -> list[dict]:
     try:
         supabase = get_supabase()
         q = supabase.table("documents") \
-            .select("id, document_type, language, company_name, generated_at, file_path_docx, file_path_pdf") \
+            .select("id, document_type, language, company_name, generated_at, file_path_docx, file_path_pdf, file_path_odt") \
             .eq("user_id", user_id) \
             .order("generated_at", desc=True) \
             .limit(20)

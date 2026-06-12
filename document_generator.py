@@ -138,6 +138,7 @@ def save_document_with_files(
     company_name: str,
     docx_bytes: bytes,
     pdf_bytes: bytes | None = None,
+    odt_bytes: bytes | None = None,
 ) -> str | None:
     """Save document record and upload files to Supabase Storage. Returns document ID."""
     import re
@@ -175,7 +176,15 @@ def save_document_with_files(
             "compliance-files", f"{base_path}.pdf", pdf_bytes, "application/pdf"
         )
 
-    update_document_paths(doc_id, user_id, docx_path, pdf_path)
+    # Upload ODT if available
+    odt_path = None
+    if odt_bytes:
+        odt_path = upload_file(
+            "compliance-files", f"{base_path}.odt", odt_bytes,
+            "application/vnd.oasis.opendocument.text"
+        )
+
+    update_document_paths(doc_id, user_id, docx_path, pdf_path, odt_path)
     return doc_id
 
 
