@@ -458,12 +458,24 @@ generate = st.button(
 )
 
 if generate:
-    # Read from session state to get actual typed values
-    _legal_name = st.session_state.get(f"f_legal_name_{mode}_{client_id}", "") or ""
-    _contact_email = st.session_state.get(f"f_contact_{mode}_{client_id}", "") or ""
-    # Override variables with session state values
-    legal_name = _legal_name or legal_name or ""
-    contact_email = _contact_email or contact_email or ""
+    # Find contact email from session state by scanning all keys
+    contact_email_key = f"f_contact_{mode}_{client_id}"
+    contact_email_val = st.session_state.get(contact_email_key, "")
+    if not contact_email_val:
+        # Try finding any key containing f_contact in session state
+        for k, v in st.session_state.items():
+            if "f_contact" in str(k) and v:
+                contact_email_val = str(v)
+                break
+    legal_name_key = f"f_legal_name_{mode}_{client_id}"
+    legal_name_val = st.session_state.get(legal_name_key, "")
+    if not legal_name_val:
+        for k, v in st.session_state.items():
+            if "f_legal_name" in str(k) and v:
+                legal_name_val = str(v)
+                break
+    legal_name = legal_name_val or legal_name or ""
+    contact_email = contact_email_val or contact_email or ""
 
     if not legal_name.strip():
         st.error("Legal company name is required.")
