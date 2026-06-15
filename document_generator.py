@@ -419,11 +419,12 @@ REGULATORY CONTEXT:
 
 def _privacy_policy_prompt(intake: dict, client: dict, today: str, dpa: str) -> str:
     company = f"{intake.get('legal_name') or client.get('company_name', 'The Company')} {intake.get('legal_form', '')}".strip()
+    country = intake.get('country') or client.get('country', 'BE')
     return f"""Draft a complete GDPR-compliant Privacy Policy for the following company:
 
 COMPANY DETAILS:
 - Legal name: {company}
-- Country: {intake.get('country') or client.get('country', 'BE')}
+- Country: {country}
 - Sector: {client.get('sector', 'Not specified')}
 - Website: {intake.get('website_url') or client.get('website_url', 'Not specified')}
 - DPO: {intake.get('dpo_name', 'None appointed')} — {intake.get('dpo_email', '')}
@@ -440,20 +441,28 @@ INTERNATIONAL TRANSFERS: {'Yes' if intake.get('international_transfers') else 'N
 RETENTION PERIODS:
 {intake.get('retention_periods', 'Not specified')}
 
-The document must cover:
+The document MUST explicitly cover ALL of the following sections:
+
 1. Identity and contact details of the data controller
-2. DPO contact (if applicable)
-3. What personal data we collect and why
-4. Legal basis for each processing activity (Article 6 GDPR)
-5. Retention periods
-6. Recipients and third-party processors
-7. International transfers (if applicable)
-8. Data subject rights (Articles 15-22 GDPR)
-9. How to exercise rights
-10. Right to lodge a complaint with {dpa}
-11. Automated decision-making (if applicable)
-12. Changes to this policy
-13. Effective date: {today}"""
+2. DPO contact details (if applicable) or statement that no DPO is required
+3. What personal data we collect, from whom, and why
+4. Legal basis for EACH processing activity (Article 6 GDPR) — state the specific basis
+5. Special category data: if any special category data (health, biometric, racial, religious, etc.)
+   is processed, explicitly state the Article 9(2) GDPR legal ground and additional safeguards
+6. Data minimisation: for each processing activity, explain why each data category is necessary
+   and limited to what is strictly required for the stated purpose (Art. 5(1)(c))
+7. Retention periods for each data category — specific durations, not vague statements
+8. Recipients and third-party processors with their role and country
+9. International transfers: if applicable, state the transfer mechanism (adequacy decision, SCCs, etc.)
+10. Data subject rights (Articles 15-22 GDPR) — list ALL rights: access, rectification, erasure,
+    restriction, portability, objection, automated decision-making. Include timeframes (1 month).
+11. How to exercise rights — specific contact details and process
+12. Right to lodge a complaint with {dpa}
+13. Technical and organisational security measures in place (Art. 32) — describe actual measures
+    such as encryption, access controls, pseudonymisation, staff training
+14. Automated decision-making and profiling (if applicable)
+15. Changes to this policy — how users will be notified
+16. Effective date: {today}"""
 
 
 def _cookie_policy_prompt(intake: dict, client: dict, today: str) -> str:
