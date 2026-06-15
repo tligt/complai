@@ -58,7 +58,10 @@ with tab1:
     st.caption(
         "Upload a specific document and get a score based only on the obligations "
         "that document is supposed to cover. "
-        "A good privacy policy should score 75-90/100 on privacy obligations."
+        "A privacy policy alone typically scores 60-75/100 — some obligations such as "
+        "detailed data subject rights procedures and security policies are best covered "
+        "in separate documents. Pair your privacy policy with a Data Subject Rights "
+        "Procedure and an Incident Response Plan to reach 80%+."
     )
 
     col1, col2 = st.columns(2)
