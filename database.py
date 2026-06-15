@@ -274,3 +274,86 @@ def load_audit_files(email_domain: str | None = None,
         return q.execute().data or []
     except Exception as e:
         return []
+
+
+# ── Client document repository ────────────────────────────────
+
+def get_current_client_documents(client_id: str, user_id: str) -> dict:
+    """Get current version of each document type for a client.
+    Returns dict keyed by document_type."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("client_documents") \
+            .select("*") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .eq("is_current", True) \
+            .execute()
+        return {r["document_type"]: r for r in (res.data or [])}
+    except Exception as e:
+        return {}
+
+
+def get_client_document_history(client_id: str, user_id: str,
+                                 document_type: str) -> list[dict]:
+    """Get full version history for a specific document type."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("client_documents") \
+            .select("*") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .eq("document_type", document_type) \
+            .order("version", desc=True) \
+            .execute()
+        return res.data or []
+    except Exception:
+        return []
+
+
+def register_client_document(
+    user_id: str,
+    client_id: str,
+    document_type: str,
+    file_path: str,
+    source: str = "client_upload",
+    change_comment: str = "",
+) -> bool:
+    """Register a new document version. Marks previous version as not current."""
+    try:
+        supabase = get_supabase()
+
+        # Get current version number
+        res = supabase.table("client_documents") \
+            .select("version") \
+            .eq("client_id", client_id) \
+            .eq("document_type", document_type) \
+            .eq("is_current", True) \
+            .execute()
+
+        current_version = res.data[0]["version"] if res.data else 0
+        new_version = current_version + 1
+
+        # Mark previous as not current
+        if current_version > 0:
+            supabase.table("client_documents") \
+                .update({"is_current": False}) \
+                .eq("client_id", client_id) \
+                .eq("user_id", user_id) \
+                .eq("document_type", document_type) \
+                .execute()
+
+        # Insert new version
+        supabase.table("client_documents").insert({
+            "user_id": user_id,
+            "client_id": client_id,
+            "document_type": document_type,
+            "version": new_version,
+            "file_path": file_path,
+            "source": source,
+            "change_comment": change_comment,
+            "is_current": True,
+        }).execute()
+        return True
+    except Exception as e:
+        return False
