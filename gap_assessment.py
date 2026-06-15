@@ -349,8 +349,15 @@ def analyse_obligation(obligation: dict, document_text: str,
                 "recommendation": f"Upload or generate a {doc_label} in COMPLAI."}
 
     # Mistral analysis
-    doc_excerpt = document_text[:4000]
-
+    if len(document_text) <= 6000:
+        doc_excerpt = document_text
+    else:
+        first = document_text[:3000]
+        mid_s = len(document_text)//2 - 500
+        middle = document_text[mid_s:mid_s+1000]
+        last = document_text[-1500:]
+        sep = "\n...[continued]...\n"
+        doc_excerpt = first + sep + middle + sep + last
     system_prompt = """You are an EU compliance expert assessing whether a document satisfies a regulatory obligation.
 Analyse the document excerpt and respond ONLY with valid JSON:
 {
@@ -374,7 +381,7 @@ DOCUMENT:
                          "Content-Type": "application/json"},
                 json={
                     "model": "mistral-large-latest",
-                    "temperature": 0.1,
+                    "temperature": 0.0,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
