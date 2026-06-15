@@ -483,12 +483,25 @@ The document MUST explicitly cover ALL of the following sections:
 7. Retention periods for each data category — specific durations, not vague statements
 8. Recipients and third-party processors with their role and country
 9. International transfers: if applicable, state the transfer mechanism (adequacy decision, SCCs, etc.)
-10. Data subject rights (Articles 15-22 GDPR) — list ALL rights: access, rectification, erasure,
-    restriction, portability, objection, automated decision-making. Include timeframes (1 month).
-11. How to exercise rights — specific contact details and process
-12. Right to lodge a complaint with {dpa}
-13. Technical and organisational security measures in place (Art. 32) — describe actual measures
-    such as encryption, access controls, pseudonymisation, staff training
+10. Data subject rights (Articles 15-22 GDPR) — list ALL rights with concrete procedures:
+    - Right of access (Art. 15): how to submit a request, response timeframe (1 month, extendable to 3)
+    - Right to rectification (Art. 16): process for correcting inaccurate data
+    - Right to erasure (Art. 17): conditions and process for deletion requests
+    - Right to restriction (Art. 18): when and how processing can be restricted
+    - Right to data portability (Art. 20): format and delivery method
+    - Right to object (Art. 21): how to object to processing
+    - Rights re automated decision-making (Art. 22): if applicable
+    Include: exact contact email/address for requests, 1-month response timeframe, right to appeal
+11. How to exercise rights — step-by-step: "Submit your request to [contact], we will respond within
+    30 days, you may escalate to {dpa} if unsatisfied"
+12. Right to lodge a complaint with {dpa} — include the authority name and website
+13. Technical and organisational security measures (Art. 32) — explicitly describe:
+    - Encryption (data in transit via TLS, data at rest)
+    - Access controls (role-based access, authentication)
+    - Pseudonymisation where applied
+    - Staff training on data protection
+    - Regular security assessments
+    - Data breach detection and response procedures
 14. Automated decision-making and profiling (if applicable)
 15. Changes to this policy — how users will be notified
 16. Effective date: {today}"""
