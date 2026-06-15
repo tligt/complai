@@ -422,11 +422,17 @@ DOCUMENT:
 # ── Document-specific obligations mapping ─────────────────────
 
 DOC_OBLIGATIONS = {
-    "privacy_policy":    ["gdpr_01","gdpr_07","gdpr_08","gdpr_15"],
+    # Privacy policy: assessed on content quality — does it cover these topics?
+    "privacy_policy":    ["gdpr_01","gdpr_07","gdpr_14","gdpr_16","gdpr_20"],
+    # Cookie policy: does it explain cookies, consent, management?
     "cookie_policy":     ["eprivacy_01","eprivacy_02","eprivacy_05"],
+    # DPA: does it cover Art. 28 clauses and transfer safeguards?
     "dpa":               ["gdpr_05","gdpr_11"],
+    # RoPA: does it document processing activities with legal basis and retention?
     "ropa":              ["gdpr_02","gdpr_03","gdpr_09"],
+    # Incident response: does it cover detection, reporting, recovery, NIS2 timelines?
     "incident_response": ["gdpr_06","nis2_01","nis2_02","nis2_03","nis2_04"],
+    # AI transparency notice
     "ai_transparency":   [],
 }
 
