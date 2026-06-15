@@ -8,15 +8,38 @@ def get_supabase() -> Client:
     key = os.environ.get("SUPABASE_KEY")
     if not url or not key:
         raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in secrets.")
-    return create_client(url, key)
+    client = create_client(url, key)
+    # Inject access token if available to prevent JWT expiry errors
+    try:
+        access_token = st.session_state.get("access_token")
+        refresh_token = st.session_state.get("refresh_token")
+        if access_token and refresh_token:
+            client.auth.set_session(access_token, refresh_token)
+    except Exception:
+        pass
+    return client
 
 
 def init_auth():
-    """Initialise auth session state."""
+    """Initialise auth session state and refresh token if needed."""
     if "user" not in st.session_state:
         st.session_state.user = None
     if "access_token" not in st.session_state:
         st.session_state.access_token = None
+    if "refresh_token" not in st.session_state:
+        st.session_state.refresh_token = None
+
+    # Try to refresh session if we have a refresh token but access token may be expired
+    if st.session_state.get("refresh_token") and st.session_state.get("user"):
+        try:
+            supabase = get_supabase()
+            res = supabase.auth.refresh_session(st.session_state.refresh_token)
+            if res and res.session:
+                st.session_state.access_token = res.session.access_token
+                st.session_state.refresh_token = res.session.refresh_token
+                st.session_state.user = res.user
+        except Exception:
+            pass
 
 
 def is_logged_in() -> bool:
@@ -41,6 +64,7 @@ def login_ui():
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state.user = res.user
                     st.session_state.access_token = res.session.access_token
+                    st.session_state.refresh_token = res.session.refresh_token
                     st.rerun()
                 except Exception as e:
                     st.error(f"Login failed: {e}")
@@ -77,7 +101,7 @@ def logout():
         supabase.auth.sign_out()
     except Exception:
         pass
-    for key in ["user", "access_token", "selected_client", "messages", "clients"]:
+    for key in ["user", "access_token", "refresh_token", "selected_client", "messages", "clients"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()
