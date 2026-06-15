@@ -229,22 +229,12 @@ with tab1:
                 use_container_width=True,
             )
 
-            # Option to save to repository
+            # Auto-save to repository
             st.divider()
             if client_id:
-                save_to_repo = st.checkbox(
-                    f"Save this document to {chosen}'s repository as current {DOCUMENT_TYPES[doc_type_review]}",
-                    key="save_review_doc"
-                )
-                comment = ""
-                if save_to_repo:
-                    comment = st.text_input(
-                        "Change comment (optional)",
-                        placeholder="e.g. Initial upload — external audit pending",
-                        key="review_comment"
-                    )
-
-                if save_to_repo and st.button("💾 Save to repository", key="btn_save_review"):
+                # Save automatically — no checkbox needed
+                save_key = f"saved_review_{doc_type_review}"
+                if not st.session_state.get(save_key):
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     safe = re.sub(r"[^a-zA-Z0-9_-]", "_", uploaded_review.name)[:30]
                     path = f"{user_id}/{client_id}/COMPLAI_{doc_type_review}_{ts}_{safe}"
@@ -254,15 +244,39 @@ with tab1:
                         "application/octet-stream"
                     )
                     if stored:
+                        comment = ""  # Will be updated below if user adds one
                         register_client_document(
                             user_id=user_id,
                             client_id=client_id,
                             document_type=doc_type_review,
                             file_path=path,
                             source="client_upload",
-                            change_comment=comment,
+                            change_comment="",
                         )
-                        st.success("✅ Saved to repository.")
+                        st.session_state[save_key] = path
+                        st.session_state[f"saved_path_{doc_type_review}"] = path
+
+                # Show saved status
+                st.success(
+                    f"✅ **{DOCUMENT_TYPES[doc_type_review]} saved** to {chosen}'s repository. "
+                    f"Add a note about what changed (optional):"
+                )
+
+                # Change comment — can be added after saving
+                comment = st.text_input(
+                    "Change comment",
+                    placeholder="e.g. Version reviewed after external audit",
+                    key="review_comment"
+                )
+                if comment and st.button("💾 Save comment", key="btn_save_comment"):
+                    try:
+                        from database import get_supabase
+                        path = st.session_state.get(f"saved_path_{doc_type_review}")
+                        if path:
+                            get_supabase().table("client_documents")                                 .update({"change_comment": comment})                                 .eq("file_path", path)                                 .eq("user_id", user_id)                                 .execute()
+                            st.success("✅ Comment saved.")
+                    except Exception as e:
+                        st.warning(f"Could not save comment: {e}")
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 2 — Full Compliance Check
