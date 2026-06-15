@@ -409,12 +409,41 @@ REGULATORY CONTEXT:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": doc_prompt},
             ],
-            "max_tokens": 4096,
+            "max_tokens": 8000,
         },
         timeout=120,
     )
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    result = response.json()
+    content_text = result["choices"][0]["message"]["content"]
+    finish_reason = result["choices"][0].get("finish_reason", "")
+
+    # If truncated, continue generation
+    if finish_reason == "length":
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": doc_prompt},
+            {"role": "assistant", "content": content_text},
+            {"role": "user", "content": "Continue the document from where you left off. Do not repeat what you already wrote. Continue with the next section."},
+        ]
+        cont_response = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0.3,
+                "messages": messages,
+                "max_tokens": 4000,
+            },
+            timeout=120,
+        )
+        if cont_response.status_code == 200:
+            content_text += "\n" + cont_response.json()["choices"][0]["message"]["content"]
+
+    return content_text
 
 
 def _privacy_policy_prompt(intake: dict, client: dict, today: str, dpa: str) -> str:
