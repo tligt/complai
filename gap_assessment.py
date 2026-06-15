@@ -436,6 +436,78 @@ DOC_OBLIGATIONS = {
     "ai_transparency":   [],
 }
 
+def _assess_obligations_batch(
+    obligations: list,
+    doc_excerpt: str,
+    api_key: str,
+) -> list:
+    """Assess 2-3 obligations in a single Mistral call. Returns list of results."""
+    ob_list = "\n".join(
+        f"- ID={ob['id']}: {ob['title']} ({ob['article']}): {ob['description']}"
+        for ob in obligations
+    )
+
+    system_prompt = """You are an EU compliance expert. Check if the document satisfies each obligation.
+Return ONLY a valid JSON array, one object per obligation, no other text:
+[{"id":"ob_id","status":"compliant","explanation":"one sentence","recommendation":""},...]
+Status must be exactly: compliant, partial, or missing."""
+
+    user_prompt = f"""DOCUMENT:
+{doc_excerpt}
+
+CHECK THESE OBLIGATIONS:
+{ob_list}"""
+
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                "https://api.mistral.ai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}",
+                         "Content-Type": "application/json"},
+                json={
+                    "model": "mistral-large-latest",
+                    "temperature": 0.0,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "max_tokens": 800,
+                },
+                timeout=45,
+            )
+            response.raise_for_status()
+            raw = response.json()["choices"][0]["message"]["content"].strip()
+            # Strip markdown fences
+            raw = re.sub(r"```json|```", "", raw).strip()
+            # Extract JSON array
+            match = re.search(r'\[[\s\S]*\]', raw)
+            if match:
+                raw = match.group(0)
+            parsed = json.loads(raw)
+            results = []
+            results_map = {r.get("id",""): r for r in parsed if isinstance(r, dict)}
+            for ob in obligations:
+                r = results_map.get(ob["id"], {})
+                status = r.get("status","partial")
+                if status not in ("compliant","partial","missing"):
+                    status = "partial"
+                results.append({
+                    "id": ob["id"],
+                    "status": status,
+                    "explanation": r.get("explanation","Could not assess."),
+                    "recommendation": r.get("recommendation",""),
+                })
+            return results
+        except Exception:
+            if attempt < 2:
+                time.sleep(5)
+
+    # Fallback
+    return [{"id": ob["id"], "status": "partial",
+             "explanation": "Could not assess automatically — manual review recommended.",
+             "recommendation": f"Manually verify: {ob['title']}"} for ob in obligations]
+
+
 def run_document_review(
     doc_type: str,
     document_text: str,
@@ -443,8 +515,9 @@ def run_document_review(
     client: dict,
 ) -> dict:
     """
-    Review a single document against its specific obligations only.
-    Returns assessment with score relative to those obligations.
+    Review a single document against its specific obligations.
+    Uses batches of 2 obligations per Mistral call to balance
+    context quality vs number of API calls.
     """
     api_key = os.environ.get("MISTRAL_API_KEY", "")
     ob_ids = DOC_OBLIGATIONS.get(doc_type, [])
@@ -454,22 +527,55 @@ def run_document_review(
         return {"results": [], "score": 0,
                 "doc_type": doc_type, "doc_label": DOCUMENT_TYPES.get(doc_type, doc_type)}
 
-    results = []
-    total = len(obligations)
-    progress = st.progress(0, text="Reviewing document...")
+    # Separate profile-based from document-based obligations
+    profile_results = []
+    doc_obligations = []
+    for ob in obligations:
+        if ob["profile_question"]:
+            result = analyse_obligation(ob, "", profile_answers, api_key)
+            profile_results.append(result)
+        else:
+            doc_obligations.append(ob)
 
-    for i, obligation in enumerate(obligations):
-        progress.progress(
-            (i + 1) / total,
-            text=f"Checking {i+1}/{total}: {obligation['title'][:50]}..."
-        )
-        result = analyse_obligation(obligation, document_text, profile_answers, api_key)
-        results.append(result)
-        time.sleep(0.3)
+    doc_results = []
+    if doc_obligations and document_text.strip():
+        # 5-chunk sampling — covers full document evenly
+        doc_len = len(document_text)
+        if doc_len <= 10000:
+            doc_excerpt = document_text
+        else:
+            sep = "\n...[continued]...\n"
+            chunk = doc_len // 5
+            doc_excerpt = sep.join(
+                document_text[i*chunk:i*chunk+2000] for i in range(5)
+            )
 
-    progress.empty()
+        # Process in batches of 2 — avoids lost-in-middle while limiting API calls
+        total = len(doc_obligations)
+        progress = st.progress(0, text="Reviewing document...")
+        for i in range(0, total, 2):
+            batch = doc_obligations[i:i+2]
+            progress.progress(
+                (i + len(batch)) / total,
+                text=f"Checking obligations {i+1}-{min(i+2,total)} of {total}..."
+            )
+            batch_results = _assess_obligations_batch(batch, doc_excerpt, api_key)
+            doc_results.extend(batch_results)
+        progress.empty()
 
-    # Score relative to this document's obligations only
+    elif doc_obligations:
+        for ob in doc_obligations:
+            doc_results.append({
+                "id": ob["id"], "status": "missing",
+                "explanation": f"No {DOCUMENT_TYPES.get(doc_type,'document')} provided.",
+                "recommendation": f"Upload or generate a {DOCUMENT_TYPES.get(doc_type,'document')} in COMPLAI."
+            })
+
+    # Combine and reorder
+    all_results = {r["id"]: r for r in profile_results + doc_results}
+    results = [all_results.get(ob["id"], {"id": ob["id"], "status": "missing",
+               "explanation": "", "recommendation": ""}) for ob in obligations]
+
     n_compliant = sum(1 for r in results if r["status"] == "compliant")
     n_partial   = sum(1 for r in results if r["status"] == "partial")
     score = int((n_compliant + n_partial * 0.5) / len(results) * 100) if results else 0
