@@ -386,23 +386,95 @@ DOCUMENT:
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "max_tokens": 200,
+                    "max_tokens": 300,
                 },
                 timeout=30,
             )
             response.raise_for_status()
             raw = response.json()["choices"][0]["message"]["content"].strip()
+            # Strip markdown fences
             raw = re.sub(r"```json|```", "", raw).strip()
+            # Extract JSON object if embedded in text
+            json_match = re.search(r'\{[^{}]+\}', raw, re.DOTALL)
+            if json_match:
+                raw = json_match.group(0)
             result = json.loads(raw)
+            # Validate required fields
+            if "status" not in result:
+                raise ValueError("Missing status field")
+            if result["status"] not in ("compliant","partial","missing"):
+                raise ValueError(f"Invalid status: {result['status']}")
             result["id"] = ob_id
+            result.setdefault("explanation", "")
+            result.setdefault("recommendation", "")
             return result
-        except Exception:
+        except Exception as e:
             if attempt < 2:
                 time.sleep(5)
 
-    return {"id": ob_id, "status": "missing",
-            "explanation": "Could not assess — analysis error.",
-            "recommendation": f"Manually verify: {obligation['title']}"}
+    # Final fallback — flag as needs manual review, not missing
+    return {"id": ob_id, "status": "partial",
+            "explanation": "Could not assess automatically — manual review recommended.",
+            "recommendation": f"Manually verify compliance with: {obligation['title']}"}
+
+
+
+# ── Document-specific obligations mapping ─────────────────────
+
+DOC_OBLIGATIONS = {
+    "privacy_policy":    ["gdpr_01","gdpr_07","gdpr_08","gdpr_15"],
+    "cookie_policy":     ["eprivacy_01","eprivacy_02","eprivacy_05"],
+    "dpa":               ["gdpr_05","gdpr_11"],
+    "ropa":              ["gdpr_02","gdpr_03","gdpr_09"],
+    "incident_response": ["gdpr_06","nis2_01","nis2_02","nis2_03","nis2_04"],
+    "ai_transparency":   [],
+}
+
+def run_document_review(
+    doc_type: str,
+    document_text: str,
+    profile_answers: dict,
+    client: dict,
+) -> dict:
+    """
+    Review a single document against its specific obligations only.
+    Returns assessment with score relative to those obligations.
+    """
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    ob_ids = DOC_OBLIGATIONS.get(doc_type, [])
+    obligations = [o for o in OBLIGATIONS if o["id"] in ob_ids]
+
+    if not obligations:
+        return {"results": [], "score": 0,
+                "doc_type": doc_type, "doc_label": DOCUMENT_TYPES.get(doc_type, doc_type)}
+
+    results = []
+    total = len(obligations)
+    progress = st.progress(0, text="Reviewing document...")
+
+    for i, obligation in enumerate(obligations):
+        progress.progress(
+            (i + 1) / total,
+            text=f"Checking {i+1}/{total}: {obligation['title'][:50]}..."
+        )
+        result = analyse_obligation(obligation, document_text, profile_answers, api_key)
+        results.append(result)
+        time.sleep(0.3)
+
+    progress.empty()
+
+    # Score relative to this document's obligations only
+    n_compliant = sum(1 for r in results if r["status"] == "compliant")
+    n_partial   = sum(1 for r in results if r["status"] == "partial")
+    score = int((n_compliant + n_partial * 0.5) / len(results) * 100) if results else 0
+
+    return {
+        "results": results,
+        "score": score,
+        "doc_type": doc_type,
+        "doc_label": DOCUMENT_TYPES.get(doc_type, doc_type),
+        "obligations": obligations,
+    }
 
 
 def run_gap_assessment(
@@ -461,12 +533,17 @@ def run_gap_assessment(
 
     # Scores
     def calc_score(reg: str) -> int:
+        # Exclude "not_applicable" AND "not provided" (missing due to no document)
+        # Score reflects quality of what's provided, not completeness
         reg_results = [
             r for r, o in zip(results, OBLIGATIONS)
-            if o["regulation"] == reg and r["status"] != "not_applicable"
+            if o["regulation"] == reg
+            and r["status"] != "not_applicable"
+            and not (r["status"] == "missing" and
+                     "not provided" in r.get("explanation","").lower())
         ]
         if not reg_results:
-            return 100
+            return 0  # no assessable obligations = no score
         compliant = sum(1 for r in reg_results if r["status"] == "compliant")
         partial   = sum(1 for r in reg_results if r["status"] == "partial")
         return int((compliant + partial * 0.5) / len(reg_results) * 100)
