@@ -575,6 +575,37 @@ def build_docx(document_text: str, document_type: str,
                company_name: str, language: str) -> bytes:
     """Build a professional DOCX using python-docx with full markdown parsing."""
     import re
+
+    def sanitize(text: str) -> str:
+        if not text:
+            return ""
+        text = re.sub(r'[--]', '', text)
+        text = text.replace(' ', ' ').replace('’', "'").replace('‘', "'")
+        text = text.replace('“', '"').replace('”', '"')
+        text = text.replace('–', '-').replace('—', '--')
+        text = text.replace('…', '...')
+        return text.encode('utf-8', errors='ignore').decode('utf-8')
+
+    document_text = sanitize(document_text)
+    company_name = sanitize(company_name)
+
+    # Sanitize text — remove control characters and invalid XML chars
+    # that lxml cannot handle
+    def sanitize(text: str) -> str:
+        if not text:
+            return ""
+        # Remove XML-illegal control characters (except tab, newline, carriage return)
+        text = re.sub(r'[--]', '', text)
+        # Replace non-breaking spaces and other problematic unicode
+        text = text.replace(' ', ' ').replace('’', "'").replace('‘', "'")
+        text = text.replace('“', '"').replace('”', '"')
+        text = text.replace('–', '-').replace('—', '--')
+        text = text.replace('…', '...')
+        # Ensure valid UTF-8 by encoding and decoding
+        return text.encode('utf-8', errors='ignore').decode('utf-8')
+
+    document_text = sanitize(document_text)
+    company_name = sanitize(company_name)
     from docx import Document as DocxDocument
     from docx.shared import Pt, RGBColor, Inches, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
@@ -622,6 +653,10 @@ def build_docx(document_text: str, document_type: str,
 
     def parse_inline(p, text):
         """Parse inline markdown: **bold**, *italic*, strip [text](url) to text."""
+        if not text:
+            return
+        # Sanitize
+        text = re.sub(r'[--]', '', text)
         # Strip markdown links: [text](url) -> text
         text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'', text)
         # Parse bold+italic ***text***
