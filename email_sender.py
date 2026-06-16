@@ -140,3 +140,74 @@ def is_free_email(email: str) -> bool:
 def extract_email_domain(email: str) -> str:
     """Extract the domain part of an email address."""
     return email.strip().lower().split("@")[-1]
+
+
+def send_regulatory_alert(update: dict) -> bool:
+    """Send regulatory alert email to all affected clients."""
+    import os, requests, json
+    from database import get_supabase_admin
+
+    api_key = os.environ.get("BREVO_API_KEY","")
+    from_email = os.environ.get("BREVO_FROM_EMAIL","audit@complai.be")
+    from_name = os.environ.get("BREVO_FROM_NAME","COMPLAI")
+
+    if not api_key:
+        return False
+
+    try:
+        admin = get_supabase_admin()
+        # Get all client alert records for this update that haven't been emailed
+        alerts_res = admin.table("client_alerts")             .select("user_id, clients(company_name), profiles(email)")             .eq("update_id", update["id"])             .eq("email_sent", False)             .execute()
+
+        alerts = alerts_res.data or []
+        if not alerts:
+            return True
+
+        severity_labels = {"urgent":"🔴 Urgent","important":"🟡 Important","info":"🔵 Info"}
+        severity_label = severity_labels.get(update.get("severity","info"),"🔵 Info")
+
+        for alert in alerts:
+            email = (alert.get("profiles") or {}).get("email")
+            if not email:
+                continue
+
+            html = f"""
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+  <div style="background:#1B2A4A;padding:20px;border-radius:8px 8px 0 0">
+    <h1 style="color:white;margin:0;font-size:24px">COMPL<span style="color:#0F6E56">AI</span></h1>
+    <p style="color:#ccc;margin:8px 0 0">Regulatory Alert</p>
+  </div>
+  <div style="background:#f9f9f9;padding:24px;border:1px solid #eee">
+    <p style="color:#666;font-size:12px;margin:0 0 12px">{severity_label} · {update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
+    <h2 style="color:#1B2A4A;font-size:18px;margin:0 0 12px">{update.get('title','')}</h2>
+    <p style="color:#444;line-height:1.6">{update.get('summary','')}</p>
+    {"<div style=\"background:#e8f5e9;border-left:4px solid #0F6E56;padding:12px;margin:16px 0\"><strong>What to do:</strong> " + update.get("action_description","") + "</div>" if update.get("action_description") else ""}
+    {"<p><a href=\"" + update.get("url","") + "\" style=\"color:#1B2A4A;font-weight:bold\">Read full document →</a></p>" if update.get("url") else ""}
+  </div>
+  <div style="background:#eee;padding:16px;border-radius:0 0 8px 8px;text-align:center">
+    <p style="color:#888;font-size:11px;margin:0">
+      COMPLAI · complai.be · EU-native compliance for SMEs<br>
+      <a href="https://app.complai.be/alerts" style="color:#0F6E56">View all alerts in COMPLAI</a>
+    </p>
+  </div>
+</div>"""
+
+            requests.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={"api-key": api_key, "Content-Type":"application/json"},
+                json={
+                    "sender": {"name": from_name, "email": from_email},
+                    "to": [{"email": email}],
+                    "subject": f"[COMPLAI] {severity_label} — {update.get('title','')}",
+                    "htmlContent": html,
+                },
+                timeout=15,
+            )
+
+        # Mark as email_sent
+        admin.table("client_alerts")             .update({"email_sent": True})             .eq("update_id", update["id"])             .execute()
+
+        return True
+    except Exception as e:
+        print(f"Alert email error: {e}")
+        return False

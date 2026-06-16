@@ -357,3 +357,204 @@ def register_client_document(
         return True
     except Exception as e:
         return False
+
+
+# ── Profiles & roles ──────────────────────────────────────────
+
+def get_user_profile(user_id: str) -> dict:
+    """Get profile for a user including role."""
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("profiles") \
+            .select("*") \
+            .eq("id", user_id) \
+            .single() \
+            .execute()
+        return res.data or {}
+    except Exception:
+        return {}
+
+
+def is_admin(user_id: str) -> bool:
+    """Check if a user has admin role."""
+    profile = get_user_profile(user_id)
+    return profile.get("role") == "admin"
+
+
+def get_all_profiles() -> list[dict]:
+    """Get all user profiles — admin only."""
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("profiles") \
+            .select("*") \
+            .order("created_at", desc=True) \
+            .execute()
+        return res.data or []
+    except Exception:
+        return []
+
+
+# ── Regulatory updates ────────────────────────────────────────
+
+def save_regulatory_update(update: dict) -> str | None:
+    """Save a new regulatory update. Returns id if saved, None if duplicate."""
+    try:
+        supabase = get_supabase_admin()
+        # Deduplication — check if same URL already exists
+        if update.get("url"):
+            existing = supabase.table("regulatory_updates") \
+                .select("id") \
+                .eq("url", update["url"]) \
+                .execute()
+            if existing.data:
+                return None  # Already exists
+
+        res = supabase.table("regulatory_updates") \
+            .insert(update) \
+            .execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception as e:
+        print(f"Could not save regulatory update: {e}")
+        return None
+
+
+def load_regulatory_updates(status: str | None = None) -> list[dict]:
+    """Load regulatory updates, optionally filtered by status."""
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("regulatory_updates") \
+            .select("*") \
+            .order("detected_at", desc=True) \
+            .limit(100)
+        if status:
+            q = q.eq("status", status)
+        return q.execute().data or []
+    except Exception:
+        return []
+
+
+def approve_regulatory_update(
+    update_id: str,
+    approved_by: str,
+    severity: str = "info",
+    send_email: bool = False,
+) -> bool:
+    """Approve a regulatory update and optionally trigger client alerts."""
+    try:
+        supabase = get_supabase_admin()
+        from datetime import datetime
+        supabase.table("regulatory_updates") \
+            .update({
+                "status": "approved",
+                "approved_by": approved_by,
+                "approved_at": datetime.utcnow().isoformat(),
+                "severity": severity,
+                "send_email": send_email,
+            }) \
+            .eq("id", update_id) \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Could not approve update: {e}")
+        return False
+
+
+def reject_regulatory_update(update_id: str) -> bool:
+    """Reject a regulatory update."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("regulatory_updates") \
+            .update({"status": "rejected"}) \
+            .eq("id", update_id) \
+            .execute()
+        return True
+    except Exception:
+        return False
+
+
+def create_client_alerts(update_id: str, update: dict) -> int:
+    """Create alerts for all clients whose regulations match this update.
+    Returns number of alerts created."""
+    try:
+        supabase = get_supabase_admin()
+        update_regs = set(update.get("regulations", []))
+        update_countries = set(update.get("countries", ["EU"]))
+
+        # Get all clients
+        clients_res = supabase.table("clients") \
+            .select("id, user_id, regulations, country") \
+            .execute()
+        clients = clients_res.data or []
+
+        alerts = []
+        for client in clients:
+            client_regs = set(client.get("regulations") or [])
+            client_country = client.get("country", "EU")
+
+            # Match if regulation overlaps AND country matches (EU updates go to all)
+            reg_match = bool(client_regs & update_regs) or not update_regs
+            country_match = (
+                "EU" in update_countries or
+                client_country in update_countries
+            )
+
+            if reg_match and country_match:
+                alerts.append({
+                    "user_id": client["user_id"],
+                    "client_id": client["id"],
+                    "update_id": update_id,
+                    "email_sent": False,
+                })
+
+        if alerts:
+            supabase.table("client_alerts").insert(alerts).execute()
+
+        return len(alerts)
+    except Exception as e:
+        print(f"Could not create client alerts: {e}")
+        return 0
+
+
+def load_client_alerts(user_id: str, unread_only: bool = False) -> list[dict]:
+    """Load alerts for a client user."""
+    try:
+        supabase = get_supabase()
+        q = supabase.table("client_alerts") \
+            .select("*, regulatory_updates(*)") \
+            .eq("user_id", user_id) \
+            .order("notified_at", desc=True) \
+            .limit(50)
+        if unread_only:
+            q = q.is_("read_at", "null")
+        return q.execute().data or []
+    except Exception:
+        return []
+
+
+def mark_alert_read(alert_id: str, user_id: str) -> bool:
+    """Mark an alert as read."""
+    try:
+        from datetime import datetime
+        supabase = get_supabase()
+        supabase.table("client_alerts") \
+            .update({"read_at": datetime.utcnow().isoformat()}) \
+            .eq("id", alert_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception:
+        return False
+
+
+def count_unread_alerts(user_id: str) -> int:
+    """Count unread alerts for a user."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("client_alerts") \
+            .select("id", count="exact") \
+            .eq("user_id", user_id) \
+            .is_("read_at", "null") \
+            .execute()
+        return res.count or 0
+    except Exception:
+        return 0
