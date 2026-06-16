@@ -68,7 +68,8 @@ col_a, col_b, col_c = st.columns(3)
 with col_a:
     st.markdown("**📡 Regulatory Monitoring**")
     st.caption("Review and approve regulatory updates")
-    st.page_link("pages/admin_monitoring.py", label="Open →")
+    if st.button("Open →", key="btn_monitoring", use_container_width=True):
+        st.switch_page("pages_admin/monitoring.py")
 
 with col_b:
     st.markdown("**📚 Knowledge Base**")
