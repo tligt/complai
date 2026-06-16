@@ -1,1 +1,43 @@
+name: Regulatory Monitoring
 
+on:
+  schedule:
+    # Run daily at 8:00 AM Brussels time (6:00 AM UTC in winter, 6:00 AM UTC in summer)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests supabase python-dotenv
+
+      - name: Run regulatory monitor
+        env:
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python monitor.py
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-results-${{ github.run_id }}
+          retention-days: 30
+          path: |
+            *.json
