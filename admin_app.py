@@ -72,10 +72,8 @@ with col_a:
 
 with col_b:
     st.markdown("**📚 Knowledge Base**")
-    st.caption("Manage the regulatory knowledge base")
-    st.page_link("pages/audit.py", label="Open →")
+    st.caption("Coming soon")
 
 with col_c:
     st.markdown("**👥 Client Management**")
-    st.caption("View all clients and usage")
-    st.page_link("pages/admin_clients.py", label="Open →")
+    st.caption("Coming soon")
