@@ -20,7 +20,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests supabase python-dotenv
+          pip install requests supabase python-dotenv streamlit pypdf python-docx
 
       - name: Run regulatory monitor
         env:
