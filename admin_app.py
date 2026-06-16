@@ -65,14 +65,17 @@ st.divider()
 st.subheader("Admin sections")
 col_a, col_b, col_c = st.columns(3)
 
-col_a.page_link("pages_admin/monitoring.py",
-                label="📡 Regulatory Monitoring",
-                help="Review and approve regulatory updates")
+with col_a:
+    st.markdown("**📡 Regulatory Monitoring**")
+    st.caption("Review and approve regulatory updates")
+    st.page_link("pages/admin_monitoring.py", label="Open →")
 
-col_b.page_link("pages_admin/knowledge.py",
-                label="📚 Knowledge Base",
-                help="Manage the regulatory knowledge base")
+with col_b:
+    st.markdown("**📚 Knowledge Base**")
+    st.caption("Manage the regulatory knowledge base")
+    st.page_link("pages/audit.py", label="Open →")
 
-col_c.page_link("pages_admin/clients_admin.py",
-                label="👥 Client Management",
-                help="View all clients and usage")
+with col_c:
+    st.markdown("**👥 Client Management**")
+    st.caption("View all clients and usage")
+    st.page_link("pages/admin_clients.py", label="Open →")
