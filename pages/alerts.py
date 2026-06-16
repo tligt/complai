@@ -33,7 +33,17 @@ st.divider()
 show_unread_only = st.toggle("Show unread only", value=False, key="alerts_unread_toggle")
 
 # ── Alerts list ───────────────────────────────────────────────
-alerts = load_client_alerts(user_id, unread_only=show_unread_only)
+# Load alerts with manual join
+from database import get_supabase, get_supabase_admin
+try:
+    supabase = get_supabase()
+    q = supabase.table("client_alerts")         .select("*, regulatory_updates(id, title, summary, url, severity, source, regulations, countries, published_at, action_description)")         .eq("user_id", user_id)         .order("notified_at", desc=True)         .limit(50)
+    if show_unread_only:
+        q = q.is_("read_at", "null")
+    alerts = q.execute().data or []
+except Exception as e:
+    st.error(f"Could not load alerts: {e}")
+    alerts = []
 
 if not alerts:
     if show_unread_only:
