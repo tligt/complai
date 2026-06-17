@@ -1,4 +1,5 @@
 import streamlit as st
+from auth import get_user_id
 from database import (
     load_regulatory_updates,
     approve_regulatory_update,
@@ -46,7 +47,7 @@ with tab_pending:
 
                 with col_actions:
                     uid = update["id"]
-                    admin_id = st.session_state["user"]["id"]
+                    admin_id = get_user_id()
 
                     severity = st.selectbox(
                         "Severity",
