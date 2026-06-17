@@ -7,13 +7,16 @@ from database import (
     create_client_alerts,
     ingest_alert_to_qdrant,
     mark_alert_ingested,
+    get_supabase_admin,
 )
 from email_sender import send_regulatory_alert
 
 st.title("📡 Regulatory Monitoring")
 st.caption("Review incoming regulatory updates from monitored sources.")
 
-# ── Tabs ──────────────────────────────────────────────────────────────────────
+REGULATIONS = ["", "GDPR", "NIS2", "EU_AI_ACT", "general"]
+COUNTRIES   = ["EU", "be", "fr", "general"]
+
 tab_pending, tab_approved, tab_rejected = st.tabs([
     "🟡 Pending",
     "✅ Approved",
@@ -30,66 +33,97 @@ with tab_pending:
         st.markdown(f"**{len(pending)} update(s) awaiting review**")
 
         for update in pending:
+            uid = update["id"]
             with st.expander(
                 f"**{update.get('title', 'Untitled')}** — {update.get('source', '')} "
                 f"· {update.get('detected_at', '')[:10]}",
                 expanded=False,
             ):
-                col_meta, col_actions = st.columns([3, 1])
+                # Summary spans full width
+                st.markdown("**Summary:**")
+                st.info(update.get("summary", "No summary available."))
+                if update.get("url"):
+                    st.markdown(f"**Source URL:** [{update['url']}]({update['url']})")
 
-                with col_meta:
-                    st.markdown(f"**Regulation:** {update.get('regulation', '—')}")
-                    st.markdown(f"**Country:** {update.get('country', '—')}")
-                    if update.get("url"):
-                        st.markdown(f"**Source URL:** [{update['url']}]({update['url']})")
-                    st.markdown("**Summary:**")
-                    st.info(update.get("summary", "No summary available."))
+                st.divider()
 
-                with col_actions:
-                    uid = update["id"]
-                    admin_id = get_user_id()
+                # Editable metadata + actions side by side
+                col_edit, col_actions = st.columns([2, 1])
+
+                with col_edit:
+                    st.markdown("**Edit before approving**")
+
+                    reg_val = update.get("regulation") or ""
+                    reg_idx = REGULATIONS.index(reg_val) if reg_val in REGULATIONS else 0
+                    regulation = st.selectbox(
+                        "Regulation",
+                        REGULATIONS,
+                        index=reg_idx,
+                        key=f"reg_{uid}",
+                    )
+
+                    country_val = update.get("country") or "EU"
+                    country_idx = COUNTRIES.index(country_val) if country_val in COUNTRIES else 0
+                    country = st.selectbox(
+                        "Country",
+                        COUNTRIES,
+                        index=country_idx,
+                        key=f"country_{uid}",
+                    )
 
                     severity = st.selectbox(
                         "Severity",
                         ["info", "warning", "critical"],
                         key=f"sev_{uid}",
                     )
+
+                with col_actions:
+                    st.markdown("&nbsp;", unsafe_allow_html=True)
                     send_email = st.checkbox("Send email to clients", key=f"email_{uid}")
 
                     if st.button("✅ Approve", key=f"approve_{uid}", type="primary"):
                         with st.spinner("Approving and ingesting into knowledge base…"):
 
-                            # 1. Update status in Supabase
+                            # Patch update dict with admin-edited values
+                            update["regulation"] = regulation
+                            update["country"]    = country
+
+                            # Save edits to Supabase before approving
+                            try:
+                                get_supabase_admin().table("regulatory_updates") \
+                                    .update({"regulation": regulation, "country": country}) \
+                                    .eq("id", uid) \
+                                    .execute()
+                            except Exception as e:
+                                st.warning(f"Could not save edits: {e}")
+
+                            # 1. Approve
                             approved = approve_regulatory_update(
                                 update_id=uid,
-                                approved_by=admin_id,
+                                approved_by=get_user_id(),
                                 severity=severity,
                                 send_email=send_email,
                             )
 
                             if approved:
-                                # 2. Create client alerts
+                                # 2. Client alerts
                                 n_alerts = create_client_alerts(uid, update)
 
-                                # 3. Ingest into Qdrant (Sprint 12 core)
+                                # 3. Ingest into Qdrant
                                 ingest_result = ingest_alert_to_qdrant(update)
-
                                 if ingest_result["success"]:
                                     mark_alert_ingested(uid, ingest_result["chunks_ingested"])
 
-                                # 4. Send email if requested
+                                # 4. Email
                                 if send_email:
                                     try:
                                         send_regulatory_alert(update)
                                     except Exception as e:
                                         st.warning(f"Email send failed: {e}")
 
-                                # 5. Show result summary
-                                st.success(
-                                    f"✅ Approved — {n_alerts} client alert(s) created"
-                                )
+                                # 5. Feedback
+                                st.success(f"✅ Approved — {n_alerts} client alert(s) created")
 
-                                # KB ingestion feedback
                                 if ingest_result["success"]:
                                     full_text_msg = (
                                         "full article + summary"
@@ -104,11 +138,9 @@ with tab_pending:
                                 else:
                                     st.warning(
                                         f"⚠️ KB ingestion failed: {ingest_result.get('error', 'unknown error')}. "
-                                        "The alert was approved and client notifications sent, "
-                                        "but the knowledge base was not updated. "
-                                        "You can retry by re-approving from the Approved tab."
+                                        "Alert approved and notifications sent. "
+                                        "Retry from the Approved tab."
                                     )
-
                                 st.rerun()
                             else:
                                 st.error("Approval failed. Please try again.")
@@ -128,12 +160,11 @@ with tab_approved:
 
         for update in approved_list:
             kb_status = (
-                f"🧠 {update.get('kb_chunks_count', 0)} chunks in KB "
-                f"· {str(update.get('kb_ingested_at', ''))[:10]}"
+                f"🧠 {update.get('kb_chunks_count', 0)} chunks · "
+                f"{str(update.get('kb_ingested_at', ''))[:10]}"
                 if update.get("kb_ingested")
                 else "⚠️ Not in KB"
             )
-
             with st.expander(
                 f"**{update.get('title', 'Untitled')}** — {update.get('source', '')} "
                 f"· {update.get('detected_at', '')[:10]} · {kb_status}",
@@ -142,28 +173,22 @@ with tab_approved:
                 st.markdown(f"**Regulation:** {update.get('regulation', '—')}")
                 st.markdown(f"**Country:** {update.get('country', '—')}")
                 st.markdown(f"**Severity:** {update.get('severity', '—')}")
-                st.markdown(f"**Approved by:** {update.get('approved_by', '—')}")
                 if update.get("url"):
                     st.markdown(f"**Source URL:** [{update['url']}]({update['url']})")
                 st.markdown("**Summary:**")
                 st.info(update.get("summary", "No summary available."))
 
-                # Retry ingestion if it failed
                 if not update.get("kb_ingested"):
                     st.warning("This update was not ingested into the knowledge base.")
                     if st.button("🔄 Retry KB ingestion", key=f"retry_{update['id']}"):
-                        with st.spinner("Ingesting into knowledge base…"):
+                        with st.spinner("Ingesting…"):
                             ingest_result = ingest_alert_to_qdrant(update)
                             if ingest_result["success"]:
                                 mark_alert_ingested(update["id"], ingest_result["chunks_ingested"])
-                                st.success(
-                                    f"🧠 Ingested — {ingest_result['chunks_ingested']} chunk(s)"
-                                )
+                                st.success(f"🧠 {ingest_result['chunks_ingested']} chunk(s) ingested")
                                 st.rerun()
                             else:
-                                st.error(
-                                    f"Ingestion failed: {ingest_result.get('error', 'unknown error')}"
-                                )
+                                st.error(f"Failed: {ingest_result.get('error', 'unknown')}")
 
 # ── REJECTED ──────────────────────────────────────────────────────────────────
 with tab_rejected:
@@ -184,9 +209,7 @@ with tab_rejected:
                 st.markdown("**Summary:**")
                 st.info(update.get("summary", "No summary available."))
 
-                # Allow re-approval from rejected state
                 if st.button("↩️ Move to Pending", key=f"unpend_{update['id']}"):
-                    from database import get_supabase_admin
                     get_supabase_admin().table("regulatory_updates") \
                         .update({"status": "pending"}) \
                         .eq("id", update["id"]) \
