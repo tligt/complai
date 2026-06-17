@@ -1,24 +1,370 @@
 import os
 import uuid
+import streamlit as st
 from datetime import datetime, timezone
 from supabase import create_client, Client
 
-# ── Supabase clients ──────────────────────────────────────────────────────────
 
 def get_supabase() -> Client:
-    url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_ANON_KEY"]
-    return create_client(url, key)
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    client = create_client(url, key)
+    # Pass the user's session token so RLS policies are applied correctly
+    token = st.session_state.get("access_token")
+    if token:
+        client.postgrest.auth(token)
+    return client
+
+
+# ── Clients ───────────────────────────────────────────────────────────────────
+
+def load_clients(user_id: str) -> list[dict]:
+    """Load all clients for the logged-in user."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("clients") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .order("company_name") \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        st.error(f"Could not load clients: {e}")
+        return []
+
+
+def create_client_record(user_id: str, profile: dict) -> dict | None:
+    """Create a new client profile. Returns the created record."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("clients").insert({
+            "user_id": user_id,
+            "company_name": profile["company_name"],
+            "sector": profile.get("sector", ""),
+            "country": profile.get("country", "BE"),
+            "company_size": profile.get("company_size", ""),
+            "regulations": profile.get("regulations", ["GDPR"]),
+        }).execute()
+        return res.data[0] if res.data else None
+    except Exception as e:
+        st.error(f"Could not create client: {e}")
+        return None
+
+
+def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
+    """Update an existing client profile."""
+    try:
+        supabase = get_supabase()
+        supabase.table("clients").update({
+            "company_name": profile["company_name"],
+            "sector": profile.get("sector", ""),
+            "country": profile.get("country", "BE"),
+            "company_size": profile.get("company_size", ""),
+            "regulations": profile.get("regulations", ["GDPR"]),
+        }).eq("id", client_id).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not update client: {e}")
+        return False
+
+
+def delete_client_record(client_id: str, user_id: str) -> bool:
+    """Delete a client and all their chat history."""
+    try:
+        supabase = get_supabase()
+        supabase.table("clients") \
+            .delete() \
+            .eq("id", client_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not delete client: {e}")
+        return False
+
+
+# ── Chat history ──────────────────────────────────────────────────────────────
+
+def load_chat_history(client_id: str, user_id: str) -> list[dict]:
+    """Load chat history for a client, ordered chronologically."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("chat_history") \
+            .select("role, content") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .order("created_at") \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        st.error(f"Could not load chat history: {e}")
+        return []
+
+
+def save_message(client_id: str, user_id: str, role: str, content: str) -> bool:
+    """Save a single message to chat history."""
+    try:
+        supabase = get_supabase()
+        supabase.table("chat_history").insert({
+            "client_id": client_id,
+            "user_id": user_id,
+            "role": role,
+            "content": content,
+        }).execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not save message: {e}")
+        return False
+
+
+def clear_chat_history(client_id: str, user_id: str) -> bool:
+    """Delete all chat history for a client."""
+    try:
+        supabase = get_supabase()
+        supabase.table("chat_history") \
+            .delete() \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.error(f"Could not clear chat history: {e}")
+        return False
+
+
+# ── Client profile → system prompt ───────────────────────────────────────────
+
+def build_client_context(client: dict) -> str:
+    """Convert a client profile into a context string for the system prompt."""
+    if not client:
+        return ""
+
+    regulations = client.get("regulations") or ["GDPR"]
+    if isinstance(regulations, list):
+        reg_str = ", ".join(regulations)
+    else:
+        reg_str = str(regulations)
+
+    size_map = {
+        "1-10": "1 to 10 employees",
+        "11-50": "11 to 50 employees",
+        "51-150": "51 to 150 employees",
+        "150+": "more than 150 employees",
+    }
+    size_str = size_map.get(client.get("company_size", ""), client.get("company_size", "unknown size"))
+
+    country_map = {"BE": "Belgium", "FR": "France", "EU": "EU (no specific country)"}
+    country_str = country_map.get(client.get("country", "BE"), client.get("country", "Belgium"))
+
+    return (
+        f"CLIENT PROFILE:\n"
+        f"- Company: {client.get('company_name', 'Unknown')}\n"
+        f"- Sector: {client.get('sector', 'Not specified')}\n"
+        f"- Country: {country_str}\n"
+        f"- Size: {size_str}\n"
+        f"- Applicable regulations: {reg_str}\n"
+    )
+
+
+# ── Supabase Storage ──────────────────────────────────────────────────────────
 
 def get_supabase_admin() -> Client:
-    url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_SERVICE_KEY"]
+    """Get Supabase client with service role for storage operations."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
     return create_client(url, key)
 
 
-# ── Profiles & roles ──────────────────────────────────────────────────────────
+def upload_file(bucket: str, path: str, file_bytes: bytes,
+                content_type: str = "application/octet-stream") -> str | None:
+    """Upload file to Supabase Storage. Returns storage path on success."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.storage.from_(bucket).upload(
+            path=path,
+            file=file_bytes,
+            file_options={"content-type": content_type, "upsert": "true"},
+        )
+        return path
+    except Exception as e:
+        st.warning(f"Could not upload file to storage: {e}")
+        return None
+
+
+def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str | None:
+    """Get a temporary signed URL for a private file."""
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.storage.from_(bucket).create_signed_url(path, expires_in)
+        return res.get("signedURL") or res.get("signed_url")
+    except Exception as e:
+        st.warning(f"Could not get signed URL: {e}")
+        return None
+
+
+def update_document_paths(doc_id: str, user_id: str,
+                           file_path_docx: str | None,
+                           file_path_pdf: str | None,
+                           file_path_odt: str | None = None) -> bool:
+    """Save storage paths back to documents table."""
+    try:
+        supabase = get_supabase()
+        update = {}
+        if file_path_docx:
+            update["file_path_docx"] = file_path_docx
+        if file_path_pdf:
+            update["file_path_pdf"] = file_path_pdf
+        if file_path_odt:
+            update["file_path_odt"] = file_path_odt
+        if not update:
+            return False
+        supabase.table("documents") \
+            .update(update) \
+            .eq("id", doc_id) \
+            .eq("user_id", user_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.warning(f"Could not update document paths: {e}")
+        return False
+
+
+def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
+    """Save storage path back to audits table."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("audits") \
+            .update({"file_path_pdf": file_path_pdf}) \
+            .eq("id", audit_id) \
+            .execute()
+        return True
+    except Exception as e:
+        st.warning(f"Could not update audit path: {e}")
+        return False
+
+
+def load_document_files(user_id: str, client_id: str | None) -> list[dict]:
+    """Load document records with file paths for history display."""
+    try:
+        supabase = get_supabase()
+        q = supabase.table("documents") \
+            .select("id, document_type, language, company_name, generated_at, file_path_docx, file_path_pdf, file_path_odt") \
+            .eq("user_id", user_id) \
+            .order("generated_at", desc=True) \
+            .limit(20)
+        if client_id:
+            q = q.eq("client_id", client_id)
+        return q.execute().data or []
+    except Exception as e:
+        st.warning(f"Could not load document history: {e}")
+        return []
+
+
+def load_audit_files(email_domain: str | None = None,
+                     user_id: str | None = None) -> list[dict]:
+    """Load audit records with file paths."""
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("audits") \
+            .select("id, website_url, risk_level, created_at, file_path_pdf, email") \
+            .order("created_at", desc=True) \
+            .limit(10)
+        if email_domain:
+            q = q.eq("email_domain", email_domain)
+        if user_id:
+            q = q.eq("user_id", user_id)
+        return q.execute().data or []
+    except Exception:
+        return []
+
+
+# ── Client document repository ────────────────────────────────
+
+def get_current_client_documents(client_id: str, user_id: str) -> dict:
+    """Get current version of each document type for a client.
+    Returns dict keyed by document_type."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("client_documents") \
+            .select("*") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .eq("is_current", True) \
+            .execute()
+        return {r["document_type"]: r for r in (res.data or [])}
+    except Exception as e:
+        return {}
+
+
+def get_client_document_history(client_id: str, user_id: str,
+                                 document_type: str) -> list[dict]:
+    """Get full version history for a specific document type."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("client_documents") \
+            .select("*") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .eq("document_type", document_type) \
+            .order("version", desc=True) \
+            .execute()
+        return res.data or []
+    except Exception:
+        return []
+
+
+def register_client_document(
+    user_id: str,
+    client_id: str,
+    document_type: str,
+    file_path: str,
+    source: str = "client_upload",
+    change_comment: str = "",
+) -> bool:
+    """Register a new document version. Marks previous version as not current."""
+    try:
+        supabase = get_supabase()
+
+        # Get current version number
+        res = supabase.table("client_documents") \
+            .select("version") \
+            .eq("client_id", client_id) \
+            .eq("document_type", document_type) \
+            .eq("is_current", True) \
+            .execute()
+
+        current_version = res.data[0]["version"] if res.data else 0
+        new_version = current_version + 1
+
+        # Mark previous as not current
+        if current_version > 0:
+            supabase.table("client_documents") \
+                .update({"is_current": False}) \
+                .eq("client_id", client_id) \
+                .eq("user_id", user_id) \
+                .eq("document_type", document_type) \
+                .execute()
+
+        # Insert new version
+        supabase.table("client_documents").insert({
+            "user_id": user_id,
+            "client_id": client_id,
+            "document_type": document_type,
+            "version": new_version,
+            "file_path": file_path,
+            "source": source,
+            "change_comment": change_comment,
+            "is_current": True,
+        }).execute()
+        return True
+    except Exception as e:
+        return False
+
+
+# ── Profiles & roles ──────────────────────────────────────────
 
 def get_user_profile(user_id: str) -> dict:
+    """Get profile for a user including role."""
     try:
         supabase = get_supabase_admin()
         res = supabase.table("profiles") \
@@ -30,11 +376,15 @@ def get_user_profile(user_id: str) -> dict:
     except Exception:
         return {}
 
+
 def is_admin(user_id: str) -> bool:
+    """Check if a user has admin role."""
     profile = get_user_profile(user_id)
     return profile.get("role") == "admin"
 
+
 def get_all_profiles() -> list[dict]:
+    """Get all user profiles — admin only."""
     try:
         supabase = get_supabase_admin()
         res = supabase.table("profiles") \
@@ -46,98 +396,10 @@ def get_all_profiles() -> list[dict]:
         return []
 
 
-# ── Clients ───────────────────────────────────────────────────────────────────
-
-def get_client(user_id: str) -> dict:
-    try:
-        supabase = get_supabase_admin()
-        res = supabase.table("clients") \
-            .select("*") \
-            .eq("user_id", user_id) \
-            .single() \
-            .execute()
-        return res.data or {}
-    except Exception:
-        return {}
-
-def upsert_client(user_id: str, data: dict) -> bool:
-    try:
-        supabase = get_supabase_admin()
-        supabase.table("clients") \
-            .upsert({"user_id": user_id, **data}) \
-            .execute()
-        return True
-    except Exception:
-        return False
-
-
-# ── Chat history ──────────────────────────────────────────────────────────────
-
-def save_chat_message(user_id: str, role: str, content: str) -> bool:
-    try:
-        supabase = get_supabase_admin()
-        supabase.table("chat_history").insert({
-            "user_id": user_id,
-            "role": role,
-            "content": content,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        }).execute()
-        return True
-    except Exception:
-        return False
-
-def load_chat_history(user_id: str, limit: int = 50) -> list[dict]:
-    try:
-        supabase = get_supabase_admin()
-        res = supabase.table("chat_history") \
-            .select("*") \
-            .eq("user_id", user_id) \
-            .order("created_at", desc=False) \
-            .limit(limit) \
-            .execute()
-        return res.data or []
-    except Exception:
-        return []
-
-
-# ── Client documents ──────────────────────────────────────────────────────────
-
-def save_client_document(user_id: str, doc: dict) -> str | None:
-    try:
-        supabase = get_supabase_admin()
-        # Mark all existing current docs of same type as not current
-        supabase.table("client_documents") \
-            .update({"is_current": False}) \
-            .eq("user_id", user_id) \
-            .eq("doc_type", doc["doc_type"]) \
-            .execute()
-        res = supabase.table("client_documents").insert({
-            "user_id": user_id,
-            "is_current": True,
-            **doc,
-        }).execute()
-        return res.data[0]["id"] if res.data else None
-    except Exception as e:
-        print(f"Could not save document: {e}")
-        return None
-
-def load_client_documents(user_id: str, current_only: bool = True) -> list[dict]:
-    try:
-        supabase = get_supabase_admin()
-        q = supabase.table("client_documents") \
-            .select("*") \
-            .eq("user_id", user_id) \
-            .order("created_at", desc=True)
-        if current_only:
-            q = q.eq("is_current", True)
-        return q.execute().data or []
-    except Exception:
-        return []
-
-
-# ── Regulatory updates ────────────────────────────────────────────────────────
+# ── Regulatory updates ────────────────────────────────────────
 
 def save_regulatory_update(update: dict) -> str | None:
+    """Save a new regulatory update. Returns id if saved, None if duplicate."""
     try:
         supabase = get_supabase_admin()
         if update.get("url"):
@@ -155,7 +417,9 @@ def save_regulatory_update(update: dict) -> str | None:
         print(f"Could not save regulatory update: {e}")
         return None
 
+
 def load_regulatory_updates(status: str | None = None) -> list[dict]:
+    """Load regulatory updates, optionally filtered by status."""
     try:
         supabase = get_supabase_admin()
         q = supabase.table("regulatory_updates") \
@@ -168,12 +432,14 @@ def load_regulatory_updates(status: str | None = None) -> list[dict]:
     except Exception:
         return []
 
+
 def approve_regulatory_update(
     update_id: str,
     approved_by: str,
     severity: str = "info",
     send_email: bool = False,
 ) -> bool:
+    """Approve a regulatory update."""
     try:
         supabase = get_supabase_admin()
         supabase.table("regulatory_updates") \
@@ -191,7 +457,9 @@ def approve_regulatory_update(
         print(f"Could not approve update: {e}")
         return False
 
+
 def reject_regulatory_update(update_id: str) -> bool:
+    """Reject a regulatory update."""
     try:
         supabase = get_supabase_admin()
         supabase.table("regulatory_updates") \
@@ -203,63 +471,84 @@ def reject_regulatory_update(update_id: str) -> bool:
         return False
 
 
-# ── Client alerts ─────────────────────────────────────────────────────────────
-
 def create_client_alerts(update_id: str, update: dict) -> int:
-    """Create alerts for all clients whose regulations match this update.
-    Returns number of alerts created."""
+    """Create alerts for all clients whose regulations match this update."""
     try:
         supabase = get_supabase_admin()
-        clients_res = supabase.table("clients").select("user_id, regulations").execute()
+        update_regs = set(update.get("regulations") or [])
+        update_countries = set(update.get("countries") or ["EU"])
+
+        clients_res = supabase.table("clients") \
+            .select("id, user_id, regulations, country") \
+            .execute()
         clients = clients_res.data or []
 
-        update_regulation = update.get("regulation", "").upper()
-        created = 0
+        alerts = []
         for client in clients:
-            client_regs = [r.upper() for r in (client.get("regulations") or [])]
-            if not client_regs or update_regulation in client_regs or update_regulation == "GENERAL":
-                supabase.table("client_alerts").insert({
+            client_regs = set(client.get("regulations") or [])
+            client_country = client.get("country", "EU")
+
+            reg_match = bool(client_regs & update_regs) or not update_regs
+            country_match = (
+                "EU" in update_countries or
+                client_country in update_countries
+            )
+
+            if reg_match and country_match:
+                alerts.append({
                     "user_id": client["user_id"],
+                    "client_id": client["id"],
                     "update_id": update_id,
-                    "is_read": False,
-                    "created_at": datetime.utcnow().isoformat(),
-                }).execute()
-                created += 1
-        return created
+                    "email_sent": False,
+                })
+
+        if alerts:
+            supabase.table("client_alerts").insert(alerts).execute()
+
+        return len(alerts)
     except Exception as e:
         print(f"Could not create client alerts: {e}")
         return 0
 
-def load_client_alerts(user_id: str) -> list[dict]:
+
+def load_client_alerts(user_id: str, unread_only: bool = False) -> list[dict]:
+    """Load alerts for a client user."""
     try:
-        supabase = get_supabase_admin()
-        res = supabase.table("client_alerts") \
+        supabase = get_supabase()
+        q = supabase.table("client_alerts") \
             .select("*, regulatory_updates(*)") \
             .eq("user_id", user_id) \
-            .order("created_at", desc=True) \
-            .execute()
-        return res.data or []
+            .order("notified_at", desc=True) \
+            .limit(50)
+        if unread_only:
+            q = q.is_("read_at", "null")
+        return q.execute().data or []
     except Exception:
         return []
 
-def mark_alert_read(alert_id: str) -> bool:
+
+def mark_alert_read(alert_id: str, user_id: str) -> bool:
+    """Mark an alert as read."""
     try:
-        supabase = get_supabase_admin()
+        supabase = get_supabase()
         supabase.table("client_alerts") \
-            .update({"is_read": True}) \
+            .update({"read_at": datetime.utcnow().isoformat()}) \
             .eq("id", alert_id) \
+            .eq("user_id", user_id) \
             .execute()
         return True
     except Exception:
         return False
 
-def get_unread_alert_count(user_id: str) -> int:
+
+def count_unread_alerts(user_id: str) -> int:
+    """Count unread alerts for a user."""
     try:
-        supabase = get_supabase_admin()
+        supabase = get_supabase()
         res = supabase.table("client_alerts") \
             .select("id", count="exact") \
             .eq("user_id", user_id) \
-            .eq("is_read", False) \
+            .is_("read_at", "null") \
             .execute()
         return res.count or 0
     except Exception:
@@ -269,11 +558,7 @@ def get_unread_alert_count(user_id: str) -> int:
 # ── Sprint 12: Qdrant ingestion of approved alerts ────────────────────────────
 
 def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
-    """
-    Attempt to fetch full article text from a URL.
-    Returns cleaned text or None if fetch fails / is blocked.
-    EUR-Lex and some other sources block bots — we catch those gracefully.
-    """
+    """Fetch full article text from URL. Returns None if blocked or failed."""
     try:
         import requests
         from bs4 import BeautifulSoup
@@ -292,12 +577,9 @@ def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
             return None
 
         soup = BeautifulSoup(resp.text, "html.parser")
-
-        # Remove nav, footer, scripts, styles
         for tag in soup(["nav", "footer", "script", "style", "header", "aside"]):
             tag.decompose()
 
-        # Try common article content selectors
         for selector in ["article", "main", ".content", "#content", ".document-content"]:
             el = soup.select_one(selector)
             if el:
@@ -305,7 +587,6 @@ def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
                 if len(text) > 300:
                     return text
 
-        # Fallback: full body text
         text = soup.get_text(separator="\n", strip=True)
         return text if len(text) > 300 else None
 
@@ -315,15 +596,10 @@ def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
 
 
 def _chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
-    """
-    Split text into overlapping chunks by word count.
-    chunk_size: target words per chunk
-    overlap: words shared between consecutive chunks
-    """
+    """Split text into overlapping word-count chunks."""
     words = text.split()
     if not words:
         return []
-
     chunks = []
     start = 0
     while start < len(words):
@@ -334,54 +610,37 @@ def _chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str
         if end >= len(words):
             break
         start += chunk_size - overlap
-
     return chunks
 
 
 def _embed_texts(texts: list[str]) -> list[list[float]] | None:
-    """
-    Embed a list of texts using Mistral mistral-embed.
-    Returns list of embedding vectors or None on failure.
-    """
+    """Embed texts using Mistral mistral-embed."""
     try:
-        import requests
-
+        import requests as req
         api_key = os.environ["MISTRAL_API_KEY"]
-        resp = requests.post(
+        resp = req.post(
             "https://api.mistral.ai/v1/embeddings",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
             json={"model": "mistral-embed", "input": texts},
             timeout=30,
         )
         resp.raise_for_status()
-        data = resp.json()
-        return [item["embedding"] for item in data["data"]]
+        return [item["embedding"] for item in resp.json()["data"]]
     except Exception as e:
         print(f"Embedding failed: {e}")
         return None
 
 
 def _upsert_to_qdrant(points: list[dict]) -> bool:
-    """
-    Upsert a list of points into Qdrant.
-    Each point: {id, vector, payload}
-    """
+    """Upsert points into Qdrant collection."""
     try:
-        import requests
-
-        qdrant_url  = os.environ["QDRANT_URL"]
-        qdrant_key  = os.environ["QDRANT_API_KEY"]
-        collection  = os.environ.get("QDRANT_COLLECTION", "complai_kb")
-
-        resp = requests.put(
+        import requests as req
+        qdrant_url = os.environ["QDRANT_URL"]
+        qdrant_key = os.environ["QDRANT_API_KEY"]
+        collection = os.environ.get("QDRANT_COLLECTION", "complai_kb")
+        resp = req.put(
             f"{qdrant_url}/collections/{collection}/points",
-            headers={
-                "api-key": qdrant_key,
-                "Content-Type": "application/json",
-            },
+            headers={"api-key": qdrant_key, "Content-Type": "application/json"},
             json={"points": points},
             timeout=30,
         )
@@ -395,21 +654,8 @@ def _upsert_to_qdrant(points: list[dict]) -> bool:
 def ingest_alert_to_qdrant(update: dict) -> dict:
     """
     Ingest an approved regulatory alert into Qdrant.
-
-    Strategy (Option 3 with graceful fallback):
-    1. Always embed the Mistral summary as a standalone high-signal chunk.
-    2. Try to fetch full article text from update URL.
-       - If successful: chunk + embed + upsert all chunks.
-       - If blocked/failed: fall back to summary only.
-
-    Returns a status dict:
-    {
-        "success": bool,
-        "summary_ingested": bool,
-        "full_text_ingested": bool,
-        "chunks_ingested": int,
-        "error": str | None,
-    }
+    Option 3: always embed summary; also try full article text with fallback.
+    Returns status dict with success, chunks_ingested, full_text_ingested, error.
     """
     result = {
         "success": False,
@@ -419,104 +665,75 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
         "error": None,
     }
 
-    update_id  = update.get("id", str(uuid.uuid4()))
-    summary    = update.get("summary", "").strip()
-    url        = update.get("url", "")
-    source     = update.get("source", "")
-    regulation = update.get("regulation", "general")
-    country    = update.get("country", "EU")
-    detected   = update.get("detected_at", datetime.utcnow().isoformat())
-    title      = update.get("title", "Regulatory Update")
+    update_id = update.get("id", str(uuid.uuid4()))
+    summary   = (update.get("summary") or "").strip()
+    url       = update.get("url") or ""
+    source    = update.get("source") or ""
+    title     = update.get("title") or "Regulatory Update"
+    detected  = update.get("detected_at") or datetime.utcnow().isoformat()
 
-    # Normalise regulation to match existing KB metadata style
-    reg_map = {
-        "gdpr": "GDPR",
-        "nis2": "NIS2",
-        "eu ai act": "EU_AI_ACT",
-        "eu_ai_act": "EU_AI_ACT",
-        "general": "general",
-    }
+    # regulations and countries are arrays — take first for Qdrant metadata
+    regulations = update.get("regulations") or []
+    countries   = update.get("countries") or ["EU"]
+    regulation  = regulations[0] if regulations else "general"
+    country     = countries[0] if countries else "EU"
+
+    reg_map = {"gdpr": "GDPR", "nis2": "NIS2", "eu_ai_act": "EU_AI_ACT", "general": "general"}
     regulation_norm = reg_map.get(regulation.lower(), regulation.upper())
 
     if not summary:
-        result["error"] = "No summary available — cannot ingest"
+        result["error"] = "No summary — cannot ingest"
         return result
 
     points = []
 
-    # ── 1. Summary chunk (always) ─────────────────────────────────────────────
-    summary_embedding = _embed_texts([summary])
-    if not summary_embedding:
+    # 1. Summary chunk (always)
+    emb = _embed_texts([summary])
+    if not emb:
         result["error"] = "Embedding failed for summary"
         return result
 
     points.append({
         "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{update_id}:summary")),
-        "vector": summary_embedding[0],
+        "vector": emb[0],
         "payload": {
-            "text": summary,
-            "source": source,
-            "url": url,
-            "title": title,
-            "language": "en",
-            "country": country,
-            "doc_type": "supplementary",
-            "parent_regulation": regulation_norm,
-            "type": "regulatory_update",
-            "alert_id": update_id,
-            "detected_at": detected,
-            "chunk_type": "summary",
+            "text": summary, "source": source, "url": url, "title": title,
+            "language": "en", "country": country, "doc_type": "supplementary",
+            "parent_regulation": regulation_norm, "type": "regulatory_update",
+            "alert_id": update_id, "detected_at": detected, "chunk_type": "summary",
         },
     })
     result["summary_ingested"] = True
 
-    # ── 2. Full article text (best effort) ────────────────────────────────────
+    # 2. Full article text (best effort)
     if url:
         article_text = _fetch_article_text(url)
         if article_text:
             chunks = _chunk_text(article_text, chunk_size=500, overlap=50)
-
-            # Embed in batches of 10 to stay within API limits
-            batch_size = 10
             all_embeddings = []
-            for i in range(0, len(chunks), batch_size):
-                batch = chunks[i : i + batch_size]
-                embeddings = _embed_texts(batch)
-                if embeddings:
-                    all_embeddings.extend(embeddings)
+            for i in range(0, len(chunks), 10):
+                batch_emb = _embed_texts(chunks[i:i+10])
+                if batch_emb:
+                    all_embeddings.extend(batch_emb)
                 else:
-                    # Partial failure — skip remaining batches
-                    print(f"Embedding batch {i//batch_size + 1} failed, stopping")
                     break
-
             for idx, (chunk, vector) in enumerate(zip(chunks, all_embeddings)):
                 points.append({
                     "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{update_id}:chunk:{idx}")),
                     "vector": vector,
                     "payload": {
-                        "text": chunk,
-                        "source": source,
-                        "url": url,
-                        "title": title,
-                        "language": "en",
-                        "country": country,
-                        "doc_type": "supplementary",
-                        "parent_regulation": regulation_norm,
-                        "type": "regulatory_update",
-                        "alert_id": update_id,
-                        "detected_at": detected,
-                        "chunk_type": "full_text",
-                        "chunk_index": idx,
+                        "text": chunk, "source": source, "url": url, "title": title,
+                        "language": "en", "country": country, "doc_type": "supplementary",
+                        "parent_regulation": regulation_norm, "type": "regulatory_update",
+                        "alert_id": update_id, "detected_at": detected,
+                        "chunk_type": "full_text", "chunk_index": idx,
                     },
                 })
             result["full_text_ingested"] = len(all_embeddings) > 0
-        else:
-            print(f"Full article fetch failed for {url} — using summary only")
 
-    # ── 3. Upsert all points to Qdrant ────────────────────────────────────────
+    # 3. Upsert to Qdrant
     if points:
-        success = _upsert_to_qdrant(points)
-        if success:
+        if _upsert_to_qdrant(points):
             result["success"] = True
             result["chunks_ingested"] = len(points)
         else:
@@ -528,10 +745,7 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
 
 
 def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
-    """
-    Mark a regulatory update as ingested into Qdrant.
-    Stores ingestion timestamp and chunk count for auditability.
-    """
+    """Mark a regulatory update as ingested into Qdrant."""
     try:
         supabase = get_supabase_admin()
         supabase.table("regulatory_updates") \
