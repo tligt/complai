@@ -7,7 +7,7 @@ from database import (
     ingest_alert_to_qdrant,
     mark_alert_ingested,
 )
-from email_sender import send_regulatory_alert_emails
+from email_sender import send_regulatory_alert
 
 st.set_page_config(page_title="Regulatory Monitoring — COMPLAI Admin", layout="wide")
 
@@ -86,7 +86,7 @@ with tab_pending:
                                 # 4. Send email if requested
                                 if send_email:
                                     try:
-                                        send_regulatory_alert_emails(uid, update)
+                                        send_regulatory_alert(update)
                                     except Exception as e:
                                         st.warning(f"Email send failed: {e}")
 
