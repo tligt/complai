@@ -631,7 +631,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]] | None:
         return None
 
 
-def _upsert_to_qdrant(points: list[dict]) -> bool:
+def _upsert_to_qdrant(points: list[dict]) -> tuple[bool, str | None]:
     """Upsert points into Qdrant collection."""
     try:
         import requests as req
@@ -644,11 +644,15 @@ def _upsert_to_qdrant(points: list[dict]) -> bool:
             json={"points": points},
             timeout=30,
         )
-        resp.raise_for_status()
-        return True
+        if not resp.ok:
+            error_msg = f"HTTP {resp.status_code}: {resp.text[:300]}"
+            print(f"Qdrant upsert failed: {error_msg}")
+            return False, error_msg
+        return True, None
     except Exception as e:
-        print(f"Qdrant upsert failed: {e}")
-        return False
+        msg = str(e)
+        print(f"Qdrant upsert exception: {msg}")
+        return False, msg
 
 
 def ingest_alert_to_qdrant(update: dict) -> dict:
@@ -733,11 +737,12 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
 
     # 3. Upsert to Qdrant
     if points:
-        if _upsert_to_qdrant(points):
+        ok, err = _upsert_to_qdrant(points)
+        if ok:
             result["success"] = True
             result["chunks_ingested"] = len(points)
         else:
-            result["error"] = "Qdrant upsert failed"
+            result["error"] = err or "Qdrant upsert failed"
     else:
         result["error"] = "No points to upsert"
 
