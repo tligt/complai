@@ -14,8 +14,22 @@ from email_sender import send_regulatory_alert
 st.title("📡 Regulatory Monitoring")
 st.caption("Review incoming regulatory updates from monitored sources.")
 
-REGULATIONS = ["", "GDPR", "NIS2", "EU_AI_ACT", "general"]
-COUNTRIES   = ["EU", "be", "fr", "general"]
+ALL_REGULATIONS = ["GDPR", "NIS2", "EU_AI_ACT", "general"]
+ALL_COUNTRIES   = ["EU", "be", "fr", "general"]
+
+
+def save_metadata(uid: str, regulations: list, countries: list) -> bool:
+    """Save regulation and country edits back to Supabase."""
+    try:
+        get_supabase_admin().table("regulatory_updates") \
+            .update({"regulations": regulations, "countries": countries}) \
+            .eq("id", uid) \
+            .execute()
+        return True
+    except Exception as e:
+        st.warning(f"Could not save edits: {e}")
+        return False
+
 
 tab_pending, tab_approved, tab_rejected = st.tabs([
     "🟡 Pending",
@@ -34,43 +48,36 @@ with tab_pending:
 
         for update in pending:
             uid = update["id"]
+            current_regs      = update.get("regulations") or []
+            current_countries = update.get("countries") or ["EU"]
+
             with st.expander(
                 f"**{update.get('title', 'Untitled')}** — {update.get('source', '')} "
-                f"· {update.get('detected_at', '')[:10]}",
+                f"· {str(update.get('detected_at', ''))[:10]}",
                 expanded=False,
             ):
-                # Summary spans full width
                 st.markdown("**Summary:**")
                 st.info(update.get("summary", "No summary available."))
                 if update.get("url"):
                     st.markdown(f"**Source URL:** [{update['url']}]({update['url']})")
 
                 st.divider()
-
-                # Editable metadata + actions side by side
                 col_edit, col_actions = st.columns([2, 1])
 
                 with col_edit:
                     st.markdown("**Edit before approving**")
-
-                    reg_val = update.get("regulation") or ""
-                    reg_idx = REGULATIONS.index(reg_val) if reg_val in REGULATIONS else 0
-                    regulation = st.selectbox(
-                        "Regulation",
-                        REGULATIONS,
-                        index=reg_idx,
+                    selected_regs = st.multiselect(
+                        "Regulation(s)",
+                        ALL_REGULATIONS,
+                        default=[r for r in current_regs if r in ALL_REGULATIONS],
                         key=f"reg_{uid}",
                     )
-
-                    country_val = update.get("country") or "EU"
-                    country_idx = COUNTRIES.index(country_val) if country_val in COUNTRIES else 0
-                    country = st.selectbox(
-                        "Country",
-                        COUNTRIES,
-                        index=country_idx,
+                    selected_countries = st.multiselect(
+                        "Country / Scope",
+                        ALL_COUNTRIES,
+                        default=[c for c in current_countries if c in ALL_COUNTRIES],
                         key=f"country_{uid}",
                     )
-
                     severity = st.selectbox(
                         "Severity",
                         ["info", "warning", "critical"],
@@ -84,20 +91,10 @@ with tab_pending:
                     if st.button("✅ Approve", key=f"approve_{uid}", type="primary"):
                         with st.spinner("Approving and ingesting into knowledge base…"):
 
-                            # Patch update dict with admin-edited values
-                            update["regulation"] = regulation
-                            update["country"]    = country
+                            save_metadata(uid, selected_regs, selected_countries)
+                            update["regulations"] = selected_regs
+                            update["countries"]   = selected_countries
 
-                            # Save edits to Supabase before approving
-                            try:
-                                get_supabase_admin().table("regulatory_updates") \
-                                    .update({"regulation": regulation, "country": country}) \
-                                    .eq("id", uid) \
-                                    .execute()
-                            except Exception as e:
-                                st.warning(f"Could not save edits: {e}")
-
-                            # 1. Approve
                             approved = approve_regulatory_update(
                                 update_id=uid,
                                 approved_by=get_user_id(),
@@ -106,22 +103,17 @@ with tab_pending:
                             )
 
                             if approved:
-                                # 2. Client alerts
                                 n_alerts = create_client_alerts(uid, update)
-
-                                # 3. Ingest into Qdrant
                                 ingest_result = ingest_alert_to_qdrant(update)
                                 if ingest_result["success"]:
                                     mark_alert_ingested(uid, ingest_result["chunks_ingested"])
 
-                                # 4. Email
                                 if send_email:
                                     try:
                                         send_regulatory_alert(update)
                                     except Exception as e:
                                         st.warning(f"Email send failed: {e}")
 
-                                # 5. Feedback
                                 st.success(f"✅ Approved — {n_alerts} client alert(s) created")
 
                                 if ingest_result["success"]:
@@ -159,6 +151,7 @@ with tab_approved:
         st.markdown(f"**{len(approved_list)} approved update(s)**")
 
         for update in approved_list:
+            uid = update["id"]
             kb_status = (
                 f"🧠 {update.get('kb_chunks_count', 0)} chunks · "
                 f"{str(update.get('kb_ingested_at', ''))[:10]}"
@@ -167,28 +160,67 @@ with tab_approved:
             )
             with st.expander(
                 f"**{update.get('title', 'Untitled')}** — {update.get('source', '')} "
-                f"· {update.get('detected_at', '')[:10]} · {kb_status}",
+                f"· {str(update.get('detected_at', ''))[:10]} · {kb_status}",
                 expanded=False,
             ):
-                st.markdown(f"**Regulation:** {update.get('regulation', '—')}")
-                st.markdown(f"**Country:** {update.get('country', '—')}")
-                st.markdown(f"**Severity:** {update.get('severity', '—')}")
-                if update.get("url"):
-                    st.markdown(f"**Source URL:** [{update['url']}]({update['url']})")
                 st.markdown("**Summary:**")
                 st.info(update.get("summary", "No summary available."))
+                if update.get("url"):
+                    st.markdown(f"**Source URL:** [{update['url']}]({update['url']})")
 
-                if not update.get("kb_ingested"):
-                    st.warning("This update was not ingested into the knowledge base.")
-                    if st.button("🔄 Retry KB ingestion", key=f"retry_{update['id']}"):
-                        with st.spinner("Ingesting…"):
+                st.divider()
+                col_meta, col_retry = st.columns([2, 1])
+
+                with col_meta:
+                    st.markdown("**Edit metadata**")
+                    current_regs      = update.get("regulations") or []
+                    current_countries = update.get("countries") or ["EU"]
+
+                    selected_regs = st.multiselect(
+                        "Regulation(s)",
+                        ALL_REGULATIONS,
+                        default=[r for r in current_regs if r in ALL_REGULATIONS],
+                        key=f"areg_{uid}",
+                    )
+                    selected_countries = st.multiselect(
+                        "Country / Scope",
+                        ALL_COUNTRIES,
+                        default=[c for c in current_countries if c in ALL_COUNTRIES],
+                        key=f"acountry_{uid}",
+                    )
+
+                with col_retry:
+                    st.markdown("&nbsp;", unsafe_allow_html=True)
+
+                    if st.button("💾 Save edits", key=f"save_{uid}"):
+                        if save_metadata(uid, selected_regs, selected_countries):
+                            st.success("Saved.")
+                            st.rerun()
+
+                    if not update.get("kb_ingested"):
+                        st.warning("Not in KB")
+
+                    if st.button("🔄 Save & ingest", key=f"retry_{uid}", type="primary"):
+                        with st.spinner("Saving and ingesting…"):
+                            save_metadata(uid, selected_regs, selected_countries)
+                            update["regulations"] = selected_regs
+                            update["countries"]   = selected_countries
+
                             ingest_result = ingest_alert_to_qdrant(update)
                             if ingest_result["success"]:
-                                mark_alert_ingested(update["id"], ingest_result["chunks_ingested"])
-                                st.success(f"🧠 {ingest_result['chunks_ingested']} chunk(s) ingested")
+                                mark_alert_ingested(uid, ingest_result["chunks_ingested"])
+                                full_text_msg = (
+                                    "full article + summary"
+                                    if ingest_result["full_text_ingested"]
+                                    else "summary only"
+                                )
+                                st.success(
+                                    f"🧠 {ingest_result['chunks_ingested']} chunk(s) ingested "
+                                    f"({full_text_msg})"
+                                )
                                 st.rerun()
                             else:
-                                st.error(f"Failed: {ingest_result.get('error', 'unknown')}")
+                                st.error(f"Ingestion failed: {ingest_result.get('error', 'unknown')}")
 
 # ── REJECTED ──────────────────────────────────────────────────────────────────
 with tab_rejected:
@@ -202,10 +234,10 @@ with tab_rejected:
         for update in rejected_list:
             with st.expander(
                 f"**{update.get('title', 'Untitled')}** — {update.get('source', '')} "
-                f"· {update.get('detected_at', '')[:10]}",
+                f"· {str(update.get('detected_at', ''))[:10]}",
                 expanded=False,
             ):
-                st.markdown(f"**Regulation:** {update.get('regulation', '—')}")
+                st.markdown(f"**Regulations:** {', '.join(update.get('regulations') or []) or '—'}")
                 st.markdown("**Summary:**")
                 st.info(update.get("summary", "No summary available."))
 
