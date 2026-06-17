@@ -9,13 +9,6 @@ from database import (
 )
 from email_sender import send_regulatory_alert
 
-st.set_page_config(page_title="Regulatory Monitoring — COMPLAI Admin", layout="wide")
-
-# ── Auth guard ────────────────────────────────────────────────────────────────
-if "user" not in st.session_state or not st.session_state.get("is_admin"):
-    st.error("Admin access required.")
-    st.stop()
-
 st.title("📡 Regulatory Monitoring")
 st.caption("Review incoming regulatory updates from monitored sources.")
 
