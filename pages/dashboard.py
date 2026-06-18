@@ -2,7 +2,6 @@ import streamlit as st
 from database import (
     get_supabase,
     get_supabase_admin,
-    load_client_alerts,
     count_unread_alerts,
     load_document_files,
     load_audit_files,
@@ -32,27 +31,52 @@ except Exception:
 
 if not client:
     st.warning("Please complete your company profile first.")
-    st.page_link("pages/app.py", label="Go to profile setup →")
     st.stop()
 
 company_name = client.get("company_name", "Your company")
 client_id    = client.get("id")
 regulations  = client.get("regulations") or ["GDPR"]
-country      = client.get("country", "BE")
 
-# ── Document type → regulation mapping ───────────────────────
-DOC_CATALOG = {
-    "privacy_policy":      {"label": "Privacy Policy",           "regulations": ["GDPR"]},
-    "rop":                 {"label": "Records of Processing (RoPA)", "regulations": ["GDPR"]},
-    "dpa":                 {"label": "Data Processing Agreement", "regulations": ["GDPR"]},
-    "incident_response":   {"label": "Incident Response Plan",   "regulations": ["GDPR", "NIS2"]},
-    "cookie_policy":       {"label": "Cookie Policy",            "regulations": ["GDPR"]},
+# ── Obligation ID → document type mapping ─────────────────────
+OBLIGATION_TO_DOC = {
+    "gdpr_01": "privacy_policy",
+    "gdpr_07": "privacy_policy",
+    "gdpr_12": "privacy_policy",
+    "gdpr_15": "privacy_policy",
+    "gdpr_02": "rop",
+    "gdpr_03": "rop",
+    "gdpr_09": "rop",
+    "gdpr_05": "dpa",
+    "gdpr_11": "dpa",
+    "gdpr_06": "incident_response",
+    "nis2_01": "incident_response",
+    "nis2_02": "incident_response",
+    "nis2_03": "incident_response",
+    "nis2_04": "incident_response",
+    "eprivacy_01": "cookie_policy",
+    "eprivacy_02": "cookie_policy",
 }
 
-# ── Load documents ────────────────────────────────────────────
+# ── Document catalog ──────────────────────────────────────────
+DOC_CATALOG = {
+    "privacy_policy":    {"label": "Privacy Policy",              "regulations": ["GDPR"]},
+    "rop":               {"label": "Records of Processing (RoPA)", "regulations": ["GDPR"]},
+    "dpa":               {"label": "Data Processing Agreement",    "regulations": ["GDPR"]},
+    "incident_response": {"label": "Incident Response Plan",      "regulations": ["GDPR", "NIS2"]},
+    "cookie_policy":     {"label": "Cookie Policy",               "regulations": ["GDPR"]},
+}
+
+REG_LABELS = {"GDPR": "GDPR", "NIS2": "NIS2", "EU_AI_ACT": "EU AI Act"}
+
+REG_DOCS = {
+    "GDPR":     ["privacy_policy", "rop", "dpa", "incident_response", "cookie_policy"],
+    "NIS2":     ["incident_response"],
+    "EU_AI_ACT": [],
+}
+
+# ── Load data ─────────────────────────────────────────────────
 try:
     docs_raw = load_document_files(user_id, client_id) or []
-    # Build lookup: document_type → most recent doc
     docs_by_type = {}
     for doc in docs_raw:
         dt = doc.get("document_type")
@@ -61,53 +85,94 @@ try:
 except Exception:
     docs_by_type = {}
 
-# ── Load client_documents (versioned repo) ────────────────────
 try:
     client_docs = get_current_client_documents(client_id, user_id) if client_id else {}
 except Exception:
     client_docs = {}
 
-# ── Load alerts ───────────────────────────────────────────────
 try:
     unread_alerts = count_unread_alerts(user_id)
 except Exception:
     unread_alerts = 0
 
-# ── Load last audit ───────────────────────────────────────────
 try:
     audits = load_audit_files(user_id=user_id)
     last_audit = audits[0] if audits else None
 except Exception:
     last_audit = None
 
+# ── Load last gap assessment ──────────────────────────────────
+last_gap = None
+doc_gap_status = {}  # doc_type → {"status": compliant/partial/missing, "details": [...]}
+
+try:
+    admin = get_supabase_admin()
+    gap_res = admin.table("gap_assessments") \
+        .select("*") \
+        .eq("user_id", user_id) \
+        .order("created_at", desc=True) \
+        .limit(1) \
+        .execute()
+    if gap_res.data:
+        last_gap = gap_res.data[0]
+        gaps = last_gap.get("gaps") or []
+
+        # Aggregate obligation statuses per document type
+        doc_obligations = {}  # doc_type → list of statuses
+        for item in gaps:
+            obligation_id = item.get("id", "")
+            doc_type = OBLIGATION_TO_DOC.get(obligation_id)
+            if doc_type:
+                if doc_type not in doc_obligations:
+                    doc_obligations[doc_type] = []
+                doc_obligations[doc_type].append({
+                    "id": obligation_id,
+                    "status": item.get("status", "missing"),
+                    "explanation": item.get("explanation", ""),
+                    "recommendation": item.get("recommendation", ""),
+                })
+
+        # Derive per-document status
+        for doc_type, items in doc_obligations.items():
+            statuses = [i["status"] for i in items]
+            if all(s == "compliant" for s in statuses):
+                agg = "compliant"
+            elif all(s == "missing" for s in statuses):
+                agg = "missing"
+            else:
+                agg = "partial"
+            doc_gap_status[doc_type] = {"status": agg, "details": items}
+
+except Exception as e:
+    st.warning(f"Could not load gap assessment: {e}")
+
+gap_date = str(last_gap.get("created_at", ""))[:10] if last_gap else None
+
 # ═══════════════════════════════════════════════════════════════
-# SECTION 1 — Regulation Status Cards
+# SECTION 1 — Regulation Status
 # ═══════════════════════════════════════════════════════════════
 st.subheader(f"Compliance status — {company_name}")
-st.caption("Based on documents in your repository and open alerts.")
+st.caption("Based on your last gap assessment and document repository.")
 
-REG_LABELS = {
-    "GDPR":       "GDPR",
-    "NIS2":       "NIS2",
-    "EU_AI_ACT":  "EU AI Act",
-}
-
-REG_DOCS = {
-    "GDPR":      ["privacy_policy", "rop", "dpa", "incident_response", "cookie_policy"],
-    "NIS2":      ["incident_response"],
-    "EU_AI_ACT": [],
-}
-
-def reg_status(reg: str) -> tuple[str, str]:
-    """Return (emoji, label) for a regulation based on doc coverage + alerts."""
-    required_docs = REG_DOCS.get(reg, [])
-    if not required_docs:
+def reg_status(reg: str):
+    required = REG_DOCS.get(reg, [])
+    if not required:
         return "🔵", "Not yet assessed"
-    present = sum(1 for d in required_docs if d in client_docs or d in docs_by_type)
-    coverage = present / len(required_docs) if required_docs else 0
-    if coverage >= 0.8 and unread_alerts == 0:
+    if not doc_gap_status:
+        # No gap assessment — fall back to document presence
+        present = sum(1 for d in required if d in client_docs or d in docs_by_type)
+        coverage = present / len(required)
+        if coverage >= 0.8:
+            return "🟢", "On track"
+        elif coverage >= 0.4:
+            return "🟡", "In progress"
+        else:
+            return "🔴", "Action needed"
+    # Use gap assessment results
+    statuses = [doc_gap_status.get(d, {}).get("status", "missing") for d in required]
+    if all(s == "compliant" for s in statuses):
         return "🟢", "On track"
-    elif coverage >= 0.4:
+    elif any(s == "compliant" for s in statuses) or any(s == "partial" for s in statuses):
         return "🟡", "In progress"
     else:
         return "🔴", "Action needed"
@@ -119,68 +184,80 @@ for col, reg in zip(cols, regulations):
         st.markdown(f"**{REG_LABELS.get(reg, reg)}**")
         st.markdown(f"### {emoji} {label}")
 
+if gap_date:
+    st.caption(f"Last gap assessment: {gap_date}")
+else:
+    st.caption("No gap assessment run yet — status based on document presence only.")
+
 st.divider()
 
 # ═══════════════════════════════════════════════════════════════
 # SECTION 2 — Document Checklist
 # ═══════════════════════════════════════════════════════════════
 st.subheader("📋 Document checklist")
-st.caption("Documents required for your selected regulations.")
+if gap_date:
+    st.caption(f"Status from gap assessment run on {gap_date}. Click a row to see details.")
+else:
+    st.caption("Run a gap assessment to see per-document compliance status.")
 
-# Filter catalog to client's regulations
 relevant_docs = {
     k: v for k, v in DOC_CATALOG.items()
     if any(r in regulations for r in v["regulations"])
 }
 
-if not relevant_docs:
-    st.info("No document types mapped for your selected regulations yet.")
-else:
-    for doc_type, meta in relevant_docs.items():
-        col_label, col_status, col_action = st.columns([3, 2, 2])
+for doc_type, meta in relevant_docs.items():
+    col_label, col_status, col_action = st.columns([3, 2, 2])
 
-        in_repo     = doc_type in client_docs
-        in_history  = doc_type in docs_by_type
-        doc_record  = client_docs.get(doc_type) or docs_by_type.get(doc_type)
+    in_repo    = doc_type in client_docs
+    in_history = doc_type in docs_by_type
+    doc_record = client_docs.get(doc_type) or docs_by_type.get(doc_type)
+    gap_info   = doc_gap_status.get(doc_type)
 
-        with col_label:
-            reg_tags = " · ".join(
-                f"`{REG_LABELS.get(r, r)}`"
-                for r in meta["regulations"]
-                if r in regulations
-            )
-            st.markdown(f"**{meta['label']}**  {reg_tags}")
+    with col_label:
+        reg_tags = " · ".join(
+            f"`{REG_LABELS.get(r, r)}`"
+            for r in meta["regulations"]
+            if r in regulations
+        )
+        st.markdown(f"**{meta['label']}**  {reg_tags}")
 
-        with col_status:
-            if in_repo:
-                source = client_docs[doc_type].get("source", "")
-                date   = str(client_docs[doc_type].get("created_at", ""))[:10]
-                date_str = f" · {date}" if date and date != "None" else ""
-                if source == "complai_generated":
-                    st.success(f"✅ Generated{date_str}")
-                else:
-                    st.warning(f"⚠️ Uploaded{date_str}")
-            elif in_history:
-                date = str(docs_by_type[doc_type].get("generated_at", ""))[:10]
-                st.success(f"✅ Generated · {date}")
+    with col_status:
+        if gap_info:
+            # Show gap assessment result — most informative
+            gs = gap_info["status"]
+            if gs == "compliant":
+                st.success("✅ Compliant")
+            elif gs == "partial":
+                st.warning("🟡 Partial")
             else:
-                st.error("➕ Missing")
+                st.error("❌ Not compliant")
+        elif in_repo or in_history:
+            # Document exists but no gap assessment
+            source = (client_docs.get(doc_type) or {}).get("source", "")
+            if source == "complai_generated":
+                st.success("✅ Generated")
+            else:
+                st.info("ℹ️ In repository")
+        else:
+            st.error("➕ Missing")
 
-        with col_action:
-            if not in_repo and not in_history:
-                if st.button("Generate →", key=f"gen_{doc_type}"):
-                    st.switch_page("pages/documents.py")
-            elif doc_record:
-                # Show download link if available
-                file_path = (
-                    doc_record.get("file_path_docx")
-                    or doc_record.get("file_path")
-                    or None
-                )
-                if file_path:
-                    st.caption("📥 Available in Documents")
-                else:
-                    st.caption("📄 In repository")
+    with col_action:
+        if not in_repo and not in_history:
+            if st.button("Generate →", key=f"gen_{doc_type}"):
+                st.switch_page("pages/documents.py")
+        else:
+            if st.button("Gap assessment →", key=f"gap_{doc_type}"):
+                st.switch_page("pages/gap.py")
+
+    # Expandable details from gap assessment
+    if gap_info and gap_info["details"]:
+        with st.expander(f"Details — {meta['label']}", expanded=False):
+            for item in gap_info["details"]:
+                s = item["status"]
+                icon = "✅" if s == "compliant" else ("🟡" if s == "partial" else "❌")
+                st.markdown(f"{icon} **{item['id'].upper()}** — {item['explanation']}")
+                if item.get("recommendation"):
+                    st.caption(f"→ {item['recommendation']}")
 
 st.divider()
 
@@ -201,13 +278,14 @@ with col1:
         st.success("All alerts read ✅")
 
 with col2:
-    st.markdown("**🔍 Last gap assessment**")
-    if last_audit:
-        audit_date = str(last_audit.get("created_at", ""))[:10]
-        risk = last_audit.get("risk_level", "—")
-        st.info(f"Run on {audit_date}")
-        st.caption(f"Risk level: {risk}")
-        if st.button("View report →"):
+    st.markdown("**🔍 Gap assessment**")
+    if last_gap:
+        score_gdpr    = last_gap.get("score_gdpr", "—")
+        score_nis2    = last_gap.get("score_nis2", "—")
+        score_overall = last_gap.get("score_overall", "—")
+        st.info(f"Run on {gap_date}")
+        st.caption(f"GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100")
+        if st.button("Run new assessment →"):
             st.switch_page("pages/gap.py")
     else:
         st.warning("No assessment run yet")
