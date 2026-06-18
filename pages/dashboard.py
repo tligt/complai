@@ -116,10 +116,8 @@ cols = st.columns(len(regulations))
 for col, reg in zip(cols, regulations):
     emoji, label = reg_status(reg)
     with col:
-        st.metric(
-            label=REG_LABELS.get(reg, reg),
-            value=f"{emoji} {label}",
-        )
+        st.markdown(f"**{REG_LABELS.get(reg, reg)}**")
+        st.markdown(f"### {emoji} {label}")
 
 st.divider()
 
@@ -157,10 +155,11 @@ else:
             if in_repo:
                 source = client_docs[doc_type].get("source", "")
                 date   = str(client_docs[doc_type].get("created_at", ""))[:10]
+                date_str = f" · {date}" if date and date != "None" else ""
                 if source == "complai_generated":
-                    st.success(f"✅ Generated · {date}")
+                    st.success(f"✅ Generated{date_str}")
                 else:
-                    st.warning(f"⚠️ Uploaded · {date}")
+                    st.warning(f"⚠️ Uploaded{date_str}")
             elif in_history:
                 date = str(docs_by_type[doc_type].get("generated_at", ""))[:10]
                 st.success(f"✅ Generated · {date}")
