@@ -202,7 +202,7 @@ def save_document_with_files(
 
 
 
-def suggest_processing_activities(client: dict) -> dict:
+def suggest_processing_activities(client: dict, user_id: str | None = None, client_id: str | None = None) -> dict:
     """
     Use Mistral to suggest likely processing activities, third-party processors
     and retention periods based on the client profile.
@@ -291,8 +291,17 @@ Cover: customer/client data, employee data, marketing, website analytics, and an
         timeout=60,
     )
     response.raise_for_status()
+    _resp1 = response.json()
+    _usage1 = _resp1.get("usage", {})
+    try:
+        from database import log_token_usage as _ltu
+        _ltu(user_id=user_id, feature="docgen_suggest", client_id=client_id,
+             input_tokens=_usage1.get("prompt_tokens", 0),
+             output_tokens=_usage1.get("completion_tokens", 0))
+    except Exception:
+        pass
 
-    raw = response.json()["choices"][0]["message"]["content"]
+    raw = _resp1["choices"][0]["message"]["content"]
 
     # Strip markdown fences if present
     raw = raw.strip()
@@ -351,6 +360,8 @@ def generate_document_text(
     client: dict,
     language: str,
     regulatory_context: str,
+    user_id: str | None = None,
+    client_id: str | None = None,
 ) -> str:
     """Call Mistral to generate the document text."""
     api_key = os.environ.get("MISTRAL_API_KEY")
@@ -415,6 +426,14 @@ REGULATORY CONTEXT:
     )
     response.raise_for_status()
     result = response.json()
+    _usage2 = result.get("usage", {})
+    try:
+        from database import log_token_usage as _ltu
+        _ltu(user_id=user_id, feature="docgen", client_id=client_id,
+             input_tokens=_usage2.get("prompt_tokens", 0),
+             output_tokens=_usage2.get("completion_tokens", 0))
+    except Exception:
+        pass
     content_text = result["choices"][0]["message"]["content"]
     finish_reason = result["choices"][0].get("finish_reason", "")
 
@@ -441,7 +460,16 @@ REGULATORY CONTEXT:
             timeout=120,
         )
         if cont_response.status_code == 200:
-            content_text += "\n" + cont_response.json()["choices"][0]["message"]["content"]
+            _cont_data = cont_response.json()
+            _usage3 = _cont_data.get("usage", {})
+            try:
+                from database import log_token_usage as _ltu
+                _ltu(user_id=user_id, feature="docgen", client_id=client_id,
+                     input_tokens=_usage3.get("prompt_tokens", 0),
+                     output_tokens=_usage3.get("completion_tokens", 0))
+            except Exception:
+                pass
+            content_text += "\n" + _cont_data["choices"][0]["message"]["content"]
 
     return content_text
 

@@ -765,3 +765,97 @@ def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
     except Exception as e:
         print(f"Could not mark alert as ingested: {e}")
         return False
+
+
+# ── Sprint 15: Token usage logging ───────────────────────────────────────────
+
+# Mistral Large 2 pricing (USD per million tokens, June 2026)
+_MISTRAL_INPUT_COST_PER_M  = 2.00
+_MISTRAL_OUTPUT_COST_PER_M = 6.00
+
+
+def log_token_usage(
+    user_id: str,
+    feature: str,
+    input_tokens: int,
+    output_tokens: int,
+    client_id: str | None = None,
+    model: str = "mistral-large-latest",
+) -> bool:
+    """
+    Log a Mistral API call's token usage to usage_logs.
+    feature: 'chat', 'docgen', 'docgen_suggest', 'gap_single', 'gap_full'
+    """
+    try:
+        total = input_tokens + output_tokens
+        cost = (
+            (input_tokens  / 1_000_000) * _MISTRAL_INPUT_COST_PER_M +
+            (output_tokens / 1_000_000) * _MISTRAL_OUTPUT_COST_PER_M
+        )
+        supabase = get_supabase_admin()
+        supabase.table("usage_logs").insert({
+            "user_id":       user_id,
+            "client_id":     client_id,
+            "feature":       feature,
+            "model":         model,
+            "input_tokens":  input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens":  total,
+            "cost_usd":      round(cost, 6),
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"Could not log token usage: {e}")
+        return False
+
+
+def load_token_usage(
+    since: str | None = None,
+    user_id: str | None = None,
+) -> list[dict]:
+    """Load usage_logs, optionally filtered by date and/or user."""
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("usage_logs") \
+            .select("*") \
+            .order("created_at", desc=True) \
+            .limit(5000)
+        if since:
+            q = q.gte("created_at", since)
+        if user_id:
+            q = q.eq("user_id", user_id)
+        return q.execute().data or []
+    except Exception as e:
+        print(f"Could not load token usage: {e}")
+        return []
+
+
+def get_token_summary_by_client(since: str | None = None) -> list[dict]:
+    """
+    Aggregate token usage per client.
+    Returns list of dicts with user_id, client_id, total_tokens, total_cost_usd, call_count.
+    """
+    try:
+        rows = load_token_usage(since=since)
+        summary: dict[str, dict] = {}
+        for row in rows:
+            key = row.get("client_id") or row.get("user_id", "unknown")
+            if key not in summary:
+                summary[key] = {
+                    "user_id":       row.get("user_id"),
+                    "client_id":     row.get("client_id"),
+                    "total_tokens":  0,
+                    "total_cost_usd": 0.0,
+                    "call_count":    0,
+                    "by_feature":    {},
+                }
+            s = summary[key]
+            s["total_tokens"]   += row.get("total_tokens", 0)
+            s["total_cost_usd"] += float(row.get("cost_usd", 0))
+            s["call_count"]     += 1
+            feat = row.get("feature", "unknown")
+            s["by_feature"][feat] = s["by_feature"].get(feat, 0) + row.get("total_tokens", 0)
+        return list(summary.values())
+    except Exception as e:
+        print(f"Could not compute token summary: {e}")
+        return []

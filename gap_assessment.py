@@ -391,7 +391,16 @@ DOCUMENT:
                 timeout=30,
             )
             response.raise_for_status()
-            raw = response.json()["choices"][0]["message"]["content"].strip()
+            _rdata1 = response.json()
+            _u1 = _rdata1.get("usage", {})
+            try:
+                from database import log_token_usage as _ltu
+                _ltu(user_id=user_id, feature="gap_single", client_id=client_id,
+                     input_tokens=_u1.get("prompt_tokens", 0),
+                     output_tokens=_u1.get("completion_tokens", 0))
+            except Exception:
+                pass
+            raw = _rdata1["choices"][0]["message"]["content"].strip()
             # Strip markdown fences
             raw = re.sub(r"```json|```", "", raw).strip()
             # Extract JSON object if embedded in text
@@ -476,7 +485,16 @@ CHECK THESE OBLIGATIONS:
                 timeout=45,
             )
             response.raise_for_status()
-            raw = response.json()["choices"][0]["message"]["content"].strip()
+            _rdata2 = response.json()
+            _u2 = _rdata2.get("usage", {})
+            try:
+                from database import log_token_usage as _ltu
+                _ltu(user_id=user_id, feature="gap_full", client_id=client_id,
+                     input_tokens=_u2.get("prompt_tokens", 0),
+                     output_tokens=_u2.get("completion_tokens", 0))
+            except Exception:
+                pass
+            raw = _rdata2["choices"][0]["message"]["content"].strip()
             # Strip markdown fences
             raw = re.sub(r"```json|```", "", raw).strip()
             # Extract JSON array
@@ -513,6 +531,8 @@ def run_document_review(
     document_text: str,
     profile_answers: dict,
     client: dict,
+    user_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Review a single document against its specific obligations.
@@ -594,6 +614,8 @@ def run_gap_assessment(
     uploaded_docs: dict,      # {doc_type: text} from session uploads (overrides stored)
     profile_answers: dict,
     client: dict,
+    user_id: str | None = None,
+    client_id: str | None = None,
 ) -> dict:
     """
     Run gap assessment. For each obligation:
