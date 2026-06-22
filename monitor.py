@@ -247,7 +247,20 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                 timeout=30,
             )
             response.raise_for_status()
-            raw = response.json()["choices"][0]["message"]["content"].strip()
+            _rdata = response.json()
+            _usage = _rdata.get("usage", {})
+            try:
+                from database import log_token_usage as _ltu
+                _ltu(
+                    user_id="system",
+                    feature="monitoring_summarise",
+                    client_id=None,
+                    input_tokens=_usage.get("prompt_tokens", 0),
+                    output_tokens=_usage.get("completion_tokens", 0),
+                )
+            except Exception:
+                pass
+            raw = _rdata["choices"][0]["message"]["content"].strip()
 
             import re
             raw = re.sub(r"```json|```", "", raw).strip()

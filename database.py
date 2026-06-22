@@ -625,7 +625,21 @@ def _embed_texts(texts: list[str]) -> list[list[float]] | None:
             timeout=30,
         )
         resp.raise_for_status()
-        return [item["embedding"] for item in resp.json()["data"]]
+        rdata = resp.json()
+        # Log embedding token usage
+        _usage = rdata.get("usage", {})
+        try:
+            log_token_usage(
+                user_id="system",
+                feature="embedding",
+                client_id=None,
+                input_tokens=_usage.get("prompt_tokens", 0),
+                output_tokens=0,
+                model="mistral-embed",
+            )
+        except Exception:
+            pass
+        return [item["embedding"] for item in rdata["data"]]
     except Exception as e:
         print(f"Embedding failed: {e}")
         return None
@@ -775,7 +789,7 @@ _MISTRAL_OUTPUT_COST_PER_M = 6.00
 
 
 def log_token_usage(
-    user_id: str,
+    user_id: str | None,
     feature: str,
     input_tokens: int,
     output_tokens: int,
@@ -784,25 +798,40 @@ def log_token_usage(
 ) -> bool:
     """
     Log a Mistral API call's token usage to usage_logs.
-    feature: 'chat', 'docgen', 'docgen_suggest', 'gap_single', 'gap_full'
+    feature: 'chat', 'docgen', 'docgen_suggest', 'gap_single', 'gap_full',
+             'monitoring_summarise', 'embedding'
+    user_id: pass None or 'system' for internal/operational calls
     """
     try:
         total = input_tokens + output_tokens
-        cost = (
-            (input_tokens  / 1_000_000) * _MISTRAL_INPUT_COST_PER_M +
-            (output_tokens / 1_000_000) * _MISTRAL_OUTPUT_COST_PER_M
-        )
-        supabase = get_supabase_admin()
-        supabase.table("usage_logs").insert({
-            "user_id":       user_id,
-            "client_id":     client_id,
+        if total == 0:
+            return True  # Nothing to log
+
+        # Embedding costs differ — mistral-embed is input-only, priced at ~$0.10/M
+        if model == "mistral-embed":
+            cost = (input_tokens / 1_000_000) * 0.10
+        else:
+            cost = (
+                (input_tokens  / 1_000_000) * _MISTRAL_INPUT_COST_PER_M +
+                (output_tokens / 1_000_000) * _MISTRAL_OUTPUT_COST_PER_M
+            )
+
+        # Internal calls use None user_id — skip FK constraint
+        row = {
             "feature":       feature,
             "model":         model,
             "input_tokens":  input_tokens,
             "output_tokens": output_tokens,
             "total_tokens":  total,
             "cost_usd":      round(cost, 6),
-        }).execute()
+        }
+        if user_id and user_id != "system":
+            row["user_id"] = user_id
+        if client_id:
+            row["client_id"] = client_id
+
+        supabase = get_supabase_admin()
+        supabase.table("usage_logs").insert(row).execute()
         return True
     except Exception as e:
         print(f"Could not log token usage: {e}")
