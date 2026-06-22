@@ -145,43 +145,73 @@ except Exception as e:
 # ── Token usage detail ────────────────────────────────────────
 st.subheader("💰 Token usage & cost")
 
+CLIENT_FEATURES = {"chat", "docgen", "docgen_suggest", "gap_single", "gap_full"}
+INTERNAL_FEATURES = {"monitoring_summarise", "embedding"}
+
+FEAT_LABELS = {
+    "chat":                  "💬 Chat",
+    "docgen":                "📄 Document generation",
+    "docgen_suggest":        "🤖 Activity suggestions",
+    "gap_single":            "🔍 Document review",
+    "gap_full":              "🏢 Full compliance check",
+    "monitoring_summarise":  "📡 Regulatory monitoring",
+    "embedding":             "🧠 KB embeddings",
+}
+
 try:
-    token_summary = get_token_summary_by_client(since=since)
+    from database import load_token_usage
+    all_rows = load_token_usage(since=since)
 
-    if not token_summary:
-        st.info("No token usage recorded yet for this period. Token logging is active — data will appear after the next API call.")
-    else:
-        total_cost  = sum(s.get("total_cost_usd", 0) for s in token_summary)
-        total_tokens = sum(s.get("total_tokens", 0) for s in token_summary)
-        total_calls  = sum(s.get("call_count", 0) for s in token_summary)
+    client_rows   = [r for r in all_rows if r.get("feature") in CLIENT_FEATURES]
+    internal_rows = [r for r in all_rows if r.get("feature") in INTERNAL_FEATURES]
 
-        t1, t2, t3 = st.columns(3)
-        t1.metric("Total API calls", total_calls)
-        t2.metric("Total tokens", f"{total_tokens:,}")
-        t3.metric("Total cost (USD)", f"${total_cost:.4f}")
+    tab_client, tab_internal = st.tabs(["👥 Client usage", "⚙️ Internal / operational"])
 
-        st.caption(f"Pricing: Mistral Large — $2.00/M input tokens · $6.00/M output tokens")
+    with tab_client:
+        if not client_rows:
+            st.info("No client token usage recorded yet for this period.")
+        else:
+            c_tokens = sum(r.get("total_tokens", 0) for r in client_rows)
+            c_cost   = sum(float(r.get("cost_usd", 0)) for r in client_rows)
+            c_calls  = len(client_rows)
 
-        # Feature breakdown
-        from database import load_token_usage
-        rows = load_token_usage(since=since)
-        if rows:
-            feature_totals = {}
-            for r in rows:
+            t1, t2, t3 = st.columns(3)
+            t1.metric("API calls", c_calls)
+            t2.metric("Total tokens", f"{c_tokens:,}")
+            t3.metric("Total cost (USD)", f"${c_cost:.4f}")
+            st.caption("Mistral Large — $2.00/M input · $6.00/M output")
+
+            feat_totals = {}
+            for r in client_rows:
                 f = r.get("feature", "unknown")
-                feature_totals[f] = feature_totals.get(f, 0) + r.get("total_tokens", 0)
+                feat_totals[f] = feat_totals.get(f, 0) + r.get("total_tokens", 0)
 
             st.markdown("**By feature:**")
-            feat_labels = {
-                "chat": "💬 Chat",
-                "docgen": "📄 Document generation",
-                "docgen_suggest": "🤖 Activity suggestions",
-                "gap_single": "🔍 Document review",
-                "gap_full": "🏢 Full compliance check",
-            }
-            for feat, tokens in sorted(feature_totals.items(), key=lambda x: -x[1]):
-                label = feat_labels.get(feat, feat)
-                st.caption(f"{label}: {tokens:,} tokens")
+            for feat, tokens in sorted(feat_totals.items(), key=lambda x: -x[1]):
+                st.caption(f"{FEAT_LABELS.get(feat, feat)}: {tokens:,} tokens")
+
+    with tab_internal:
+        if not internal_rows:
+            st.info("No internal token usage recorded yet for this period.")
+        else:
+            i_tokens = sum(r.get("total_tokens", 0) for r in internal_rows)
+            i_cost   = sum(float(r.get("cost_usd", 0)) for r in internal_rows)
+            i_calls  = len(internal_rows)
+
+            t1, t2, t3 = st.columns(3)
+            t1.metric("API calls", i_calls)
+            t2.metric("Total tokens", f"{i_tokens:,}")
+            t3.metric("Total cost (USD)", f"${i_cost:.4f}")
+            st.caption("Mistral Large (summarisation) + mistral-embed (embeddings)")
+
+            feat_totals = {}
+            for r in internal_rows:
+                f = r.get("feature", "unknown")
+                feat_totals[f] = feat_totals.get(f, 0) + r.get("total_tokens", 0)
+
+            st.markdown("**By feature:**")
+            for feat, tokens in sorted(feat_totals.items(), key=lambda x: -x[1]):
+                st.caption(f"{FEAT_LABELS.get(feat, feat)}: {tokens:,} tokens")
 
 except Exception as e:
     st.warning(f"Could not load token usage: {e}")
