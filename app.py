@@ -617,7 +617,11 @@ if prompt := st.chat_input("Ask a compliance question..."):
             )
             client_context = build_client_context(selected_client)
             history = st.session_state.messages[:-1]
-            answer = answer_question(prompt, context_chunks, history, client_context)
+            answer = answer_question(
+                prompt, context_chunks, history, client_context,
+                user_id=user_id,
+                client_id=(selected_client or {}).get("id"),
+            )
 
         st.markdown(answer)
 
