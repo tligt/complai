@@ -98,7 +98,7 @@ def rebuild_index():
         st.session_state.embeddings = None
 
 
-def answer_question(question: str, context_chunks: list[Chunk], history: list[dict], client_context: str = "") -> str:
+def answer_question(question: str, context_chunks: list[Chunk], history: list[dict], client_context: str = "", user_id: str | None = None, client_id: str | None = None) -> str:
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
         raise ValueError("MISTRAL_API_KEY not found in environment")
@@ -148,8 +148,20 @@ def answer_question(question: str, context_chunks: list[Chunk], history: list[di
         }
     )
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
-
+    _resp = response.json()
+    _usage = _resp.get("usage", {})
+    try:
+        from database import log_token_usage as _ltu
+        _ltu(
+            user_id=user_id,
+            feature="chat",
+            client_id=client_id,
+            input_tokens=_usage.get("prompt_tokens", 0),
+            output_tokens=_usage.get("completion_tokens", 0),
+        )
+    except Exception:
+        pass
+    return _resp["choices"][0]["message"]["content"]
 
 def init_session():
     defaults = {
