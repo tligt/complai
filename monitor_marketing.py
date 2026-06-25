@@ -1,17 +1,13 @@
 """
 RECOSA Marketing Monitor
-Uses Mistral chat completions API with web_search_premium tool to find
-recent EU compliance news, then saves relevant items to Supabase for
-admin review and LinkedIn draft generation.
+Uses a persistent Mistral Agent with Premium Search (web_search_premium)
+to find recent EU compliance news via the Conversations API.
 
-Uses the standard /v1/chat/completions endpoint (not the beta Conversations API)
-with web_search_premium passed as a built-in tool — same pattern as the
-Mistral docs examples.
+Agent pre-created in Mistral Studio: ag_019efe92f08e71a78d70f0f8b9230d29
+Set MISTRAL_AGENT_ID in Streamlit Cloud and GitHub Actions secrets.
 
 Sources/queries loaded dynamically from monitoring_sources table
 where monitor_type = 'marketing'.
-
-Run via GitHub Actions cron or manually from the admin BO.
 """
 
 import os
@@ -30,88 +26,120 @@ from database import (
 
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 MISTRAL_API_BASE = "https://api.mistral.ai/v1"
+DEFAULT_AGENT_ID = "ag_019efe92f08e71a78d70f0f8b9230d29"
 
 
-# ── Mistral web search via chat completions ───────────────────
+# ── Mistral agent search ──────────────────────────────────────
 
-def search_news_with_mistral(query: str, api_key: str) -> list[dict]:
+def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict]:
     """
-    Use Mistral chat completions with web_search_premium tool to find
-    recent news articles matching the query.
-    Returns list of raw items with title, url, description, published_raw.
+    Use the persistent RECOSA-NewsSearch Mistral agent with Premium Search
+    to find recent news articles matching the query.
     """
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type":  "application/json",
     }
 
-    system_prompt = (
-        "You are a news research assistant for RECOSA, an EU regulatory compliance platform. "
-        "Search the web to find REAL recent news articles. "
-        "Always use the web search tool — never answer from memory. "
-        "Return ONLY a valid JSON array, no prose, no markdown fences:\n"
-        '[{"title":"...","url":"...","description":"1-2 sentences","published_date":"YYYY-MM-DD"}]'
+    prompt = (
+        f"Search the web and find the 8 most recent news articles from the "
+        f"last 48 hours about: {query}\n\n"
+        f"Focus on EU, Belgium, and France context where relevant.\n\n"
+        f"For each article provide title, URL, a 1-2 sentence description, "
+        f"and publication date."
     )
-
-    user_prompt = (
-        f"Search for the 8 most recent news articles from the last 48 hours about: {query}\n"
-        f"Focus on EU, Belgium, and France context where relevant.\n"
-        f"Return ONLY the JSON array."
-    )
-
-    payload = {
-        "model":    "mistral-small-latest",
-        "temperature": 0.1,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_prompt},
-        ],
-        "tools": [{"type": "web_search_premium"}],
-        "max_tokens": 2000,
-    }
 
     try:
         resp = requests.post(
-            f"{MISTRAL_API_BASE}/chat/completions",
+            f"{MISTRAL_API_BASE}/conversations",
             headers=headers,
-            json=payload,
-            timeout=60,
+            json={
+                "agent_id": agent_id,
+                "inputs":   prompt,
+            },
+            timeout=90,
         )
 
         if not resp.ok:
-            print(f"  API error {resp.status_code}: {resp.text[:300]}")
+            print(f"  Conversations API error {resp.status_code}: {resp.text[:300]}")
             return []
 
-        data    = resp.json()
-        content = data["choices"][0]["message"]["content"] or ""
+        data = resp.json()
 
-        if not content.strip():
-            # Model may have only returned tool calls without final content
-            # Try to get the tool result from the message
-            print(f"  Empty content for query '{query}' — checking tool calls")
-            tool_calls = data["choices"][0]["message"].get("tool_calls", [])
-            if tool_calls:
-                print(f"  Tool was called but no final response — model needs follow-up")
+        # Debug: print top-level keys to understand response structure
+        print(f"  Response keys: {list(data.keys())}")
+
+        # Extract text content — try all known response structures
+        raw_text = _extract_text(data)
+
+        if not raw_text:
+            print(f"  No text extracted — full response:")
+            print(f"  {json.dumps(data, indent=2)[:1000]}")
             return []
 
-        # Parse JSON array from response
-        items = _parse_json_array(content)
+        print(f"  Raw response preview: {raw_text[:200]}")
+
+        # Try JSON first, then markdown
+        items = _parse_json_array(raw_text)
         if items:
+            print(f"  Parsed {len(items)} items from JSON")
             return _normalise_items(items)
 
-        # Fallback: parse markdown
-        items = _parse_markdown_response(content)
-        if items:
-            print(f"  Parsed {len(items)} items from markdown response")
+        items = _parse_markdown_response(raw_text)
+        print(f"  Parsed {len(items)} items from markdown")
         return items
 
     except Exception as e:
-        print(f"  Search error for '{query}': {e}")
+        print(f"  Agent search error for '{query}': {e}")
         return []
 
 
+def _extract_text(data: dict) -> str:
+    """
+    Extract plain text from Mistral Conversations API response.
+    Tries all known response structures.
+    """
+    raw_text = ""
+
+    # Structure 1: outputs array with message.output entries
+    for output in data.get("outputs", []):
+        if output.get("type") == "message.output":
+            for chunk in output.get("content", []):
+                if chunk.get("type") == "text":
+                    raw_text += chunk.get("text", "")
+
+    if raw_text:
+        return raw_text.strip()
+
+    # Structure 2: messages array
+    for msg in data.get("messages", []):
+        if msg.get("role") == "assistant":
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                raw_text += content
+            elif isinstance(content, list):
+                for chunk in content:
+                    if isinstance(chunk, dict) and chunk.get("type") == "text":
+                        raw_text += chunk.get("text", "")
+
+    if raw_text:
+        return raw_text.strip()
+
+    # Structure 3: direct response field
+    if "response" in data:
+        return str(data["response"]).strip()
+
+    # Structure 4: choices (chat completions format)
+    for choice in data.get("choices", []):
+        msg = choice.get("message", {})
+        content = msg.get("content", "")
+        if content:
+            raw_text += content
+
+    return raw_text.strip()
+
+
 def _parse_json_array(text: str) -> list:
-    """Extract and parse a JSON array from text."""
     try:
         clean = re.sub(r"```json|```", "", text).strip()
         match = re.search(r'\[[\s\S]*\]', clean)
@@ -123,22 +151,20 @@ def _parse_json_array(text: str) -> list:
 
 
 def _parse_markdown_response(text: str) -> list[dict]:
-    """
-    Parse markdown-formatted news response into structured items.
-    Handles bold headers, numbered lists, and inline URLs.
-    """
-    items   = []
-    sections = re.split(r'\n(?=###\s|\*\*\d+\.|\d+\.\s+\*\*)', text)
+    """Parse markdown-formatted news into structured items."""
+    items    = []
+    sections = re.split(r'\n(?=###\s|\*\*\d+\.|\d+\.\s+\*\*|\d+\.\s+\[)', text)
 
     for section in sections:
         if not section.strip() or len(section.strip()) < 30:
             continue
 
-        # Extract title
+        # Title
         title_match = (
             re.search(r'###\s+\*?\*?(.+?)\*?\*?(?:\n|$)', section) or
             re.search(r'\*\*\d+\.\s+(.+?)\*\*', section) or
-            re.search(r'^\d+\.\s+\*?\*?(.+?)\*?\*?(?:\n|$)', section, re.MULTILINE)
+            re.search(r'^\d+\.\s+\*?\*?(.+?)\*?\*?(?:\n|$)', section, re.MULTILINE) or
+            re.search(r'^\d+\.\s+\[(.+?)\]', section, re.MULTILINE)
         )
         if not title_match:
             continue
@@ -147,19 +173,19 @@ def _parse_markdown_response(text: str) -> list[dict]:
         if len(title) < 10:
             continue
 
-        # Extract URL
+        # URL
         url_match = re.search(r'\[([^\]]+)\]\((https?://[^\)]+)\)', section)
         url = url_match.group(2).strip() if url_match else ""
 
-        # Extract description — clean markdown, take first 300 chars
+        # Description
         clean = re.sub(r'###.+\n', '', section)
         clean = re.sub(r'\*\*[^*]+\*\*[:\s]*', '', clean)
         clean = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', clean)
         clean = re.sub(r'\*+', '', clean)
         clean = re.sub(r'\s+', ' ', clean).strip()
-        desc  = clean[:300]
+        desc  = clean[:400]
 
-        # Extract date
+        # Date
         date_match = re.search(
             r'(January|February|March|April|May|June|July|August|'
             r'September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})',
@@ -190,19 +216,16 @@ def _parse_markdown_response(text: str) -> list[dict]:
 
 
 def _normalise_items(raw: list) -> list[dict]:
-    """Normalise JSON-parsed items to standard format."""
     results = []
     for a in raw:
         title = (a.get("title") or "").strip()
         url   = (a.get("url") or "").strip()
         desc  = (a.get("description") or "").strip()
         pub   = (a.get("published_date") or a.get("published_raw") or "").strip()
-
         if not title or len(title) < 10:
             continue
         if url in ("", "N/A", "unknown", "https://example.com"):
             url = ""
-
         results.append({
             "title":         title,
             "url":           url,
@@ -219,10 +242,6 @@ def analyse_for_marketing(
     source_config: dict,
     api_key: str,
 ) -> tuple[list[dict], int, int]:
-    """
-    Filter and summarise items for RECOSA marketing relevance.
-    Returns (relevant_items, input_tokens_total, output_tokens_total).
-    """
     if not items or not api_key:
         return [], 0, 0
 
@@ -237,7 +256,7 @@ def analyse_for_marketing(
         system_prompt = (
             "You are a content strategist for RECOSA, an EU regulatory compliance SaaS "
             "helping SMEs in Belgium and France comply with GDPR, NIS2, and the EU AI Act.\n\n"
-            "Analyse this news item and return ONLY valid JSON:\n"
+            "Return ONLY valid JSON:\n"
             "{\n"
             '  "relevant": true/false,\n'
             '  "relevance_reason": "one sentence",\n'
@@ -246,7 +265,7 @@ def analyse_for_marketing(
             '  "content_angle": "enforcement|policy|guidance|market|tech|other"\n'
             "}\n\n"
             "relevant: true if useful for understanding the EU compliance landscape, "
-            "competitor intelligence, or LinkedIn content inspiration for SME compliance officers.\n"
+            "competitor intelligence, or LinkedIn content for SME compliance officers.\n"
             "relevant: false for generic tech, US-only news, sports, or entertainment."
         )
 
@@ -329,26 +348,24 @@ def _parse_date(date_str: str) -> str | None:
     return None
 
 
-# ── Main marketing monitoring run ─────────────────────────────
+# ── Main ──────────────────────────────────────────────────────
 
 def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
-    """
-    Main entry point. Loads marketing sources from DB, searches via
-    Mistral chat completions with web_search_premium, filters with
-    Mistral, saves results to marketing_updates.
-    """
-    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    api_key  = os.environ.get("MISTRAL_API_KEY", "")
+    agent_id = os.environ.get("MISTRAL_AGENT_ID", DEFAULT_AGENT_ID)
+
     if not api_key:
         return {"error": "MISTRAL_API_KEY not set", "saved": 0, "skipped": 0}
 
     print(f"\nRECOSA Marketing Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"Agent: {agent_id}")
     print("=" * 60)
 
     run_id  = start_monitor_run("marketing", triggered_by=triggered_by)
     sources = load_monitoring_sources(monitor_type="marketing")
 
     if not sources:
-        print("  No active marketing sources found in DB.")
+        print("  No active marketing sources found.")
         if run_id:
             complete_monitor_run(run_id, 0, 0, 0, 0, [], {},
                                  status="completed",
@@ -362,30 +379,22 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     source_stats = []
 
     for source in sources:
-        fetch_type = source.get("fetch_type", "search")
         print(f"\n[{source.get('category','')}] {source['name']}...")
-
-        stat = {
-            "name":    source["name"],
-            "fetched": 0,
-            "saved":   0,
-            "skipped": 0,
-            "error":   None,
-        }
+        stat = {"name": source["name"], "fetched": 0, "saved": 0, "skipped": 0, "error": None}
 
         try:
-            if fetch_type != "search":
-                print(f"  Non-search source skipped in marketing monitor.")
+            if source.get("fetch_type") != "search":
+                print("  Non-search source skipped.")
                 source_stats.append(stat)
                 continue
 
             query = source.get("query", "")
             if not query:
-                print("  No query defined — skipping.")
+                print("  No query — skipping.")
                 source_stats.append(stat)
                 continue
 
-            raw_items = search_news_with_mistral(query, api_key)
+            raw_items = search_news_with_agent(query, api_key, agent_id)
             print(f"  {len(raw_items)} articles found")
             stat["fetched"]  = len(raw_items)
             total_fetched   += len(raw_items)
@@ -402,18 +411,15 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
             for item in enriched:
                 result = save_marketing_update(item)
                 if result:
-                    total_saved += 1
-                    stat["saved"] += 1
+                    total_saved += 1; stat["saved"] += 1
                     print(f"  ✅ {item['title'][:60]}")
                 else:
-                    total_skipped += 1
-                    stat["skipped"] += 1
+                    total_skipped += 1; stat["skipped"] += 1
                     print(f"  ⤷ Duplicate: {item['title'][:60]}")
 
         except Exception as e:
-            err_msg = str(e)
-            print(f"  ❌ Error: {err_msg}")
-            stat["error"] = err_msg
+            print(f"  ❌ Error: {e}")
+            stat["error"] = str(e)
             total_errors += 1
 
         source_stats.append(stat)
@@ -428,41 +434,25 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
         )
 
     token_usage = {
-        "input":    total_in,
-        "output":   total_out,
-        "cost_usd": round(
-            (total_in  / 1_000_000) * 2.00 +
-            (total_out / 1_000_000) * 6.00, 6
-        ),
+        "input": total_in, "output": total_out,
+        "cost_usd": round((total_in/1_000_000)*2.00 + (total_out/1_000_000)*6.00, 6),
     }
 
     print(f"\n{'='*60}")
-    print("MARKETING MONITORING COMPLETE")
-    print(f"Fetched: {total_fetched} | New: {total_saved} | "
+    print(f"DONE — Fetched: {total_fetched} | New: {total_saved} | "
           f"Duplicates: {total_skipped} | Errors: {total_errors}")
-    print(f"Tokens: {total_in} in / {total_out} out — ${token_usage['cost_usd']:.4f}")
-
-    result = {
-        "fetched":  total_fetched,
-        "saved":    total_saved,
-        "skipped":  total_skipped,
-        "errors":   total_errors,
-        "run_at":   datetime.now(timezone.utc).isoformat(),
-    }
 
     if run_id:
         complete_monitor_run(
-            run_id,
-            total_fetched=total_fetched,
-            total_saved=total_saved,
-            total_skipped=total_skipped,
-            total_errors=total_errors,
-            source_stats=source_stats,
-            token_usage=token_usage,
-            status="completed",
+            run_id, total_fetched, total_saved, total_skipped,
+            total_errors, source_stats, token_usage, status="completed",
         )
 
-    return result
+    return {
+        "fetched": total_fetched, "saved": total_saved,
+        "skipped": total_skipped, "errors": total_errors,
+        "run_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 if __name__ == "__main__":
