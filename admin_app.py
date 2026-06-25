@@ -23,7 +23,7 @@ if not is_admin(user_id):
 
 home       = st.Page("pages_admin/home.py",       title="Admin Home",        icon="⚙️",  default=True)
 dashboard  = st.Page("pages_admin/dashboard.py",  title="Client Dashboard",  icon="📊")
-monitoring = st.Page("pages_admin/monitoring.py", title="Regulatory Monitoring", icon="📡")
+monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",        icon="📡")
 
 pg = st.navigation({"Admin": [home, dashboard, monitoring]})
 pg.run()
