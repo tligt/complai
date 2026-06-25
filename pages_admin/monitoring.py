@@ -30,6 +30,70 @@ from database import (
 st.title("📡 Monitoring")
 st.caption("Regulatory and marketing monitoring — review, approve, and publish.")
 
+
+# ── LinkedIn draft generation (defined before tabs so it's available) ─────────
+
+def _generate_linkedin_draft(item: dict, context: str = "regulatory") -> str | None:
+    """Generate a LinkedIn post draft from a regulatory or marketing item."""
+    import os
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    if not api_key:
+        st.error("MISTRAL_API_KEY not set.")
+        return None
+
+    if context == "regulatory":
+        system_prompt = """You are a content writer for RECOSA, an EU regulatory compliance platform for SMEs.
+Write a LinkedIn post about this regulatory update. Tone: expert but accessible, concise, actionable.
+Format:
+- Hook sentence (grab attention)
+- 2-3 key takeaways for SMEs (use emojis sparingly)
+- Call to action mentioning RECOSA
+- 3-5 relevant hashtags
+
+Max 250 words. Write in English."""
+    else:
+        system_prompt = """You are a content writer for RECOSA, an EU regulatory compliance platform for SMEs.
+Write a LinkedIn post inspired by this news item, from the perspective of an EU compliance expert.
+Tone: thought leadership, concise, adds RECOSA's perspective.
+Format:
+- Hook sentence
+- 2-3 key insights
+- RECOSA angle (how this relates to what we help SMEs with)
+- 3-5 relevant hashtags
+
+Max 250 words. Write in English."""
+
+    user_prompt = f"""TITLE: {item.get('title', '')}
+SUMMARY: {item.get('summary', '')}
+SOURCE: {item.get('source', '')}
+
+Write the LinkedIn post."""
+
+    try:
+        response = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0.7,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                "max_tokens": 500,
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        st.error(f"Could not generate LinkedIn draft: {e}")
+        return None
+
+
 # ── Tabs ──────────────────────────────────────────────────────
 tab_reg, tab_mkt, tab_sources, tab_runs = st.tabs([
     "📋 Regulatory Feed",
@@ -560,68 +624,3 @@ with tab_runs:
                             detail = "0 fetched"
 
                         st.caption(f"{icon} {stat['name']}: {detail}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# SHARED HELPER — LinkedIn draft generation
-# ═══════════════════════════════════════════════════════════════
-
-def _generate_linkedin_draft(item: dict, context: str = "regulatory") -> str | None:
-    """Generate a LinkedIn post draft from a regulatory or marketing item."""
-    import os
-    api_key = os.environ.get("MISTRAL_API_KEY", "")
-    if not api_key:
-        st.error("MISTRAL_API_KEY not set.")
-        return None
-
-    if context == "regulatory":
-        system_prompt = """You are a content writer for RECOSA, an EU regulatory compliance platform for SMEs.
-Write a LinkedIn post about this regulatory update. Tone: expert but accessible, concise, actionable.
-Format:
-- Hook sentence (grab attention)
-- 2-3 key takeaways for SMEs (use emojis sparingly)
-- Call to action mentioning RECOSA
-- 3-5 relevant hashtags
-
-Max 250 words. Write in English."""
-    else:
-        system_prompt = """You are a content writer for RECOSA, an EU regulatory compliance platform for SMEs.
-Write a LinkedIn post inspired by this news item, from the perspective of an EU compliance expert.
-Tone: thought leadership, concise, adds RECOSA's perspective.
-Format:
-- Hook sentence
-- 2-3 key insights
-- RECOSA angle (how this relates to what we help SMEs with)
-- 3-5 relevant hashtags
-
-Max 250 words. Write in English."""
-
-    user_prompt = f"""TITLE: {item.get('title', '')}
-SUMMARY: {item.get('summary', '')}
-SOURCE: {item.get('source', '')}
-
-Write the LinkedIn post."""
-
-    try:
-        response = requests.post(
-            "https://api.mistral.ai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": "mistral-large-latest",
-                "temperature": 0.7,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user",   "content": user_prompt},
-                ],
-                "max_tokens": 500,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        st.error(f"Could not generate LinkedIn draft: {e}")
-        return None
