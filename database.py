@@ -4,6 +4,11 @@ import streamlit as st
 from datetime import datetime, timezone
 from supabase import create_client, Client
 
+# Sentinel UUID for system/monitoring processes (no authenticated user)
+# user_id column in usage_logs must be nullable for this to work:
+#   ALTER TABLE public.usage_logs ALTER COLUMN user_id DROP NOT NULL;
+SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
 
 def get_supabase() -> Client:
     url = os.environ.get("SUPABASE_URL")
@@ -281,8 +286,7 @@ def load_audit_files(email_domain: str | None = None,
 # ── Client document repository ────────────────────────────────
 
 def get_current_client_documents(client_id: str, user_id: str) -> dict:
-    """Get current version of each document type for a client.
-    Returns dict keyed by document_type."""
+    """Get current version of each document type for a client."""
     try:
         supabase = get_supabase()
         res = supabase.table("client_documents") \
@@ -292,7 +296,7 @@ def get_current_client_documents(client_id: str, user_id: str) -> dict:
             .eq("is_current", True) \
             .execute()
         return {r["document_type"]: r for r in (res.data or [])}
-    except Exception as e:
+    except Exception:
         return {}
 
 
@@ -324,19 +328,14 @@ def register_client_document(
     """Register a new document version. Marks previous version as not current."""
     try:
         supabase = get_supabase()
-
-        # Get current version number
         res = supabase.table("client_documents") \
             .select("version") \
             .eq("client_id", client_id) \
             .eq("document_type", document_type) \
             .eq("is_current", True) \
             .execute()
-
         current_version = res.data[0]["version"] if res.data else 0
         new_version = current_version + 1
-
-        # Mark previous as not current
         if current_version > 0:
             supabase.table("client_documents") \
                 .update({"is_current": False}) \
@@ -344,8 +343,6 @@ def register_client_document(
                 .eq("user_id", user_id) \
                 .eq("document_type", document_type) \
                 .execute()
-
-        # Insert new version
         supabase.table("client_documents").insert({
             "user_id": user_id,
             "client_id": client_id,
@@ -357,7 +354,7 @@ def register_client_document(
             "is_current": True,
         }).execute()
         return True
-    except Exception as e:
+    except Exception:
         return False
 
 
@@ -477,23 +474,19 @@ def create_client_alerts(update_id: str, update: dict) -> int:
         supabase = get_supabase_admin()
         update_regs = set(update.get("regulations") or [])
         update_countries = set(update.get("countries") or ["EU"])
-
         clients_res = supabase.table("clients") \
             .select("id, user_id, regulations, country") \
             .execute()
         clients = clients_res.data or []
-
         alerts = []
         for client in clients:
             client_regs = set(client.get("regulations") or [])
             client_country = client.get("country", "EU")
-
             reg_match = bool(client_regs & update_regs) or not update_regs
             country_match = (
                 "EU" in update_countries or
                 client_country in update_countries
             )
-
             if reg_match and country_match:
                 alerts.append({
                     "user_id": client["user_id"],
@@ -501,10 +494,8 @@ def create_client_alerts(update_id: str, update: dict) -> int:
                     "update_id": update_id,
                     "email_sent": False,
                 })
-
         if alerts:
             supabase.table("client_alerts").insert(alerts).execute()
-
         return len(alerts)
     except Exception as e:
         print(f"Could not create client alerts: {e}")
@@ -555,14 +546,13 @@ def count_unread_alerts(user_id: str) -> int:
         return 0
 
 
-# ── Sprint 12: Qdrant ingestion of approved alerts ────────────────────────────
+# ── Qdrant ingestion ──────────────────────────────────────────────────────────
 
 def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
     """Fetch full article text from URL. Returns None if blocked or failed."""
     try:
         import requests
         from bs4 import BeautifulSoup
-
         headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -571,25 +561,19 @@ def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
             )
         }
         resp = requests.get(url, headers=headers, timeout=timeout)
-
-        # EUR-Lex returns 202 with empty body — treat as failure
         if resp.status_code != 200 or len(resp.text) < 500:
             return None
-
         soup = BeautifulSoup(resp.text, "html.parser")
         for tag in soup(["nav", "footer", "script", "style", "header", "aside"]):
             tag.decompose()
-
         for selector in ["article", "main", ".content", "#content", ".document-content"]:
             el = soup.select_one(selector)
             if el:
                 text = el.get_text(separator="\n", strip=True)
                 if len(text) > 300:
                     return text
-
         text = soup.get_text(separator="\n", strip=True)
         return text if len(text) > 300 else None
-
     except Exception as e:
         print(f"Could not fetch article text from {url}: {e}")
         return None
@@ -626,11 +610,10 @@ def _embed_texts(texts: list[str]) -> list[list[float]] | None:
         )
         resp.raise_for_status()
         rdata = resp.json()
-        # Log embedding token usage
         _usage = rdata.get("usage", {})
         try:
             log_token_usage(
-                user_id="system",
+                user_id=SYSTEM_USER_ID,
                 feature="embedding",
                 client_id=None,
                 input_tokens=_usage.get("prompt_tokens", 0),
@@ -651,7 +634,7 @@ def _upsert_to_qdrant(points: list[dict]) -> tuple[bool, str | None]:
         import requests as req
         qdrant_url = os.environ["QDRANT_URL"]
         qdrant_key = os.environ["QDRANT_API_KEY"]
-        collection = os.environ.get("QDRANT_COLLECTION", "complai_kb")
+        collection = os.environ.get("QDRANT_COLLECTION", "regulations")
         resp = req.put(
             f"{qdrant_url}/collections/{collection}/points",
             headers={"api-key": qdrant_key, "Content-Type": "application/json"},
@@ -670,11 +653,7 @@ def _upsert_to_qdrant(points: list[dict]) -> tuple[bool, str | None]:
 
 
 def ingest_alert_to_qdrant(update: dict) -> dict:
-    """
-    Ingest an approved regulatory alert into Qdrant.
-    Option 3: always embed summary; also try full article text with fallback.
-    Returns status dict with success, chunks_ingested, full_text_ingested, error.
-    """
+    """Ingest an approved regulatory alert into Qdrant."""
     result = {
         "success": False,
         "summary_ingested": False,
@@ -682,35 +661,26 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
         "chunks_ingested": 0,
         "error": None,
     }
-
     update_id = update.get("id", str(uuid.uuid4()))
     summary   = (update.get("summary") or "").strip()
     url       = update.get("url") or ""
     source    = update.get("source") or ""
     title     = update.get("title") or "Regulatory Update"
     detected  = update.get("detected_at") or datetime.utcnow().isoformat()
-
-    # regulations and countries are arrays — take first for Qdrant metadata
     regulations = update.get("regulations") or []
     countries   = update.get("countries") or ["EU"]
     regulation  = regulations[0] if regulations else "general"
     country     = countries[0] if countries else "EU"
-
     reg_map = {"gdpr": "GDPR", "nis2": "NIS2", "eu_ai_act": "EU_AI_ACT", "general": "general"}
     regulation_norm = reg_map.get(regulation.lower(), regulation.upper())
-
     if not summary:
         result["error"] = "No summary — cannot ingest"
         return result
-
     points = []
-
-    # 1. Summary chunk (always)
     emb = _embed_texts([summary])
     if not emb:
         result["error"] = "Embedding failed for summary"
         return result
-
     points.append({
         "id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"{update_id}:summary")),
         "vector": emb[0],
@@ -722,8 +692,6 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
         },
     })
     result["summary_ingested"] = True
-
-    # 2. Full article text (best effort)
     if url:
         article_text = _fetch_article_text(url)
         if article_text:
@@ -748,8 +716,6 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
                     },
                 })
             result["full_text_ingested"] = len(all_embeddings) > 0
-
-    # 3. Upsert to Qdrant
     if points:
         ok, err = _upsert_to_qdrant(points)
         if ok:
@@ -759,7 +725,6 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
             result["error"] = err or "Qdrant upsert failed"
     else:
         result["error"] = "No points to upsert"
-
     return result
 
 
@@ -781,9 +746,8 @@ def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
         return False
 
 
-# ── Sprint 15: Token usage logging ───────────────────────────────────────────
+# ── Token usage logging ───────────────────────────────────────────────────────
 
-# Mistral Large 2 pricing (USD per million tokens, June 2026)
 _MISTRAL_INPUT_COST_PER_M  = 2.00
 _MISTRAL_OUTPUT_COST_PER_M = 6.00
 
@@ -798,16 +762,13 @@ def log_token_usage(
 ) -> bool:
     """
     Log a Mistral API call's token usage to usage_logs.
-    feature: 'chat', 'docgen', 'docgen_suggest', 'gap_single', 'gap_full',
-             'monitoring_summarise', 'embedding'
-    user_id: pass None or 'system' for internal/operational calls
+    Pass user_id=SYSTEM_USER_ID for monitoring/cron calls.
+    Pass user_id=None for truly anonymous calls (inserts without user_id).
     """
     try:
         total = input_tokens + output_tokens
         if total == 0:
-            return True  # Nothing to log
-
-        # Embedding costs differ — mistral-embed is input-only, priced at ~$0.10/M
+            return True
         if model == "mistral-embed":
             cost = (input_tokens / 1_000_000) * 0.10
         else:
@@ -815,8 +776,6 @@ def log_token_usage(
                 (input_tokens  / 1_000_000) * _MISTRAL_INPUT_COST_PER_M +
                 (output_tokens / 1_000_000) * _MISTRAL_OUTPUT_COST_PER_M
             )
-
-        # Internal calls use None user_id — skip FK constraint
         row = {
             "feature":       feature,
             "model":         model,
@@ -825,11 +784,12 @@ def log_token_usage(
             "total_tokens":  total,
             "cost_usd":      round(cost, 6),
         }
-        if user_id and user_id != "system":
+        # Only set user_id if it's a valid non-system value
+        # SYSTEM_USER_ID is a valid UUID sentinel for monitoring processes
+        if user_id and user_id not in ("system",):
             row["user_id"] = user_id
         if client_id:
             row["client_id"] = client_id
-
         supabase = get_supabase_admin()
         supabase.table("usage_logs").insert(row).execute()
         return True
@@ -860,10 +820,7 @@ def load_token_usage(
 
 
 def get_token_summary_by_client(since: str | None = None) -> list[dict]:
-    """
-    Aggregate token usage per client.
-    Returns list of dicts with user_id, client_id, total_tokens, total_cost_usd, call_count.
-    """
+    """Aggregate token usage per client."""
     try:
         rows = load_token_usage(since=since)
         summary: dict[str, dict] = {}
@@ -871,12 +828,12 @@ def get_token_summary_by_client(since: str | None = None) -> list[dict]:
             key = row.get("client_id") or row.get("user_id", "unknown")
             if key not in summary:
                 summary[key] = {
-                    "user_id":       row.get("user_id"),
-                    "client_id":     row.get("client_id"),
-                    "total_tokens":  0,
+                    "user_id":        row.get("user_id"),
+                    "client_id":      row.get("client_id"),
+                    "total_tokens":   0,
                     "total_cost_usd": 0.0,
-                    "call_count":    0,
-                    "by_feature":    {},
+                    "call_count":     0,
+                    "by_feature":     {},
                 }
             s = summary[key]
             s["total_tokens"]   += row.get("total_tokens", 0)
@@ -887,4 +844,238 @@ def get_token_summary_by_client(since: str | None = None) -> list[dict]:
         return list(summary.values())
     except Exception as e:
         print(f"Could not compute token summary: {e}")
+        return []
+
+
+# ── S17: Monitoring sources (dynamic, from DB) ────────────────────────────────
+
+def load_monitoring_sources(monitor_type: str | None = None) -> list[dict]:
+    """
+    Load active monitoring sources from the monitoring_sources table.
+    monitor_type: 'regulatory' | 'marketing' | None (all)
+    Returns list of source dicts ready for use in monitor scripts.
+    """
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("monitoring_sources") \
+            .select("*") \
+            .eq("active", True) \
+            .order("name")
+        if monitor_type:
+            q = q.eq("monitor_type", monitor_type)
+        return q.execute().data or []
+    except Exception as e:
+        print(f"Could not load monitoring sources: {e}")
+        return []
+
+
+def save_monitoring_source(source: dict) -> str | None:
+    """Create a new monitoring source. Returns id on success."""
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("monitoring_sources").insert({
+            "name":             source["name"],
+            "url":              source["url"],
+            "fetch_type":       source.get("fetch_type", "rss"),
+            "monitor_type":     source.get("monitor_type", "regulatory"),
+            "category":         source.get("category", ""),
+            "regulations":      source.get("regulations", []),
+            "countries":        source.get("countries", []),
+            "filter_keywords":  source.get("filter_keywords", []),
+            "active":           source.get("active", True),
+        }).execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception as e:
+        print(f"Could not save monitoring source: {e}")
+        return None
+
+
+def update_monitoring_source(source_id: str, updates: dict) -> bool:
+    """Update a monitoring source."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("monitoring_sources") \
+            .update(updates) \
+            .eq("id", source_id) \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Could not update monitoring source: {e}")
+        return False
+
+
+def delete_monitoring_source(source_id: str) -> bool:
+    """Delete a monitoring source."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("monitoring_sources") \
+            .delete() \
+            .eq("id", source_id) \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Could not delete monitoring source: {e}")
+        return False
+
+
+# ── S17: Marketing updates ────────────────────────────────────────────────────
+
+def save_marketing_update(update: dict) -> str | None:
+    """Save a new marketing update. Returns id if saved, None if duplicate."""
+    try:
+        supabase = get_supabase_admin()
+        # Deduplication handled by url_hash unique constraint in DB
+        res = supabase.table("marketing_updates") \
+            .insert(update) \
+            .execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception as e:
+        err_str = str(e)
+        if "unique" in err_str.lower() or "duplicate" in err_str.lower():
+            return None  # Duplicate — silently skip
+        print(f"Could not save marketing update: {e}")
+        return None
+
+
+def load_marketing_updates(status: str | None = None,
+                            category: str | None = None) -> list[dict]:
+    """Load marketing updates, optionally filtered by status and/or category."""
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("marketing_updates") \
+            .select("*") \
+            .order("created_at", desc=True) \
+            .limit(100)
+        if status:
+            q = q.eq("status", status)
+        if category:
+            q = q.eq("category", category)
+        return q.execute().data or []
+    except Exception:
+        return []
+
+
+def approve_marketing_update(update_id: str, publish_to_pulse: bool = False) -> bool:
+    """Approve a marketing update, optionally publishing to Compliance Pulse."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("marketing_updates") \
+            .update({
+                "status": "approved",
+                "published_to_pulse": publish_to_pulse,
+            }) \
+            .eq("id", update_id) \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Could not approve marketing update: {e}")
+        return False
+
+
+def reject_marketing_update(update_id: str) -> bool:
+    """Reject a marketing update."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("marketing_updates") \
+            .update({"status": "rejected"}) \
+            .eq("id", update_id) \
+            .execute()
+        return True
+    except Exception:
+        return False
+
+
+def save_linkedin_draft(update_id: str, draft: str,
+                         table: str = "marketing_updates") -> bool:
+    """Save a LinkedIn draft to a marketing or regulatory update."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table(table) \
+            .update({"linkedin_draft": draft}) \
+            .eq("id", update_id) \
+            .execute()
+        return True
+    except Exception as e:
+        print(f"Could not save LinkedIn draft: {e}")
+        return False
+
+
+# ── S17: Monitor runs ─────────────────────────────────────────────────────────
+
+def start_monitor_run(monitor_type: str, triggered_by: str = "manual") -> str | None:
+    """
+    Log the start of a monitoring run.
+    Returns run_id to pass to complete_monitor_run().
+    """
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("monitor_runs").insert({
+            "monitor_type": monitor_type,
+            "triggered_by": triggered_by,
+            "status":       "running",
+        }).execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception as e:
+        print(f"Could not start monitor run: {e}")
+        return None
+
+
+def complete_monitor_run(
+    run_id: str,
+    total_fetched: int,
+    total_saved: int,
+    total_skipped: int,
+    total_errors: int,
+    source_stats: list,
+    token_usage: dict,
+    status: str = "completed",
+    error_message: str | None = None,
+) -> bool:
+    """Log the completion of a monitoring run."""
+    try:
+        supabase = get_supabase_admin()
+        completed_at = datetime.now(timezone.utc).isoformat()
+
+        # Compute duration by fetching started_at
+        run = supabase.table("monitor_runs") \
+            .select("started_at") \
+            .eq("id", run_id) \
+            .single() \
+            .execute()
+        duration = None
+        if run.data:
+            started = datetime.fromisoformat(run.data["started_at"])
+            completed = datetime.fromisoformat(completed_at)
+            duration = int((completed - started).total_seconds())
+
+        supabase.table("monitor_runs").update({
+            "completed_at":    completed_at,
+            "duration_seconds": duration,
+            "total_fetched":   total_fetched,
+            "total_saved":     total_saved,
+            "total_skipped":   total_skipped,
+            "total_errors":    total_errors,
+            "source_stats":    source_stats,
+            "token_usage":     token_usage,
+            "status":          status,
+            "error_message":   error_message,
+        }).eq("id", run_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not complete monitor run: {e}")
+        return False
+
+
+def load_monitor_runs(monitor_type: str | None = None, limit: int = 20) -> list[dict]:
+    """Load recent monitor runs for admin BO display."""
+    try:
+        supabase = get_supabase_admin()
+        q = supabase.table("monitor_runs") \
+            .select("*") \
+            .order("started_at", desc=True) \
+            .limit(limit)
+        if monitor_type:
+            q = q.eq("monitor_type", monitor_type)
+        return q.execute().data or []
+    except Exception:
         return []
