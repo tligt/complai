@@ -1,11 +1,16 @@
 """
 RECOSA Marketing Monitor
-Fetches RSS feeds and web pages from marketing sources (policy news, press,
-competitor blogs), uses Mistral to filter for RECOSA-relevant content, and
-writes approved items to Supabase for admin review and LinkedIn draft generation.
+Searches the web for recent news about EU compliance topics using NewsAPI,
+filters for RECOSA-relevant content with Mistral, and saves to Supabase
+for admin review and LinkedIn draft generation.
 
-Sources are loaded dynamically from the monitoring_sources table
+Sources are loaded dynamically from monitoring_sources table
 where monitor_type = 'marketing'.
+
+fetch_type options:
+  'search' — NewsAPI keyword search (primary, broad coverage)
+  'rss'    — RSS feed (specific sites, if needed)
+  'scrape' — HTML scrape (fallback for sites without RSS)
 
 Run via GitHub Actions cron or manually from the admin BO.
 """
@@ -16,7 +21,7 @@ import time
 import re
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from database import (
     save_marketing_update,
     log_token_usage,
@@ -25,27 +30,83 @@ from database import (
     complete_monitor_run,
 )
 
-# Sentinel UUID for system/monitoring processes
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; RECOSA-Monitor/1.0; +https://recosa.eu)"
 }
 
-# What RECOSA considers relevant for marketing monitoring
-RECOSA_RELEVANCE_KEYWORDS = [
-    "GDPR", "NIS2", "AI Act", "artificial intelligence", "data protection",
-    "cybersecurity", "compliance", "privacy", "regulation", "SME", "SMB",
-    "enforcement", "fine", "penalty", "data breach", "EU digital",
-    "données personnelles", "RGPD", "cybersécurité", "conformité",
-    "gegevensbescherming", "AVG",
-]
+
+# ── NewsAPI search ────────────────────────────────────────────
+
+def fetch_news_search(query: str, api_key: str, days_back: int = 1) -> list[dict]:
+    """
+    Search NewsAPI for recent articles matching the query.
+    Returns last `days_back` days of results (default: 24h).
+    """
+    if not api_key:
+        print("  NEWS_API_KEY not set — skipping search fetch.")
+        return []
+
+    # NewsAPI free tier only supports `from` up to 1 month back
+    from_date = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%d")
+
+    try:
+        response = requests.get(
+            "https://newsapi.org/v2/everything",
+            params={
+                "q":          query,
+                "from":       from_date,
+                "sortBy":     "publishedAt",
+                "language":   "en",
+                "pageSize":   20,           # Max 20 articles per query
+                "apiKey":     api_key,
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("status") != "ok":
+            print(f"  NewsAPI error: {data.get('message', 'Unknown error')}")
+            return []
+
+        articles = data.get("articles", [])
+        results  = []
+
+        for article in articles:
+            title       = (article.get("title") or "").strip()
+            url         = (article.get("url") or "").strip()
+            description = (article.get("description") or "").strip()
+            published   = (article.get("publishedAt") or "").strip()
+            source_name = article.get("source", {}).get("name", "")
+
+            if not title or not url:
+                continue
+
+            # Skip removed articles (NewsAPI sometimes returns placeholders)
+            if title == "[Removed]" or url == "https://removed.com":
+                continue
+
+            results.append({
+                "title":        f"{title} ({source_name})" if source_name else title,
+                "url":          url,
+                "description":  description[:500],
+                "published_raw": published,
+                "source_name":  source_name,
+            })
+
+        return results
+
+    except Exception as e:
+        print(f"  NewsAPI error for query '{query}': {e}")
+        return []
 
 
 # ── RSS parsing ───────────────────────────────────────────────
 
 def parse_rss(url: str, source_config: dict) -> list[dict]:
-    """Fetch and parse an RSS feed. Returns list of raw items."""
+    """Fetch and parse an RSS feed."""
     try:
         response = requests.get(url, headers=HEADERS, timeout=20)
         response.raise_for_status()
@@ -54,7 +115,7 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         items = root.findall(".//item") or root.findall(".//atom:entry", ns)
 
-        results = []
+        results  = []
         filter_kw = [k.lower() for k in (source_config.get("filter_keywords") or [])]
 
         for item in items[:20]:
@@ -62,18 +123,15 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
                 _get_text(item, "title") or
                 _get_text(item, "atom:title", ns) or ""
             ).strip()
-
             link = (
                 _get_text(item, "link") or
                 _get_attr(item, "atom:link", "href", ns) or ""
             ).strip()
-
             description = (
                 _get_text(item, "description") or
                 _get_text(item, "summary") or
                 _get_text(item, "atom:summary", ns) or ""
             ).strip()
-
             pub_date = (
                 _get_text(item, "pubDate") or
                 _get_text(item, "published") or
@@ -82,8 +140,6 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
 
             if not title or not link:
                 continue
-
-            # Apply source-level keyword filter if defined
             if filter_kw:
                 combined = (title + " " + description).lower()
                 if not any(kw in combined for kw in filter_kw):
@@ -106,10 +162,7 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
 # ── HTML scraping ─────────────────────────────────────────────
 
 def parse_scrape(url: str, source_config: dict) -> list[dict]:
-    """
-    Lightweight scrape of a news/blog page.
-    Extracts headlines + links only — Mistral filters for relevance.
-    """
+    """Lightweight HTML scrape — headlines + links only."""
     try:
         response = requests.get(url, headers=HEADERS, timeout=20)
         response.raise_for_status()
@@ -120,37 +173,27 @@ def parse_scrape(url: str, source_config: dict) -> list[dict]:
             r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>\s*([^<]{20,200})\s*</a>',
             re.IGNORECASE | re.DOTALL
         )
-
         seen_urls = set()
-        base_url = "/".join(url.split("/")[:3])
+        base_url  = "/".join(url.split("/")[:3])
 
         for match in link_pattern.finditer(html):
-            href = match.group(1).strip()
+            href  = match.group(1).strip()
             title = re.sub(r'\s+', ' ', match.group(2)).strip()
 
             if len(title) < 20:
                 continue
-
-            skip_patterns = [
-                "javascript:", "mailto:", "#", "login", "logout",
-                "search", "sitemap", "cookie", "privacy-policy",
-                "terms", "contact", "about", "rss", "subscribe",
-                "newsletter", "advertise",
-            ]
-            if any(p in href.lower() for p in skip_patterns):
+            skip = ["javascript:", "mailto:", "#", "login", "logout",
+                    "search", "sitemap", "cookie", "privacy-policy",
+                    "terms", "contact", "about", "rss", "subscribe"]
+            if any(p in href.lower() for p in skip):
                 continue
-
             if href.startswith("/"):
                 href = base_url + href
             elif not href.startswith("http"):
                 continue
-
-            if href in seen_urls:
+            if href in seen_urls or base_url not in href:
                 continue
             seen_urls.add(href)
-
-            if base_url not in href:
-                continue
 
             results.append({
                 "title":        title,
@@ -158,7 +201,6 @@ def parse_scrape(url: str, source_config: dict) -> list[dict]:
                 "description":  "",
                 "published_raw": "",
             })
-
             if len(results) >= 15:
                 break
 
@@ -213,45 +255,43 @@ def analyse_for_marketing(
     api_key: str,
 ) -> tuple[list[dict], int, int]:
     """
-    Use Mistral to filter items for RECOSA marketing relevance.
+    Filter items for RECOSA marketing relevance using Mistral.
     Returns (relevant_items, input_tokens_total, output_tokens_total).
-
-    Unlike regulatory monitoring, we don't need deep compliance analysis —
-    we just need to know if this is worth reading/sharing from RECOSA's
-    perspective as an EU compliance SaaS for SMEs.
     """
     if not items or not api_key:
         return [], 0, 0
 
-    results = []
-    total_input  = 0
-    total_output = 0
+    results     = []
+    total_input = 0
+    total_output= 0
 
     for item in items:
         title       = item["title"]
         description = item.get("description", "")
 
-        system_prompt = """You are a content strategist for RECOSA, an EU regulatory compliance SaaS 
+        system_prompt = """You are a content strategist for RECOSA, an EU regulatory compliance SaaS
 platform helping SMEs in Belgium and France comply with GDPR, NIS2, and the EU AI Act.
 
 Analyse this news item and return ONLY valid JSON:
 {
   "relevant": true/false,
   "relevance_reason": "one sentence explaining why this is or isn't relevant to RECOSA",
-  "summary": "2-3 sentence summary written from the perspective of an EU compliance professional",
+  "summary": "2-3 sentence summary from the perspective of an EU compliance professional",
   "severity": "info|important|urgent",
   "content_angle": "enforcement|policy|guidance|market|tech|other"
 }
 
-relevant: true if this item is useful for:
+relevant: true if useful for:
 - Understanding the regulatory landscape RECOSA operates in
 - Competitor or market intelligence
-- Content inspiration for LinkedIn posts about EU compliance
-- News SME compliance officers would care about
+- LinkedIn post inspiration about EU compliance for SMEs
+- News a compliance officer in Belgium or France would care about
 
-relevant: false for generic tech news, unrelated politics, sports, entertainment."""
+relevant: false for generic tech news, unrelated politics, sports, entertainment,
+US-only news with no EU angle, or paywalled content with no useful description."""
 
         user_prompt = f"""SOURCE: {source_config['name']} ({source_config.get('category', '')})
+SEARCH QUERY: {source_config.get('query', '')}
 TITLE: {title}
 CONTENT: {description}
 
@@ -265,11 +305,11 @@ Is this relevant for RECOSA's marketing and content strategy?"""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "mistral-large-latest",
+                    "model":       "mistral-large-latest",
                     "temperature": 0.1,
                     "messages": [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt},
+                        {"role": "user",   "content": user_prompt},
                     ],
                     "max_tokens": 300,
                 },
@@ -278,10 +318,8 @@ Is this relevant for RECOSA's marketing and content strategy?"""
             response.raise_for_status()
             _rdata  = response.json()
             _usage  = _rdata.get("usage", {})
-            _input  = _usage.get("prompt_tokens", 0)
-            _output = _usage.get("completion_tokens", 0)
-            total_input  += _input
-            total_output += _output
+            total_input  += _usage.get("prompt_tokens", 0)
+            total_output += _usage.get("completion_tokens", 0)
 
             raw = _rdata["choices"][0]["message"]["content"].strip()
             raw = re.sub(r"```json|```", "", raw).strip()
@@ -297,7 +335,7 @@ Is this relevant for RECOSA's marketing and content strategy?"""
             results.append({
                 "source":           source_config["name"],
                 "category":         source_config.get("category", ""),
-                "title":            title,
+                "title":            item["title"],  # Original title without source suffix
                 "summary":          analysis.get("summary", description[:300]),
                 "url":              item["url"],
                 "severity":         analysis.get("severity", "info"),
@@ -306,7 +344,7 @@ Is this relevant for RECOSA's marketing and content strategy?"""
                 "status":           "pending",
             })
 
-            time.sleep(0.5)
+            time.sleep(0.3)
 
         except Exception as e:
             print(f"  Could not analyse item '{title[:50]}': {e}")
@@ -319,46 +357,42 @@ Is this relevant for RECOSA's marketing and content strategy?"""
 
 def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     """
-    Main entry point for marketing monitoring.
-    Loads marketing sources from DB, fetches, filters with Mistral,
-    saves to marketing_updates. Logs run to monitor_runs.
-    Returns summary stats.
+    Main entry point. Loads marketing sources from DB, fetches via
+    NewsAPI search / RSS / scrape, filters with Mistral, saves results.
     """
-    api_key = os.environ.get("MISTRAL_API_KEY", "")
-    if not api_key:
+    mistral_key  = os.environ.get("MISTRAL_API_KEY", "")
+    news_api_key = os.environ.get("NEWS_API_KEY", "")
+
+    if not mistral_key:
         return {"error": "MISTRAL_API_KEY not set", "saved": 0, "skipped": 0}
 
     print(f"\nRECOSA Marketing Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 60)
 
-    # Start run log
-    run_id = start_monitor_run("marketing", triggered_by=triggered_by)
+    if not news_api_key:
+        print("⚠️  NEWS_API_KEY not set — search-type sources will be skipped.")
 
-    # Load marketing sources from DB
+    run_id  = start_monitor_run("marketing", triggered_by=triggered_by)
     sources = load_monitoring_sources(monitor_type="marketing")
+
     if not sources:
         print("  No active marketing sources found in DB.")
         if run_id:
-            complete_monitor_run(
-                run_id, 0, 0, 0, 0, [], {},
-                status="completed",
-                error_message="No active sources"
-            )
-        return {"fetched": 0, "saved": 0, "skipped": 0, "errors": []}
+            complete_monitor_run(run_id, 0, 0, 0, 0, [], {},
+                                 status="completed", error_message="No active sources")
+        return {"fetched": 0, "saved": 0, "skipped": 0, "errors": 0}
 
     print(f"Loaded {len(sources)} active marketing sources from DB.")
 
-    total_fetched       = 0
-    total_saved         = 0
-    total_skipped       = 0
-    total_errors        = 0
-    total_input_tokens  = 0
-    total_output_tokens = 0
-    source_stats        = []
+    total_fetched = total_saved = total_skipped = total_errors = 0
+    total_in = total_out = 0
+    source_stats = []
 
     for source in sources:
-        print(f"\nFetching {source['name']} [{source.get('category', '')}]...")
-        source_stat = {
+        fetch_type = source.get("fetch_type", "rss")
+        print(f"\nFetching {source['name']} [{source.get('category','')}] via {fetch_type.upper()}...")
+
+        stat = {
             "name":    source["name"],
             "fetched": 0,
             "saved":   0,
@@ -367,69 +401,78 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
         }
 
         try:
-            # Dispatch to RSS or scraper
-            if source.get("fetch_type") == "scrape":
+            # Dispatch by fetch type
+            if fetch_type == "search":
+                query = source.get("query", "")
+                if not query:
+                    print("  No query defined — skipping.")
+                    source_stats.append(stat)
+                    continue
+                if not news_api_key:
+                    print("  NEWS_API_KEY missing — skipping search source.")
+                    source_stats.append(stat)
+                    continue
+                raw_items = fetch_news_search(query, news_api_key)
+            elif fetch_type == "scrape":
                 raw_items = parse_scrape(source["url"], source)
             else:
                 raw_items = parse_rss(source["url"], source)
 
             print(f"  {len(raw_items)} items fetched")
-            source_stat["fetched"] = len(raw_items)
-            total_fetched += len(raw_items)
+            stat["fetched"]  = len(raw_items)
+            total_fetched   += len(raw_items)
 
             if not raw_items:
-                source_stats.append(source_stat)
+                source_stats.append(stat)
                 continue
 
-            enriched, inp, out = analyse_for_marketing(raw_items, source, api_key)
-            total_input_tokens  += inp
-            total_output_tokens += out
-            print(f"  {len(enriched)} relevant items after analysis")
+            enriched, inp, out = analyse_for_marketing(raw_items, source, mistral_key)
+            total_in  += inp
+            total_out += out
+            print(f"  {len(enriched)} relevant after Mistral analysis")
 
             for item in enriched:
                 result = save_marketing_update(item)
                 if result:
                     total_saved += 1
-                    source_stat["saved"] += 1
-                    print(f"  ✅ Saved: {item['title'][:60]}")
+                    stat["saved"] += 1
+                    print(f"  ✅ {item['title'][:60]}")
                 else:
                     total_skipped += 1
-                    source_stat["skipped"] += 1
-                    print(f"  ⤷ Duplicate skipped: {item['title'][:60]}")
+                    stat["skipped"] += 1
+                    print(f"  ⤷ Duplicate: {item['title'][:60]}")
 
         except Exception as e:
             err_msg = str(e)
-            print(f"  ❌ Error processing {source['name']}: {err_msg}")
-            source_stat["error"] = err_msg
+            print(f"  ❌ Error: {err_msg}")
+            stat["error"] = err_msg
             total_errors += 1
 
-        source_stats.append(source_stat)
+        source_stats.append(stat)
 
-    # Log token usage with sentinel UUID
-    if total_input_tokens + total_output_tokens > 0:
+    # Log token usage
+    if total_in + total_out > 0:
         log_token_usage(
             user_id=SYSTEM_USER_ID,
             feature="marketing_monitor_analyse",
-            input_tokens=total_input_tokens,
-            output_tokens=total_output_tokens,
+            input_tokens=total_in,
+            output_tokens=total_out,
         )
 
     token_usage = {
-        "input":    total_input_tokens,
-        "output":   total_output_tokens,
+        "input":    total_in,
+        "output":   total_out,
         "cost_usd": round(
-            (total_input_tokens  / 1_000_000) * 2.00 +
-            (total_output_tokens / 1_000_000) * 6.00,
-            6
+            (total_in  / 1_000_000) * 2.00 +
+            (total_out / 1_000_000) * 6.00, 6
         ),
     }
 
     print(f"\n{'='*60}")
     print("MARKETING MONITORING COMPLETE")
-    print(f"Fetched: {total_fetched} | Relevant: {total_saved + total_skipped} | "
-          f"New: {total_saved} | Duplicates: {total_skipped} | Errors: {total_errors}")
-    print(f"Tokens: {total_input_tokens} in / {total_output_tokens} out — "
-          f"${token_usage['cost_usd']:.4f}")
+    print(f"Fetched: {total_fetched} | New: {total_saved} | "
+          f"Duplicates: {total_skipped} | Errors: {total_errors}")
+    print(f"Tokens: {total_in} in / {total_out} out — ${token_usage['cost_usd']:.4f}")
 
     result = {
         "fetched":  total_fetched,
@@ -439,7 +482,6 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
         "run_at":   datetime.now(timezone.utc).isoformat(),
     }
 
-    # Complete run log
     if run_id:
         complete_monitor_run(
             run_id,

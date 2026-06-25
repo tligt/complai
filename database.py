@@ -875,10 +875,11 @@ def save_monitoring_source(source: dict) -> str | None:
         supabase = get_supabase_admin()
         res = supabase.table("monitoring_sources").insert({
             "name":             source["name"],
-            "url":              source["url"],
+            "url":              source.get("url"),
             "fetch_type":       source.get("fetch_type", "rss"),
             "monitor_type":     source.get("monitor_type", "regulatory"),
             "category":         source.get("category", ""),
+            "query":            source.get("query"),
             "regulations":      source.get("regulations", []),
             "countries":        source.get("countries", []),
             "filter_keywords":  source.get("filter_keywords", []),
