@@ -1,6 +1,6 @@
 """
 RECOSA Marketing Monitor
-Searches the web for recent news about EU compliance topics using NewsAPI,
+Searches Google News RSS for recent articles about EU compliance topics,
 filters for RECOSA-relevant content with Mistral, and saves to Supabase
 for admin review and LinkedIn draft generation.
 
@@ -8,9 +8,12 @@ Sources are loaded dynamically from monitoring_sources table
 where monitor_type = 'marketing'.
 
 fetch_type options:
-  'search' — NewsAPI keyword search (primary, broad coverage)
-  'rss'    — RSS feed (specific sites, if needed)
-  'scrape' — HTML scrape (fallback for sites without RSS)
+  'search' — Google News RSS keyword search (free, no API key needed)
+  'rss'    — specific RSS feed URL
+  'scrape' — HTML scrape fallback
+
+Google News RSS URL format:
+  https://news.google.com/rss/search?q=GDPR+enforcement&hl=en&gl=BE&ceid=BE:en
 
 Run via GitHub Actions cron or manually from the admin BO.
 """
@@ -21,7 +24,7 @@ import time
 import re
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from database import (
     save_marketing_update,
     log_token_usage,
@@ -36,77 +39,73 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (compatible; RECOSA-Monitor/1.0; +https://recosa.eu)"
 }
 
+# Google News RSS base URL — searches across all indexed news sources
+GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
 
-# ── NewsAPI search ────────────────────────────────────────────
 
-def fetch_news_search(query: str, api_key: str, days_back: int = 1) -> list[dict]:
+# ── Google News RSS search ────────────────────────────────────
+
+def fetch_google_news(query: str) -> list[dict]:
     """
-    Search NewsAPI for recent articles matching the query.
-    Returns last `days_back` days of results (default: 24h).
+    Search Google News RSS for recent articles matching the query.
+    Free, no API key, searches the entire web of indexed news.
+    Returns up to 20 recent articles.
     """
-    if not api_key:
-        print("  NEWS_API_KEY not set — skipping search fetch.")
-        return []
-
-    # NewsAPI free tier only supports `from` up to 1 month back
-    from_date = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%d")
-
     try:
-        response = requests.get(
-            "https://newsapi.org/v2/everything",
-            params={
-                "q":          query,
-                "from":       from_date,
-                "sortBy":     "publishedAt",
-                "language":   "en",
-                "pageSize":   20,           # Max 20 articles per query
-                "apiKey":     api_key,
-            },
-            timeout=20,
-        )
+        # Build the Google News RSS URL
+        # hl=en: English interface
+        # gl=BE: Belgium geolocation (relevant for our audience)
+        # ceid=BE:en: Belgian English edition
+        params = {
+            "q":    query,
+            "hl":   "en",
+            "gl":   "BE",
+            "ceid": "BE:en",
+        }
+        param_str = "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
+        url = f"{GOOGLE_NEWS_RSS}?{param_str}"
+
+        response = requests.get(url, headers=HEADERS, timeout=20)
         response.raise_for_status()
-        data = response.json()
 
-        if data.get("status") != "ok":
-            print(f"  NewsAPI error: {data.get('message', 'Unknown error')}")
-            return []
+        root = ET.fromstring(response.content)
+        items = root.findall(".//item")
 
-        articles = data.get("articles", [])
-        results  = []
+        results = []
+        for item in items[:20]:
+            title    = (_get_text(item, "title") or "").strip()
+            link     = (_get_text(item, "link") or "").strip()
+            desc     = (_get_text(item, "description") or "").strip()
+            pub_date = (_get_text(item, "pubDate") or "").strip()
+            source   = (_get_text(item, "source") or "").strip()
 
-        for article in articles:
-            title       = (article.get("title") or "").strip()
-            url         = (article.get("url") or "").strip()
-            description = (article.get("description") or "").strip()
-            published   = (article.get("publishedAt") or "").strip()
-            source_name = article.get("source", {}).get("name", "")
-
-            if not title or not url:
+            if not title or not link:
                 continue
 
-            # Skip removed articles (NewsAPI sometimes returns placeholders)
-            if title == "[Removed]" or url == "https://removed.com":
-                continue
+            # Google News links are redirect URLs — keep as-is for dedup
+            # The description often contains the source name and snippet
+            # Strip HTML tags from description
+            desc_clean = re.sub(r'<[^>]+>', '', desc).strip()
 
             results.append({
-                "title":        f"{title} ({source_name})" if source_name else title,
-                "url":          url,
-                "description":  description[:500],
-                "published_raw": published,
-                "source_name":  source_name,
+                "title":        title,
+                "url":          link,
+                "description":  desc_clean[:500],
+                "published_raw": pub_date,
+                "source_name":  source,
             })
 
         return results
 
     except Exception as e:
-        print(f"  NewsAPI error for query '{query}': {e}")
+        print(f"  Google News RSS error for query '{query}': {e}")
         return []
 
 
 # ── RSS parsing ───────────────────────────────────────────────
 
 def parse_rss(url: str, source_config: dict) -> list[dict]:
-    """Fetch and parse an RSS feed."""
+    """Fetch and parse a specific RSS feed."""
     try:
         response = requests.get(url, headers=HEADERS, timeout=20)
         response.raise_for_status()
@@ -115,7 +114,7 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         items = root.findall(".//item") or root.findall(".//atom:entry", ns)
 
-        results  = []
+        results   = []
         filter_kw = [k.lower() for k in (source_config.get("filter_keywords") or [])]
 
         for item in items[:20]:
@@ -168,7 +167,7 @@ def parse_scrape(url: str, source_config: dict) -> list[dict]:
         response.raise_for_status()
         html = response.text
 
-        results = []
+        results      = []
         link_pattern = re.compile(
             r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>\s*([^<]{20,200})\s*</a>',
             re.IGNORECASE | re.DOTALL
@@ -261,9 +260,9 @@ def analyse_for_marketing(
     if not items or not api_key:
         return [], 0, 0
 
-    results     = []
-    total_input = 0
-    total_output= 0
+    results      = []
+    total_input  = 0
+    total_output = 0
 
     for item in items:
         title       = item["title"]
@@ -287,8 +286,8 @@ relevant: true if useful for:
 - LinkedIn post inspiration about EU compliance for SMEs
 - News a compliance officer in Belgium or France would care about
 
-relevant: false for generic tech news, unrelated politics, sports, entertainment,
-US-only news with no EU angle, or paywalled content with no useful description."""
+relevant: false for: generic tech news unrelated to EU compliance, US-only news,
+sports, entertainment, or articles with no useful content."""
 
         user_prompt = f"""SOURCE: {source_config['name']} ({source_config.get('category', '')})
 SEARCH QUERY: {source_config.get('query', '')}
@@ -316,8 +315,8 @@ Is this relevant for RECOSA's marketing and content strategy?"""
                 timeout=30,
             )
             response.raise_for_status()
-            _rdata  = response.json()
-            _usage  = _rdata.get("usage", {})
+            _rdata   = response.json()
+            _usage   = _rdata.get("usage", {})
             total_input  += _usage.get("prompt_tokens", 0)
             total_output += _usage.get("completion_tokens", 0)
 
@@ -335,7 +334,7 @@ Is this relevant for RECOSA's marketing and content strategy?"""
             results.append({
                 "source":           source_config["name"],
                 "category":         source_config.get("category", ""),
-                "title":            item["title"],  # Original title without source suffix
+                "title":            item["title"],
                 "summary":          analysis.get("summary", description[:300]),
                 "url":              item["url"],
                 "severity":         analysis.get("severity", "info"),
@@ -358,19 +357,14 @@ Is this relevant for RECOSA's marketing and content strategy?"""
 def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     """
     Main entry point. Loads marketing sources from DB, fetches via
-    NewsAPI search / RSS / scrape, filters with Mistral, saves results.
+    Google News RSS search / RSS / scrape, filters with Mistral, saves results.
     """
-    mistral_key  = os.environ.get("MISTRAL_API_KEY", "")
-    news_api_key = os.environ.get("NEWS_API_KEY", "")
-
+    mistral_key = os.environ.get("MISTRAL_API_KEY", "")
     if not mistral_key:
         return {"error": "MISTRAL_API_KEY not set", "saved": 0, "skipped": 0}
 
     print(f"\nRECOSA Marketing Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 60)
-
-    if not news_api_key:
-        print("⚠️  NEWS_API_KEY not set — search-type sources will be skipped.")
 
     run_id  = start_monitor_run("marketing", triggered_by=triggered_by)
     sources = load_monitoring_sources(monitor_type="marketing")
@@ -401,18 +395,13 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
         }
 
         try:
-            # Dispatch by fetch type
             if fetch_type == "search":
                 query = source.get("query", "")
                 if not query:
                     print("  No query defined — skipping.")
                     source_stats.append(stat)
                     continue
-                if not news_api_key:
-                    print("  NEWS_API_KEY missing — skipping search source.")
-                    source_stats.append(stat)
-                    continue
-                raw_items = fetch_news_search(query, news_api_key)
+                raw_items = fetch_google_news(query)
             elif fetch_type == "scrape":
                 raw_items = parse_scrape(source["url"], source)
             else:
@@ -449,8 +438,8 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
             total_errors += 1
 
         source_stats.append(stat)
+        time.sleep(1)  # Be polite to Google News RSS
 
-    # Log token usage
     if total_in + total_out > 0:
         log_token_usage(
             user_id=SYSTEM_USER_ID,
