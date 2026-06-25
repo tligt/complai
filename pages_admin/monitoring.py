@@ -617,16 +617,24 @@ with tab_runs:
                         error   = stat.get("error")
 
                         if error:
-                            icon = "🔴"
+                            color  = "#e53935"
+                            icon   = "✕"
                             detail = f"error: {error[:60]}"
                         elif saved > 0:
-                            icon = "🟢"
+                            color  = "#2e7d32"
+                            icon   = "✓"
                             detail = f"{fetched} fetched / {saved} new / {skipped} duplicates"
                         elif fetched > 0:
-                            icon = "🟡"
+                            color  = "#f57c00"
+                            icon   = "~"
                             detail = f"{fetched} fetched / 0 new (all duplicates)"
                         else:
-                            icon = "🔴"
+                            color  = "#e53935"
+                            icon   = "✕"
                             detail = "0 fetched"
 
-                        st.caption(f"{icon} {stat['name']}: {detail}")
+                        st.markdown(
+                            f'<span style="color:{color};font-weight:600">{icon}</span> '
+                            f'<span style="font-size:0.85em">{stat["name"]}: {detail}</span>',
+                            unsafe_allow_html=True,
+                        )
