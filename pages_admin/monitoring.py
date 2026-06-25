@@ -304,15 +304,18 @@ with tab_reg:
                         st.caption(f"Compliance Pulse: {pulse}")
 
                         # LinkedIn draft generation
-                        if not u.get("linkedin_draft"):
+                        draft_key = f"li_draft_{u['id']}"
+                        if not u.get("linkedin_draft") and draft_key not in st.session_state:
                             if st.button("✍️ Generate LinkedIn draft", key=f"li_{u['id']}", use_container_width=True):
                                 with st.spinner("Generating..."):
                                     draft = _generate_linkedin_draft(u)
                                     if draft:
                                         save_linkedin_draft(u["id"], draft, table="regulatory_updates")
-                                        st.rerun()
-                        else:
-                            st.text_area("LinkedIn draft", value=u["linkedin_draft"],
+                                        st.session_state[draft_key] = draft
+                        
+                        shown_draft = st.session_state.get(draft_key) or u.get("linkedin_draft")
+                        if shown_draft:
+                            st.text_area("LinkedIn draft", value=shown_draft,
                                          height=150, key=f"li_text_{u['id']}")
                             st.caption("Copy and paste into LinkedIn.")
 
@@ -418,15 +421,18 @@ with tab_mkt:
                         st.caption(f"Compliance Pulse: {pulse}")
 
                         # LinkedIn draft
-                        if not u.get("linkedin_draft"):
+                        mkt_draft_key = f"mkt_li_draft_{u['id']}"
+                        if not u.get("linkedin_draft") and mkt_draft_key not in st.session_state:
                             if st.button("✍️ Generate LinkedIn draft", key=f"mkt_li_{u['id']}", use_container_width=True):
                                 with st.spinner("Generating..."):
                                     draft = _generate_linkedin_draft(u, context="marketing")
                                     if draft:
                                         save_linkedin_draft(u["id"], draft, table="marketing_updates")
-                                        st.rerun()
-                        else:
-                            st.text_area("LinkedIn draft", value=u["linkedin_draft"],
+                                        st.session_state[mkt_draft_key] = draft
+
+                        mkt_shown_draft = st.session_state.get(mkt_draft_key) or u.get("linkedin_draft")
+                        if mkt_shown_draft:
+                            st.text_area("LinkedIn draft", value=mkt_shown_draft,
                                          height=150, key=f"mkt_li_text_{u['id']}")
                             st.caption("Copy and paste into LinkedIn.")
                     else:
