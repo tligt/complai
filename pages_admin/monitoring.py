@@ -506,11 +506,17 @@ with tab_sources:
             new_url  = st.text_input("URL *", placeholder="https://...")
             new_cat  = st.text_input("Category", placeholder="e.g. Policy, Press, Competition")
         with col2:
-            new_fetch_type    = st.selectbox("Fetch type", ["rss", "scrape"])
+            new_fetch_type    = st.selectbox("Fetch type", ["search", "rss", "scrape"])
             new_monitor_type  = st.selectbox("Monitor type", ["regulatory", "marketing"],
                                               index=0 if monitor_type_key == "regulatory" else 1)
-            new_keywords_raw  = st.text_input("Filter keywords (comma-separated)",
-                                               placeholder="e.g. GDPR, NIS2, compliance")
+            if new_fetch_type == "search":
+                new_query = st.text_input("Search query *",
+                                           placeholder="e.g. GDPR enforcement fine Belgium 2026")
+                new_keywords_raw  = ""
+            else:
+                new_query         = ""
+                new_keywords_raw  = st.text_input("Filter keywords (comma-separated)",
+                                                   placeholder="e.g. GDPR, NIS2, compliance")
             if new_monitor_type == "regulatory":
                 new_regs_raw  = st.text_input("Regulations (comma-separated)",
                                                placeholder="e.g. GDPR, NIS2, EU_AI_ACT")
@@ -522,18 +528,23 @@ with tab_sources:
 
         submitted = st.form_submit_button("➕ Add source", type="primary")
         if submitted:
-            if not new_name or not new_url:
-                st.error("Name and URL are required.")
+            if not new_name:
+                st.error("Name is required.")
+            elif new_fetch_type == "search" and not new_query.strip():
+                st.error("Search query is required for search-type sources.")
+            elif new_fetch_type in ("rss", "scrape") and not new_url.strip():
+                st.error("URL is required for RSS and scrape sources.")
             else:
                 keywords  = [k.strip() for k in new_keywords_raw.split(",") if k.strip()]
                 regs      = [r.strip() for r in new_regs_raw.split(",") if r.strip()]
                 countries = [c.strip() for c in new_countries_raw.split(",") if c.strip()]
                 result = save_monitoring_source({
                     "name":            new_name.strip(),
-                    "url":             new_url.strip(),
+                    "url":             new_url.strip() if new_url.strip() else None,
                     "fetch_type":      new_fetch_type,
                     "monitor_type":    new_monitor_type,
                     "category":        new_cat.strip(),
+                    "query":           new_query.strip() if new_query.strip() else None,
                     "filter_keywords": keywords,
                     "regulations":     regs,
                     "countries":       countries,
