@@ -1,5 +1,5 @@
 """
-COMPLAI Regulatory Monitor
+RECOSA Regulatory Monitor
 Fetches RSS feeds and web pages from authoritative EU regulatory sources,
 uses Mistral to summarise and categorise new items, and writes them to
 Supabase as pending updates for admin review.
@@ -10,19 +10,36 @@ Run via GitHub Actions cron or manually from the admin panel.
 import os
 import json
 import time
-import hashlib
+import re
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from database import save_regulatory_update
+from database import save_regulatory_update, log_token_usage
+
+# ── Sentinel UUID for system/monitoring processes ─────────────
+# Used in usage_logs when there is no authenticated user.
+# This UUID must exist in auth.users OR user_id must be nullable.
+# Simplest fix: make user_id nullable in usage_logs (run in Supabase SQL editor):
+#   ALTER TABLE public.usage_logs ALTER COLUMN user_id DROP NOT NULL;
+# Then this sentinel signals "system process" in admin reporting.
+SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; RECOSA-Monitor/1.0; +https://recosa.eu)"
+}
+
 
 # ── Monitored sources ─────────────────────────────────────────
+# Sources with type="rss" are fetched via RSS feed.
+# Sources with type="scrape" are fetched by parsing the HTML news page.
+# EUR-Lex is excluded from automated monitoring (bot protection returns empty responses).
+# Use manual Colab ingestion for EUR-Lex PDFs.
 
 SOURCES = [
-    # EDPB — European Data Protection Board
+    # EDPB — European Data Protection Board (URL updated)
     {
         "name": "EDPB",
-        "url": "https://www.edpb.europa.eu/news/news_en.rss",
+        "url": "https://edpb.europa.eu/feed/news_en",
         "type": "rss",
         "regulations": ["GDPR"],
         "countries": ["EU"],
@@ -36,21 +53,29 @@ SOURCES = [
         "countries": ["EU"],
         "filter_keywords": ["AI Act", "artificial intelligence", "GPAI"],
     },
-    # ENISA — EU Cybersecurity Agency
+    # CERT-EU — Threat Intelligence (replaces ENISA RSS which is discontinued)
     {
-        "name": "ENISA",
-        "url": "https://www.enisa.europa.eu/media/news-items/RSS",
+        "name": "CERT-EU (Threat Intelligence)",
+        "url": "https://cert.europa.eu/publications/threat-intelligence-rss",
         "type": "rss",
         "regulations": ["NIS2"],
         "countries": ["EU"],
     },
-    # APD/GBA — Belgian Data Protection Authority
+    # CERT-EU — Security Advisories
     {
-        "name": "APD/GBA",
-        "url": "https://www.apd-gba.be/fr/rss.xml",
+        "name": "CERT-EU (Security Advisories)",
+        "url": "https://cert.europa.eu/publications/security-advisories-rss",
         "type": "rss",
-        "regulations": ["GDPR"],
-        "countries": ["BE"],
+        "regulations": ["NIS2"],
+        "countries": ["EU"],
+    },
+    # ENISA — news page scrape (RSS discontinued, scrape as safety net)
+    {
+        "name": "ENISA",
+        "url": "https://www.enisa.europa.eu/news",
+        "type": "scrape",
+        "regulations": ["NIS2"],
+        "countries": ["EU"],
     },
     # CNIL — French Data Protection Authority
     {
@@ -61,31 +86,23 @@ SOURCES = [
         "countries": ["FR"],
         "filter_keywords": ["RGPD", "données personnelles", "cookie", "cybersécurité"],
     },
-    # CCB — Centre for Cybersecurity Belgium
+    # CCB — Centre for Cybersecurity Belgium (URL updated)
     {
         "name": "CCB",
-        "url": "https://ccb.belgium.be/fr/rss.xml",
+        "url": "https://ccb.belgium.be/news.xml",
         "type": "rss",
         "regulations": ["NIS2"],
         "countries": ["BE"],
     },
-    # EUR-Lex new legislation
+    # APD/GBA — Belgian Data Protection Authority (scrape, no RSS on new domain)
     {
-        "name": "EUR-Lex",
-        "url": "https://eur-lex.europa.eu/rss/rss.xml?type=legislation&lang=EN",
-        "type": "rss",
-        "regulations": ["GDPR", "NIS2", "EU_AI_ACT", "EPRIVACY"],
-        "countries": ["EU"],
-        "filter_keywords": [
-            "data protection", "cybersecurity", "artificial intelligence",
-            "privacy", "NIS", "GDPR", "AI Act"
-        ],
+        "name": "APD/GBA",
+        "url": "https://www.dataprotectionauthority.be/professional/news",
+        "type": "scrape",
+        "regulations": ["GDPR"],
+        "countries": ["BE"],
     },
 ]
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; COMPLAI-Monitor/1.0; +https://complai.be)"
-}
 
 
 # ── RSS parsing ───────────────────────────────────────────────
@@ -97,15 +114,13 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
         response.raise_for_status()
         root = ET.fromstring(response.content)
 
-        # Handle both RSS and Atom formats
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         items = root.findall(".//item") or root.findall(".//atom:entry", ns)
 
         results = []
         filter_kw = [k.lower() for k in source_config.get("filter_keywords", [])]
 
-        for item in items[:20]:  # Max 20 items per source
-            # Extract fields — handle both RSS and Atom
+        for item in items[:20]:
             title = (
                 _get_text(item, "title") or
                 _get_text(item, "atom:title", ns) or ""
@@ -131,7 +146,6 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
             if not title or not link:
                 continue
 
-            # Apply keyword filter if specified
             if filter_kw:
                 combined = (title + " " + description).lower()
                 if not any(kw in combined for kw in filter_kw):
@@ -151,8 +165,84 @@ def parse_rss(url: str, source_config: dict) -> list[dict]:
         return []
 
 
+# ── HTML scraping ─────────────────────────────────────────────
+
+def parse_scrape(url: str, source_config: dict) -> list[dict]:
+    """
+    Lightweight scrape of a news page.
+    Extracts headlines + links only — no full content.
+    Mistral filters for relevance as normal.
+    """
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=20)
+        response.raise_for_status()
+        html = response.text
+
+        results = []
+
+        # Extract all anchor tags with href — look for news article links
+        # Pattern: <a href="...">Title text</a>
+        # We filter for links that look like articles (contain /news/ or /professional/)
+        link_pattern = re.compile(
+            r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>\s*([^<]{20,200})\s*</a>',
+            re.IGNORECASE | re.DOTALL
+        )
+
+        seen_urls = set()
+        base_url = "/".join(url.split("/")[:3])  # e.g. https://www.enisa.europa.eu
+
+        for match in link_pattern.finditer(html):
+            href = match.group(1).strip()
+            title = re.sub(r'\s+', ' ', match.group(2)).strip()
+
+            # Skip navigation links, empty titles, very short titles
+            if len(title) < 20:
+                continue
+
+            # Skip non-article links
+            skip_patterns = [
+                "javascript:", "mailto:", "#", "login", "logout",
+                "search", "sitemap", "cookie", "privacy-policy",
+                "terms", "contact", "about", "rss"
+            ]
+            if any(p in href.lower() for p in skip_patterns):
+                continue
+
+            # Normalise relative URLs
+            if href.startswith("/"):
+                href = base_url + href
+            elif not href.startswith("http"):
+                continue
+
+            # Deduplicate
+            if href in seen_urls:
+                continue
+            seen_urls.add(href)
+
+            # Only keep links from the same domain
+            if base_url not in href:
+                continue
+
+            results.append({
+                "title": title,
+                "url": href,
+                "description": "",  # No description from scrape — Mistral works from title
+                "published_raw": "",
+            })
+
+            if len(results) >= 15:  # Cap at 15 items per scrape source
+                break
+
+        return results
+
+    except Exception as e:
+        print(f"  Error scraping {url}: {e}")
+        return []
+
+
+# ── XML helpers ───────────────────────────────────────────────
+
 def _get_text(element, tag, ns=None) -> str:
-    """Safely get text from an XML element."""
     try:
         child = element.find(tag, ns) if ns else element.find(tag)
         return (child.text or "").strip() if child is not None else ""
@@ -161,7 +251,6 @@ def _get_text(element, tag, ns=None) -> str:
 
 
 def _get_attr(element, tag, attr, ns=None) -> str:
-    """Safely get attribute from an XML element."""
     try:
         child = element.find(tag, ns) if ns else element.find(tag)
         return child.get(attr, "") if child is not None else ""
@@ -170,7 +259,6 @@ def _get_attr(element, tag, attr, ns=None) -> str:
 
 
 def parse_published_date(date_str: str) -> str | None:
-    """Parse various date formats to ISO."""
     if not date_str:
         return None
     formats = [
@@ -182,8 +270,7 @@ def parse_published_date(date_str: str) -> str | None:
     ]
     for fmt in formats:
         try:
-            dt = datetime.strptime(date_str.strip(), fmt)
-            return dt.isoformat()
+            return datetime.strptime(date_str.strip(), fmt).isoformat()
         except ValueError:
             continue
     return None
@@ -249,20 +336,20 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
             response.raise_for_status()
             _rdata = response.json()
             _usage = _rdata.get("usage", {})
+
+            # Log token usage with sentinel UUID (no authenticated user in cron context)
             try:
-                from database import log_token_usage as _ltu
-                _ltu(
-                    user_id="system",
+                log_token_usage(
+                    user_id=SYSTEM_USER_ID,
                     feature="monitoring_summarise",
                     client_id=None,
                     input_tokens=_usage.get("prompt_tokens", 0),
                     output_tokens=_usage.get("completion_tokens", 0),
                 )
-            except Exception:
-                pass
-            raw = _rdata["choices"][0]["message"]["content"].strip()
+            except Exception as log_err:
+                print(f"  Could not log token usage: {log_err}")
 
-            import re
+            raw = _rdata["choices"][0]["message"]["content"].strip()
             raw = re.sub(r"```json|```", "", raw).strip()
             match = re.search(r'\{[\s\S]*\}', raw)
             if match:
@@ -273,7 +360,6 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
             if not analysis.get("relevant", False):
                 continue
 
-            # Merge source config regulations with Mistral's analysis
             regs = list(set(
                 source_config.get("regulations", []) +
                 analysis.get("regulations", [])
@@ -293,7 +379,7 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                 "status": "pending",
             })
 
-            time.sleep(0.5)  # Rate limiting
+            time.sleep(0.5)
 
         except Exception as e:
             print(f"  Could not analyse item '{title[:50]}': {e}")
@@ -313,7 +399,7 @@ def run_monitoring() -> dict:
     if not api_key:
         return {"error": "MISTRAL_API_KEY not set", "saved": 0, "skipped": 0}
 
-    print(f"\nCOMPLAI Regulatory Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"\nRECOSA Regulatory Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print("=" * 60)
 
     total_fetched = 0
@@ -324,19 +410,21 @@ def run_monitoring() -> dict:
     for source in SOURCES:
         print(f"\nFetching {source['name']}...")
 
-        # Fetch RSS
-        raw_items = parse_rss(source["url"], source)
+        # Dispatch to RSS or scraper based on source type
+        if source.get("type") == "scrape":
+            raw_items = parse_scrape(source["url"], source)
+        else:
+            raw_items = parse_rss(source["url"], source)
+
         print(f"  {len(raw_items)} items fetched")
         total_fetched += len(raw_items)
 
         if not raw_items:
             continue
 
-        # Summarise with Mistral
         enriched = summarise_and_categorise(raw_items, source, api_key)
         print(f"  {len(enriched)} relevant items after analysis")
 
-        # Save to Supabase
         for item in enriched:
             result = save_regulatory_update(item)
             if result:
@@ -347,7 +435,7 @@ def run_monitoring() -> dict:
                 print(f"  ⤷ Duplicate skipped: {item['title'][:60]}")
 
     print(f"\n{'='*60}")
-    print(f"MONITORING COMPLETE")
+    print("MONITORING COMPLETE")
     print(f"Fetched: {total_fetched} | Relevant: {total_saved + total_skipped} | "
           f"New: {total_saved} | Duplicates: {total_skipped}")
 
@@ -361,6 +449,5 @@ def run_monitoring() -> dict:
 
 
 if __name__ == "__main__":
-    """Run monitoring standalone — used by GitHub Actions."""
     result = run_monitoring()
     print(json.dumps(result, indent=2))
