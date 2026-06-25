@@ -275,102 +275,18 @@ with tab_mkt:
         )
 
     if run_mkt:
-        import os
-        api_key = os.environ.get("MISTRAL_API_KEY", "")
-        if not api_key:
-            st.error("MISTRAL_API_KEY not set in environment.")
-        else:
-            log_box2   = st.empty()
-            log_lines2 = []
-
-            def log2(msg):
-                log_lines2.append(msg)
-                log_box2.code("\n".join(log_lines2), language=None)
-
-            with st.spinner("Running marketing monitoring..."):
-                try:
-                    from monitor_marketing import (
-                        parse_rss as mkt_parse_rss,
-                        parse_scrape as mkt_parse_scrape,
-                        analyse_for_marketing,
-                    )
-                    from database import (
-                        save_marketing_update,
-                        log_token_usage,
-                        start_monitor_run,
-                        complete_monitor_run,
-                    )
-
-                    SYSTEM_UUID = "00000000-0000-0000-0000-000000000000"
-                    sources = load_monitoring_sources(monitor_type="marketing")
-                    log2(f"Loaded {len(sources)} active marketing sources.")
-
-                    run_id = start_monitor_run("marketing", triggered_by="manual")
-
-                    total_fetched = total_saved = total_skipped = total_errors = 0
-                    total_in = total_out = 0
-                    source_stats = []
-
-                    for source in sources:
-                        log2(f"\nFetching {source['name']} [{source.get('category','')}]...")
-                        stat = {"name": source["name"], "fetched": 0, "saved": 0, "skipped": 0, "error": None}
-                        try:
-                            if source.get("fetch_type") == "scrape":
-                                items = mkt_parse_scrape(source["url"], source)
-                            else:
-                                items = mkt_parse_rss(source["url"], source)
-
-                            log2(f"  {len(items)} items fetched")
-                            stat["fetched"] = len(items)
-                            total_fetched += len(items)
-
-                            if items:
-                                enriched, inp, out = analyse_for_marketing(items, source, api_key)
-                                total_in += inp; total_out += out
-                                log2(f"  {len(enriched)} relevant after analysis")
-                                for item in enriched:
-                                    res = save_marketing_update(item)
-                                    if res:
-                                        total_saved += 1; stat["saved"] += 1
-                                        log2(f"  ✅ {item['title'][:55]}")
-                                    else:
-                                        total_skipped += 1; stat["skipped"] += 1
-                                        log2(f"  ⤷ Duplicate: {item['title'][:55]}")
-                        except Exception as e:
-                            stat["error"] = str(e)
-                            total_errors += 1
-                            log2(f"  ❌ Error: {e}")
-
-                        source_stats.append(stat)
-
-                    if total_in + total_out > 0:
-                        log_token_usage(
-                            user_id=SYSTEM_UUID,
-                            feature="marketing_monitor_analyse",
-                            input_tokens=total_in,
-                            output_tokens=total_out,
-                        )
-
-                    token_usage = {
-                        "input": total_in, "output": total_out,
-                        "cost_usd": round((total_in/1_000_000)*2.00 + (total_out/1_000_000)*6.00, 6),
-                    }
-
-                    if run_id:
-                        complete_monitor_run(
-                            run_id, total_fetched, total_saved,
-                            total_skipped, total_errors,
-                            source_stats, token_usage,
-                        )
-
-                    log2(f"\n{'='*50}")
-                    log2(f"DONE — Fetched: {total_fetched} | New: {total_saved} | "
-                         f"Duplicates: {total_skipped} | Errors: {total_errors}")
-                    st.success(f"Marketing monitoring complete — {total_saved} new items saved.")
-                    st.rerun()
-
-                except Exception as e:
-                    st.error(f"Monitor failed: {e}")
+        with st.spinner("Running marketing monitoring — this may take a minute..."):
+            try:
+                from monitor_marketing import run_marketing_monitoring
+                result = run_marketing_monitoring(triggered_by="manual")
+                st.success(
+                    f"Marketing monitoring complete — "
+                    f"{result.get('saved', 0)} new items saved, "
+                    f"{result.get('skipped', 0)} duplicates."
+                )
+                st.rerun()
+            except Exception as e:
+                st.error(f"Monitor failed: {e}")
 
     st.divider()
 
