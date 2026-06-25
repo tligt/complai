@@ -2,11 +2,12 @@ name: Regulatory Monitoring
 
 on:
   schedule:
-    - cron: '0 6 * * *'
-  workflow_dispatch:
+    - cron: '0 7 * * *'   # Daily at 07:00 UTC
+  workflow_dispatch:        # Allow manual trigger from GitHub Actions UI
 
 jobs:
-  monitor:
+  regulatory:
+    name: Run Regulatory Monitor
     runs-on: ubuntu-latest
 
     steps:
@@ -20,13 +21,43 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests supabase python-dotenv streamlit pypdf python-docx
+          pip install requests supabase python-dotenv beautifulsoup4
 
       - name: Run regulatory monitor
         env:
-          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MISTRAL_API_KEY:      ${{ secrets.MISTRAL_API_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:         ${{ secrets.SUPABASE_KEY }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          QDRANT_URL:           ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY:       ${{ secrets.QDRANT_API_KEY }}
+          QDRANT_COLLECTION:    ${{ secrets.QDRANT_COLLECTION }}
         run: |
           python monitor.py
+
+  marketing:
+    name: Run Marketing Monitor
+    runs-on: ubuntu-latest
+    needs: regulatory        # Run after regulatory to avoid parallel Mistral rate limits
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests supabase python-dotenv beautifulsoup4
+
+      - name: Run marketing monitor
+        env:
+          MISTRAL_API_KEY:      ${{ secrets.MISTRAL_API_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:         ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          python monitor_marketing.py
