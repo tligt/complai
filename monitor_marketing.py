@@ -42,11 +42,11 @@ def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict
     }
 
     prompt = (
-        f"Search the web and find the 8 most recent news articles from the "
-        f"last 48 hours about: {query}\n\n"
-        f"Focus on EU, Belgium, and France context where relevant.\n\n"
-        f"For each article provide title, URL, a 1-2 sentence description, "
-        f"and publication date."
+        f"{query}\n\n"
+        f"Search for the most recent news articles about this topic from the past 48 hours. "
+        f"Focus on EU, Belgium, and France. "
+        f"Return results as a JSON array:\n"
+        f'[{{"title":"...","url":"...","description":"...","published_date":"YYYY-MM-DD"}}]'
     )
 
     try:
@@ -97,46 +97,22 @@ def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict
 def _extract_text(data: dict) -> str:
     """
     Extract plain text from Mistral Conversations API response.
-    Tries all known response structures.
+    Confirmed structure: outputs[] → type=message.output → content (string)
     """
-    raw_text = ""
-
-    # Structure 1: outputs array with message.output entries
     for output in data.get("outputs", []):
         if output.get("type") == "message.output":
-            for chunk in output.get("content", []):
-                if chunk.get("type") == "text":
-                    raw_text += chunk.get("text", "")
-
-    if raw_text:
-        return raw_text.strip()
-
-    # Structure 2: messages array
-    for msg in data.get("messages", []):
-        if msg.get("role") == "assistant":
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                raw_text += content
-            elif isinstance(content, list):
+            content = output.get("content", "")
+            if isinstance(content, str) and content.strip():
+                return content.strip()
+            # Sometimes content is a list of chunks
+            if isinstance(content, list):
+                text = ""
                 for chunk in content:
                     if isinstance(chunk, dict) and chunk.get("type") == "text":
-                        raw_text += chunk.get("text", "")
-
-    if raw_text:
-        return raw_text.strip()
-
-    # Structure 3: direct response field
-    if "response" in data:
-        return str(data["response"]).strip()
-
-    # Structure 4: choices (chat completions format)
-    for choice in data.get("choices", []):
-        msg = choice.get("message", {})
-        content = msg.get("content", "")
-        if content:
-            raw_text += content
-
-    return raw_text.strip()
+                        text += chunk.get("text", "")
+                if text.strip():
+                    return text.strip()
+    return ""
 
 
 def _parse_json_array(text: str) -> list:
