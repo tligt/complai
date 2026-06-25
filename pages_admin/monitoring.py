@@ -275,35 +275,6 @@ with tab_mkt:
         )
 
     if run_mkt:
-        import os
-        agent_id = os.environ.get("MISTRAL_AGENT_ID", "ag_019efe92f08e71a78d70f0f8b9230d29")
-        api_key  = os.environ.get("MISTRAL_API_KEY", "")
-        st.info(f"Agent ID: `{agent_id}` | API key set: `{bool(api_key)}`")
-
-        # Quick single-query debug test before running full monitor
-        if st.button("🔍 Debug: test one query", key="debug_mkt"):
-            import requests, json
-            with st.spinner("Testing single query..."):
-                try:
-                    resp = requests.post(
-                        "https://api.mistral.ai/v1/conversations",
-                        headers={
-                            "Authorization": f"Bearer {api_key}",
-                            "Content-Type": "application/json",
-                        },
-                        json={
-                            "agent_id": agent_id,
-                            "inputs": "Find 3 recent GDPR news articles from this week.",
-                        },
-                        timeout=90,
-                    )
-                    st.write(f"HTTP status: {resp.status_code}")
-                    data = resp.json()
-                    st.write(f"Response keys: {list(data.keys())}")
-                    st.json(data)
-                except Exception as e:
-                    st.error(f"Debug error: {e}")
-
         with st.spinner("Running marketing monitoring — this may take a minute..."):
             try:
                 from monitor_marketing import run_marketing_monitoring
@@ -531,7 +502,17 @@ with tab_runs:
         for run in runs:
             status_icon = {"completed": "✅", "running": "⏳", "failed": "❌"}.get(run.get("status", ""), "❓")
             trigger_icon = "🤖" if run.get("triggered_by") == "cron" else "👤"
-            started = run.get("started_at", "")[:16].replace("T", " ") if run.get("started_at") else "—"
+            try:
+                from zoneinfo import ZoneInfo
+                from datetime import datetime as _dt
+                raw_ts = run.get("started_at", "")
+                if raw_ts:
+                    utc_dt = _dt.fromisoformat(raw_ts.replace("Z", "+00:00"))
+                    started = utc_dt.astimezone(ZoneInfo("Europe/Brussels")).strftime("%Y-%m-%d %H:%M")
+                else:
+                    started = "—"
+            except Exception:
+                started = run.get("started_at", "")[:16].replace("T", " ") if run.get("started_at") else "—"
             duration = f"{run.get('duration_seconds', 0)}s" if run.get("duration_seconds") else "—"
             monitor_label = run.get("monitor_type", "").capitalize()
 
