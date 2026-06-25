@@ -1,29 +1,21 @@
 """
 RECOSA Marketing Monitor
-Searches Google News RSS for recent articles about EU compliance topics,
-filters for RECOSA-relevant content with Mistral, and saves to Supabase
-for admin review and LinkedIn draft generation.
+Uses Mistral Agents API with web_search_premium to find recent EU compliance
+news articles, then saves relevant items to Supabase for admin review
+and LinkedIn draft generation.
 
-Sources are loaded dynamically from monitoring_sources table
+No external news API needed — uses Mistral's built-in web search.
+Sources/queries loaded dynamically from monitoring_sources table
 where monitor_type = 'marketing'.
-
-fetch_type options:
-  'search' — Google News RSS keyword search (free, no API key needed)
-  'rss'    — specific RSS feed URL
-  'scrape' — HTML scrape fallback
-
-Google News RSS URL format:
-  https://news.google.com/rss/search?q=GDPR+enforcement&hl=en&gl=BE&ceid=BE:en
 
 Run via GitHub Actions cron or manually from the admin BO.
 """
 
 import os
+import re
 import json
 import time
-import re
 import requests
-import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from database import (
     save_marketing_update,
@@ -34,219 +26,128 @@ from database import (
 )
 
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (compatible; RECOSA-Monitor/1.0; +https://recosa.eu)"
-}
-
-# Google News RSS base URL — searches across all indexed news sources
-GOOGLE_NEWS_RSS = "https://news.google.com/rss/search"
+MISTRAL_API_BASE = "https://api.mistral.ai/v1"
 
 
-# ── Google News RSS search ────────────────────────────────────
+# ── Mistral web search ────────────────────────────────────────
 
-def fetch_google_news(query: str) -> list[dict]:
+def search_news_with_mistral(query: str, api_key: str) -> list[dict]:
     """
-    Search Google News RSS for recent articles matching the query.
-    Free, no API key, searches the entire web of indexed news.
-    Returns up to 20 recent articles.
+    Use Mistral Agents API with web_search_premium to find recent
+    news articles matching the query.
+    Returns list of raw items with title, url, description, published_raw.
     """
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    # Step 1: Create a temporary agent with web_search_premium
+    # We create one per run, could be cached but ephemeral is simpler
+    agent_payload = {
+        "model": "mistral-small-latest",  # Small is sufficient for search tasks
+        "name":  "RECOSA-NewsSearch",
+        "description": "Finds recent EU compliance news articles",
+        "instructions": (
+            "You are a news research assistant for RECOSA, an EU regulatory compliance platform. "
+            "When asked to find news, use the web search tool to find REAL recent articles. "
+            "Return results as a JSON array only — no prose, no markdown, just valid JSON. "
+            "Each item must have: title, url, description (1-2 sentences), published_date (YYYY-MM-DD or empty string)."
+        ),
+        "tools": [{"type": "web_search_premium"}],
+        "completion_args": {"temperature": 0.1},
+    }
+
     try:
-        # Build the Google News RSS URL
-        # hl=en: English interface
-        # gl=BE: Belgium geolocation (relevant for our audience)
-        # ceid=BE:en: Belgian English edition
-        params = {
-            "q":    query,
-            "hl":   "en",
-            "gl":   "BE",
-            "ceid": "BE:en",
-        }
-        param_str = "&".join(f"{k}={requests.utils.quote(str(v))}" for k, v in params.items())
-        url = f"{GOOGLE_NEWS_RSS}?{param_str}"
-
-        response = requests.get(url, headers=HEADERS, timeout=20)
-        response.raise_for_status()
-
-        root = ET.fromstring(response.content)
-        items = root.findall(".//item")
-
-        results = []
-        for item in items[:20]:
-            title    = (_get_text(item, "title") or "").strip()
-            link     = (_get_text(item, "link") or "").strip()
-            desc     = (_get_text(item, "description") or "").strip()
-            pub_date = (_get_text(item, "pubDate") or "").strip()
-            source   = (_get_text(item, "source") or "").strip()
-
-            if not title or not link:
-                continue
-
-            # Google News links are redirect URLs — keep as-is for dedup
-            # The description often contains the source name and snippet
-            # Strip HTML tags from description
-            desc_clean = re.sub(r'<[^>]+>', '', desc).strip()
-
-            results.append({
-                "title":        title,
-                "url":          link,
-                "description":  desc_clean[:500],
-                "published_raw": pub_date,
-                "source_name":  source,
-            })
-
-        return results
-
-    except Exception as e:
-        print(f"  Google News RSS error for query '{query}': {e}")
-        return []
-
-
-# ── RSS parsing ───────────────────────────────────────────────
-
-def parse_rss(url: str, source_config: dict) -> list[dict]:
-    """Fetch and parse a specific RSS feed."""
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=20)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
-
-        ns = {"atom": "http://www.w3.org/2005/Atom"}
-        items = root.findall(".//item") or root.findall(".//atom:entry", ns)
-
-        results   = []
-        filter_kw = [k.lower() for k in (source_config.get("filter_keywords") or [])]
-
-        for item in items[:20]:
-            title = (
-                _get_text(item, "title") or
-                _get_text(item, "atom:title", ns) or ""
-            ).strip()
-            link = (
-                _get_text(item, "link") or
-                _get_attr(item, "atom:link", "href", ns) or ""
-            ).strip()
-            description = (
-                _get_text(item, "description") or
-                _get_text(item, "summary") or
-                _get_text(item, "atom:summary", ns) or ""
-            ).strip()
-            pub_date = (
-                _get_text(item, "pubDate") or
-                _get_text(item, "published") or
-                _get_text(item, "atom:published", ns) or ""
-            ).strip()
-
-            if not title or not link:
-                continue
-            if filter_kw:
-                combined = (title + " " + description).lower()
-                if not any(kw in combined for kw in filter_kw):
-                    continue
-
-            results.append({
-                "title":        title,
-                "url":          link,
-                "description":  description[:500],
-                "published_raw": pub_date,
-            })
-
-        return results
-
-    except Exception as e:
-        print(f"  Error fetching {url}: {e}")
-        return []
-
-
-# ── HTML scraping ─────────────────────────────────────────────
-
-def parse_scrape(url: str, source_config: dict) -> list[dict]:
-    """Lightweight HTML scrape — headlines + links only."""
-    try:
-        response = requests.get(url, headers=HEADERS, timeout=20)
-        response.raise_for_status()
-        html = response.text
-
-        results      = []
-        link_pattern = re.compile(
-            r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>\s*([^<]{20,200})\s*</a>',
-            re.IGNORECASE | re.DOTALL
+        # Create agent
+        agent_resp = requests.post(
+            f"{MISTRAL_API_BASE}/agents",
+            headers=headers,
+            json=agent_payload,
+            timeout=30,
         )
-        seen_urls = set()
-        base_url  = "/".join(url.split("/")[:3])
+        agent_resp.raise_for_status()
+        agent_id = agent_resp.json().get("id")
+        if not agent_id:
+            print(f"  Could not create agent for query '{query}'")
+            return []
 
-        for match in link_pattern.finditer(html):
-            href  = match.group(1).strip()
-            title = re.sub(r'\s+', ' ', match.group(2)).strip()
+        # Step 2: Start a conversation with the agent
+        conv_payload = {
+            "agent_id": agent_id,
+            "inputs":   (
+                f"Find the 8 most recent news articles published in the last 48 hours about: {query}\n\n"
+                f"Focus on EU, Belgium, France context. "
+                f"Return ONLY a JSON array like this:\n"
+                f'[{{"title":"...","url":"...","description":"...","published_date":"YYYY-MM-DD"}}]\n'
+                f"No other text."
+            ),
+        }
 
-            if len(title) < 20:
+        conv_resp = requests.post(
+            f"{MISTRAL_API_BASE}/conversations",
+            headers=headers,
+            json=conv_payload,
+            timeout=60,
+        )
+        conv_resp.raise_for_status()
+        conv_data = conv_resp.json()
+
+        # Extract the text response from outputs
+        outputs = conv_data.get("outputs", [])
+        raw_text = ""
+        for output in outputs:
+            if output.get("type") == "message.output":
+                chunks = output.get("content", [])
+                for chunk in chunks:
+                    if chunk.get("type") == "text":
+                        raw_text += chunk.get("text", "")
+
+        if not raw_text:
+            print(f"  No text response from agent for query '{query}'")
+            return []
+
+        # Parse JSON array from response
+        raw_text = re.sub(r"```json|```", "", raw_text).strip()
+        match = re.search(r'\[[\s\S]*\]', raw_text)
+        if not match:
+            print(f"  Could not find JSON array in response for '{query}'")
+            print(f"  Response preview: {raw_text[:200]}")
+            return []
+
+        articles = json.loads(match.group(0))
+
+        # Normalise to our item format
+        results = []
+        for a in articles:
+            title = (a.get("title") or "").strip()
+            url   = (a.get("url") or "").strip()
+            desc  = (a.get("description") or "").strip()
+            pub   = (a.get("published_date") or "").strip()
+
+            if not title or not url:
                 continue
-            skip = ["javascript:", "mailto:", "#", "login", "logout",
-                    "search", "sitemap", "cookie", "privacy-policy",
-                    "terms", "contact", "about", "rss", "subscribe"]
-            if any(p in href.lower() for p in skip):
+            if url in ("", "N/A", "unknown"):
                 continue
-            if href.startswith("/"):
-                href = base_url + href
-            elif not href.startswith("http"):
-                continue
-            if href in seen_urls or base_url not in href:
-                continue
-            seen_urls.add(href)
 
             results.append({
                 "title":        title,
-                "url":          href,
-                "description":  "",
-                "published_raw": "",
+                "url":          url,
+                "description":  desc[:500],
+                "published_raw": pub,
             })
-            if len(results) >= 15:
-                break
 
         return results
 
+    except json.JSONDecodeError as e:
+        print(f"  JSON parse error for query '{query}': {e}")
+        return []
     except Exception as e:
-        print(f"  Error scraping {url}: {e}")
+        print(f"  Mistral web search error for query '{query}': {e}")
         return []
 
 
-# ── XML helpers ───────────────────────────────────────────────
-
-def _get_text(element, tag, ns=None) -> str:
-    try:
-        child = element.find(tag, ns) if ns else element.find(tag)
-        return (child.text or "").strip() if child is not None else ""
-    except Exception:
-        return ""
-
-
-def _get_attr(element, tag, attr, ns=None) -> str:
-    try:
-        child = element.find(tag, ns) if ns else element.find(tag)
-        return child.get(attr, "") if child is not None else ""
-    except Exception:
-        return ""
-
-
-def parse_published_date(date_str: str) -> str | None:
-    if not date_str:
-        return None
-    formats = [
-        "%a, %d %b %Y %H:%M:%S %z",
-        "%a, %d %b %Y %H:%M:%S GMT",
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%dT%H:%M:%S%z",
-        "%Y-%m-%d",
-    ]
-    for fmt in formats:
-        try:
-            return datetime.strptime(date_str.strip(), fmt).isoformat()
-        except ValueError:
-            continue
-    return None
-
-
-# ── Mistral relevance filtering ───────────────────────────────
+# ── Mistral relevance + summary ───────────────────────────────
 
 def analyse_for_marketing(
     items: list[dict],
@@ -254,7 +155,7 @@ def analyse_for_marketing(
     api_key: str,
 ) -> tuple[list[dict], int, int]:
     """
-    Filter items for RECOSA marketing relevance using Mistral.
+    Filter and summarise items for RECOSA marketing relevance using Mistral.
     Returns (relevant_items, input_tokens_total, output_tokens_total).
     """
     if not items or not api_key:
@@ -265,8 +166,8 @@ def analyse_for_marketing(
     total_output = 0
 
     for item in items:
-        title       = item["title"]
-        description = item.get("description", "")
+        title = item["title"]
+        desc  = item.get("description", "")
 
         system_prompt = """You are a content strategist for RECOSA, an EU regulatory compliance SaaS
 platform helping SMEs in Belgium and France comply with GDPR, NIS2, and the EU AI Act.
@@ -286,22 +187,23 @@ relevant: true if useful for:
 - LinkedIn post inspiration about EU compliance for SMEs
 - News a compliance officer in Belgium or France would care about
 
-relevant: false for: generic tech news unrelated to EU compliance, US-only news,
-sports, entertainment, or articles with no useful content."""
+relevant: false for generic tech news unrelated to EU compliance, US-only news,
+sports, entertainment, or articles with no useful compliance angle."""
 
-        user_prompt = f"""SOURCE: {source_config['name']} ({source_config.get('category', '')})
-SEARCH QUERY: {source_config.get('query', '')}
-TITLE: {title}
-CONTENT: {description}
-
-Is this relevant for RECOSA's marketing and content strategy?"""
+        user_prompt = (
+            f"SOURCE: {source_config['name']} ({source_config.get('category', '')})\n"
+            f"SEARCH QUERY: {source_config.get('query', '')}\n"
+            f"TITLE: {title}\n"
+            f"CONTENT: {desc}\n\n"
+            f"Is this relevant for RECOSA's marketing and content strategy?"
+        )
 
         try:
-            response = requests.post(
-                "https://api.mistral.ai/v1/chat/completions",
+            resp = requests.post(
+                f"{MISTRAL_API_BASE}/chat/completions",
                 headers={
                     "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
+                    "Content-Type":  "application/json",
                 },
                 json={
                     "model":       "mistral-large-latest",
@@ -314,53 +216,68 @@ Is this relevant for RECOSA's marketing and content strategy?"""
                 },
                 timeout=30,
             )
-            response.raise_for_status()
-            _rdata   = response.json()
+            resp.raise_for_status()
+            _rdata   = resp.json()
             _usage   = _rdata.get("usage", {})
             total_input  += _usage.get("prompt_tokens", 0)
             total_output += _usage.get("completion_tokens", 0)
 
             raw = _rdata["choices"][0]["message"]["content"].strip()
             raw = re.sub(r"```json|```", "", raw).strip()
-            match = re.search(r'\{[\s\S]*\}', raw)
-            if match:
-                raw = match.group(0)
+            m   = re.search(r'\{[\s\S]*\}', raw)
+            if m:
+                raw = m.group(0)
 
             analysis = json.loads(raw)
-
             if not analysis.get("relevant", False):
                 continue
 
             results.append({
                 "source":           source_config["name"],
                 "category":         source_config.get("category", ""),
-                "title":            item["title"],
-                "summary":          analysis.get("summary", description[:300]),
+                "title":            title,
+                "summary":          analysis.get("summary", desc[:300]),
                 "url":              item["url"],
                 "severity":         analysis.get("severity", "info"),
                 "relevance_reason": analysis.get("relevance_reason", ""),
-                "published_at":     parse_published_date(item.get("published_raw", "")),
+                "published_at":     _parse_date(item.get("published_raw", "")),
                 "status":           "pending",
             })
 
             time.sleep(0.3)
 
         except Exception as e:
-            print(f"  Could not analyse item '{title[:50]}': {e}")
+            print(f"  Could not analyse '{title[:50]}': {e}")
             continue
 
     return results, total_input, total_output
+
+
+def _parse_date(date_str: str) -> str | None:
+    if not date_str:
+        return None
+    formats = [
+        "%Y-%m-%d", "%a, %d %b %Y %H:%M:%S %z",
+        "%a, %d %b %Y %H:%M:%S GMT",
+        "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%dT%H:%M:%S%z",
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str.strip(), fmt).isoformat()
+        except ValueError:
+            continue
+    return None
 
 
 # ── Main marketing monitoring run ─────────────────────────────
 
 def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     """
-    Main entry point. Loads marketing sources from DB, fetches via
-    Google News RSS search / RSS / scrape, filters with Mistral, saves results.
+    Main entry point. Loads marketing sources from DB, searches via
+    Mistral web_search_premium, filters with Mistral, saves results.
     """
-    mistral_key = os.environ.get("MISTRAL_API_KEY", "")
-    if not mistral_key:
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    if not api_key:
         return {"error": "MISTRAL_API_KEY not set", "saved": 0, "skipped": 0}
 
     print(f"\nRECOSA Marketing Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
@@ -373,7 +290,8 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
         print("  No active marketing sources found in DB.")
         if run_id:
             complete_monitor_run(run_id, 0, 0, 0, 0, [], {},
-                                 status="completed", error_message="No active sources")
+                                 status="completed",
+                                 error_message="No active sources")
         return {"fetched": 0, "saved": 0, "skipped": 0, "errors": 0}
 
     print(f"Loaded {len(sources)} active marketing sources from DB.")
@@ -383,8 +301,8 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     source_stats = []
 
     for source in sources:
-        fetch_type = source.get("fetch_type", "rss")
-        print(f"\nFetching {source['name']} [{source.get('category','')}] via {fetch_type.upper()}...")
+        fetch_type = source.get("fetch_type", "search")
+        print(f"\n[{source.get('category','')}] {source['name']} via {fetch_type.upper()}...")
 
         stat = {
             "name":    source["name"],
@@ -401,13 +319,14 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
                     print("  No query defined — skipping.")
                     source_stats.append(stat)
                     continue
-                raw_items = fetch_google_news(query)
-            elif fetch_type == "scrape":
-                raw_items = parse_scrape(source["url"], source)
+                raw_items = search_news_with_mistral(query, api_key)
             else:
-                raw_items = parse_rss(source["url"], source)
+                # RSS/scrape fallback — not primary but kept for flexibility
+                print("  Non-search source — skipping in marketing monitor.")
+                source_stats.append(stat)
+                continue
 
-            print(f"  {len(raw_items)} items fetched")
+            print(f"  {len(raw_items)} articles found")
             stat["fetched"]  = len(raw_items)
             total_fetched   += len(raw_items)
 
@@ -415,10 +334,10 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
                 source_stats.append(stat)
                 continue
 
-            enriched, inp, out = analyse_for_marketing(raw_items, source, mistral_key)
+            enriched, inp, out = analyse_for_marketing(raw_items, source, api_key)
             total_in  += inp
             total_out += out
-            print(f"  {len(enriched)} relevant after Mistral analysis")
+            print(f"  {len(enriched)} relevant after analysis")
 
             for item in enriched:
                 result = save_marketing_update(item)
@@ -438,8 +357,9 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
             total_errors += 1
 
         source_stats.append(stat)
-        time.sleep(1)  # Be polite to Google News RSS
+        time.sleep(2)  # Pause between queries to respect rate limits
 
+    # Log all token usage in one call
     if total_in + total_out > 0:
         log_token_usage(
             user_id=SYSTEM_USER_ID,
