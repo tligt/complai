@@ -541,14 +541,25 @@ with tab_runs:
                 if source_stats:
                     st.markdown("**Per-source breakdown:**")
                     for stat in source_stats:
-                        err_tag = f" ❌ {stat['error']}" if stat.get("error") else ""
-                        st.caption(
-                            f"• {stat['name']}: "
-                            f"{stat.get('fetched', 0)} fetched / "
-                            f"{stat.get('saved', 0)} saved / "
-                            f"{stat.get('skipped', 0)} duplicates"
-                            f"{err_tag}"
-                        )
+                        fetched = stat.get("fetched", 0)
+                        saved   = stat.get("saved", 0)
+                        skipped = stat.get("skipped", 0)
+                        error   = stat.get("error")
+
+                        if error:
+                            icon = "🔴"
+                            detail = f"error: {error[:60]}"
+                        elif saved > 0:
+                            icon = "🟢"
+                            detail = f"{fetched} fetched / {saved} new / {skipped} duplicates"
+                        elif fetched > 0:
+                            icon = "🟡"
+                            detail = f"{fetched} fetched / 0 new (all duplicates)"
+                        else:
+                            icon = "🔴"
+                            detail = "0 fetched"
+
+                        st.caption(f"{icon} {stat['name']}: {detail}")
 
 
 # ═══════════════════════════════════════════════════════════════
