@@ -1,11 +1,12 @@
 """
 RECOSA Marketing Monitor
-Uses a persistent Mistral Agent with Premium Search to find recent EU
-compliance news, then saves relevant items to Supabase for admin review
-and LinkedIn draft generation.
+Uses Mistral chat completions API with web_search_premium tool to find
+recent EU compliance news, then saves relevant items to Supabase for
+admin review and LinkedIn draft generation.
 
-A single reusable agent (RECOSA-NewsSearch) is pre-created in Mistral Studio
-with web_search_premium enabled. Its ID is stored as MISTRAL_AGENT_ID secret.
+Uses the standard /v1/chat/completions endpoint (not the beta Conversations API)
+with web_search_premium passed as a built-in tool — same pattern as the
+Mistral docs examples.
 
 Sources/queries loaded dynamically from monitoring_sources table
 where monitor_type = 'marketing'.
@@ -30,19 +31,13 @@ from database import (
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 MISTRAL_API_BASE = "https://api.mistral.ai/v1"
 
-# Pre-created agent in Mistral Studio with web_search_premium enabled.
-# Override via MISTRAL_AGENT_ID environment variable.
-DEFAULT_AGENT_ID = "ag_019efe92f08e71a78d70f0f8b9230d29"
 
+# ── Mistral web search via chat completions ───────────────────
 
-# ── Mistral agent search ──────────────────────────────────────
-
-def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict]:
+def search_news_with_mistral(query: str, api_key: str) -> list[dict]:
     """
-    Use the persistent RECOSA-NewsSearch Mistral agent with Premium Search
-    to find recent news articles matching the query.
-
-    The agent returns rich markdown — we extract structured items from it.
+    Use Mistral chat completions with web_search_premium tool to find
+    recent news articles matching the query.
     Returns list of raw items with title, url, description, published_raw.
     """
     headers = {
@@ -50,86 +45,76 @@ def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict
         "Content-Type":  "application/json",
     }
 
-    prompt = (
-        f"Find the 8 most recent news articles published in the last 48 hours about: {query}\n\n"
-        f"Focus on EU, Belgium, and France context where relevant.\n\n"
-        f"For each article, provide:\n"
-        f"- Title\n"
-        f"- URL (exact link)\n"
-        f"- 1-2 sentence description\n"
-        f"- Publication date (YYYY-MM-DD)\n\n"
-        f"Return ONLY a JSON array, no other text:\n"
-        f'[{{"title":"...","url":"...","description":"...","published_date":"YYYY-MM-DD"}}]'
+    system_prompt = (
+        "You are a news research assistant for RECOSA, an EU regulatory compliance platform. "
+        "Search the web to find REAL recent news articles. "
+        "Always use the web search tool — never answer from memory. "
+        "Return ONLY a valid JSON array, no prose, no markdown fences:\n"
+        '[{"title":"...","url":"...","description":"1-2 sentences","published_date":"YYYY-MM-DD"}]'
     )
+
+    user_prompt = (
+        f"Search for the 8 most recent news articles from the last 48 hours about: {query}\n"
+        f"Focus on EU, Belgium, and France context where relevant.\n"
+        f"Return ONLY the JSON array."
+    )
+
+    payload = {
+        "model":    "mistral-small-latest",
+        "temperature": 0.1,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user",   "content": user_prompt},
+        ],
+        "tools": [{"type": "web_search_premium"}],
+        "max_tokens": 2000,
+    }
 
     try:
         resp = requests.post(
-            f"{MISTRAL_API_BASE}/conversations",
+            f"{MISTRAL_API_BASE}/chat/completions",
             headers=headers,
-            json={
-                "agent_id": agent_id,
-                "inputs":   prompt,
-            },
+            json=payload,
             timeout=60,
         )
-        resp.raise_for_status()
-        data = resp.json()
 
-        # Extract text from conversation outputs
-        raw_text = _extract_text_from_conversation(data)
-
-        if not raw_text:
-            print(f"  No text response for query '{query}'")
+        if not resp.ok:
+            print(f"  API error {resp.status_code}: {resp.text[:300]}")
             return []
 
-        # Try JSON array first
-        items = _parse_json_array(raw_text)
+        data    = resp.json()
+        content = data["choices"][0]["message"]["content"] or ""
+
+        if not content.strip():
+            # Model may have only returned tool calls without final content
+            # Try to get the tool result from the message
+            print(f"  Empty content for query '{query}' — checking tool calls")
+            tool_calls = data["choices"][0]["message"].get("tool_calls", [])
+            if tool_calls:
+                print(f"  Tool was called but no final response — model needs follow-up")
+            return []
+
+        # Parse JSON array from response
+        items = _parse_json_array(content)
         if items:
             return _normalise_items(items)
 
-        # Fallback: parse markdown response into structured items
-        items = _parse_markdown_response(raw_text)
+        # Fallback: parse markdown
+        items = _parse_markdown_response(content)
+        if items:
+            print(f"  Parsed {len(items)} items from markdown response")
         return items
 
     except Exception as e:
-        print(f"  Agent search error for '{query}': {e}")
+        print(f"  Search error for '{query}': {e}")
         return []
 
 
-def _extract_text_from_conversation(data: dict) -> str:
-    """Extract plain text from Mistral Conversations API response."""
-    raw_text = ""
-
-    # Try outputs array (Agents API format)
-    outputs = data.get("outputs", [])
-    for output in outputs:
-        if output.get("type") == "message.output":
-            chunks = output.get("content", [])
-            for chunk in chunks:
-                if chunk.get("type") == "text":
-                    raw_text += chunk.get("text", "")
-
-    # Fallback: direct message content (chat completions format)
-    if not raw_text:
-        choices = data.get("choices", [])
-        for choice in choices:
-            msg = choice.get("message", {})
-            raw_text += msg.get("content", "")
-
-    # Fallback: check for 'message' key directly
-    if not raw_text:
-        msg = data.get("message", {})
-        if isinstance(msg, dict):
-            raw_text = msg.get("content", "")
-
-    return raw_text.strip()
-
-
 def _parse_json_array(text: str) -> list:
-    """Try to extract and parse a JSON array from text."""
+    """Extract and parse a JSON array from text."""
     try:
-        text = re.sub(r"```json|```", "", text).strip()
-        match = re.search(r'\[[\s\S]*\]', text)
+        clean = re.sub(r"```json|```", "", text).strip()
+        match = re.search(r'\[[\s\S]*\]', clean)
         if match:
             return json.loads(match.group(0))
     except Exception:
@@ -139,52 +124,45 @@ def _parse_json_array(text: str) -> list:
 
 def _parse_markdown_response(text: str) -> list[dict]:
     """
-    Parse a markdown-formatted news response into structured items.
-    Handles the rich markdown format that Mistral returns when not
-    strictly following JSON instructions.
+    Parse markdown-formatted news response into structured items.
+    Handles bold headers, numbered lists, and inline URLs.
     """
-    items = []
-
-    # Split by numbered sections or ### headers
-    sections = re.split(r'\n(?=###|\*\*\d+\.)', text)
+    items   = []
+    sections = re.split(r'\n(?=###\s|\*\*\d+\.|\d+\.\s+\*\*)', text)
 
     for section in sections:
-        if not section.strip():
+        if not section.strip() or len(section.strip()) < 30:
             continue
 
-        # Extract title — look for bold text or ### heading
+        # Extract title
         title_match = (
-            re.search(r'###\s+\*?\*?(.+?)\*?\*?\n', section) or
-            re.search(r'\*\*(\d+\.\s+.+?)\*\*', section) or
-            re.search(r'#+\s+(.+)', section)
+            re.search(r'###\s+\*?\*?(.+?)\*?\*?(?:\n|$)', section) or
+            re.search(r'\*\*\d+\.\s+(.+?)\*\*', section) or
+            re.search(r'^\d+\.\s+\*?\*?(.+?)\*?\*?(?:\n|$)', section, re.MULTILINE)
         )
-        title = title_match.group(1).strip() if title_match else ""
+        if not title_match:
+            continue
 
-        # Clean up title
-        title = re.sub(r'^\d+\.\s*', '', title).strip()
-        title = re.sub(r'\*', '', title).strip()
-
-        if not title or len(title) < 10:
+        title = re.sub(r'\*+', '', title_match.group(1)).strip()
+        if len(title) < 10:
             continue
 
         # Extract URL
         url_match = re.search(r'\[([^\]]+)\]\((https?://[^\)]+)\)', section)
         url = url_match.group(2).strip() if url_match else ""
 
-        # Extract description — first substantive sentence after title
-        # Remove markdown formatting
-        clean = re.sub(r'#+\s+.+\n', '', section)
-        clean = re.sub(r'\*\*[^*]+\*\*:\s*', '', clean)
+        # Extract description — clean markdown, take first 300 chars
+        clean = re.sub(r'###.+\n', '', section)
+        clean = re.sub(r'\*\*[^*]+\*\*[:\s]*', '', clean)
         clean = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', clean)
-        clean = re.sub(r'\*', '', clean)
-        clean = re.sub(r'\n+', ' ', clean).strip()
+        clean = re.sub(r'\*+', '', clean)
+        clean = re.sub(r'\s+', ' ', clean).strip()
+        desc  = clean[:300]
 
-        # Take first 300 chars as description
-        desc = clean[:300].strip()
-
-        # Extract date — look for month year patterns
+        # Extract date
         date_match = re.search(
-            r'(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})',
+            r'(January|February|March|April|May|June|July|August|'
+            r'September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})',
             section
         )
         pub_date = ""
@@ -194,13 +172,17 @@ def _parse_markdown_response(text: str) -> list[dict]:
                 "May":"05","June":"06","July":"07","August":"08",
                 "September":"09","October":"10","November":"11","December":"12"
             }
-            pub_date = f"{date_match.group(2)}-{month_map[date_match.group(1)]}-01"
+            pub_date = (
+                f"{date_match.group(3)}-"
+                f"{month_map[date_match.group(1)]}-"
+                f"{date_match.group(2).zfill(2)}"
+            )
 
         if title and desc:
             items.append({
-                "title":        title,
-                "url":          url,
-                "description":  desc,
+                "title":         title,
+                "url":           url,
+                "description":   desc,
                 "published_raw": pub_date,
             })
 
@@ -208,7 +190,7 @@ def _parse_markdown_response(text: str) -> list[dict]:
 
 
 def _normalise_items(raw: list) -> list[dict]:
-    """Normalise JSON-parsed items to our standard format."""
+    """Normalise JSON-parsed items to standard format."""
     results = []
     for a in raw:
         title = (a.get("title") or "").strip()
@@ -222,9 +204,9 @@ def _normalise_items(raw: list) -> list[dict]:
             url = ""
 
         results.append({
-            "title":        title,
-            "url":          url,
-            "description":  desc[:500],
+            "title":         title,
+            "url":           url,
+            "description":   desc[:500],
             "published_raw": pub,
         })
     return results
@@ -238,7 +220,7 @@ def analyse_for_marketing(
     api_key: str,
 ) -> tuple[list[dict], int, int]:
     """
-    Filter and summarise items for RECOSA marketing relevance using Mistral.
+    Filter and summarise items for RECOSA marketing relevance.
     Returns (relevant_items, input_tokens_total, output_tokens_total).
     """
     if not items or not api_key:
@@ -252,33 +234,28 @@ def analyse_for_marketing(
         title = item["title"]
         desc  = item.get("description", "")
 
-        system_prompt = """You are a content strategist for RECOSA, an EU regulatory compliance SaaS
-platform helping SMEs in Belgium and France comply with GDPR, NIS2, and the EU AI Act.
-
-Analyse this news item and return ONLY valid JSON:
-{
-  "relevant": true/false,
-  "relevance_reason": "one sentence explaining why this is or isn't relevant to RECOSA",
-  "summary": "2-3 sentence summary from the perspective of an EU compliance professional",
-  "severity": "info|important|urgent",
-  "content_angle": "enforcement|policy|guidance|market|tech|other"
-}
-
-relevant: true if useful for:
-- Understanding the regulatory landscape RECOSA operates in
-- Competitor or market intelligence
-- LinkedIn post inspiration about EU compliance for SMEs
-- News a compliance officer in Belgium or France would care about
-
-relevant: false for generic tech news unrelated to EU compliance, US-only news,
-sports, entertainment, or articles with no useful compliance angle."""
+        system_prompt = (
+            "You are a content strategist for RECOSA, an EU regulatory compliance SaaS "
+            "helping SMEs in Belgium and France comply with GDPR, NIS2, and the EU AI Act.\n\n"
+            "Analyse this news item and return ONLY valid JSON:\n"
+            "{\n"
+            '  "relevant": true/false,\n'
+            '  "relevance_reason": "one sentence",\n'
+            '  "summary": "2-3 sentence summary for EU compliance professionals",\n'
+            '  "severity": "info|important|urgent",\n'
+            '  "content_angle": "enforcement|policy|guidance|market|tech|other"\n'
+            "}\n\n"
+            "relevant: true if useful for understanding the EU compliance landscape, "
+            "competitor intelligence, or LinkedIn content inspiration for SME compliance officers.\n"
+            "relevant: false for generic tech, US-only news, sports, or entertainment."
+        )
 
         user_prompt = (
             f"SOURCE: {source_config['name']} ({source_config.get('category', '')})\n"
-            f"SEARCH QUERY: {source_config.get('query', '')}\n"
+            f"QUERY: {source_config.get('query', '')}\n"
             f"TITLE: {title}\n"
             f"CONTENT: {desc}\n\n"
-            f"Is this relevant for RECOSA's marketing and content strategy?"
+            f"Is this relevant for RECOSA?"
         )
 
         try:
@@ -357,17 +334,14 @@ def _parse_date(date_str: str) -> str | None:
 def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     """
     Main entry point. Loads marketing sources from DB, searches via
-    persistent Mistral agent with Premium Search, filters with Mistral,
-    saves results to marketing_updates.
+    Mistral chat completions with web_search_premium, filters with
+    Mistral, saves results to marketing_updates.
     """
-    api_key  = os.environ.get("MISTRAL_API_KEY", "")
-    agent_id = os.environ.get("MISTRAL_AGENT_ID", DEFAULT_AGENT_ID)
-
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
     if not api_key:
         return {"error": "MISTRAL_API_KEY not set", "saved": 0, "skipped": 0}
 
     print(f"\nRECOSA Marketing Monitor — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-    print(f"Using agent: {agent_id}")
     print("=" * 60)
 
     run_id  = start_monitor_run("marketing", triggered_by=triggered_by)
@@ -400,18 +374,18 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
         }
 
         try:
-            if fetch_type == "search":
-                query = source.get("query", "")
-                if not query:
-                    print("  No query defined — skipping.")
-                    source_stats.append(stat)
-                    continue
-                raw_items = search_news_with_agent(query, api_key, agent_id)
-            else:
-                print(f"  fetch_type={fetch_type} not handled in marketing monitor — skipping.")
+            if fetch_type != "search":
+                print(f"  Non-search source skipped in marketing monitor.")
                 source_stats.append(stat)
                 continue
 
+            query = source.get("query", "")
+            if not query:
+                print("  No query defined — skipping.")
+                source_stats.append(stat)
+                continue
+
+            raw_items = search_news_with_mistral(query, api_key)
             print(f"  {len(raw_items)} articles found")
             stat["fetched"]  = len(raw_items)
             total_fetched   += len(raw_items)
@@ -443,7 +417,7 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
             total_errors += 1
 
         source_stats.append(stat)
-        time.sleep(2)  # Pause between queries
+        time.sleep(2)
 
     if total_in + total_out > 0:
         log_token_usage(
