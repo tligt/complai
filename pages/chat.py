@@ -241,33 +241,42 @@ with st.sidebar:
     # ── History panel in sidebar ──────────────────────────────
     if st.session_state.show_history and st.session_state.selected_client:
         st.divider()
-        st.markdown("**📋 History**")
+        col_htitle, col_hclose = st.columns([3, 1])
+        with col_htitle:
+            st.markdown("**📋 History**")
+        with col_hclose:
+            if st.button("✕", key="btn_close_hist", use_container_width=True):
+                st.session_state.show_history = False
+                st.rerun()
         try:
             history = load_chat_history(st.session_state.selected_client["id"], user_id)
             if not history:
                 st.caption("No saved conversations yet.")
             else:
                 user_msgs = [m for m in history if m["role"] == "user"]
-                st.caption(f"{len(user_msgs)} questions · {len(history)} messages")
+                st.caption(f"{len(user_msgs)} questions · {len(history)} messages total")
 
-                if st.button("📂 Load", type="primary", key="btn_load_hist",
+                if st.button("📂 Load full history", type="primary", key="btn_load_hist",
                               use_container_width=True):
                     st.session_state.messages = history
                     st.session_state.show_history = False
                     st.rerun()
 
-                # Preview recent questions
-                for msg in reversed(user_msgs[-4:]):
-                    preview = msg["content"][:50] + ("…" if len(msg["content"]) > 50 else "")
-                    st.caption(f"👤 {preview}")
+                st.markdown("**Questions asked:**")
+                for i, msg in enumerate(user_msgs):
+                    preview = msg["content"][:55] + ("…" if len(msg["content"]) > 55 else "")
+                    st.caption(f"{i+1}. 👤 {preview}")
 
                 st.divider()
-                if st.button("🗑️ Delete history", key="btn_del_hist",
-                              use_container_width=True):
-                    st.session_state.confirm_delete = True
+                st.caption("⚠️ Note: individual conversation selection coming soon. Currently all messages are stored together.")
 
-                if st.session_state.get("confirm_delete"):
-                    st.warning("Permanently delete all messages?")
+                if not st.session_state.get("confirm_delete"):
+                    if st.button("🗑️ Delete all history", key="btn_del_hist",
+                                  use_container_width=True):
+                        st.session_state.confirm_delete = True
+                        st.rerun()
+                else:
+                    st.warning("Permanently delete ALL messages for this client?")
                     col_yes, col_no = st.columns(2)
                     with col_yes:
                         if st.button("Delete", type="primary", key="btn_confirm_del",
