@@ -220,10 +220,22 @@ with st.sidebar:
     if selected_name != "— Select client —":
         selected = client_options[selected_name]
         if st.session_state.selected_client != selected:
-            # Switching client — clear chat, don't load history
             st.session_state.selected_client = selected
             st.session_state.messages = []
             st.session_state.history_loaded = False
+
+    # History + Clear buttons under client selector
+    if st.session_state.selected_client:
+        col_h, col_c = st.columns(2)
+        with col_h:
+            if st.button("📋 History", key="btn_history", use_container_width=True):
+                st.session_state.show_history = not st.session_state.show_history
+        with col_c:
+            if st.session_state.messages:
+                if st.button("🗑️ Clear", key="btn_clear_sb", use_container_width=True):
+                    clear_chat_history(st.session_state.selected_client["id"], user_id)
+                    st.session_state.messages = []
+                    st.rerun()
 
     # Add new client
     with st.expander("➕ New client"):
@@ -315,23 +327,17 @@ col_title, col_actions = st.columns([5, 1])
 with col_title:
     regs = selected_client.get("regulations") or []
     reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
-    st.markdown(f"### 💬 {selected_client['company_name']}")
     st.caption(
         f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
         f"{selected_client.get('sector','')} · "
         f"{selected_client.get('company_size','')} FTE · {reg_str}"
     )
 with col_actions:
-    col_hist, col_clear = st.columns(2)
-    with col_hist:
-        if st.button("📋", key="btn_history", use_container_width=True, help="View history"):
-            st.session_state.show_history = not st.session_state.show_history
-    with col_clear:
-        if st.session_state.messages:
-            if st.button("🗑️", key="btn_clear", use_container_width=True, help="Clear chat"):
-                clear_chat_history(selected_client["id"], user_id)
-                st.session_state.messages = []
-                st.rerun()
+    if st.session_state.messages:
+        if st.button("🗑️ Clear", key="btn_clear", use_container_width=True, help="Clear chat"):
+            clear_chat_history(selected_client["id"], user_id)
+            st.session_state.messages = []
+            st.rerun()
 
 # ── History panel ─────────────────────────────────────────────
 if st.session_state.show_history:
@@ -353,43 +359,9 @@ if st.session_state.show_history:
                     st.caption(f"{role_icon} {content_preview}")
         except Exception as e:
             st.error(f"Could not load history: {e}")
-
-# ── Chat messages ─────────────────────────────────────────────
-# ── Chat messages ─────────────────────────────────────────────
-if not st.session_state.messages:
-    # Vertically centered empty state
-    st.markdown("<div style='height:20vh'></div>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col2:
-        st.markdown(f"""
-        <div style="text-align:center;margin-bottom:1.5rem;">
-            <div style="font-size:1.75rem;margin-bottom:0.75rem;">💬</div>
-            <h3 style="color:#003366;font-weight:700;margin-bottom:0.25rem;">{selected_client['company_name']}</h3>
-            <p style="color:#64748B;font-size:0.9rem;">Ask any compliance question about GDPR, NIS2, or the EU AI Act.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    # Suggested questions as clickable buttons
-    col1, col2, col3 = st.columns([1, 3, 1])
-    with col2:
-        suggestions = [
-            "What does GDPR say about data retention?",
-            "Are we subject to NIS2?",
-            "What is a DPIA and when is it required?",
-        ]
-        for s in suggestions:
-            if st.button(s, key=f"suggest_{s[:20]}", use_container_width=True):
-                st.session_state.messages.append({"role": "user", "content": s})
-                save_message(selected_client["id"], user_id, "user", s)
-                st.rerun()
-else:
-    for msg in st.session_state.messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-# ── Chat input ────────────────────────────────────────────────
-if prompt := st.chat_input("Ask a compliance question…"):
+# ── Answer helper ─────────────────────────────────────────────
+def handle_prompt(prompt: str):
+    """Process a user prompt and generate an answer."""
     save_message(selected_client["id"], user_id, "user", prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -397,16 +369,12 @@ if prompt := st.chat_input("Ask a compliance question…"):
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking…"):
-            # Build context from Qdrant + any uploaded company docs
             from rag import Chunk, build_index
             company_chunks = []
             for chunks in st.session_state.company_docs.values():
                 company_chunks.extend(chunks)
 
-            if company_chunks:
-                embeddings = build_index(company_chunks)
-            else:
-                embeddings = None
+            embeddings = build_index(company_chunks) if company_chunks else None
 
             context_chunks = retrieve(
                 prompt,
@@ -439,3 +407,74 @@ if prompt := st.chat_input("Ask a compliance question…"):
 
     save_message(selected_client["id"], user_id, "assistant", answer)
     st.session_state.messages.append({"role": "assistant", "content": answer})
+
+
+# ── Chat messages ─────────────────────────────────────────────
+if not st.session_state.messages:
+    # ── HERO STATE — input centered on page ───────────────────
+    st.markdown("<div style='height:18vh'></div>", unsafe_allow_html=True)
+
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        # Title
+        st.markdown(f"""
+        <div style="text-align:center;margin-bottom:1.5rem;">
+            <div style="font-size:1.75rem;margin-bottom:0.5rem;">💬</div>
+            <h3 style="color:#003366;font-weight:700;margin-bottom:0.25rem;">{selected_client['company_name']}</h3>
+            <p style="color:#64748B;font-size:0.9rem;margin-bottom:1.5rem;">Ask any compliance question about GDPR, NIS2, or the EU AI Act.</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Hero input — styled to look like a chat input
+        st.markdown("""
+        <style>
+        div[data-testid="stTextInput"] input {
+            border-radius: 24px !important;
+            border: 1.5px solid #E2E8F0 !important;
+            padding: 0.75rem 1.25rem !important;
+            font-size: 1rem !important;
+            box-shadow: 0 2px 12px rgba(0,51,102,0.08) !important;
+        }
+        div[data-testid="stTextInput"] input:focus {
+            border-color: #14C7D5 !important;
+            box-shadow: 0 2px 16px rgba(20,199,213,0.15) !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        hero_input = st.text_input(
+            "hero_input",
+            placeholder="Ask a compliance question…",
+            label_visibility="collapsed",
+            key="hero_question",
+        )
+
+        col_btn1, col_btn2 = st.columns([3, 1])
+        with col_btn2:
+            hero_submit = st.button("Ask →", type="primary", use_container_width=True, key="hero_submit")
+
+        if hero_submit and hero_input.strip():
+            handle_prompt(hero_input.strip())
+            st.rerun()
+
+        # Suggested questions
+        st.markdown("<div style='margin-top:1rem'></div>", unsafe_allow_html=True)
+        suggestions = [
+            "What does GDPR say about data retention?",
+            "Are we subject to NIS2?",
+            "What is a DPIA and when is it required?",
+        ]
+        for s in suggestions:
+            if st.button(s, key=f"suggest_{s[:20]}", use_container_width=True):
+                handle_prompt(s)
+                st.rerun()
+
+else:
+    # ── CONVERSATION STATE — messages + native chat input ─────
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Ask a compliance question…"):
+        handle_prompt(prompt)
+        st.rerun()
