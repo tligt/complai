@@ -144,6 +144,26 @@ def init_session():
 init_session()
 user_id = get_user_id()
 
+# Chat-specific CSS — center input when no messages
+st.markdown("""
+<style>
+/* Push chat input to center when conversation is empty */
+.empty-chat-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 60vh;
+    text-align: center;
+}
+/* Fixed chat input at bottom */
+[data-testid="stChatInput"] {
+    border-radius: 12px !important;
+    border: 1.5px solid #E2E8F0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ── Sidebar — client selector + settings ──────────────────────
 with st.sidebar:
     st.markdown("**My clients**")
@@ -304,13 +324,34 @@ st.divider()
 
 # ── No client selected ────────────────────────────────────────
 if not selected_client:
-    st.info("👈 Select or create a client in the sidebar to start a compliance conversation.")
+    st.markdown("""
+    <div class="empty-chat-wrapper">
+        <div style="font-size:2.5rem;margin-bottom:1rem;">🛡️</div>
+        <h2 style="color:#003366;font-weight:700;margin-bottom:0.5rem;">RECOSA Compliance Chat</h2>
+        <p style="color:#64748B;max-width:400px;">Select a client from the sidebar to start a compliance conversation about GDPR, NIS2, or the EU AI Act.</p>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # ── Chat messages ─────────────────────────────────────────────
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+# Show centered welcome when no messages yet
+if not st.session_state.messages:
+    st.markdown(f"""
+    <div class="empty-chat-wrapper">
+        <div style="font-size:2rem;margin-bottom:1rem;">💬</div>
+        <h3 style="color:#003366;font-weight:700;margin-bottom:0.5rem;">{selected_client['company_name']}</h3>
+        <p style="color:#64748B;max-width:420px;">Ask any compliance question about GDPR, NIS2, or the EU AI Act. I'll answer based on the regulatory knowledge base.</p>
+        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:1rem;">
+            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;cursor:pointer;">What does GDPR say about data retention?</span>
+            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;cursor:pointer;">Are we subject to NIS2?</span>
+            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;cursor:pointer;">What is a DPIA and when is it required?</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
 # ── Chat input ────────────────────────────────────────────────
 if prompt := st.chat_input("Ask a compliance question…"):
