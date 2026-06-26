@@ -160,10 +160,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 with st.sidebar:
-    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-    from auth import logout
-    if st.button("Log out", use_container_width=True, key="btn_logout"):
-        logout()
+    pass  # Page-specific sidebar content renders here via each page file
 
 # ── Navigation ────────────────────────────────────────────────
 chat      = st.Page("pages/chat.py",      title="Chat",           icon="💬", default=True)
