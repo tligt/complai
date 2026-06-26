@@ -28,8 +28,9 @@ def init_auth():
     if "refresh_token" not in st.session_state:
         st.session_state.refresh_token = None
 
-    # Refresh token on every load to prevent JWT expiry
-    if st.session_state.get("refresh_token") and st.session_state.get("user"):
+    # Refresh session on every load to keep user logged in across refreshes
+    # Supabase refresh tokens are long-lived (weeks) so this survives page refreshes
+    if st.session_state.get("refresh_token"):
         try:
             supabase = get_supabase()
             res = supabase.auth.refresh_session(st.session_state.refresh_token)
@@ -38,7 +39,10 @@ def init_auth():
                 st.session_state.refresh_token = res.session.refresh_token
                 st.session_state.user          = res.user
         except Exception:
-            pass
+            # Token expired or invalid — clear session
+            st.session_state.user          = None
+            st.session_state.access_token  = None
+            st.session_state.refresh_token = None
 
 
 def is_logged_in() -> bool:
