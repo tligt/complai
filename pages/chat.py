@@ -322,22 +322,14 @@ if not selected_client:
     """, unsafe_allow_html=True)
     st.stop()
 
-# ── Client header + actions ───────────────────────────────────
-col_title, col_actions = st.columns([5, 1])
-with col_title:
-    regs = selected_client.get("regulations") or []
-    reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
-    st.caption(
-        f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
-        f"{selected_client.get('sector','')} · "
-        f"{selected_client.get('company_size','')} FTE · {reg_str}"
-    )
-with col_actions:
-    if st.session_state.messages:
-        if st.button("🗑️ Clear", key="btn_clear", use_container_width=True, help="Clear chat"):
-            clear_chat_history(selected_client["id"], user_id)
-            st.session_state.messages = []
-            st.rerun()
+# ── Client header ─────────────────────────────────────────────
+regs = selected_client.get("regulations") or []
+reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
+st.caption(
+    f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
+    f"{selected_client.get('sector','')} · "
+    f"{selected_client.get('company_size','')} FTE · {reg_str}"
+)
 
 # ── History panel ─────────────────────────────────────────────
 if st.session_state.show_history:
