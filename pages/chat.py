@@ -144,25 +144,58 @@ def init_session():
 init_session()
 user_id = get_user_id()
 
-# Chat-specific CSS — center input when no messages
+# Chat-specific CSS
 st.markdown("""
 <style>
-/* Push chat input to center when conversation is empty */
-.empty-chat-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 60vh;
-    text-align: center;
-}
-/* Fixed chat input at bottom */
 [data-testid="stChatInput"] {
     border-radius: 12px !important;
     border: 1.5px solid #E2E8F0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
+
+# Account menu top right
+user_email = ""
+try:
+    user_email = st.session_state.get("user", {}).email or ""
+except Exception:
+    pass
+
+st.markdown(f"""
+<style>
+.account-menu {{
+    position: fixed;
+    top: 0.75rem;
+    right: 1rem;
+    z-index: 9999;
+}}
+</style>
+<div class="account-menu">
+    <details>
+        <summary style="cursor:pointer;list-style:none;background:#003366;color:white;
+            border-radius:50%;width:36px;height:36px;display:flex;align-items:center;
+            justify-content:center;font-size:1rem;font-weight:700;user-select:none;">
+            {user_email[0].upper() if user_email else "U"}
+        </summary>
+        <div style="position:absolute;right:0;top:44px;background:white;border:1px solid #E2E8F0;
+            border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.1);min-width:180px;padding:0.5rem 0;">
+            <div style="padding:0.5rem 1rem;font-size:0.8rem;color:#64748B;border-bottom:1px solid #F1F5F9;">
+                {user_email}
+            </div>
+            <a href="?logout=1" style="display:block;padding:0.5rem 1rem;font-size:0.875rem;
+                color:#1A202C;text-decoration:none;" onmouseover="this.style.background='#F8FAFC'"
+                onmouseout="this.style.background='transparent'">
+                Log out
+            </a>
+        </div>
+    </details>
+</div>
+""", unsafe_allow_html=True)
+
+# Handle logout via query param
+if st.query_params.get("logout"):
+    from auth import logout
+    logout()
 
 # ── Sidebar — client selector + settings ──────────────────────
 with st.sidebar:
@@ -322,19 +355,34 @@ if st.session_state.show_history:
             st.error(f"Could not load history: {e}")
 
 # ── Chat messages ─────────────────────────────────────────────
+# ── Chat messages ─────────────────────────────────────────────
 if not st.session_state.messages:
-    st.markdown(f"""
-    <div class="empty-chat-wrapper">
-        <div style="font-size:2rem;margin-bottom:1rem;">💬</div>
-        <h3 style="color:#003366;font-weight:700;margin-bottom:0.5rem;">{selected_client['company_name']}</h3>
-        <p style="color:#64748B;max-width:420px;">Ask any compliance question about GDPR, NIS2, or the EU AI Act.</p>
-        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:1rem;">
-            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;">What does GDPR say about data retention?</span>
-            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;">Are we subject to NIS2?</span>
-            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;">What is a DPIA and when is it required?</span>
+    # Vertically centered empty state
+    st.markdown("<div style='height:20vh'></div>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        st.markdown(f"""
+        <div style="text-align:center;margin-bottom:1.5rem;">
+            <div style="font-size:1.75rem;margin-bottom:0.75rem;">💬</div>
+            <h3 style="color:#003366;font-weight:700;margin-bottom:0.25rem;">{selected_client['company_name']}</h3>
+            <p style="color:#64748B;font-size:0.9rem;">Ask any compliance question about GDPR, NIS2, or the EU AI Act.</p>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+
+    # Suggested questions as clickable buttons
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        suggestions = [
+            "What does GDPR say about data retention?",
+            "Are we subject to NIS2?",
+            "What is a DPIA and when is it required?",
+        ]
+        for s in suggestions:
+            if st.button(s, key=f"suggest_{s[:20]}", use_container_width=True):
+                st.session_state.messages.append({"role": "user", "content": s})
+                save_message(selected_client["id"], user_id, "user", s)
+                st.rerun()
 else:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
