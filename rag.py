@@ -241,6 +241,7 @@ def get_knowledge_base_summary() -> list[dict]:
                     "country":          p.get("country", "EU"),
                     "doc_type":         p.get("doc_type", "core"),
                     "parent_regulation":p.get("parent_regulation", ""),
+                    "detected_at":      p.get("detected_at", ""),
                     "chunks":           0,
                 }
             sources[key]["chunks"] += 1
