@@ -142,7 +142,6 @@ init_auth()
 
 # ── Login screen (no sidebar, no nav) ────────────────────────
 if not is_logged_in():
-    # Hide sidebar completely on login screen
     st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none !important; }
@@ -168,6 +167,18 @@ if not is_logged_in():
 
 # ── Authenticated — define navigation ────────────────────────
 user_id = get_user_id()
+
+# Authenticated layout — restore sidebar, constrain content width
+st.markdown("""
+<style>
+[data-testid="stSidebar"] { display: flex !important; }
+.main .block-container {
+    max-width: 1200px !important;
+    padding: 2rem 2.5rem !important;
+    margin: 0 auto !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # Sidebar logo
 with st.sidebar:
