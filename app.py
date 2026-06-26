@@ -19,9 +19,6 @@ st.markdown("""
     --white:     #FFFFFF;
     --grey-bg:   #F4F7FA;
     --grey-border: #E2E8F0;
-    --text-primary: #1A202C;
-    --text-secondary: #64748B;
-    --sidebar-width: 240px;
 }
 
 /* Hide Streamlit default chrome */
@@ -33,36 +30,53 @@ html, body, [class*="css"] {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
-/* Sidebar styling */
+/* Sidebar background */
 [data-testid="stSidebar"] {
     background: var(--blue) !important;
-    min-width: var(--sidebar-width) !important;
-    max-width: var(--sidebar-width) !important;
 }
-[data-testid="stSidebar"] * {
+
+/* All sidebar text */
+[data-testid="stSidebar"],
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] div {
     color: #CBD5E1 !important;
 }
-[data-testid="stSidebar"] .stMarkdown h1,
-[data-testid="stSidebar"] .stMarkdown h2,
-[data-testid="stSidebar"] .stMarkdown h3 {
-    color: white !important;
+
+/* Nav item backgrounds — override white */
+[data-testid="stSidebar"] [data-testid="stSidebarNavItems"] {
+    background: var(--blue) !important;
 }
-/* Active nav item */
-[data-testid="stSidebar"] [aria-selected="true"] {
-    background: rgba(20, 199, 213, 0.15) !important;
-    border-left: 3px solid var(--teal) !important;
-    color: white !important;
+[data-testid="stSidebar"] a {
+    background: transparent !important;
+    color: #CBD5E1 !important;
+    border-radius: 6px !important;
 }
-/* Nav items hover */
 [data-testid="stSidebar"] a:hover {
     background: rgba(255,255,255,0.08) !important;
     color: white !important;
 }
+[data-testid="stSidebar"] [aria-selected="true"],
+[data-testid="stSidebar"] [aria-current="page"] {
+    background: rgba(20,199,213,0.15) !important;
+    border-left: 3px solid var(--teal) !important;
+    color: white !important;
+}
 
-/* Main content area */
-.main .block-container {
-    padding: 2rem 2.5rem;
-    max-width: 1100px;
+/* Section headers in nav */
+[data-testid="stSidebar"] [data-testid="stSidebarNavSeparator"] {
+    color: #475569 !important;
+    font-size: 0.7rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+}
+
+/* Sidebar selectbox and inputs */
+[data-testid="stSidebar"] .stSelectbox > div > div {
+    background: rgba(255,255,255,0.08) !important;
+    border-color: rgba(255,255,255,0.15) !important;
+    color: white !important;
 }
 
 /* Primary buttons → teal */
@@ -72,24 +86,22 @@ html, body, [class*="css"] {
     color: white !important;
     font-weight: 600 !important;
     border-radius: 6px !important;
-    padding: 0.5rem 1.5rem !important;
     transition: background 0.2s;
 }
 .stButton > button[kind="primary"]:hover {
     background: var(--teal-dark) !important;
 }
 
-/* Secondary buttons */
-.stButton > button[kind="secondary"] {
-    border: 1.5px solid var(--grey-border) !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
+/* Content width */
+.main .block-container {
+    max-width: 1200px !important;
+    padding: 2rem 2.5rem !important;
+    margin: 0 auto !important;
 }
 
 /* Chat input */
 [data-testid="stChatInput"] {
     border-radius: 12px !important;
-    border: 1.5px solid var(--grey-border) !important;
 }
 
 /* Metric cards */
@@ -98,41 +110,6 @@ html, body, [class*="css"] {
     border-radius: 8px;
     padding: 1rem;
     border: 1px solid var(--grey-border);
-}
-
-/* Expanders */
-[data-testid="stExpander"] {
-    border: 1px solid var(--grey-border) !important;
-    border-radius: 8px !important;
-}
-
-/* Login page centering */
-.login-wrapper {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 85vh;
-}
-.login-card {
-    background: white;
-    border: 1px solid var(--grey-border);
-    border-radius: 16px;
-    padding: 3rem 2.5rem;
-    max-width: 420px;
-    width: 100%;
-    box-shadow: 0 4px 24px rgba(0,51,102,0.08);
-}
-.login-logo {
-    font-size: 2rem;
-    font-weight: 800;
-    color: var(--blue);
-    letter-spacing: -0.5px;
-    margin-bottom: 0.25rem;
-}
-.login-tagline {
-    color: var(--text-secondary);
-    font-size: 0.9rem;
-    margin-bottom: 2rem;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -178,29 +155,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Sidebar logo
+# Sidebar logo at top
 with st.sidebar:
     st.markdown("""
-    <div style="padding: 1.25rem 0 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 0.5rem;">
-        <div style="font-size:1.3rem;font-weight:800;color:white;letter-spacing:-0.3px;">🛡️ RECOSA</div>
-        <div style="font-size:0.72rem;color:#94A3B8;margin-top:2px;">EU Compliance Co-pilot</div>
+    <div style="padding:1rem 0 1.25rem;border-bottom:1px solid rgba(255,255,255,0.1);margin-bottom:0.75rem;">
+        <div style="font-size:1.25rem;font-weight:800;color:white;letter-spacing:-0.3px;">🛡️ RECOSA</div>
+        <div style="font-size:0.7rem;color:#64748B;margin-top:2px;text-transform:uppercase;letter-spacing:0.05em;">EU Compliance Co-pilot</div>
     </div>
     """, unsafe_allow_html=True)
-
-    # User info + logout
-    try:
-        email = st.session_state.get("user", {}).get("email", "")
-        if email:
-            st.markdown(f'<div style="font-size:0.75rem;color:#94A3B8;padding:0.5rem 0 0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{email}</div>', unsafe_allow_html=True)
-    except Exception:
-        pass
-
-    from auth import logout
-    if st.button("Log out", use_container_width=True, key="btn_logout"):
-        logout()
-        st.rerun()
-
-    st.markdown("<div style='margin-top:0.5rem;border-top:1px solid rgba(255,255,255,0.1);'></div>", unsafe_allow_html=True)
 
 # ── Page routing ──────────────────────────────────────────────
 chat       = st.Page("pages/chat.py",      title="Chat",           icon="💬", default=True)
