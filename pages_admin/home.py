@@ -1,7 +1,7 @@
 import streamlit as st
 from database import get_supabase_admin, load_regulatory_updates
 
-st.title("⚙️ COMPLAI Admin")
+st.title("⚙️ RECOSA Admin")
 st.caption(f"Logged in as admin · {st.session_state.user.email}")
 st.divider()
 
