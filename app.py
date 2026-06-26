@@ -170,10 +170,10 @@ if not is_logged_in():
 
             with tab_signup:
                 st.markdown("**Create your account**")
-                signup_email = st.text_input("Email", key="signup_email", placeholder="you@company.com")
-                signup_pwd   = st.text_input("Password", type="password", key="signup_pwd",
+                signup_email = st.text_input("Email", key="new_signup_email", placeholder="you@company.com")
+                signup_pwd   = st.text_input("Password", type="password", key="new_signup_pwd",
                                               placeholder="At least 8 characters")
-                if st.button("Create account", type="primary", use_container_width=True, key="btn_signup"):
+                if st.button("Create account", type="primary", use_container_width=True, key="btn_new_signup"):
                     if not signup_email or not signup_pwd:
                         st.error("Please fill in all fields.")
                     elif len(signup_pwd) < 8:
