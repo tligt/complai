@@ -266,62 +266,6 @@ with st.sidebar:
 # ── Main area ─────────────────────────────────────────────────
 selected_client = st.session_state.selected_client
 
-# Header
-col_title, col_actions = st.columns([4, 1])
-with col_title:
-    if selected_client:
-        regs = selected_client.get("regulations") or []
-        reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
-        st.markdown(f"## 💬 {selected_client['company_name']}")
-        st.caption(
-            f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
-            f"{selected_client.get('sector','')} · "
-            f"{selected_client.get('company_size','')} FTE · {reg_str}"
-        )
-    else:
-        st.markdown("## 💬 Compliance Chat")
-        st.caption("Select a client to start a compliance conversation.")
-
-with col_actions:
-    if selected_client and st.session_state.messages:
-        col_hist, col_clear = st.columns(2)
-        with col_hist:
-            if st.button("📋 History", key="btn_history", use_container_width=True):
-                st.session_state.show_history = not st.session_state.show_history
-        with col_clear:
-            if st.button("🗑️ Clear", key="btn_clear", use_container_width=True):
-                clear_chat_history(selected_client["id"], user_id)
-                st.session_state.messages = []
-                st.rerun()
-    elif selected_client:
-        if st.button("📋 History", key="btn_history_empty", use_container_width=True):
-            st.session_state.show_history = not st.session_state.show_history
-
-# ── Chat history panel ────────────────────────────────────────
-if st.session_state.show_history and selected_client:
-    with st.expander("📋 Previous conversations", expanded=True):
-        try:
-            history = load_chat_history(selected_client["id"], user_id)
-            if not history:
-                st.caption("No previous conversations for this client.")
-            else:
-                st.caption(f"{len(history)} messages in history for {selected_client['company_name']}.")
-                if st.button("📂 Load this conversation", type="primary", key="btn_load_hist"):
-                    st.session_state.messages = history
-                    st.session_state.show_history = False
-                    st.rerun()
-                # Preview last few exchanges
-                st.markdown("**Recent exchanges:**")
-                preview = history[-6:] if len(history) > 6 else history
-                for msg in preview:
-                    role_icon = "👤" if msg["role"] == "user" else "🛡️"
-                    content_preview = msg["content"][:120] + "..." if len(msg["content"]) > 120 else msg["content"]
-                    st.caption(f"{role_icon} {content_preview}")
-        except Exception as e:
-            st.error(f"Could not load history: {e}")
-
-st.divider()
-
 # ── No client selected ────────────────────────────────────────
 if not selected_client:
     st.markdown("""
@@ -333,18 +277,61 @@ if not selected_client:
     """, unsafe_allow_html=True)
     st.stop()
 
+# ── Client header + actions ───────────────────────────────────
+col_title, col_actions = st.columns([5, 1])
+with col_title:
+    regs = selected_client.get("regulations") or []
+    reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
+    st.markdown(f"### 💬 {selected_client['company_name']}")
+    st.caption(
+        f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
+        f"{selected_client.get('sector','')} · "
+        f"{selected_client.get('company_size','')} FTE · {reg_str}"
+    )
+with col_actions:
+    col_hist, col_clear = st.columns(2)
+    with col_hist:
+        if st.button("📋", key="btn_history", use_container_width=True, help="View history"):
+            st.session_state.show_history = not st.session_state.show_history
+    with col_clear:
+        if st.session_state.messages:
+            if st.button("🗑️", key="btn_clear", use_container_width=True, help="Clear chat"):
+                clear_chat_history(selected_client["id"], user_id)
+                st.session_state.messages = []
+                st.rerun()
+
+# ── History panel ─────────────────────────────────────────────
+if st.session_state.show_history:
+    with st.expander("📋 Previous conversations", expanded=True):
+        try:
+            history = load_chat_history(selected_client["id"], user_id)
+            if not history:
+                st.caption("No previous conversations for this client.")
+            else:
+                st.caption(f"{len(history)} messages saved for {selected_client['company_name']}.")
+                if st.button("📂 Load conversation", type="primary", key="btn_load_hist"):
+                    st.session_state.messages = history
+                    st.session_state.show_history = False
+                    st.rerun()
+                preview = history[-6:] if len(history) > 6 else history
+                for msg in preview:
+                    role_icon = "👤" if msg["role"] == "user" else "🛡️"
+                    content_preview = msg["content"][:120] + ("..." if len(msg["content"]) > 120 else "")
+                    st.caption(f"{role_icon} {content_preview}")
+        except Exception as e:
+            st.error(f"Could not load history: {e}")
+
 # ── Chat messages ─────────────────────────────────────────────
-# Show centered welcome when no messages yet
 if not st.session_state.messages:
     st.markdown(f"""
     <div class="empty-chat-wrapper">
         <div style="font-size:2rem;margin-bottom:1rem;">💬</div>
         <h3 style="color:#003366;font-weight:700;margin-bottom:0.5rem;">{selected_client['company_name']}</h3>
-        <p style="color:#64748B;max-width:420px;">Ask any compliance question about GDPR, NIS2, or the EU AI Act. I'll answer based on the regulatory knowledge base.</p>
+        <p style="color:#64748B;max-width:420px;">Ask any compliance question about GDPR, NIS2, or the EU AI Act.</p>
         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin-top:1rem;">
-            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;cursor:pointer;">What does GDPR say about data retention?</span>
-            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;cursor:pointer;">Are we subject to NIS2?</span>
-            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;cursor:pointer;">What is a DPIA and when is it required?</span>
+            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;">What does GDPR say about data retention?</span>
+            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;">Are we subject to NIS2?</span>
+            <span style="background:#F4F7FA;border:1px solid #E2E8F0;border-radius:20px;padding:0.4rem 0.9rem;font-size:0.85rem;color:#475569;">What is a DPIA and when is it required?</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
