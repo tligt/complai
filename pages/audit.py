@@ -1,16 +1,12 @@
 import os
 import streamlit as st
-from auth import init_auth, is_logged_in, get_user_id
+from auth import is_logged_in, get_user_id
 from database import load_clients
 from crawler import crawl, extract_domain
 from checklist import run_checklist, OK, WARN, FAIL
 from report import generate_pdf
 from email_sender import send_audit_report, is_free_email, extract_email_domain
 from database import upload_file, update_audit_path
-
-st.set_page_config(page_title="COMPLAI — Free Website Audit", page_icon="⚖️", layout="centered")
-
-init_auth()
 
 RISK_COLORS = {"Green": "#0F6E56", "Amber": "#BA7517", "Red": "#993C1D"}
 STATUS_EMOJI = {OK: "✅", WARN: "⚠️", FAIL: "❌"}
@@ -91,7 +87,7 @@ def render_results(audit_result, pdf_bytes, is_authenticated=False):
         st.download_button(
             label="📥 Download PDF Report",
             data=pdf_bytes,
-            file_name=f"COMPLAI_Audit_{audit_result.url.replace('https://','').replace('http://','')}.pdf",
+            file_name=f"RECOSA_Audit_{audit_result.url.replace('https://','').replace('http://','')}.pdf",
             mime="application/pdf",
             type="primary",
             use_container_width=True,
@@ -119,7 +115,7 @@ def render_results(audit_result, pdf_bytes, is_authenticated=False):
 
 # ── Page header ───────────────────────────────────────────────────────────────
 
-st.title("COMPLAI ⚖️ — Free Website Compliance Audit")
+st.title("RECOSA — Free Website Compliance Audit")
 st.markdown(
     "Check your website against **GDPR, ePrivacy, Accessibility, Consumer Rights, NIS2, and the EU AI Act** "
     "in minutes. Free, no registration required."
@@ -210,7 +206,7 @@ else:
             if check_email_domain_used(email_domain):
                 st.warning(
                     f"A free audit has already been requested for **{email_domain}**. "
-                    "Subscribe to COMPLAI to run fresh audits and access remediation guidance."
+                    "Subscribe to RECOSA to run fresh audits and access remediation guidance."
                 )
                 st.markdown(
                     '<a href="/" style="display:inline-block;background:#0F6E56;color:white;'
@@ -262,4 +258,4 @@ else:
                         render_results(audit_result, pdf_bytes, is_authenticated=False)
 
     st.divider()
-    st.caption("Already have an account? [Log in](/app) to run unlimited audits and access remediation guidance.")
+    st.caption("Already have an account? [Log in](/chat) to run unlimited audits and access remediation guidance.")

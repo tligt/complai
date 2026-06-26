@@ -9,7 +9,7 @@ from database import (
 )
 from auth import get_user_id
 
-st.title("📊 Compliance Dashboard")
+st.title("📊 Dashboard")
 st.caption("Your compliance status at a glance.")
 
 user_id = get_user_id()
@@ -296,4 +296,4 @@ with col3:
     st.markdown("**💬 AI Compliance Chat**")
     st.info("Ask any compliance question")
     if st.button("Open chat →"):
-        st.switch_page("pages/app.py")
+        st.switch_page("pages/chat.py")

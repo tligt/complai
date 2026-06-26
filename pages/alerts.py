@@ -1,20 +1,8 @@
 import streamlit as st
-from auth import init_auth, is_logged_in, login_ui, get_user_id
+from auth import get_user_id
 from database import load_client_alerts, mark_alert_read, count_unread_alerts
 from zoneinfo import ZoneInfo
 from datetime import datetime as _dt
-
-st.set_page_config(
-    page_title="COMPLAI — Regulatory Alerts",
-    page_icon="🔔",
-    layout="centered"
-)
-
-init_auth()
-
-if not is_logged_in():
-    login_ui()
-    st.stop()
 
 user_id = get_user_id()
 
