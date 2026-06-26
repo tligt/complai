@@ -105,10 +105,11 @@ init_auth()
 
 # ── Login screen ──────────────────────────────────────────────
 if not is_logged_in():
-    # Narrow centered layout for login
+    # Narrow centered layout for login — use width:0 not display:none
+    # display:none causes Streamlit to remember sidebar as collapsed in localStorage
     st.markdown("""
     <style>
-    [data-testid="stSidebar"] { display: none !important; }
+    [data-testid="stSidebar"] { width: 0 !important; min-width: 0 !important; overflow: hidden !important; }
     [data-testid="stSidebarCollapsedControl"] { display: none !important; }
     .main .block-container {
         max-width: 420px !important;
