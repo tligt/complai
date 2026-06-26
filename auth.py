@@ -9,9 +9,8 @@ def get_supabase() -> Client:
     if not url or not key:
         raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in secrets.")
     client = create_client(url, key)
-    # Inject access token if available to prevent JWT expiry errors
     try:
-        access_token = st.session_state.get("access_token")
+        access_token  = st.session_state.get("access_token")
         refresh_token = st.session_state.get("refresh_token")
         if access_token and refresh_token:
             client.auth.set_session(access_token, refresh_token)
@@ -29,15 +28,15 @@ def init_auth():
     if "refresh_token" not in st.session_state:
         st.session_state.refresh_token = None
 
-    # Try to refresh session if we have a refresh token but access token may be expired
+    # Refresh token on every load to prevent JWT expiry
     if st.session_state.get("refresh_token") and st.session_state.get("user"):
         try:
             supabase = get_supabase()
             res = supabase.auth.refresh_session(st.session_state.refresh_token)
             if res and res.session:
-                st.session_state.access_token = res.session.access_token
+                st.session_state.access_token  = res.session.access_token
                 st.session_state.refresh_token = res.session.refresh_token
-                st.session_state.user = res.user
+                st.session_state.user          = res.user
         except Exception:
             pass
 
@@ -47,23 +46,24 @@ def is_logged_in() -> bool:
 
 
 def login_ui():
-    """Render the login / signup screen. Returns True if just logged in."""
-    st.title("COMPLAI ⚖️")
-    st.caption("AI-powered compliance assistant for GDPR, NIS2, and the EU AI Act.")
-    st.divider()
-
+    """
+    Render a clean RECOSA login/signup form.
+    Called from app.py after centering CSS is applied.
+    No title or branding here — app.py handles that.
+    """
     tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
 
     with tab_login:
-        email = st.text_input("Email", key="login_email")
-        password = st.text_input("Password", type="password", key="login_password")
+        email    = st.text_input("Email", key="login_email", placeholder="you@company.com")
+        password = st.text_input("Password", type="password", key="login_password",
+                                  placeholder="Your password")
         if st.button("Log in", type="primary", use_container_width=True, key="btn_login"):
             if email and password:
                 try:
                     supabase = get_supabase()
                     res = supabase.auth.sign_in_with_password({"email": email, "password": password})
-                    st.session_state.user = res.user
-                    st.session_state.access_token = res.session.access_token
+                    st.session_state.user          = res.user
+                    st.session_state.access_token  = res.session.access_token
                     st.session_state.refresh_token = res.session.refresh_token
                     st.rerun()
                 except Exception as e:
@@ -72,9 +72,11 @@ def login_ui():
                 st.warning("Please enter your email and password.")
 
     with tab_signup:
-        new_email = st.text_input("Email", key="signup_email")
-        new_password = st.text_input("Password (min. 8 characters)", type="password", key="signup_password")
-        new_password2 = st.text_input("Confirm password", type="password", key="signup_password2")
+        new_email     = st.text_input("Email", key="signup_email", placeholder="you@company.com")
+        new_password  = st.text_input("Password (min. 8 characters)", type="password",
+                                       key="signup_password", placeholder="At least 8 characters")
+        new_password2 = st.text_input("Confirm password", type="password",
+                                       key="signup_password2", placeholder="Repeat password")
         if st.button("Create account", type="primary", use_container_width=True, key="btn_signup"):
             if not new_email or not new_password:
                 st.warning("Please fill in all fields.")
@@ -87,7 +89,7 @@ def login_ui():
                     supabase = get_supabase()
                     res = supabase.auth.sign_up({"email": new_email, "password": new_password})
                     if res.user:
-                        st.success("Account created. Please check your email to confirm, then log in.")
+                        st.success("Account created — check your email to confirm, then log in.")
                     else:
                         st.error("Sign up failed. Please try again.")
                 except Exception as e:
@@ -101,7 +103,8 @@ def logout():
         supabase.auth.sign_out()
     except Exception:
         pass
-    for key in ["user", "access_token", "refresh_token", "selected_client", "messages", "clients"]:
+    for key in ["user", "access_token", "refresh_token",
+                "selected_client", "messages", "clients"]:
         if key in st.session_state:
             del st.session_state[key]
     st.rerun()

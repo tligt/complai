@@ -146,51 +146,24 @@ if not is_logged_in():
     st.markdown("""
     <style>
     [data-testid="stSidebar"] { display: none !important; }
-    .main .block-container { max-width: 100% !important; padding: 0 !important; }
+    .main .block-container {
+        max-width: 440px !important;
+        padding: 4rem 1.5rem 2rem !important;
+        margin: 0 auto !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-    st.markdown('<div class="login-wrapper">', unsafe_allow_html=True)
+    # Logo + tagline
+    st.markdown("""
+    <div style="text-align:center;margin-bottom:2rem;">
+        <div style="font-size:2.2rem;font-weight:800;color:#003366;letter-spacing:-1px;">🛡️ RECOSA</div>
+        <div style="color:#64748B;font-size:0.95rem;margin-top:4px;">EU Regulatory Compliance for SMEs</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    with st.container():
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            st.markdown('<div class="login-card">', unsafe_allow_html=True)
-
-            # Logo + tagline
-            st.markdown('<div class="login-logo">🛡️ RECOSA</div>', unsafe_allow_html=True)
-            st.markdown('<div class="login-tagline">EU Regulatory Compliance for SMEs</div>', unsafe_allow_html=True)
-
-            # Login / signup tabs
-            tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
-
-            with tab_login:
-                from auth import login_ui
-                login_ui()
-
-            with tab_signup:
-                st.markdown("**Create your account**")
-                signup_email = st.text_input("Email", key="new_signup_email", placeholder="you@company.com")
-                signup_pwd   = st.text_input("Password", type="password", key="new_signup_pwd",
-                                              placeholder="At least 8 characters")
-                if st.button("Create account", type="primary", use_container_width=True, key="btn_new_signup"):
-                    if not signup_email or not signup_pwd:
-                        st.error("Please fill in all fields.")
-                    elif len(signup_pwd) < 8:
-                        st.error("Password must be at least 8 characters.")
-                    else:
-                        try:
-                            from supabase import create_client
-                            import os
-                            sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
-                            sb.auth.sign_up({"email": signup_email, "password": signup_pwd})
-                            st.success("Account created! Check your email to confirm, then log in.")
-                        except Exception as e:
-                            st.error(f"Could not create account: {e}")
-
-            st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('</div>', unsafe_allow_html=True)
+    from auth import login_ui
+    login_ui()
     st.stop()
 
 # ── Authenticated — define navigation ────────────────────────
