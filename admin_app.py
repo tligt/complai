@@ -21,9 +21,13 @@ if not is_admin(user_id):
     st.caption("If you believe this is an error, contact your system administrator.")
     st.stop()
 
-home       = st.Page("pages_admin/home.py",       title="Admin Home",        icon="⚙️",  default=True)
-dashboard  = st.Page("pages_admin/dashboard.py",  title="Client Dashboard",  icon="📊")
-monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",        icon="📡")
+home       = st.Page("pages_admin/home.py",       title="Admin Home",    icon="⚙️",  default=True)
+dashboard  = st.Page("pages_admin/dashboard.py",  title="Dashboard",     icon="📊")
+monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",    icon="📡")
+kb         = st.Page("pages_admin/kb.py",         title="Knowledge Base",icon="📚")
 
-pg = st.navigation({"Admin": [home, dashboard, monitoring]})
+pg = st.navigation({
+    "Admin": [home, dashboard],
+    "Content": [monitoring, kb],
+})
 pg.run()
