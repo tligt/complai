@@ -1,12 +1,14 @@
 import os
 import uuid
-import streamlit as st
 from datetime import datetime, timezone
 from supabase import create_client, Client
 
-# Sentinel UUID for system/monitoring processes (no authenticated user)
-# user_id column in usage_logs must be nullable for this to work:
-#   ALTER TABLE public.usage_logs ALTER COLUMN user_id DROP NOT NULL;
+# Lazy Streamlit import — only available in Streamlit UI context.
+# GitHub Actions cron scripts must not trigger this import.
+def _st():
+    import streamlit as st
+    return st
+
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 
@@ -15,7 +17,7 @@ def get_supabase() -> Client:
     key = os.environ.get("SUPABASE_KEY")
     client = create_client(url, key)
     # Pass the user's session token so RLS policies are applied correctly
-    token = st.session_state.get("access_token")
+    token = _st().session_state.get("access_token")
     if token:
         client.postgrest.auth(token)
     return client
@@ -34,7 +36,7 @@ def load_clients(user_id: str) -> list[dict]:
             .execute()
         return res.data or []
     except Exception as e:
-        st.error(f"Could not load clients: {e}")
+        _st().error(f"Could not load clients: {e}")
         return []
 
 
@@ -52,7 +54,7 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
         }).execute()
         return res.data[0] if res.data else None
     except Exception as e:
-        st.error(f"Could not create client: {e}")
+        _st().error(f"Could not create client: {e}")
         return None
 
 
@@ -69,7 +71,7 @@ def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
         }).eq("id", client_id).eq("user_id", user_id).execute()
         return True
     except Exception as e:
-        st.error(f"Could not update client: {e}")
+        _st().error(f"Could not update client: {e}")
         return False
 
 
@@ -84,7 +86,7 @@ def delete_client_record(client_id: str, user_id: str) -> bool:
             .execute()
         return True
     except Exception as e:
-        st.error(f"Could not delete client: {e}")
+        _st().error(f"Could not delete client: {e}")
         return False
 
 
@@ -102,7 +104,7 @@ def load_chat_history(client_id: str, user_id: str) -> list[dict]:
             .execute()
         return res.data or []
     except Exception as e:
-        st.error(f"Could not load chat history: {e}")
+        _st().error(f"Could not load chat history: {e}")
         return []
 
 
@@ -118,7 +120,7 @@ def save_message(client_id: str, user_id: str, role: str, content: str) -> bool:
         }).execute()
         return True
     except Exception as e:
-        st.error(f"Could not save message: {e}")
+        _st().error(f"Could not save message: {e}")
         return False
 
 
@@ -133,7 +135,7 @@ def clear_chat_history(client_id: str, user_id: str) -> bool:
             .execute()
         return True
     except Exception as e:
-        st.error(f"Could not clear chat history: {e}")
+        _st().error(f"Could not clear chat history: {e}")
         return False
 
 
@@ -192,7 +194,7 @@ def upload_file(bucket: str, path: str, file_bytes: bytes,
         )
         return path
     except Exception as e:
-        st.warning(f"Could not upload file to storage: {e}")
+        _st().warning(f"Could not upload file to storage: {e}")
         return None
 
 
@@ -203,7 +205,7 @@ def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str | None
         res = supabase.storage.from_(bucket).create_signed_url(path, expires_in)
         return res.get("signedURL") or res.get("signed_url")
     except Exception as e:
-        st.warning(f"Could not get signed URL: {e}")
+        _st().warning(f"Could not get signed URL: {e}")
         return None
 
 
@@ -230,7 +232,7 @@ def update_document_paths(doc_id: str, user_id: str,
             .execute()
         return True
     except Exception as e:
-        st.warning(f"Could not update document paths: {e}")
+        _st().warning(f"Could not update document paths: {e}")
         return False
 
 
@@ -244,7 +246,7 @@ def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
             .execute()
         return True
     except Exception as e:
-        st.warning(f"Could not update audit path: {e}")
+        _st().warning(f"Could not update audit path: {e}")
         return False
 
 
@@ -261,7 +263,7 @@ def load_document_files(user_id: str, client_id: str | None) -> list[dict]:
             q = q.eq("client_id", client_id)
         return q.execute().data or []
     except Exception as e:
-        st.warning(f"Could not load document history: {e}")
+        _st().warning(f"Could not load document history: {e}")
         return []
 
 
