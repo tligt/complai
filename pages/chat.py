@@ -238,6 +238,54 @@ with st.sidebar:
                 st.session_state.show_history = False
                 st.rerun()
 
+    # ── History panel in sidebar ──────────────────────────────
+    if st.session_state.show_history and st.session_state.selected_client:
+        st.divider()
+        st.markdown("**📋 History**")
+        try:
+            history = load_chat_history(st.session_state.selected_client["id"], user_id)
+            if not history:
+                st.caption("No saved conversations yet.")
+            else:
+                user_msgs = [m for m in history if m["role"] == "user"]
+                st.caption(f"{len(user_msgs)} questions · {len(history)} messages")
+
+                if st.button("📂 Load", type="primary", key="btn_load_hist",
+                              use_container_width=True):
+                    st.session_state.messages = history
+                    st.session_state.show_history = False
+                    st.rerun()
+
+                # Preview recent questions
+                for msg in reversed(user_msgs[-4:]):
+                    preview = msg["content"][:50] + ("…" if len(msg["content"]) > 50 else "")
+                    st.caption(f"👤 {preview}")
+
+                st.divider()
+                if st.button("🗑️ Delete history", key="btn_del_hist",
+                              use_container_width=True):
+                    st.session_state.confirm_delete = True
+
+                if st.session_state.get("confirm_delete"):
+                    st.warning("Permanently delete all messages?")
+                    col_yes, col_no = st.columns(2)
+                    with col_yes:
+                        if st.button("Delete", type="primary", key="btn_confirm_del",
+                                      use_container_width=True):
+                            clear_chat_history(
+                                st.session_state.selected_client["id"], user_id)
+                            st.session_state.messages = []
+                            st.session_state.confirm_delete = False
+                            st.session_state.show_history = False
+                            st.rerun()
+                    with col_no:
+                        if st.button("Cancel", key="btn_cancel_del",
+                                      use_container_width=True):
+                            st.session_state.confirm_delete = False
+                            st.rerun()
+        except Exception as e:
+            st.error(f"Could not load: {e}")
+
     # Add new client
     with st.expander("➕ New client"):
         nc_name = st.text_input("Company name", key="nc_name")
@@ -332,54 +380,6 @@ st.caption(
     f"{selected_client.get('company_size','')} FTE · {reg_str}"
 )
 
-# ── History panel ─────────────────────────────────────────────
-if st.session_state.show_history:
-    with st.expander("📋 Conversation history", expanded=True):
-        try:
-            history = load_chat_history(selected_client["id"], user_id)
-            if not history:
-                st.caption("No saved conversations for this client.")
-            else:
-                # Group into user messages for preview
-                user_msgs = [m for m in history if m["role"] == "user"]
-                st.caption(f"{len(history)} messages · {len(user_msgs)} questions asked")
-
-                col_load, col_delete = st.columns(2)
-                with col_load:
-                    if st.button("📂 Load conversation", type="primary",
-                                  key="btn_load_hist", use_container_width=True):
-                        st.session_state.messages = history
-                        st.session_state.show_history = False
-                        st.rerun()
-                with col_delete:
-                    if st.button("🗑️ Delete history", key="btn_del_hist",
-                                  use_container_width=True):
-                        st.session_state.confirm_delete = True
-
-                if st.session_state.get("confirm_delete"):
-                    st.warning("This will permanently delete all saved messages for this client.")
-                    col_yes, col_no = st.columns(2)
-                    with col_yes:
-                        if st.button("Yes, delete", type="primary", key="btn_confirm_del",
-                                      use_container_width=True):
-                            clear_chat_history(selected_client["id"], user_id)
-                            st.session_state.messages = []
-                            st.session_state.confirm_delete = False
-                            st.session_state.show_history = False
-                            st.rerun()
-                    with col_no:
-                        if st.button("Cancel", key="btn_cancel_del",
-                                      use_container_width=True):
-                            st.session_state.confirm_delete = False
-                            st.rerun()
-
-                # Preview recent exchanges
-                st.markdown("**Recent questions:**")
-                for msg in reversed(user_msgs[-5:]):
-                    preview = msg["content"][:80] + ("…" if len(msg["content"]) > 80 else "")
-                    st.caption(f"👤 {preview}")
-        except Exception as e:
-            st.error(f"Could not load history: {e}")
 # ── Answer helper ─────────────────────────────────────────────
 def handle_prompt(prompt: str):
     """Process a user prompt and generate an answer."""
