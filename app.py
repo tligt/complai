@@ -5,7 +5,7 @@ st.set_page_config(
     page_title="RECOSA",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 # ── RECOSA Brand CSS ──────────────────────────────────────────
@@ -144,7 +144,6 @@ init_auth()
 if not is_logged_in():
     st.markdown("""
     <style>
-    [data-testid="stSidebar"] { display: none !important; }
     .main .block-container {
         max-width: 440px !important;
         padding: 4rem 1.5rem 2rem !important;
@@ -168,10 +167,9 @@ if not is_logged_in():
 # ── Authenticated — define navigation ────────────────────────
 user_id = get_user_id()
 
-# Authenticated layout — restore sidebar, constrain content width
+# Constrain content width for authenticated pages
 st.markdown("""
 <style>
-[data-testid="stSidebar"] { display: flex !important; }
 .main .block-container {
     max-width: 1200px !important;
     padding: 2rem 2.5rem !important;
