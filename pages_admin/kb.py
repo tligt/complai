@@ -9,8 +9,10 @@ import streamlit as st
 from pypdf import PdfReader
 from database import get_supabase_admin
 from rag import (
-    Chunk, chunk_text, ingest_to_qdrant,
-    get_knowledge_base_summary, update_source_metadata, delete_source,
+    ingest_to_qdrant,
+    get_knowledge_base_summary,
+    update_source_metadata,
+    delete_source,
 )
 
 st.title("📚 Knowledge Base")
@@ -68,12 +70,23 @@ with tab_summary:
                 chunks  = item.get("chunks", 0)
                 reg     = item.get("parent_regulation", "—")
 
-                col_s, col_r, col_l, col_c, col_ch = st.columns([4, 2, 1, 1, 1])
+                col_s, col_r, col_l, col_c, col_ch, col_date = st.columns([4, 2, 1, 1, 1, 2])
                 col_s.caption(f"📄 {source}")
                 col_r.caption(reg)
                 col_l.caption(lang)
                 col_c.caption(country)
                 col_ch.caption(f"{chunks} chunks")
+                detected = item.get("detected_at", "")
+                if detected:
+                    try:
+                        from zoneinfo import ZoneInfo
+                        from datetime import datetime as _dt
+                        dt = _dt.fromisoformat(detected.replace("Z", "+00:00"))
+                        col_date.caption(dt.astimezone(ZoneInfo("Europe/Brussels")).strftime("%d %b %Y"))
+                    except Exception:
+                        col_date.caption(str(detected)[:10])
+                else:
+                    col_date.caption("—")
 
     except Exception as e:
         st.error(f"Could not load KB summary: {e}")
@@ -124,22 +137,16 @@ with tab_upload:
                     if not text.strip():
                         st.error("No text found in file.")
                     else:
-                        raw_chunks = chunk_text(text)
-                        chunks = [
-                            Chunk(
-                                text=c,
-                                source=source_name.strip(),
-                                language=language,
-                                country=country,
-                                doc_type=doc_type,
-                                parent_regulation=parent_reg,
-                            )
-                            for c in raw_chunks
-                        ]
-
-                        result = ingest_to_qdrant(chunks)
+                        result = ingest_to_qdrant(
+                            text=text,
+                            source=source_name.strip(),
+                            language=language,
+                            country=country,
+                            doc_type=doc_type,
+                            parent_regulation=parent_reg,
+                        )
                         if result:
-                            st.success(f"✅ Ingested {len(chunks)} chunks for '{source_name}'")
+                            st.success(f"✅ Ingested {result} chunks for '{source_name}'")
                         else:
                             st.error("Ingestion failed — check Qdrant connection.")
 
