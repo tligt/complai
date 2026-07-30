@@ -614,15 +614,28 @@ with tab_mkt:
                                          ).isoformat(),
                         "status":       "pending",
                     }
-                    result = save_marketing_update(manual_item)
+                    # TEMPORARY: raw insert with full error surfacing, since
+                    # save_marketing_update() swallows the real exception
+                    # whenever "unique" or "duplicate" appears anywhere in
+                    # the error text, which can mask unrelated DB errors.
+                    # Revert to save_marketing_update(manual_item) once the
+                    # actual cause is confirmed.
+                    try:
+                        raw_result = get_supabase_admin().table("marketing_updates") \
+                            .insert(manual_item).execute()
+                        result = raw_result.data[0]["id"] if raw_result.data else None
+                    except Exception as e:
+                        result = None
+                        st.error(f"Actual database error: {e}")
+
                     if result:
                         st.success("Added — review it below in the pending queue.")
                         st.session_state["m2_slug_input"] = ""
                         st.session_state["m2_body_plain"] = ""
                         st.session_state["m2_body_md_edit"] = ""
                         st.rerun()
-                    else:
-                        st.error("Could not add item (may be a duplicate URL, or a save error).")
+                    elif not result:
+                        st.error("Could not add item — see error above if shown, otherwise the insert silently returned no data.")
 
     # ── Marketing review feed ─────────────────────────────────
     st.subheader("Pending marketing items")
