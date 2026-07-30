@@ -273,7 +273,7 @@ with tab_reg:
             with col_m1:
                 m_source = st.text_input("Source *", placeholder="e.g. CCB")
                 m_url = st.text_input("Source URL", placeholder="https://...")
-                m_lang = st.selectbox("Language", ["en", "fr", "nl"])
+                m_lang = st.selectbox("Language", ["en", "fr", "nl", "de", "es"])
             with col_m2:
                 m_severity = st.selectbox("Severity", ["info", "important", "urgent"])
                 m_regs_raw = st.text_input("Regulations (comma-separated)",
@@ -536,7 +536,7 @@ with tab_mkt:
                                         key="m2_source")
             m2_category = st.text_input("Category", placeholder="e.g. GDPR, NIS2, EU AI Act",
                                           key="m2_category")
-            m2_lang = st.selectbox("Language", ["en", "fr", "nl"], key="m2_lang")
+            m2_lang = st.selectbox("Language", ["en", "fr", "nl", "de", "es"], key="m2_lang")
         with col_m2b:
             m2_severity = st.selectbox("Severity", ["info", "important", "urgent"], key="m2_severity")
             m2_url = st.text_input("External source URL (leave blank for RECOSA-authored pieces)",
@@ -614,28 +614,19 @@ with tab_mkt:
                                          ).isoformat(),
                         "status":       "pending",
                     }
-                    # TEMPORARY: raw insert with full error surfacing, since
-                    # save_marketing_update() swallows the real exception
-                    # whenever "unique" or "duplicate" appears anywhere in
-                    # the error text, which can mask unrelated DB errors.
-                    # Revert to save_marketing_update(manual_item) once the
-                    # actual cause is confirmed.
-                    try:
-                        raw_result = get_supabase_admin().table("marketing_updates") \
-                            .insert(manual_item).execute()
-                        result = raw_result.data[0]["id"] if raw_result.data else None
-                    except Exception as e:
-                        result = None
-                        st.error(f"Actual database error: {e}")
-
+                    result = save_marketing_update(manual_item)
                     if result:
                         st.success("Added — review it below in the pending queue.")
                         st.session_state["m2_slug_input"] = ""
                         st.session_state["m2_body_plain"] = ""
                         st.session_state["m2_body_md_edit"] = ""
                         st.rerun()
-                    elif not result:
-                        st.error("Could not add item — see error above if shown, otherwise the insert silently returned no data.")
+                    else:
+                        st.error(
+                            "Could not add item — likely a duplicate URL, or (if url "
+                            "was left blank) check that the 'url DROP NOT NULL' "
+                            "migration has been applied to marketing_updates."
+                        )
 
     # ── Marketing review feed ─────────────────────────────────
     st.subheader("Pending marketing items")
@@ -796,10 +787,12 @@ with tab_mkt:
                             key=f"mkt_body_{u['id']}",
                         )
 
+                        lang_options = ["en", "fr", "nl", "de", "es"]
+                        current_lang = u.get("language", "en")
                         edited_lang = st.selectbox(
                             "Language",
-                            ["en", "fr", "nl"],
-                            index=["en", "fr", "nl"].index(u.get("language", "en")),
+                            lang_options,
+                            index=lang_options.index(current_lang) if current_lang in lang_options else 0,
                             key=f"mkt_lang_{u['id']}",
                         )
 
