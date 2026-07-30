@@ -2,7 +2,7 @@ import time
 import json
 import requests
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timezone
 
 from database import (
     # Regulatory
@@ -26,9 +26,49 @@ from database import (
     load_monitor_runs,
     get_supabase_admin,
 )
+from slug_generation import slugify
 
 st.title("📡 Monitoring")
 st.caption("Regulatory and marketing monitoring — review, approve, and publish.")
+
+
+# ── Freshness gating helper ─────────────────────────────────────
+# Applies to the "Publish to Compliance Pulse" and "Send email alert"
+# controls only. Does NOT affect KB ingestion — old-but-valid
+# regulatory content is still useful in the knowledge base regardless
+# of age.
+
+FRESHNESS_THRESHOLD_DAYS = 21  # adjust as needed
+
+
+def compute_age_days(published_at: str | None) -> int | None:
+    """Returns age in days from published_at to now, or None if missing/invalid."""
+    if not published_at:
+        return None
+    try:
+        pub_dt = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+        if pub_dt.tzinfo is None:
+            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        return (now - pub_dt).days
+    except Exception:
+        return None
+
+
+def freshness_status(published_at: str | None) -> dict:
+    """
+    Returns {"is_fresh": bool, "age_days": int|None, "reason": str|None}
+
+    is_fresh=False means the Pulse/alert controls should be gated
+    (disabled by default, with a manual override available).
+    """
+    age_days = compute_age_days(published_at)
+    if age_days is None:
+        return {"is_fresh": False, "age_days": None, "reason": "No publish date on record"}
+    if age_days > FRESHNESS_THRESHOLD_DAYS:
+        return {"is_fresh": False, "age_days": age_days,
+                 "reason": f"Published {age_days} days ago (over {FRESHNESS_THRESHOLD_DAYS}-day freshness threshold)"}
+    return {"is_fresh": True, "age_days": age_days, "reason": None}
 
 
 # ── LinkedIn draft generation (defined before tabs so it's available) ─────────
@@ -137,88 +177,20 @@ with tab_reg:
 
             with st.spinner("Running regulatory monitoring..."):
                 try:
-                    # Import here to avoid circular issues at module level
                     from monitor import run_monitoring
-                    # Capture stdout by running inline with live logging
-
-                    sources = load_monitoring_sources(monitor_type="regulatory")
-                    log(f"Loaded {len(sources)} active regulatory sources.")
-
-                    from monitor import (
-                        parse_rss, parse_scrape,
-                        summarise_and_categorise,
+                    result = run_monitoring(triggered_by="manual")
+                    log(f"DONE — Fetched: {result.get('fetched', 0)} | "
+                        f"New: {result.get('saved', 0)} | "
+                        f"Flagged: {result.get('flagged', 0)} | "
+                        f"Duplicates: {result.get('skipped', 0)} | "
+                        f"Errors: {result.get('errors', 0)}")
+                    st.success(
+                        f"Regulatory monitoring complete — "
+                        f"{result.get('saved', 0)} new items saved"
+                        + (f", {result.get('flagged', 0)} flagged for review"
+                           if result.get('flagged') else "")
+                        + "."
                     )
-                    from database import (
-                        save_regulatory_update,
-                        log_token_usage,
-                        start_monitor_run,
-                        complete_monitor_run,
-                    )
-
-                    SYSTEM_UUID = "00000000-0000-0000-0000-000000000000"
-                    run_id = start_monitor_run("regulatory", triggered_by="manual")
-
-                    total_fetched = total_saved = total_skipped = total_errors = 0
-                    total_in = total_out = 0
-                    source_stats = []
-
-                    for source in sources:
-                        log(f"\nFetching {source['name']}...")
-                        stat = {"name": source["name"], "fetched": 0, "saved": 0, "skipped": 0, "error": None}
-                        try:
-                            if source.get("fetch_type") == "scrape":
-                                items = parse_scrape(source["url"], source)
-                            else:
-                                items = parse_rss(source["url"], source)
-
-                            log(f"  {len(items)} items fetched")
-                            stat["fetched"] = len(items)
-                            total_fetched += len(items)
-
-                            if items:
-                                enriched, inp, out = summarise_and_categorise(items, source, api_key)
-                                total_in += inp; total_out += out
-                                log(f"  {len(enriched)} relevant after analysis")
-                                for item in enriched:
-                                    res = save_regulatory_update(item)
-                                    if res:
-                                        total_saved += 1; stat["saved"] += 1
-                                        log(f"  ✅ {item['title'][:55]}")
-                                    else:
-                                        total_skipped += 1; stat["skipped"] += 1
-                                        log(f"  ⤷ Duplicate: {item['title'][:55]}")
-                        except Exception as e:
-                            stat["error"] = str(e)
-                            total_errors += 1
-                            log(f"  ❌ Error: {e}")
-
-                        source_stats.append(stat)
-
-                    if total_in + total_out > 0:
-                        log_token_usage(
-                            user_id=SYSTEM_UUID,
-                            feature="monitoring_summarise",
-                            input_tokens=total_in,
-                            output_tokens=total_out,
-                        )
-
-                    token_usage = {
-                        "input": total_in, "output": total_out,
-                        "cost_usd": round((total_in/1_000_000)*2.00 + (total_out/1_000_000)*6.00, 6),
-                    }
-
-                    if run_id:
-                        complete_monitor_run(
-                            run_id, total_fetched, total_saved,
-                            total_skipped, total_errors,
-                            source_stats, token_usage,
-                        )
-
-                    log(f"\n{'='*50}")
-                    log(f"DONE — Fetched: {total_fetched} | New: {total_saved} | "
-                        f"Duplicates: {total_skipped} | Errors: {total_errors}")
-                    log(f"Tokens: {total_in} in / {total_out} out — ${token_usage['cost_usd']:.4f}")
-                    st.success(f"Regulatory monitoring complete — {total_saved} new items saved.")
                     st.rerun()
 
                 except Exception as e:
@@ -231,7 +203,7 @@ with tab_reg:
 
     status_filter = st.selectbox(
         "Filter by status",
-        ["pending", "approved", "rejected", "all"],
+        ["pending", "url_flagged", "approved", "rejected", "all"],
         index=0,
         key="reg_status_filter",
     )
@@ -246,7 +218,7 @@ with tab_reg:
         st.caption(f"{len(updates)} items")
         for u in updates:
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
-            status_icon   = {"pending": "⏳", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
+            status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
 
             with st.expander(
                 f"{severity_icon} {status_icon} {u.get('title', 'Untitled')} — {u.get('source', '')}",
@@ -257,36 +229,79 @@ with tab_reg:
                     st.markdown(f"**Summary:** {u.get('summary', '—')}")
                     regs = ", ".join(u.get("regulations") or [])
                     countries = ", ".join(u.get("countries") or [])
-                    st.caption(f"Regulations: {regs} · Countries: {countries}")
+                    lang = u.get("language", "en")
+                    st.caption(f"Regulations: {regs} · Countries: {countries} · Language: {lang}")
                     if u.get("action_required"):
                         st.warning(f"⚡ Action required: {u.get('action_description', '')}")
+                    if u.get("status") == "url_flagged":
+                        st.error(f"⚠️ URL issue: {u.get('url_check_reason', 'unknown reason')}")
                     if u.get("url"):
                         st.markdown(f"[🔗 Source]({u['url']})")
                     detected = u.get("detected_at", "")[:10] if u.get("detected_at") else "—"
                     st.caption(f"Detected: {detected}")
 
                 with col_b:
-                    if u.get("status") == "pending":
+                    if u.get("status") in ("pending", "url_flagged"):
+                        if u.get("status") == "url_flagged":
+                            fixed_url = st.text_input(
+                                "Corrected URL (leave blank to publish without a source link)",
+                                value="", key=f"fix_url_{u['id']}",
+                            )
+
                         severity_choice = st.selectbox(
                             "Severity",
                             ["info", "important", "urgent"],
                             index=["info", "important", "urgent"].index(u.get("severity", "info")),
                             key=f"sev_{u['id']}",
                         )
-                        send_email = st.checkbox("Send email alert", key=f"email_{u['id']}")
-                        publish_pulse = st.checkbox("Publish to Compliance Pulse", key=f"pulse_{u['id']}")
+
+                        fresh = freshness_status(u.get("published_at"))
+                        if not fresh["is_fresh"]:
+                            st.warning(f"⚠️ {fresh['reason']} — Pulse/alert options disabled below.")
+                            override = st.checkbox(
+                                "Publish/alert anyway (override freshness check)",
+                                key=f"override_{u['id']}",
+                            )
+                        else:
+                            override = True
+
+                        controls_enabled = fresh["is_fresh"] or override
+
+                        send_email = st.checkbox(
+                            "Send email alert", key=f"email_{u['id']}",
+                            disabled=not controls_enabled,
+                        )
+                        publish_pulse = st.checkbox(
+                            "Publish to Compliance Pulse", key=f"pulse_{u['id']}",
+                            disabled=not controls_enabled,
+                        )
 
                         col_approve, col_reject = st.columns(2)
                         with col_approve:
                             if st.button("✅ Approve", key=f"approve_{u['id']}", use_container_width=True):
                                 user_id = st.session_state.get("user_id", "admin")
-                                approve_regulatory_update(u["id"], user_id, severity_choice, send_email)
-                                if publish_pulse:
+
+                                update_fields = {}
+                                if u.get("status") == "url_flagged":
+                                    if fixed_url.strip():
+                                        update_fields["url"] = fixed_url.strip()
+                                        update_fields["status"] = "pending"
+                                    else:
+                                        update_fields["url"] = None
+                                        update_fields["status"] = "pending"
+                                    get_supabase_admin().table("regulatory_updates").update(
+                                        update_fields
+                                    ).eq("id", u["id"]).execute()
+
+                                approve_regulatory_update(u["id"], user_id, severity_choice, send_email and controls_enabled)
+                                if publish_pulse and controls_enabled:
                                     get_supabase_admin().table("regulatory_updates").update(
                                         {"published_to_pulse": True}
                                     ).eq("id", u["id"]).execute()
                                 create_client_alerts(u["id"], u)
-                                # Ingest to Qdrant
+                                # Ingest to Qdrant — always happens regardless of
+                                # freshness, since old-but-valid content is still
+                                # useful in the knowledge base
                                 result = ingest_alert_to_qdrant(u)
                                 if result.get("success"):
                                     mark_alert_ingested(u["id"], result["chunks_ingested"])
@@ -300,8 +315,27 @@ with tab_reg:
                         st.success("Approved")
                         kb = "✅" if u.get("kb_ingested") else "⏳"
                         st.caption(f"KB ingested: {kb}")
-                        pulse = "✅" if u.get("published_to_pulse") else "—"
-                        st.caption(f"Compliance Pulse: {pulse}")
+
+                        # ── Publish-to-Pulse edit/unpublish toggle ──────
+                        current_pulse = u.get("published_to_pulse", False)
+                        new_pulse = st.checkbox(
+                            "Published to Compliance Pulse",
+                            value=current_pulse,
+                            key=f"pulse_edit_{u['id']}",
+                        )
+                        if new_pulse != current_pulse:
+                            if st.button(
+                                "💾 Update Pulse status",
+                                key=f"pulse_save_{u['id']}",
+                                use_container_width=True,
+                            ):
+                                get_supabase_admin().table("regulatory_updates").update(
+                                    {"published_to_pulse": new_pulse}
+                                ).eq("id", u["id"]).execute()
+                                st.success(
+                                    "Published to Pulse." if new_pulse else "Unpublished from Pulse."
+                                )
+                                st.rerun()
 
                         # LinkedIn draft generation
                         draft_key = f"li_draft_{u['id']}"
@@ -348,8 +382,10 @@ with tab_mkt:
                 result = run_marketing_monitoring(triggered_by="manual")
                 st.success(
                     f"Marketing monitoring complete — "
-                    f"{result.get('saved', 0)} new items saved, "
-                    f"{result.get('skipped', 0)} duplicates."
+                    f"{result.get('saved', 0)} new items saved"
+                    + (f", {result.get('flagged', 0)} flagged for review"
+                       if result.get('flagged') else "")
+                    + f", {result.get('skipped', 0)} duplicates."
                 )
                 st.rerun()
             except Exception as e:
@@ -364,7 +400,7 @@ with tab_mkt:
     with col_f1:
         mkt_status = st.selectbox(
             "Filter by status",
-            ["pending", "approved", "rejected", "all"],
+            ["pending", "url_flagged", "approved", "rejected", "all"],
             index=0,
             key="mkt_status_filter",
         )
@@ -385,7 +421,7 @@ with tab_mkt:
         st.caption(f"{len(mkt_updates)} items")
         for u in mkt_updates:
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
-            status_icon   = {"pending": "⏳", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
+            status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
             cat_badge     = f"[{u.get('category', '')}] " if u.get("category") else ""
 
             with st.expander(
@@ -397,18 +433,58 @@ with tab_mkt:
                     st.markdown(f"**Summary:** {u.get('summary', '—')}")
                     if u.get("relevance_reason"):
                         st.caption(f"💡 Relevance: {u['relevance_reason']}")
+                    lang = u.get("language", "en")
+                    st.caption(f"Language: {lang}")
+                    if u.get("status") == "url_flagged":
+                        st.error(f"⚠️ URL issue: {u.get('url_check_reason', 'unknown reason')}")
                     if u.get("url"):
                         st.markdown(f"[🔗 Source]({u['url']})")
                     created = u.get("created_at", "")[:10] if u.get("created_at") else "—"
                     st.caption(f"Detected: {created}")
 
                 with col_b:
-                    if u.get("status") == "pending":
-                        publish_pulse = st.checkbox("Publish to Compliance Pulse", key=f"mkt_pulse_{u['id']}")
+                    if u.get("status") in ("pending", "url_flagged"):
+                        if u.get("status") == "url_flagged":
+                            fixed_url = st.text_input(
+                                "Corrected URL (leave blank to publish without a source link)",
+                                value="", key=f"mkt_fix_url_{u['id']}",
+                            )
+
+                        fresh = freshness_status(u.get("published_at") or u.get("created_at"))
+                        if not fresh["is_fresh"]:
+                            st.warning(f"⚠️ {fresh['reason']} — Pulse publishing disabled below.")
+                            mkt_override = st.checkbox(
+                                "Publish anyway (override freshness check)",
+                                key=f"mkt_override_{u['id']}",
+                            )
+                        else:
+                            mkt_override = True
+
+                        mkt_controls_enabled = fresh["is_fresh"] or mkt_override
+
+                        publish_pulse = st.checkbox(
+                            "Publish to Compliance Pulse", key=f"mkt_pulse_{u['id']}",
+                            disabled=not mkt_controls_enabled,
+                        )
+
                         col_a2, col_r2 = st.columns(2)
                         with col_a2:
                             if st.button("✅ Approve", key=f"mkt_approve_{u['id']}", use_container_width=True):
-                                approve_marketing_update(u["id"], publish_to_pulse=publish_pulse)
+                                update_fields = {}
+                                if u.get("status") == "url_flagged":
+                                    if fixed_url.strip():
+                                        update_fields["url"] = fixed_url.strip()
+                                    else:
+                                        update_fields["url"] = None
+                                    update_fields["status"] = "pending"
+                                    get_supabase_admin().table("marketing_updates").update(
+                                        update_fields
+                                    ).eq("id", u["id"]).execute()
+
+                                approve_marketing_update(
+                                    u["id"],
+                                    publish_to_pulse=publish_pulse and mkt_controls_enabled,
+                                )
                                 st.rerun()
                         with col_r2:
                             if st.button("❌ Reject", key=f"mkt_reject_{u['id']}", use_container_width=True):
@@ -417,8 +493,97 @@ with tab_mkt:
 
                     elif u.get("status") == "approved":
                         st.success("Approved")
-                        pulse = "✅" if u.get("published_to_pulse") else "—"
-                        st.caption(f"Compliance Pulse: {pulse}")
+
+                        # ── Publish-to-Pulse edit/unpublish toggle ──────
+                        mkt_current_pulse = u.get("published_to_pulse", False)
+                        mkt_new_pulse = st.checkbox(
+                            "Published to Compliance Pulse",
+                            value=mkt_current_pulse,
+                            key=f"mkt_pulse_edit_{u['id']}",
+                        )
+                        if mkt_new_pulse != mkt_current_pulse:
+                            if st.button(
+                                "💾 Update Pulse status",
+                                key=f"mkt_pulse_save_{u['id']}",
+                                use_container_width=True,
+                            ):
+                                get_supabase_admin().table("marketing_updates").update(
+                                    {"published_to_pulse": mkt_new_pulse}
+                                ).eq("id", u["id"]).execute()
+                                st.success(
+                                    "Published to Pulse." if mkt_new_pulse else "Unpublished from Pulse."
+                                )
+                                st.rerun()
+
+                        st.divider()
+
+                        # ── Article detail-page fields ──────────────────
+                        # Only relevant for RECOSA-authored pieces that
+                        # should get their own /pulse/{slug} page rather
+                        # than just a card teaser with a dead "Read more".
+                        st.markdown("**Full article (optional)**")
+                        st.caption(
+                            "Fill in to give this item its own detail page at "
+                            "recosa.eu/pulse/{slug}. Leave blank to keep it as a "
+                            "card-only teaser with no 'Read more' link."
+                        )
+
+                        slug_state_key = f"mkt_slug_suggested_{u['id']}"
+                        if slug_state_key not in st.session_state:
+                            st.session_state[slug_state_key] = u.get("slug") or slugify(u.get("title", ""))
+
+                        edited_slug = st.text_input(
+                            "URL slug",
+                            value=st.session_state[slug_state_key],
+                            key=f"mkt_slug_input_{u['id']}",
+                            help="Used in the article URL: recosa.eu/pulse/{slug}",
+                        )
+                        if st.button("↻ Regenerate slug from title", key=f"mkt_regen_slug_{u['id']}"):
+                            st.session_state[slug_state_key] = slugify(u.get("title", ""))
+                            st.rerun()
+
+                        edited_body = st.text_area(
+                            "Article body (Markdown)",
+                            value=u.get("body_content") or "",
+                            height=200,
+                            key=f"mkt_body_{u['id']}",
+                        )
+
+                        edited_lang = st.selectbox(
+                            "Language",
+                            ["en", "fr", "nl"],
+                            index=["en", "fr", "nl"].index(u.get("language", "en")),
+                            key=f"mkt_lang_{u['id']}",
+                        )
+
+                        if st.button("💾 Save article content", key=f"mkt_save_article_{u['id']}"):
+                            final_slug = edited_slug.strip() or None
+                            save_fields = {
+                                "body_content": edited_body.strip() or None,
+                                "language": edited_lang,
+                            }
+                            if final_slug:
+                                # Check uniqueness (excluding this item itself)
+                                existing = get_supabase_admin().table("marketing_updates") \
+                                    .select("id").eq("slug", final_slug).execute()
+                                conflict = any(row["id"] != u["id"] for row in (existing.data or []))
+                                if conflict:
+                                    st.error(f"Slug '{final_slug}' is already in use by another item.")
+                                else:
+                                    save_fields["slug"] = final_slug
+                                    get_supabase_admin().table("marketing_updates").update(
+                                        save_fields
+                                    ).eq("id", u["id"]).execute()
+                                    st.success("Article content saved.")
+                                    st.rerun()
+                            else:
+                                get_supabase_admin().table("marketing_updates").update(
+                                    save_fields
+                                ).eq("id", u["id"]).execute()
+                                st.success("Article content saved.")
+                                st.rerun()
+
+                        st.divider()
 
                         # LinkedIn draft
                         mkt_draft_key = f"mkt_li_draft_{u['id']}"
