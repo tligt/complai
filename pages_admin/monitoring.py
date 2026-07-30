@@ -243,10 +243,14 @@ with tab_reg:
                 with col_b:
                     if u.get("status") in ("pending", "url_flagged"):
                         if u.get("status") == "url_flagged":
-                            fixed_url = st.text_input(
-                                "Corrected URL (leave blank to publish without a source link)",
-                                value="", key=f"fix_url_{u['id']}",
-                            )
+                            st.error(f"⚠️ URL issue: {u.get('url_check_reason', 'unknown reason')}")
+
+                        current_url = u.get("url") or ""
+                        edited_url = st.text_input(
+                            "Source URL (edit or clear to publish without a source link)",
+                            value=current_url,
+                            key=f"fix_url_{u['id']}",
+                        )
 
                         severity_choice = st.selectbox(
                             "Severity",
@@ -281,16 +285,14 @@ with tab_reg:
                             if st.button("✅ Approve", key=f"approve_{u['id']}", use_container_width=True):
                                 user_id = st.session_state.get("user_id", "admin")
 
-                                update_fields = {}
-                                if u.get("status") == "url_flagged":
-                                    if fixed_url.strip():
-                                        update_fields["url"] = fixed_url.strip()
-                                        update_fields["status"] = "pending"
-                                    else:
-                                        update_fields["url"] = None
-                                        update_fields["status"] = "pending"
+                                new_url = edited_url.strip()
+                                if new_url != current_url:
                                     get_supabase_admin().table("regulatory_updates").update(
-                                        update_fields
+                                        {"url": new_url or None}
+                                    ).eq("id", u["id"]).execute()
+                                if u.get("status") == "url_flagged":
+                                    get_supabase_admin().table("regulatory_updates").update(
+                                        {"status": "pending"}
                                     ).eq("id", u["id"]).execute()
 
                                 approve_regulatory_update(u["id"], user_id, severity_choice, send_email and controls_enabled)
@@ -445,10 +447,14 @@ with tab_mkt:
                 with col_b:
                     if u.get("status") in ("pending", "url_flagged"):
                         if u.get("status") == "url_flagged":
-                            fixed_url = st.text_input(
-                                "Corrected URL (leave blank to publish without a source link)",
-                                value="", key=f"mkt_fix_url_{u['id']}",
-                            )
+                            st.error(f"⚠️ URL issue: {u.get('url_check_reason', 'unknown reason')}")
+
+                        mkt_current_url = u.get("url") or ""
+                        mkt_edited_url = st.text_input(
+                            "Source URL (edit or clear to publish without a source link)",
+                            value=mkt_current_url,
+                            key=f"mkt_fix_url_{u['id']}",
+                        )
 
                         fresh = freshness_status(u.get("published_at") or u.get("created_at"))
                         if not fresh["is_fresh"]:
@@ -470,15 +476,14 @@ with tab_mkt:
                         col_a2, col_r2 = st.columns(2)
                         with col_a2:
                             if st.button("✅ Approve", key=f"mkt_approve_{u['id']}", use_container_width=True):
-                                update_fields = {}
-                                if u.get("status") == "url_flagged":
-                                    if fixed_url.strip():
-                                        update_fields["url"] = fixed_url.strip()
-                                    else:
-                                        update_fields["url"] = None
-                                    update_fields["status"] = "pending"
+                                mkt_new_url = mkt_edited_url.strip()
+                                if mkt_new_url != mkt_current_url:
                                     get_supabase_admin().table("marketing_updates").update(
-                                        update_fields
+                                        {"url": mkt_new_url or None}
+                                    ).eq("id", u["id"]).execute()
+                                if u.get("status") == "url_flagged":
+                                    get_supabase_admin().table("marketing_updates").update(
+                                        {"status": "pending"}
                                     ).eq("id", u["id"]).execute()
 
                                 approve_marketing_update(
