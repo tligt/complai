@@ -23,6 +23,7 @@ from database import (
     start_monitor_run,
     complete_monitor_run,
 )
+from url_validation import validate_items_urls
 
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 MISTRAL_API_BASE = "https://api.mistral.ai/v1"
@@ -44,7 +45,24 @@ def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict
     prompt = (
         f"{query}\n\n"
         f"Search for the most recent news articles about this topic from the past 48 hours. "
-        f"Focus on EU, Belgium, and France. "
+        f"Focus on EU, Belgium, and France.\n\n"
+        f"SOURCE QUALITY RULES:\n"
+        f"- Prefer articles from the original publishing outlet (e.g. Le Monde, "
+        f"Le Soir, De Tijd, La Libre, national/EU official press pages) over wire "
+        f"service syndication pages (e.g. AFP, Reuters newsroom, AP newsroom). "
+        f"Wire services are meant for licensing by other outlets, not direct "
+        f"public access, and their pages are often unreadable, paywalled, or "
+        f"just the homepage even when the URL loads.\n"
+        f"- If you find a story only via a wire service, search again for the "
+        f"same story republished by an accessible outlet and use that URL "
+        f"instead. If no accessible republication exists, skip the story "
+        f"rather than link the wire service page or its homepage.\n"
+        f"- Only return a URL you have directly retrieved and read content "
+        f"from in this search. Never construct, guess, or infer a URL from a "
+        f"domain pattern, and never fall back to a domain's homepage as a "
+        f"substitute for the actual article URL. If you are not certain a URL "
+        f"is exactly correct, omit that article entirely rather than "
+        f"approximate the link.\n\n"
         f"Return results as a JSON array:\n"
         f'[{{"title":"...","url":"...","description":"...","published_date":"YYYY-MM-DD"}}]'
     )
@@ -238,11 +256,16 @@ def analyse_for_marketing(
             '  "relevance_reason": "one sentence",\n'
             '  "summary": "2-3 sentence summary for EU compliance professionals",\n'
             '  "severity": "info|important|urgent",\n'
-            '  "content_angle": "enforcement|policy|guidance|market|tech|other"\n'
+            '  "content_angle": "enforcement|policy|guidance|market|tech|other",\n'
+            '  "language": "en|fr|nl"\n'
             "}\n\n"
             "relevant: true if useful for understanding the EU compliance landscape, "
             "competitor intelligence, or LinkedIn content for SME compliance officers.\n"
-            "relevant: false for generic tech, US-only news, sports, or entertainment."
+            "relevant: false for generic tech, US-only news, sports, or entertainment.\n\n"
+            "language: the language of the ORIGINAL source article/title/content you "
+            "were given (not the language of your summary, which should always be "
+            "written in English regardless). Use 'fr' for French, 'nl' for Dutch/Flemish, "
+            "'en' for English. If genuinely unclear, default to 'en'."
         )
 
         user_prompt = (
@@ -287,6 +310,10 @@ def analyse_for_marketing(
             if not analysis.get("relevant", False):
                 continue
 
+            lang = analysis.get("language", "en")
+            if lang not in ("en", "fr", "nl"):
+                lang = "en"
+
             results.append({
                 "source":           source_config["name"],
                 "category":         source_config.get("category", ""),
@@ -295,6 +322,7 @@ def analyse_for_marketing(
                 "url":              item.get("url", ""),
                 "severity":         analysis.get("severity", "info"),
                 "relevance_reason": analysis.get("relevance_reason", ""),
+                "language":         lang,
                 "published_at":     _parse_date(item.get("published_raw", "")),
                 "status":           "pending",
             })
@@ -351,12 +379,14 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
     print(f"Loaded {len(sources)} active marketing sources.")
 
     total_fetched = total_saved = total_skipped = total_errors = 0
+    total_flagged = 0
     total_in = total_out = 0
     source_stats = []
 
     for source in sources:
         print(f"\n[{source.get('category','')}] {source['name']}...")
-        stat = {"name": source["name"], "fetched": 0, "saved": 0, "skipped": 0, "error": None}
+        stat = {"name": source["name"], "fetched": 0, "saved": 0, "skipped": 0,
+                 "flagged": 0, "error": None}
 
         try:
             if source.get("fetch_type") != "search":
@@ -384,7 +414,19 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
             total_out += out
             print(f"  {len(enriched)} relevant after analysis")
 
-            for item in enriched:
+            # ── URL health check before saving ──────────────────
+            # Splits into items with a working, non-blocklisted URL vs
+            # items whose URL is broken, unreachable, or on the known
+            # unreliable-domain list (e.g. AFP). Flagged items are still
+            # saved — visible in the approval queue with a warning —
+            # rather than silently dropped, so nothing found by the
+            # monitor gets lost, but a broken/bad link never reaches a
+            # live Pulse card or alert without a human decision first.
+            valid_items, flagged_items = validate_items_urls(enriched)
+            if flagged_items:
+                print(f"  ⚠️ {len(flagged_items)} item(s) flagged for URL issues")
+
+            for item in valid_items:
                 result = save_marketing_update(item)
                 if result:
                     total_saved += 1; stat["saved"] += 1
@@ -392,6 +434,17 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
                 else:
                     total_skipped += 1; stat["skipped"] += 1
                     print(f"  ⤷ Duplicate: {item['title'][:60]}")
+
+            for item in flagged_items:
+                item["status"] = "url_flagged"
+                result = save_marketing_update(item)
+                if result:
+                    total_flagged += 1; stat["flagged"] += 1
+                    print(f"  ⚠️ Saved with URL flag ({item['url_check_reason']}): "
+                          f"{item['title'][:60]}")
+                else:
+                    total_skipped += 1; stat["skipped"] += 1
+                    print(f"  ⤷ Duplicate (flagged): {item['title'][:60]}")
 
         except Exception as e:
             print(f"  ❌ Error: {e}")
@@ -416,7 +469,8 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
 
     print(f"\n{'='*60}")
     print(f"DONE — Fetched: {total_fetched} | New: {total_saved} | "
-          f"Duplicates: {total_skipped} | Errors: {total_errors}")
+          f"Flagged: {total_flagged} | Duplicates: {total_skipped} | "
+          f"Errors: {total_errors}")
 
     if run_id:
         complete_monitor_run(
@@ -426,7 +480,8 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
 
     return {
         "fetched": total_fetched, "saved": total_saved,
-        "skipped": total_skipped, "errors": total_errors,
+        "flagged": total_flagged, "skipped": total_skipped,
+        "errors": total_errors,
         "run_at": datetime.now(timezone.utc).isoformat(),
     }
 
