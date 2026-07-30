@@ -71,6 +71,66 @@ def freshness_status(published_at: str | None) -> dict:
     return {"is_fresh": True, "age_days": age_days, "reason": None}
 
 
+def _format_as_markdown(plain_text: str, title: str = "") -> str | None:
+    """
+    Converts plain, unformatted article text into clean Markdown —
+    headers for natural sections, bold for emphasis, bullet/numbered
+    lists where the content implies a list. Doesn't rewrite the
+    content, just adds structure.
+    """
+    import os
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    if not api_key:
+        st.error("MISTRAL_API_KEY not set.")
+        return None
+
+    system_prompt = (
+        "You format plain article text into clean Markdown for a compliance "
+        "SaaS blog. Add structure only — do not rewrite, shorten, or change "
+        "the wording or meaning of the content.\n\n"
+        "Rules:\n"
+        "- Add a single # title at the top only if a title isn't already "
+        "implied by the first line.\n"
+        "- Use ## for natural section headers where the text shifts topic "
+        "(don't invent headers that aren't implied by the content).\n"
+        "- Use **bold** sparingly, only for genuinely emphasised terms or "
+        "key figures/dates.\n"
+        "- Convert clearly enumerable content (steps, lists of items) into "
+        "- bullet or 1. numbered lists.\n"
+        "- Preserve paragraph breaks as-is.\n"
+        "- Do not add content, opinions, or a call-to-action that wasn't in "
+        "the original text.\n"
+        "- Return ONLY the Markdown — no preamble, no explanation, no code "
+        "fences."
+    )
+
+    user_prompt = f"TITLE (for context, don't necessarily repeat as a heading): {title}\n\n{plain_text}"
+
+    try:
+        response = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0.2,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "max_tokens": 2000,
+            },
+            timeout=45,
+        )
+        response.raise_for_status()
+        return response.json()["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        st.error(f"Could not format as Markdown: {e}")
+        return None
+
+
 # ── LinkedIn draft generation (defined before tabs so it's available) ─────────
 
 def _generate_linkedin_draft(item: dict, context: str = "regulatory") -> str | None:
@@ -496,7 +556,31 @@ with tab_mkt:
             if st.button("↻ Regenerate", key="m2_regen_slug"):
                 st.session_state["m2_slug_input"] = slugify(m2_title)
                 st.rerun()
-        m2_body = st.text_area("Article body (Markdown)", height=200, key="m2_body")
+        m2_body_plain = st.text_area(
+            "Article body — write normally, no formatting needed",
+            height=180, key="m2_body_plain",
+            placeholder="Just write it like an email or a normal document. "
+                        "Click 'Format as Markdown' below to add headers, "
+                        "bold, and lists automatically.",
+        )
+
+        if st.button("✨ Format as Markdown", key="m2_format_btn"):
+            if not m2_body_plain.strip():
+                st.warning("Write the article text above first.")
+            else:
+                with st.spinner("Formatting..."):
+                    formatted = _format_as_markdown(m2_body_plain, m2_title)
+                    if formatted:
+                        st.session_state["m2_body_md_edit"] = formatted
+
+        if st.session_state.get("m2_body_md_edit"):
+            st.markdown("**Formatted Markdown** — review and edit before saving")
+            m2_body = st.text_area(
+                "Formatted Markdown", height=220, key="m2_body_md_edit",
+                label_visibility="collapsed",
+            )
+        else:
+            m2_body = ""
 
         if st.button("➕ Add article/item", type="primary", key="m2_submit"):
             if not m2_title.strip() or not m2_source.strip() or not m2_summary.strip():
@@ -531,6 +615,8 @@ with tab_mkt:
                     if result:
                         st.success("Added — review it below in the pending queue.")
                         st.session_state["m2_slug_input"] = ""
+                        st.session_state["m2_body_plain"] = ""
+                        st.session_state["m2_body_md_edit"] = ""
                         st.rerun()
                     else:
                         st.error("Could not add item (may be a duplicate URL, or a save error).")
