@@ -232,7 +232,8 @@ relevant: false if this is general news unrelated to compliance obligations.
 severity: urgent=immediate action needed, important=awareness required, info=general update.
 language: the language of the ORIGINAL source item (title/description you were given),
 not the language of your summary, which should always be written in English regardless.
-Use 'fr' for French, 'nl' for Dutch/Flemish, 'en' for English. If genuinely unclear,
+Use 'fr' for French, 'nl' for Dutch/Flemish, 'de' for German, 'es' for Spanish,
+'en' for English. If genuinely unclear,
 default to 'en'."""
 
         user_prompt = f"""SOURCE: {source_config['name']}
@@ -284,7 +285,7 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
             ))
 
             lang = analysis.get("language", "en")
-            if lang not in ("en", "fr", "nl"):
+            if lang not in ("en", "fr", "nl", "de", "es"):
                 lang = "en"
 
             results.append({

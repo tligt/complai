@@ -262,7 +262,8 @@ def analyse_for_marketing(
             "language: the language of the ORIGINAL source article/title/content you "
             "were given (not the language of your summary, which should always be "
             "written in English regardless). Use 'fr' for French, 'nl' for Dutch/Flemish, "
-            "'en' for English. If genuinely unclear, default to 'en'."
+            "'de' for German, 'es' for Spanish, 'en' for English. If genuinely unclear, "
+            "default to 'en'."
         )
 
         user_prompt = (
@@ -308,7 +309,7 @@ def analyse_for_marketing(
                 continue
 
             lang = analysis.get("language", "en")
-            if lang not in ("en", "fr", "nl"):
+            if lang not in ("en", "fr", "nl", "de", "es"):
                 lang = "en"
 
             results.append({
