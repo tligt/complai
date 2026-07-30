@@ -24,6 +24,7 @@ from database import (
     start_monitor_run,
     complete_monitor_run,
 )
+from url_validation import validate_items_urls
 
 # Sentinel UUID for system/monitoring processes (no authenticated user)
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -224,10 +225,15 @@ Analyse this regulatory news item and return ONLY valid JSON:
   "severity": "info|important|urgent",
   "regulations": ["GDPR"|"NIS2"|"EU_AI_ACT"|"EPRIVACY"|"EAA"|"CONSUMER_RIGHTS"],
   "action_required": true/false,
-  "action_description": "what SMEs need to do (empty if no action required)"
+  "action_description": "what SMEs need to do (empty if no action required)",
+  "language": "en|fr|nl"
 }
 relevant: false if this is general news unrelated to compliance obligations.
-severity: urgent=immediate action needed, important=awareness required, info=general update."""
+severity: urgent=immediate action needed, important=awareness required, info=general update.
+language: the language of the ORIGINAL source item (title/description you were given),
+not the language of your summary, which should always be written in English regardless.
+Use 'fr' for French, 'nl' for Dutch/Flemish, 'en' for English. If genuinely unclear,
+default to 'en'."""
 
         user_prompt = f"""SOURCE: {source_config['name']}
 TITLE: {title}
@@ -277,6 +283,10 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                 analysis.get("regulations", [])
             ))
 
+            lang = analysis.get("language", "en")
+            if lang not in ("en", "fr", "nl"):
+                lang = "en"
+
             results.append({
                 "source":             source_config["name"],
                 "title":              title,
@@ -287,6 +297,7 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                 "severity":           analysis.get("severity", "info"),
                 "action_required":    analysis.get("action_required", False),
                 "action_description": analysis.get("action_description", ""),
+                "language":           lang,
                 "published_at":       parse_published_date(item.get("published_raw", "")),
                 "status":             "pending",
             })
@@ -335,6 +346,7 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
     total_fetched  = 0
     total_saved    = 0
     total_skipped  = 0
+    total_flagged  = 0
     total_errors   = 0
     total_input_tokens  = 0
     total_output_tokens = 0
@@ -347,6 +359,7 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
             "fetched": 0,
             "saved":   0,
             "skipped": 0,
+            "flagged": 0,
             "error":   None,
         }
 
@@ -370,7 +383,17 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
             total_output_tokens += out
             print(f"  {len(enriched)} relevant items after analysis")
 
-            for item in enriched:
+            # ── URL health check before saving ──────────────────
+            # Lower risk here than the marketing monitor (links come
+            # straight from official RSS <link> tags or direct scraped
+            # hrefs, not LLM-reported URLs), but still worth catching
+            # malformed relative paths, dead links, or feed errors
+            # before they reach the Pulse feed or an email alert.
+            valid_items, flagged_items = validate_items_urls(enriched)
+            if flagged_items:
+                print(f"  ⚠️ {len(flagged_items)} item(s) flagged for URL issues")
+
+            for item in valid_items:
                 result = save_regulatory_update(item)
                 if result:
                     total_saved += 1
@@ -380,6 +403,19 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
                     total_skipped += 1
                     source_stat["skipped"] += 1
                     print(f"  ⤷ Duplicate skipped: {item['title'][:60]}")
+
+            for item in flagged_items:
+                item["status"] = "url_flagged"
+                result = save_regulatory_update(item)
+                if result:
+                    total_flagged += 1
+                    source_stat["flagged"] += 1
+                    print(f"  ⚠️ Saved with URL flag ({item['url_check_reason']}): "
+                          f"{item['title'][:60]}")
+                else:
+                    total_skipped += 1
+                    source_stat["skipped"] += 1
+                    print(f"  ⤷ Duplicate (flagged): {item['title'][:60]}")
 
         except Exception as e:
             err_msg = str(e)
@@ -410,14 +446,16 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
 
     print(f"\n{'='*60}")
     print("MONITORING COMPLETE")
-    print(f"Fetched: {total_fetched} | Relevant: {total_saved + total_skipped} | "
-          f"New: {total_saved} | Duplicates: {total_skipped} | Errors: {total_errors}")
+    print(f"Fetched: {total_fetched} | Relevant: {total_saved + total_flagged + total_skipped} | "
+          f"New: {total_saved} | Flagged: {total_flagged} | "
+          f"Duplicates: {total_skipped} | Errors: {total_errors}")
     print(f"Tokens: {total_input_tokens} in / {total_output_tokens} out — "
           f"${token_usage['cost_usd']:.4f}")
 
     result = {
         "fetched":  total_fetched,
         "saved":    total_saved,
+        "flagged":  total_flagged,
         "skipped":  total_skipped,
         "errors":   total_errors,
         "run_at":   datetime.now(timezone.utc).isoformat(),
