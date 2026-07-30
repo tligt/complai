@@ -198,6 +198,62 @@ with tab_reg:
 
     st.divider()
 
+    # ── Manual item entry ─────────────────────────────────────
+    with st.expander("➕ Add item manually", expanded=False):
+        st.caption(
+            "For items the monitor didn't catch, or content you're entering "
+            "by hand (e.g. a known gap in the feed). Saved as 'pending', same "
+            "as monitor-detected items — goes through the normal approval flow."
+        )
+        with st.form("manual_reg_form", clear_on_submit=True):
+            m_title = st.text_input("Title *")
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                m_source = st.text_input("Source *", placeholder="e.g. CCB")
+                m_url = st.text_input("Source URL", placeholder="https://...")
+                m_lang = st.selectbox("Language", ["en", "fr", "nl"])
+            with col_m2:
+                m_severity = st.selectbox("Severity", ["info", "important", "urgent"])
+                m_regs_raw = st.text_input("Regulations (comma-separated)",
+                                            placeholder="e.g. GDPR, NIS2")
+                m_countries_raw = st.text_input("Countries (comma-separated)",
+                                                 placeholder="e.g. EU, BE")
+            m_summary = st.text_area("Summary *", height=100)
+            m_action_required = st.checkbox("Action required")
+            m_action_desc = st.text_input("Action description", disabled=not m_action_required)
+            m_published_date = st.date_input("Published date", value=datetime.now())
+
+            m_submitted = st.form_submit_button("➕ Add item", type="primary")
+            if m_submitted:
+                if not m_title.strip() or not m_source.strip() or not m_summary.strip():
+                    st.error("Title, source, and summary are required.")
+                else:
+                    regs = [r.strip() for r in m_regs_raw.split(",") if r.strip()]
+                    countries = [c.strip() for c in m_countries_raw.split(",") if c.strip()]
+                    manual_item = {
+                        "source":             m_source.strip(),
+                        "title":              m_title.strip(),
+                        "summary":            m_summary.strip(),
+                        "url":                m_url.strip() or None,
+                        "regulations":        regs,
+                        "countries":          countries or ["EU"],
+                        "severity":           m_severity,
+                        "action_required":    m_action_required,
+                        "action_description": m_action_desc.strip() if m_action_required else "",
+                        "language":           m_lang,
+                        "published_at":       datetime.combine(
+                                                   m_published_date, datetime.min.time()
+                                               ).isoformat(),
+                        "status":             "pending",
+                    }
+                    from database import save_regulatory_update
+                    result = save_regulatory_update(manual_item)
+                    if result:
+                        st.success(f"Added — review it below in the pending queue.")
+                        st.rerun()
+                    else:
+                        st.error("Could not add item (may be a duplicate URL, or a save error).")
+
     # ── Review queue ──────────────────────────────────────────
     st.subheader("Pending regulatory updates")
 
@@ -394,6 +450,82 @@ with tab_mkt:
                 st.error(f"Monitor failed: {e}")
 
     st.divider()
+
+    # ── Manual item entry ─────────────────────────────────────
+    with st.expander("➕ Add article/item manually", expanded=False):
+        st.caption(
+            "For RECOSA-authored articles/opinion pieces, or third-party items "
+            "the monitor didn't catch. Saved as 'pending' — goes through the "
+            "normal approval flow, including the Publish-to-Pulse checkbox."
+        )
+
+        m2_title = st.text_input("Title *", key="m2_title")
+
+        m2_slug_key = "m2_slug_suggested"
+        if m2_slug_key not in st.session_state:
+            st.session_state[m2_slug_key] = ""
+        if m2_title and not st.session_state[m2_slug_key]:
+            st.session_state[m2_slug_key] = slugify(m2_title)
+
+        col_m2a, col_m2b = st.columns(2)
+        with col_m2a:
+            m2_source = st.text_input("Source *", value="RECOSA",
+                                        help="Use 'RECOSA' for your own authored pieces.",
+                                        key="m2_source")
+            m2_category = st.text_input("Category", placeholder="e.g. GDPR, NIS2, EU AI Act",
+                                          key="m2_category")
+            m2_lang = st.selectbox("Language", ["en", "fr", "nl"], key="m2_lang")
+        with col_m2b:
+            m2_severity = st.selectbox("Severity", ["info", "important", "urgent"], key="m2_severity")
+            m2_url = st.text_input("External source URL (leave blank for RECOSA-authored pieces)",
+                                     key="m2_url")
+            m2_published_date = st.date_input("Published date", value=datetime.now(), key="m2_pubdate")
+
+        m2_summary = st.text_area("Card summary (2-3 sentences) *", height=80, key="m2_summary")
+
+        st.markdown("**Full article (optional)** — fills the detail page at recosa.eu/pulse/{slug}")
+        m2_slug = st.text_input(
+            "URL slug", value=st.session_state[m2_slug_key], key="m2_slug_input",
+            help="Auto-suggested from the title above — edit freely.",
+        )
+        m2_body = st.text_area("Article body (Markdown)", height=200, key="m2_body")
+
+        if st.button("➕ Add article/item", type="primary", key="m2_submit"):
+            if not m2_title.strip() or not m2_source.strip() or not m2_summary.strip():
+                st.error("Title, source, and card summary are required.")
+            else:
+                final_slug = m2_slug.strip() or None
+                slug_ok = True
+                if final_slug:
+                    existing = get_supabase_admin().table("marketing_updates") \
+                        .select("id").eq("slug", final_slug).execute()
+                    if existing.data:
+                        slug_ok = False
+                        st.error(f"Slug '{final_slug}' is already in use.")
+
+                if slug_ok:
+                    manual_item = {
+                        "source":       m2_source.strip(),
+                        "title":        m2_title.strip(),
+                        "summary":      m2_summary.strip(),
+                        "url":          m2_url.strip() or None,
+                        "category":     m2_category.strip() or "Policy",
+                        "severity":     m2_severity,
+                        "language":     m2_lang,
+                        "body_content": m2_body.strip() or None,
+                        "slug":         final_slug,
+                        "published_at": datetime.combine(
+                                             m2_published_date, datetime.min.time()
+                                         ).isoformat(),
+                        "status":       "pending",
+                    }
+                    result = save_marketing_update(manual_item)
+                    if result:
+                        st.success("Added — review it below in the pending queue.")
+                        st.session_state[m2_slug_key] = ""
+                        st.rerun()
+                    else:
+                        st.error("Could not add item (may be a duplicate URL, or a save error).")
 
     # ── Marketing review feed ─────────────────────────────────
     st.subheader("Pending marketing items")
