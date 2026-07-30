@@ -755,11 +755,15 @@ with tab_runs:
                 f"{status_icon} {trigger_icon} {monitor_label} — {started} ({duration})",
                 expanded=False,
             ):
-                col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                source_stats = run.get("source_stats") or []
+                flagged_total = sum(stat.get("flagged", 0) for stat in source_stats)
+
+                col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
                 col_s1.metric("Fetched",    run.get("total_fetched", 0))
                 col_s2.metric("Saved",      run.get("total_saved", 0))
-                col_s3.metric("Duplicates", run.get("total_skipped", 0))
-                col_s4.metric("Errors",     run.get("total_errors", 0))
+                col_s3.metric("Flagged",    flagged_total)
+                col_s4.metric("Duplicates", run.get("total_skipped", 0))
+                col_s5.metric("Errors",     run.get("total_errors", 0))
 
                 token_usage = run.get("token_usage") or {}
                 if token_usage:
@@ -772,21 +776,23 @@ with tab_runs:
                 if run.get("error_message"):
                     st.error(run["error_message"])
 
-                source_stats = run.get("source_stats") or []
                 if source_stats:
                     st.markdown("**Per-source breakdown:**")
                     for stat in source_stats:
                         fetched = stat.get("fetched", 0)
                         saved   = stat.get("saved", 0)
                         skipped = stat.get("skipped", 0)
+                        flagged = stat.get("flagged", 0)
                         error   = stat.get("error")
+
+                        flagged_suffix = f" / {flagged} flagged ⚠️" if flagged else ""
 
                         if error:
                             icon = "🔴"
                             detail = f"error: {error[:60]}"
-                        elif saved > 0:
+                        elif saved > 0 or flagged > 0:
                             icon = "🟢"
-                            detail = f"{fetched} fetched / {saved} new / {skipped} duplicates"
+                            detail = f"{fetched} fetched / {saved} new / {skipped} duplicates{flagged_suffix}"
                         elif fetched > 0:
                             icon = "🟡"
                             detail = f"{fetched} fetched / 0 new (all duplicates)"
