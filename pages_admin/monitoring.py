@@ -579,6 +579,8 @@ with tab_mkt:
                 "Formatted Markdown", height=220, key="m2_body_md_edit",
                 label_visibility="collapsed",
             )
+            with st.expander("👁️ Preview rendered layout", expanded=True):
+                st.markdown(m2_body)
         else:
             m2_body = ""
 
