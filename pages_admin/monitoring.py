@@ -461,11 +461,12 @@ with tab_mkt:
 
         m2_title = st.text_input("Title *", key="m2_title")
 
-        m2_slug_key = "m2_slug_suggested"
-        if m2_slug_key not in st.session_state:
-            st.session_state[m2_slug_key] = ""
-        if m2_title and not st.session_state[m2_slug_key]:
-            st.session_state[m2_slug_key] = slugify(m2_title)
+        # Auto-suggest the slug into the widget's OWN session-state key
+        # (m2_slug_input) before it's created — writing to a separate key
+        # doesn't work once a widget has been rendered, since the widget's
+        # displayed value is then controlled solely by its own key.
+        if m2_title and not st.session_state.get("m2_slug_input"):
+            st.session_state["m2_slug_input"] = slugify(m2_title)
 
         col_m2a, col_m2b = st.columns(2)
         with col_m2a:
@@ -484,10 +485,17 @@ with tab_mkt:
         m2_summary = st.text_area("Card summary (2-3 sentences) *", height=80, key="m2_summary")
 
         st.markdown("**Full article (optional)** — fills the detail page at recosa.eu/pulse/{slug}")
-        m2_slug = st.text_input(
-            "URL slug", value=st.session_state[m2_slug_key], key="m2_slug_input",
-            help="Auto-suggested from the title above — edit freely.",
-        )
+        col_m2c, col_m2d = st.columns([4, 1])
+        with col_m2c:
+            m2_slug = st.text_input(
+                "URL slug", key="m2_slug_input",
+                help="Auto-suggested from the title above — edit freely.",
+            )
+        with col_m2d:
+            st.write("")  # vertical spacer to align button with input
+            if st.button("↻ Regenerate", key="m2_regen_slug"):
+                st.session_state["m2_slug_input"] = slugify(m2_title)
+                st.rerun()
         m2_body = st.text_area("Article body (Markdown)", height=200, key="m2_body")
 
         if st.button("➕ Add article/item", type="primary", key="m2_submit"):
@@ -522,7 +530,7 @@ with tab_mkt:
                     result = save_marketing_update(manual_item)
                     if result:
                         st.success("Added — review it below in the pending queue.")
-                        st.session_state[m2_slug_key] = ""
+                        st.session_state["m2_slug_input"] = ""
                         st.rerun()
                     else:
                         st.error("Could not add item (may be a duplicate URL, or a save error).")
