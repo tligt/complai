@@ -520,6 +520,18 @@ with tab_mkt:
             "normal approval flow, including the Publish-to-Pulse checkbox."
         )
 
+        # Clear fields BEFORE the widgets below are created, if the previous
+        # run flagged a successful save. Streamlit doesn't allow overwriting
+        # a widget's session-state value in the same run where that widget
+        # was already instantiated — so the reset has to happen here, on the
+        # run *after* save, before these widgets render at all.
+        if st.session_state.get("m2_clear_form"):
+            for _k in ("m2_title", "m2_source", "m2_category", "m2_url",
+                        "m2_summary", "m2_slug_input", "m2_body_plain",
+                        "m2_body_md_edit"):
+                st.session_state[_k] = ""
+            st.session_state["m2_clear_form"] = False
+
         m2_title = st.text_input("Title *", key="m2_title")
 
         # Auto-suggest the slug into the widget's OWN session-state key
@@ -617,9 +629,7 @@ with tab_mkt:
                     result = save_marketing_update(manual_item)
                     if result:
                         st.success("Added — review it below in the pending queue.")
-                        st.session_state["m2_slug_input"] = ""
-                        st.session_state["m2_body_plain"] = ""
-                        st.session_state["m2_body_md_edit"] = ""
+                        st.session_state["m2_clear_form"] = True
                         st.rerun()
                     else:
                         st.error(
