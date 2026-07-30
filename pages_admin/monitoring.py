@@ -12,11 +12,13 @@ from database import (
     create_client_alerts,
     ingest_alert_to_qdrant,
     mark_alert_ingested,
+    save_regulatory_update,
     # Marketing
     load_marketing_updates,
     approve_marketing_update,
     reject_marketing_update,
     save_linkedin_draft,
+    save_marketing_update,
     # Sources
     load_monitoring_sources,
     save_monitoring_source,
@@ -306,7 +308,6 @@ with tab_reg:
                                                ).isoformat(),
                         "status":             "pending",
                     }
-                    from database import save_regulatory_update
                     result = save_regulatory_update(manual_item)
                     if result:
                         st.success(f"Added — review it below in the pending queue.")
