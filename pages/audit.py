@@ -21,7 +21,8 @@ def get_supabase_anon():
 
 def check_email_domain_used(email_domain: str) -> bool:
     try:
-        supabase = get_supabase_anon()
+        from database import get_supabase_admin
+        supabase = get_supabase_admin()
         res = supabase.table("audits") \
             .select("id") \
             .eq("email_domain", email_domain) \
