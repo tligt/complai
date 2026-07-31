@@ -194,7 +194,7 @@ if logged_in:
                         )
 
                     st.success(f"Audit complete — {audit_result.risk_level} risk, score {audit_result.score}/100")
-                    render_results(audit_result, pdf_bytes, is authenticated=True)
+                    render_results(audit_result, pdf_bytes, is_authenticated=True)
 
 # ── Public flow ───────────────────────────────────────────────────────────────
 else:
