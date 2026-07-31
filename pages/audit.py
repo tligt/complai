@@ -160,7 +160,7 @@ if logged_in:
                     pdf_bytes = generate_pdf(audit_result)
                     email_domain = extract_domain(website_url)
                     client_id = selected_client["id"] if selected_client else None
-                    save_audit(
+                    audit_id = save_audit(
                         email=st.session_state.user.email,
                         email_domain=email_domain,
                         website_url=website_url,
@@ -177,8 +177,24 @@ if logged_in:
                         stored_path = upload_file("audit-reports", pdf_storage_path, pdf_bytes, "application/pdf")
                     except Exception:
                         pass
+
+                    # Audit trail (S21) — only logged when linked to a client
+                    if client_id and audit_id:
+                        from database import log_audit_event
+                        log_audit_event(
+                            company_id=client_id,
+                            user_id=user_id,
+                            event_type="audit_run",
+                            resource_id=audit_id,
+                            summary=f"Audited {website_url.strip()}",
+                            metadata={"domain": email_domain,
+                                      "score": audit_result.score,
+                                      "risk_level": audit_result.risk_level,
+                                      "fail_count": audit_result.fail_count},
+                        )
+
                     st.success(f"Audit complete — {audit_result.risk_level} risk, score {audit_result.score}/100")
-                    render_results(audit_result, pdf_bytes, is_authenticated=True)
+                    render_results(audit_result, pdf_bytes, is authenticated=True)
 
 # ── Public flow ───────────────────────────────────────────────────────────────
 else:
