@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime
-from database import get_supabase
+from auth import get_user_id
+from database import get_supabase, load_clients
 
 EVENT_ICONS = {
     "document_generated": "📄",
@@ -11,12 +12,14 @@ EVENT_ICONS = {
 st.title("Activity Log")
 st.caption("A record of compliance actions taken on your account.")
 
-# NOTE: adjust this to match the actual session key used by pages/gap.py
-# and pages/documents.py to track the currently-selected client.
-client_id = st.session_state.get("selected_client_id")
+user_id = get_user_id()
+clients = load_clients(user_id)
+
+# Single-owner model until S38 (Advisory multi-client workspace) — one client per user
+client_id = clients[0]["id"] if clients else None
 
 if not client_id:
-    st.info("Select a client to view their activity log.")
+    st.info("No client profile found yet.")
 else:
     supabase = get_supabase()
     try:
