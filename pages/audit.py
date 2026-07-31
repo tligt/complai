@@ -34,7 +34,8 @@ def check_email_domain_used(email_domain: str) -> bool:
 
 def save_audit(email, email_domain, website_url, audit_result, user_id=None, client_id=None):
     try:
-        supabase = get_supabase_anon()
+        from database import get_supabase_admin
+        supabase = get_supabase_admin()
         record = {
             "email": email,
             "email_domain": email_domain,
