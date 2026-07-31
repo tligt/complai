@@ -51,10 +51,12 @@ def save_audit(email, email_domain, website_url, audit_result, user_id=None, cli
             record["user_id"] = user_id
         if client_id:
             record["client_id"] = client_id
-        supabase.table("audits").insert(record).execute()
+        res = supabase.table("audits").insert(record).execute()
+        return res.data[0]["id"] if res.data else None
     except Exception as e:
         st.warning(f"Could not save audit record: {e}")
-
+        return None
+        
 
 def render_results(audit_result, pdf_bytes, is_authenticated=False):
     col1, col2, col3 = st.columns(3)
