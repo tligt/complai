@@ -114,9 +114,10 @@ home       = st.Page("pages_admin/home.py",       title="Admin Home",    icon="�
 dashboard  = st.Page("pages_admin/dashboard.py",  title="Dashboard",     icon="📊")
 monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",    icon="📡")
 kb         = st.Page("pages_admin/kb.py",         title="Knowledge Base",icon="📚")
+audit_log  = st.Page("pages_admin/audit_log.py",  title="Audit Trail",   icon="🕐")
 
 pg = st.navigation({
-    "Admin": [home, dashboard],
+    "Admin": [home, dashboard, audit_log],
     "Content": [monitoring, kb],
 })
 pg.run()
