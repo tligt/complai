@@ -93,7 +93,7 @@ def delete_client_record(client_id: str, user_id: str) -> bool:
 # ── Chat history ──────────────────────────────────────────────────────────────
 
 def load_chat_history(client_id: str, user_id: str) -> list[dict]:
-    """Load chat history for a client, ordered chronologically."""
+    """Load chat history for a client, ordered chronoically."""
     try:
         supabase = get_supabase()
         res = supabase.table("chat_history") \
@@ -614,7 +614,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]] | None:
         rdata = resp.json()
         _usage = rdata.get("usage", {})
         try:
-            log_token_usage(
+            _token_usage(
                 user_id=SYSTEM_USER_ID,
                 feature="embedding",
                 client_id=None,
@@ -748,13 +748,13 @@ def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
         return False
 
 
-# ── Token usage logging ───────────────────────────────────────────────────────
+# ── Token usage ging ───────────────────────────────────────────────────────
 
 _MISTRAL_INPUT_COST_PER_M  = 2.00
 _MISTRAL_OUTPUT_COST_PER_M = 6.00
 
 
-def log_token_usage(
+def _token_usage(
     user_id: str | None,
     feature: str,
     input_tokens: int,
@@ -763,7 +763,7 @@ def log_token_usage(
     model: str = "mistral-large-latest",
 ) -> bool:
     """
-    Log a Mistral API call's token usage to usage_logs.
+     a Mistral API call's token usage to usage_s.
     Pass user_id=SYSTEM_USER_ID for monitoring/cron calls.
     Pass user_id=None for truly anonymous calls (inserts without user_id).
     """
@@ -793,10 +793,10 @@ def log_token_usage(
         if client_id:
             row["client_id"] = client_id
         supabase = get_supabase_admin()
-        supabase.table("usage_logs").insert(row).execute()
+        supabase.table("usage_s").insert(row).execute()
         return True
     except Exception as e:
-        print(f"Could not log token usage: {e}")
+        print(f"Could not  token usage: {e}")
         return False
 
 
@@ -804,10 +804,10 @@ def load_token_usage(
     since: str | None = None,
     user_id: str | None = None,
 ) -> list[dict]:
-    """Load usage_logs, optionally filtered by date and/or user."""
+    """Load usage_s, optionally filtered by date and/or user."""
     try:
         supabase = get_supabase_admin()
-        q = supabase.table("usage_logs") \
+        q = supabase.table("usage_s") \
             .select("*") \
             .order("created_at", desc=True) \
             .limit(5000)
@@ -847,6 +847,35 @@ def get_token_summary_by_client(since: str | None = None) -> list[dict]:
     except Exception as e:
         print(f"Could not compute token summary: {e}")
         return []
+
+# ── S21: Audit trail ──────────────────────────────────────────────────────────
+
+def log_audit_event(
+    company_id: str,
+    event_type: str,
+    summary: str,
+    user_id: str | None = None,
+    event_subtype: str | None = None,
+    resource_id: str | None = None,
+    metadata: dict | None = None,
+) -> bool:
+    """Write a row to audit_log. Uses service role to bypass RLS on insert,
+    since audit_log intentionally has no insert policy for anon/authenticated."""
+    try:
+        supabase = get_supabase_admin()
+        supabase.table("audit_log").insert({
+            "company_id": company_id,
+            "user_id": user_id,
+            "event_type": event_type,
+            "event_subtype": event_subtype,
+            "resource_id": resource_id,
+            "summary": summary,
+            "metadata": metadata or {},
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"Could not log audit event: {e}")
+        return False
 
 
 # ── S17: Monitoring sources (dynamic, from DB) ────────────────────────────────
@@ -1007,7 +1036,7 @@ def save_linkedin_draft(update_id: str, draft: str,
 
 def start_monitor_run(monitor_type: str, triggered_by: str = "manual") -> str | None:
     """
-    Log the start of a monitoring run.
+     the start of a monitoring run.
     Returns run_id to pass to complete_monitor_run().
     """
     try:
@@ -1034,7 +1063,7 @@ def complete_monitor_run(
     status: str = "completed",
     error_message: str | None = None,
 ) -> bool:
-    """Log the completion of a monitoring run."""
+    """ the completion of a monitoring run."""
     try:
         supabase = get_supabase_admin()
         completed_at = datetime.now(timezone.utc).isoformat()
