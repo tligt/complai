@@ -929,6 +929,22 @@ def save_gap_assessment(user_id: str, client_id: str | None,
             except Exception:
                 pass
 
+    # Audit trail (S21) — only logged when there's a specific client
+    if client_id and assessment_id:
+        from database import log_audit_event
+        log_audit_event(
+            company_id=client_id,
+            user_id=user_id,
+            event_type="gap_assessment_run",
+            event_subtype="full",
+            resource_id=assessment_id,
+            summary="Ran full gap assessment",
+            metadata={"score_overall": assessment["score_overall"],
+                      "score_gdpr": assessment["score_gdpr"],
+                      "score_nis2": assessment["score_nis2"],
+                      "score_eprivacy": assessment["score_eprivacy"]},
+        )
+
     return assessment_id
 
 
