@@ -172,11 +172,13 @@ gap       = st.Page("pages/gap.py",       title="Gap Assessment", icon="🔍")
 documents = st.Page("pages/documents.py", title="Documents",      icon="📄")
 audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
 alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
+activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
 
 pg = st.navigation({
     "":           [chat],
     "Compliance": [dashboard, gap],
     "Tools":      [documents, audit],
+    "Account":    [activity],
     "Updates":    [alerts],
 })
 pg.run()
