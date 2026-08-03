@@ -93,7 +93,7 @@ def delete_client_record(client_id: str, user_id: str) -> bool:
 # ── Chat history ──────────────────────────────────────────────────────────────
 
 def load_chat_history(client_id: str, user_id: str) -> list[dict]:
-    """Load chat history for a client, ordered chronoically."""
+    """Load chat history for a client, ordered chronologically."""
     try:
         supabase = get_supabase()
         res = supabase.table("chat_history") \
@@ -614,7 +614,7 @@ def _embed_texts(texts: list[str]) -> list[list[float]] | None:
         rdata = resp.json()
         _usage = rdata.get("usage", {})
         try:
-            _token_usage(
+            log_token_usage(
                 user_id=SYSTEM_USER_ID,
                 feature="embedding",
                 client_id=None,
@@ -748,13 +748,13 @@ def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
         return False
 
 
-# ── Token usage ging ───────────────────────────────────────────────────────
+# ── Token usage logging ───────────────────────────────────────────────────────
 
 _MISTRAL_INPUT_COST_PER_M  = 2.00
 _MISTRAL_OUTPUT_COST_PER_M = 6.00
 
 
-def _token_usage(
+def log_token_usage(
     user_id: str | None,
     feature: str,
     input_tokens: int,
@@ -762,8 +762,7 @@ def _token_usage(
     client_id: str | None = None,
     model: str = "mistral-large-latest",
 ) -> bool:
-    """
-     a Mistral API call's token usage to usage_s.
+    """Log a Mistral API call's token usage to usage_logs.
     Pass user_id=SYSTEM_USER_ID for monitoring/cron calls.
     Pass user_id=None for truly anonymous calls (inserts without user_id).
     """
@@ -793,10 +792,10 @@ def _token_usage(
         if client_id:
             row["client_id"] = client_id
         supabase = get_supabase_admin()
-        supabase.table("usage_s").insert(row).execute()
+        supabase.table("usage_logs").insert(row).execute()
         return True
     except Exception as e:
-        print(f"Could not  token usage: {e}")
+        print(f"Could not log token usage: {e}")
         return False
 
 
@@ -804,10 +803,10 @@ def load_token_usage(
     since: str | None = None,
     user_id: str | None = None,
 ) -> list[dict]:
-    """Load usage_s, optionally filtered by date and/or user."""
+    """Load usage_logs, optionally filtered by date and/or user."""
     try:
         supabase = get_supabase_admin()
-        q = supabase.table("usage_s") \
+        q = supabase.table("usage_logs") \
             .select("*") \
             .order("created_at", desc=True) \
             .limit(5000)
@@ -1035,8 +1034,7 @@ def save_linkedin_draft(update_id: str, draft: str,
 # ── S17: Monitor runs ─────────────────────────────────────────────────────────
 
 def start_monitor_run(monitor_type: str, triggered_by: str = "manual") -> str | None:
-    """
-     the start of a monitoring run.
+    """Log the start of a monitoring run.
     Returns run_id to pass to complete_monitor_run().
     """
     try:
@@ -1063,7 +1061,7 @@ def complete_monitor_run(
     status: str = "completed",
     error_message: str | None = None,
 ) -> bool:
-    """ the completion of a monitoring run."""
+    """Log the completion of a monitoring run."""
     try:
         supabase = get_supabase_admin()
         completed_at = datetime.now(timezone.utc).isoformat()
