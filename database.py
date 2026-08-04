@@ -92,35 +92,129 @@ def delete_client_record(client_id: str, user_id: str) -> bool:
 
 # ── Chat history ──────────────────────────────────────────────────────────────
 
-def load_chat_history(client_id: str, user_id: str) -> list[dict]:
-    """Load chat history for a client, ordered chronologically."""
+def load_chat_history(client_id: str, user_id: str,
+                      session_id: str | None = None) -> list[dict]:
+    """Load chat history for a client, ordered chronologically.
+
+    If session_id is given, only that conversation is returned.
+    Otherwise all messages for the client are returned (legacy behaviour).
+
+    Each returned dict has: role, content, sources (list, possibly empty).
+    """
     try:
         supabase = get_supabase()
-        res = supabase.table("chat_history") \
-            .select("role, content") \
+        query = supabase.table("chat_history") \
+            .select("role, content, sources, session_id, created_at") \
             .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
-            .order("created_at") \
-            .execute()
-        return res.data or []
+            .eq("user_id", user_id)
+        if session_id:
+            query = query.eq("session_id", session_id)
+        res = query.order("created_at").execute()
+
+        rows = res.data or []
+        # Normalise sources to a list so callers never have to null-check.
+        for r in rows:
+            if not isinstance(r.get("sources"), list):
+                r["sources"] = []
+        return rows
     except Exception as e:
         _st().error(f"Could not load chat history: {e}")
         return []
 
 
-def save_message(client_id: str, user_id: str, role: str, content: str) -> bool:
-    """Save a single message to chat history."""
+def load_chat_sessions(client_id: str, user_id: str) -> list[dict]:
+    """Return one summary row per conversation, most recent first.
+
+    Shape: session_id, title, message_count, started_at, last_at.
+
+    Aggregation happens in Python rather than SQL: PostgREST has no GROUP BY,
+    and per-client message volumes are small enough that fetching and folding
+    is cheaper than maintaining an RPC.
+    """
+    try:
+        supabase = get_supabase()
+        res = supabase.table("chat_history") \
+            .select("session_id, role, content, created_at") \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .order("created_at") \
+            .execute()
+
+        rows = res.data or []
+        sessions: dict[str, dict] = {}
+
+        for r in rows:
+            sid = r.get("session_id")
+            if not sid:
+                continue
+            s = sessions.get(sid)
+            if s is None:
+                s = {
+                    "session_id":    sid,
+                    "title":         None,
+                    "message_count": 0,
+                    "started_at":    r.get("created_at"),
+                    "last_at":       r.get("created_at"),
+                }
+                sessions[sid] = s
+
+            s["message_count"] += 1
+            s["last_at"] = r.get("created_at")
+            # Title = first user message in the conversation.
+            if s["title"] is None and r.get("role") == "user":
+                content = (r.get("content") or "").strip()
+                s["title"] = content or "Untitled conversation"
+
+        result = list(sessions.values())
+        for s in result:
+            if not s["title"]:
+                s["title"] = "Untitled conversation"
+
+        result.sort(key=lambda s: s["last_at"] or "", reverse=True)
+        return result
+    except Exception as e:
+        _st().error(f"Could not load conversations: {e}")
+        return []
+
+
+def save_message(client_id: str, user_id: str, role: str, content: str,
+                 session_id: str | None = None,
+                 sources: list[dict] | None = None) -> bool:
+    """Save a single message to chat history.
+
+    session_id is required by the schema (NOT NULL). It defaults to None here
+    so that any caller not yet updated fails soft — a fresh uuid is minted
+    rather than raising — but callers should always pass the active session.
+    """
     try:
         supabase = get_supabase()
         supabase.table("chat_history").insert({
-            "client_id": client_id,
-            "user_id": user_id,
-            "role": role,
-            "content": content,
+            "client_id":  client_id,
+            "user_id":    user_id,
+            "role":       role,
+            "content":    content,
+            "session_id": session_id or str(uuid.uuid4()),
+            "sources":    sources or [],
         }).execute()
         return True
     except Exception as e:
         _st().error(f"Could not save message: {e}")
+        return False
+
+
+def delete_chat_session(client_id: str, user_id: str, session_id: str) -> bool:
+    """Delete a single conversation."""
+    try:
+        supabase = get_supabase()
+        supabase.table("chat_history") \
+            .delete() \
+            .eq("client_id", client_id) \
+            .eq("user_id", user_id) \
+            .eq("session_id", session_id) \
+            .execute()
+        return True
+    except Exception as e:
+        _st().error(f"Could not delete conversation: {e}")
         return False
 
 
