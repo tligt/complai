@@ -1353,6 +1353,23 @@ def count_unread_replies(user_id: str) -> int:
         return 0
 
 
+def count_open_tickets() -> int:
+    """Admin nav badge: tickets needing attention.
+
+    Uses a count-only query rather than fetching rows — this runs on every
+    admin page load.
+    """
+    try:
+        supabase = get_supabase()
+        res = supabase.table("support_tickets") \
+            .select("id", count="exact") \
+            .in_("status", ["open", "in_progress"]) \
+            .execute()
+        return res.count or 0
+    except Exception:
+        return 0
+
+
 # ── S17: Monitoring sources (dynamic, from DB) ────────────────────────────────
 
 def load_monitoring_sources(monitor_type: str | None = None) -> list[dict]:
