@@ -440,20 +440,19 @@ if not selected_client:
 # ── Client header ─────────────────────────────────────────────
 regs = selected_client.get("regulations") or []
 reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
-col_meta, col_help = st.columns([6, 1])
-with col_meta:
-    st.caption(
-        f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
-        f"{selected_client.get('sector','')} · "
-        f"{selected_client.get('company_size','')} FTE · {reg_str}"
-    )
-with col_help:
-    render_help_widget(
-        user_id=user_id,
-        context="chat",
-        context_ref=st.session_state.session_id,
-        client_id=selected_client.get("id"),
-    )
+st.caption(
+    f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
+    f"{selected_client.get('sector','')} · "
+    f"{selected_client.get('company_size','')} FTE · {reg_str}"
+)
+
+# Pinned to the viewport, so its position in the layout is irrelevant.
+render_help_widget(
+    user_id=user_id,
+    context="chat",
+    context_ref=st.session_state.session_id,
+    client_id=selected_client.get("id"),
+)
 
 # ── Answer helper ─────────────────────────────────────────────
 def serialise_sources(context_chunks) -> list[dict]:
@@ -498,6 +497,8 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
 
     existing = st.session_state.feedback_state.get(message_id) or {}
     current = existing.get("rating")
+    editing = st.session_state.get(f"fb_edit_{key_suffix}", False)
+    detailing = st.session_state.get(f"fb_detail_{key_suffix}", False)
 
     def _save(rating: str, reasons=None, comment=None):
         ok = save_answer_feedback(
@@ -519,7 +520,29 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                 "reason_codes": reasons or [],
                 "comment":      comment,
             }
+            st.session_state[f"fb_edit_{key_suffix}"] = False
         return ok
+
+    # ── Submitted state — read-only unless deliberately reopened ──
+    # Locking outright would make a mis-click permanent, and the thumbs sit
+    # side by side. Requiring an explicit "Change" click stops casual
+    # toggling without trapping an accidental rating.
+    if current and not editing and not detailing:
+        col_state, col_change = st.columns([6, 1])
+        with col_state:
+            if current == "up":
+                st.markdown(":green[👍 You marked this answer useful]")
+            else:
+                codes = existing.get("reason_codes") or []
+                detail = (" — " + ", ".join(
+                    dict(FEEDBACK_REASONS).get(c, c) for c in codes)) if codes else ""
+                st.markdown(f":orange[👎 You flagged this answer{detail}]")
+        with col_change:
+            if st.button("Change", key=f"fb_edit_btn_{key_suffix}",
+                         help="Correct this if you clicked the wrong one"):
+                st.session_state[f"fb_edit_{key_suffix}"] = True
+                st.rerun()
+        return
 
     col_up, col_down, col_msg = st.columns([1, 1, 10])
 
@@ -546,10 +569,8 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                 st.rerun()
 
     with col_msg:
-        if current == "up":
-            st.markdown(":green[Thanks — noted.]")
-        elif current == "down" and not st.session_state.get(f"fb_detail_{key_suffix}"):
-            st.markdown(":orange[Thanks — logged for review.]")
+        if editing:
+            st.caption("Pick again to correct your feedback.")
 
     with col_msg:
         if current == "up":
