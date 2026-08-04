@@ -1,6 +1,7 @@
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
 from database import count_unread_replies
+from support_widget import render_help_widget
 
 st.set_page_config(
     page_title="RECOSA",
@@ -193,3 +194,34 @@ pg = st.navigation({
     "Updates":    [alerts],
 })
 pg.run()
+
+# ── Help widget ───────────────────────────────────────────────
+# Mounted once here rather than per page. app.py runs on every page load;
+# individual page modules only run when active, so a call inside chat.py
+# would render the widget on the chat page only.
+#
+# Called after pg.run() so it lands at the bottom of the sidebar, below
+# whatever the active page contributed, and so session state written by
+# that page (selected client, chat session) is already populated.
+PAGE_CONTEXT = {
+    "Chat":            "chat",
+    "Dashboard":       "dashboard",
+    "Gap Assessment":  "gap_assessment",
+    "Documents":       "document_generation",
+    "Web Audit":       "website_audit",
+    "Alerts":          "compliance_pulse",
+    "Activity Log":    "account",
+    "Support":         "account",
+}
+
+_ctx = PAGE_CONTEXT.get(pg.title, "other")
+_client = st.session_state.get("selected_client") or {}
+
+render_help_widget(
+    user_id=user_id,
+    context=_ctx,
+    # Only chat has a meaningful reference to attach; elsewhere the page
+    # context alone is enough to route the ticket.
+    context_ref=st.session_state.get("session_id") if _ctx == "chat" else None,
+    client_id=_client.get("id"),
+)
