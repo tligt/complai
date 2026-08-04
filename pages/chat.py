@@ -18,7 +18,10 @@ from database import (
     load_chat_history, load_chat_sessions, save_message, delete_chat_session,
     clear_chat_history, build_client_context,
     log_token_usage,
+    save_answer_feedback, load_feedback_for_session,
+    FEEDBACK_MODE, FEEDBACK_REASONS,
 )
+from support_widget import render_help_widget
 from rag import retrieve, get_knowledge_base_summary
 
 # ── Constants ─────────────────────────────────────────────────
@@ -141,6 +144,7 @@ def init_session():
         "company_docs":           {},
         "confirm_delete":         False,
         "confirm_delete_session": None,
+        "feedback_state":         {},   # message_id -> saved feedback row
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -153,6 +157,7 @@ def start_new_session():
     st.session_state.session_id = str(uuid.uuid4())
     st.session_state.show_history = False
     st.session_state.confirm_delete_session = None
+    st.session_state.feedback_state = {}
 
 init_session()
 user_id = get_user_id()
@@ -311,6 +316,8 @@ with st.sidebar:
                                 user_id, session_id=sid)
                             st.session_state.messages = msgs
                             st.session_state.session_id = sid
+                            st.session_state.feedback_state = \
+                                load_feedback_for_session(user_id, sid)
                             st.session_state.show_history = False
                             st.rerun()
                     with col_del:
@@ -433,11 +440,20 @@ if not selected_client:
 # ── Client header ─────────────────────────────────────────────
 regs = selected_client.get("regulations") or []
 reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
-st.caption(
-    f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
-    f"{selected_client.get('sector','')} · "
-    f"{selected_client.get('company_size','')} FTE · {reg_str}"
-)
+col_meta, col_help = st.columns([6, 1])
+with col_meta:
+    st.caption(
+        f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
+        f"{selected_client.get('sector','')} · "
+        f"{selected_client.get('company_size','')} FTE · {reg_str}"
+    )
+with col_help:
+    render_help_widget(
+        user_id=user_id,
+        context="chat",
+        context_ref=st.session_state.session_id,
+        client_id=selected_client.get("id"),
+    )
 
 # ── Answer helper ─────────────────────────────────────────────
 def serialise_sources(context_chunks) -> list[dict]:
@@ -469,14 +485,110 @@ def render_sources(sources: list[dict], key_suffix: str = ""):
             st.text(text[:400] + ("..." if len(text) > 400 else ""))
 
 
+def render_feedback(msg: dict, question: str, key_suffix: str):
+    """Thumbs control under an assistant answer.
+
+    Beta mode adds reason codes and a comment box on thumbs-down; standard
+    mode records the rating alone. Both write to the same table — only the
+    UI depth changes, switched by FEEDBACK_MODE.
+    """
+    message_id = msg.get("id")
+    if not message_id:
+        return  # pre-S22 message with no stable id; nothing to attach to
+
+    existing = st.session_state.feedback_state.get(message_id) or {}
+    current = existing.get("rating")
+
+    def _save(rating: str, reasons=None, comment=None):
+        ok = save_answer_feedback(
+            user_id=user_id,
+            rating=rating,
+            client_id=selected_client.get("id"),
+            session_id=st.session_state.session_id,
+            message_id=message_id,
+            reason_codes=reasons,
+            comment=comment,
+            question=question,
+            answer=msg.get("content"),
+            sources=msg.get("sources") or [],
+        )
+        if ok:
+            st.session_state.feedback_state[message_id] = {
+                "message_id":   message_id,
+                "rating":       rating,
+                "reason_codes": reasons or [],
+                "comment":      comment,
+            }
+        return ok
+
+    col_up, col_down, col_msg = st.columns([1, 1, 10])
+
+    with col_up:
+        if st.button("👍", key=f"fb_up_{key_suffix}",
+                     type="primary" if current == "up" else "secondary",
+                     help="This answer was useful"):
+            _save("up")
+            st.rerun()
+
+    with col_down:
+        if st.button("👎", key=f"fb_down_{key_suffix}",
+                     type="primary" if current == "down" else "secondary",
+                     help="Something was wrong with this answer"):
+            if FEEDBACK_MODE == "beta":
+                st.session_state[f"fb_detail_{key_suffix}"] = True
+            else:
+                _save("down")
+            st.rerun()
+
+    with col_msg:
+        if current == "up":
+            st.caption("Thanks — noted.")
+        elif current == "down" and not st.session_state.get(f"fb_detail_{key_suffix}"):
+            st.caption("Thanks — logged for review.")
+
+    # Beta-only detail capture
+    if st.session_state.get(f"fb_detail_{key_suffix}"):
+        with st.container(border=True):
+            st.caption("What was wrong? This goes straight into improving retrieval.")
+            picked = st.multiselect(
+                "Reasons",
+                options=[code for code, _ in FEEDBACK_REASONS],
+                format_func=lambda c: dict(FEEDBACK_REASONS)[c],
+                default=existing.get("reason_codes") or [],
+                key=f"fb_reasons_{key_suffix}",
+                label_visibility="collapsed",
+            )
+            note = st.text_area(
+                "Anything else?",
+                value=existing.get("comment") or "",
+                key=f"fb_comment_{key_suffix}",
+                height=80,
+                placeholder="Optional — what did you expect instead?",
+            )
+            col_s, col_c = st.columns([1, 1])
+            with col_s:
+                if st.button("Submit", type="primary",
+                             key=f"fb_submit_{key_suffix}",
+                             use_container_width=True):
+                    _save("down", reasons=picked, comment=note)
+                    st.session_state[f"fb_detail_{key_suffix}"] = False
+                    st.rerun()
+            with col_c:
+                if st.button("Skip", key=f"fb_skip_{key_suffix}",
+                             use_container_width=True):
+                    _save("down")
+                    st.session_state[f"fb_detail_{key_suffix}"] = False
+                    st.rerun()
+
+
 def handle_prompt(prompt: str):
     """Process a user prompt and generate an answer."""
     session_id = st.session_state.session_id
 
-    save_message(selected_client["id"], user_id, "user", prompt,
-                 session_id=session_id)
-    st.session_state.messages.append({"role": "user", "content": prompt,
-                                      "sources": []})
+    user_msg_id = save_message(selected_client["id"], user_id, "user", prompt,
+                               session_id=session_id)
+    st.session_state.messages.append({"id": user_msg_id, "role": "user",
+                                      "content": prompt, "sources": []})
     with st.chat_message("user"):
         st.markdown(prompt)
 
@@ -515,9 +627,11 @@ def handle_prompt(prompt: str):
         sources_payload = serialise_sources(context_chunks)
         render_sources(sources_payload)
 
-    save_message(selected_client["id"], user_id, "assistant", answer,
-                 session_id=session_id, sources=sources_payload)
-    st.session_state.messages.append({"role": "assistant", "content": answer,
+    assistant_msg_id = save_message(
+        selected_client["id"], user_id, "assistant", answer,
+        session_id=session_id, sources=sources_payload)
+    st.session_state.messages.append({"id": assistant_msg_id,
+                                      "role": "assistant", "content": answer,
                                       "sources": sources_payload})
 
 
@@ -588,6 +702,10 @@ else:
             st.markdown(msg["content"])
             if msg["role"] == "assistant":
                 render_sources(msg.get("sources") or [], key_suffix=str(idx))
+                # Question that produced this answer, for the feedback snapshot.
+                prior = st.session_state.messages[idx - 1] if idx > 0 else {}
+                question = prior.get("content", "") if prior.get("role") == "user" else ""
+                render_feedback(msg, question, key_suffix=str(idx))
 
     if prompt := st.chat_input("Ask a compliance question…"):
         handle_prompt(prompt)
