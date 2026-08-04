@@ -523,9 +523,12 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
 
     col_up, col_down, col_msg = st.columns([1, 1, 10])
 
+    # Selection is shown with a checkmark rather than type="primary".
+    # primary renders in the theme's primaryColor — red by default — which
+    # would mark positive feedback in an alarm colour.
     with col_up:
-        if st.button("👍", key=f"fb_up_{key_suffix}",
-                     type="primary" if current == "up" else "secondary",
+        if st.button("👍 ✓" if current == "up" else "👍",
+                     key=f"fb_up_{key_suffix}",
                      help="This answer was useful"):
             # Rerun only on success — otherwise the rerun wipes the error
             # message before it can be read.
@@ -533,14 +536,20 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                 st.rerun()
 
     with col_down:
-        if st.button("👎", key=f"fb_down_{key_suffix}",
-                     type="primary" if current == "down" else "secondary",
+        if st.button("👎 ✓" if current == "down" else "👎",
+                     key=f"fb_down_{key_suffix}",
                      help="Something was wrong with this answer"):
             if FEEDBACK_MODE == "beta":
                 st.session_state[f"fb_detail_{key_suffix}"] = True
                 st.rerun()
             elif _save("down"):
                 st.rerun()
+
+    with col_msg:
+        if current == "up":
+            st.markdown(":green[Thanks — noted.]")
+        elif current == "down" and not st.session_state.get(f"fb_detail_{key_suffix}"):
+            st.markdown(":orange[Thanks — logged for review.]")
 
     with col_msg:
         if current == "up":
