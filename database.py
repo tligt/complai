@@ -104,7 +104,7 @@ def load_chat_history(client_id: str, user_id: str,
     try:
         supabase = get_supabase()
         query = supabase.table("chat_history") \
-            .select("role, content, sources, session_id, created_at") \
+            .select("id, role, content, sources, session_id, created_at") \
             .eq("client_id", client_id) \
             .eq("user_id", user_id)
         if session_id:
@@ -179,8 +179,12 @@ def load_chat_sessions(client_id: str, user_id: str) -> list[dict]:
 
 def save_message(client_id: str, user_id: str, role: str, content: str,
                  session_id: str | None = None,
-                 sources: list[dict] | None = None) -> bool:
-    """Save a single message to chat history.
+                 sources: list[dict] | None = None) -> str | None:
+    """Save a single message to chat history. Returns the new row id.
+
+    Returns the id (not a bool) so callers can attach per-answer feedback to
+    a message that has just been generated, not only to reloaded history.
+    The return value is still truthy/falsy-compatible with the old contract.
 
     session_id is required by the schema (NOT NULL). It defaults to None here
     so that any caller not yet updated fails soft — a fresh uuid is minted
@@ -188,7 +192,7 @@ def save_message(client_id: str, user_id: str, role: str, content: str,
     """
     try:
         supabase = get_supabase()
-        supabase.table("chat_history").insert({
+        res = supabase.table("chat_history").insert({
             "client_id":  client_id,
             "user_id":    user_id,
             "role":       role,
@@ -196,10 +200,11 @@ def save_message(client_id: str, user_id: str, role: str, content: str,
             "session_id": session_id or str(uuid.uuid4()),
             "sources":    sources or [],
         }).execute()
-        return True
+        rows = res.data or []
+        return rows[0].get("id") if rows else None
     except Exception as e:
         _st().error(f"Could not save message: {e}")
-        return False
+        return None
 
 
 def delete_chat_session(client_id: str, user_id: str, session_id: str) -> bool:
@@ -969,6 +974,383 @@ def log_audit_event(
     except Exception as e:
         print(f"Could not log audit event: {e}")
         return False
+
+
+# ── S22: Answer feedback ──────────────────────────────────────────────────────
+
+# Beta collects rating + reason codes + comment. Commercial collects rating
+# only (plus a separate general suggestion form). One table, two UI depths —
+# switched by FEEDBACK_MODE, same pattern as the annual-billing toggle.
+FEEDBACK_MODE = os.environ.get("FEEDBACK_MODE", "beta")  # "beta" | "standard"
+
+FEEDBACK_REASONS = [
+    ("inaccurate",     "Factually wrong"),
+    ("outdated",       "Out of date"),
+    ("wrong_reg",      "Cited the wrong regulation"),
+    ("incomplete",     "Incomplete answer"),
+    ("not_grounded",   "Not supported by the sources"),
+    ("unclear",        "Hard to understand"),
+    ("wrong_language", "Wrong language"),
+]
+
+
+def save_answer_feedback(
+    user_id: str,
+    rating: str,
+    client_id: str | None = None,
+    session_id: str | None = None,
+    message_id: str | None = None,
+    reason_codes: list[str] | None = None,
+    comment: str | None = None,
+    question: str | None = None,
+    answer: str | None = None,
+    sources: list[dict] | None = None,
+) -> bool:
+    """Record feedback on a single answer.
+
+    question/answer/sources are snapshotted rather than referenced: clients
+    can delete conversations, and the quality signal must outlive that.
+    Upserts on (message_id, user_id) so changing a rating replaces it.
+    """
+    try:
+        supabase = get_supabase()
+        payload = {
+            "user_id":      user_id,
+            "client_id":    client_id,
+            "session_id":   session_id,
+            "message_id":   message_id,
+            "rating":       rating,
+            "reason_codes": reason_codes or [],
+            "comment":      (comment or "").strip() or None,
+            "question":     question,
+            "answer":       answer,
+            "sources":      sources or [],
+        }
+        if message_id:
+            supabase.table("answer_feedback") \
+                .upsert(payload, on_conflict="message_id,user_id") \
+                .execute()
+        else:
+            supabase.table("answer_feedback").insert(payload).execute()
+        return True
+    except Exception as e:
+        _st().error(f"Could not save feedback: {e}")
+        return False
+
+
+def load_feedback_for_session(user_id: str, session_id: str) -> dict[str, dict]:
+    """Existing feedback for a conversation, keyed by message_id.
+
+    Used to re-render thumbs state when a conversation is reloaded.
+    """
+    try:
+        supabase = get_supabase()
+        res = supabase.table("answer_feedback") \
+            .select("message_id, rating, reason_codes, comment") \
+            .eq("user_id", user_id) \
+            .eq("session_id", session_id) \
+            .execute()
+        return {r["message_id"]: r for r in (res.data or []) if r.get("message_id")}
+    except Exception:
+        return {}
+
+
+def load_all_feedback(rating: str | None = None, limit: int = 200) -> list[dict]:
+    """Admin: feedback across all clients, newest first."""
+    try:
+        supabase = get_supabase()
+        query = supabase.table("answer_feedback").select("*")
+        if rating:
+            query = query.eq("rating", rating)
+        res = query.order("created_at", desc=True).limit(limit).execute()
+        return res.data or []
+    except Exception as e:
+        _st().error(f"Could not load feedback: {e}")
+        return []
+
+
+def get_feedback_summary() -> dict:
+    """Admin: aggregate counts for the feedback dashboard.
+
+    Aggregated in Python for the same reason as load_chat_sessions —
+    PostgREST has no GROUP BY. Move to an RPC if volume grows.
+    """
+    try:
+        supabase = get_supabase()
+        res = supabase.table("answer_feedback") \
+            .select("rating, reason_codes, created_at") \
+            .execute()
+        rows = res.data or []
+        up = sum(1 for r in rows if r.get("rating") == "up")
+        down = sum(1 for r in rows if r.get("rating") == "down")
+        reasons: dict[str, int] = {}
+        for r in rows:
+            for code in (r.get("reason_codes") or []):
+                reasons[code] = reasons.get(code, 0) + 1
+        total = up + down
+        return {
+            "total":         total,
+            "up":            up,
+            "down":          down,
+            "positive_rate": round(100 * up / total, 1) if total else None,
+            "reasons":       dict(sorted(reasons.items(),
+                                         key=lambda kv: kv[1], reverse=True)),
+        }
+    except Exception:
+        return {"total": 0, "up": 0, "down": 0, "positive_rate": None, "reasons": {}}
+
+
+# ── S22: Support ticketing ────────────────────────────────────────────────────
+
+TICKET_CATEGORIES = [
+    ("bug",               "Something's broken"),
+    ("question",          "How do I…"),
+    ("feature_request",   "Suggestion / feature request"),
+    ("compliance_answer", "A compliance answer was wrong or outdated"),
+    ("billing",           "Billing & account"),
+    ("data_request",      "Data & privacy request"),
+]
+
+TICKET_SEVERITIES = [
+    ("critical", "Critical — platform unusable, or compliance data at risk"),
+    ("high",     "High — a core feature is blocked, workaround is painful"),
+    ("normal",   "Normal — degraded but workable"),
+    ("low",      "Low — cosmetic, or a question"),
+]
+
+TICKET_STATUSES = [
+    "open", "in_progress", "waiting_on_client", "resolved", "closed",
+]
+
+TICKET_PRIORITIES = ["urgent", "high", "normal", "low"]
+
+
+def create_ticket(
+    user_id: str,
+    subject: str,
+    body: str,
+    category: str = "question",
+    context: str = "other",
+    context_ref: str | None = None,
+    reported_severity: str = "normal",
+    client_id: str | None = None,
+) -> str | None:
+    """Create a thread, a ticket pointing at it, and the opening message.
+
+    Returns the ticket id. Not transactional across the three inserts —
+    PostgREST has no multi-statement transaction — so the thread is created
+    first and orphaned only if a later step fails, which is recoverable.
+
+    severity is seeded from reported_severity; admin can override it later
+    while reported_severity keeps what the client originally claimed.
+    """
+    try:
+        supabase = get_supabase()
+
+        thread_res = supabase.table("message_threads").insert({
+            "thread_type": "ticket",
+        }).execute()
+        thread_rows = thread_res.data or []
+        if not thread_rows:
+            _st().error("Could not open a support thread.")
+            return None
+        thread_id = thread_rows[0]["id"]
+
+        ticket_res = supabase.table("support_tickets").insert({
+            "user_id":           user_id,
+            "client_id":         client_id,
+            "thread_id":         thread_id,
+            "subject":           subject.strip()[:200],
+            "category":          category,
+            "context":           context,
+            "context_ref":       context_ref,
+            "reported_severity": reported_severity,
+            "severity":          reported_severity,
+            "status":            "open",
+        }).execute()
+        ticket_rows = ticket_res.data or []
+        if not ticket_rows:
+            _st().error("Could not create the ticket.")
+            return None
+        ticket_id = ticket_rows[0]["id"]
+
+        post_thread_message(thread_id, user_id, "client", body)
+
+        log_audit_event(
+            company_id=client_id,
+            user_id=user_id,
+            event_type="support_ticket_created",
+            event_subtype=category,
+            resource_id=ticket_id,
+            summary=f"Opened support ticket: {subject.strip()[:80]}",
+            metadata={"context": context, "reported_severity": reported_severity},
+        )
+        return ticket_id
+    except Exception as e:
+        _st().error(f"Could not create ticket: {e}")
+        return None
+
+
+def post_thread_message(thread_id: str, author_id: str | None,
+                        author_role: str, body: str) -> str | None:
+    """Add a message to a thread. Returns the new message id."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("messages").insert({
+            "thread_id":   thread_id,
+            "author_id":   author_id,
+            "author_role": author_role,
+            "body":        body.strip(),
+        }).execute()
+        rows = res.data or []
+        return rows[0].get("id") if rows else None
+    except Exception as e:
+        _st().error(f"Could not post message: {e}")
+        return None
+
+
+def load_thread_messages(thread_id: str) -> list[dict]:
+    """All messages in a thread, oldest first."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("messages") \
+            .select("*") \
+            .eq("thread_id", thread_id) \
+            .order("created_at") \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        _st().error(f"Could not load conversation: {e}")
+        return []
+
+
+def load_my_tickets(user_id: str) -> list[dict]:
+    """Client-facing: this user's tickets, newest activity first."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("support_tickets") \
+            .select("*") \
+            .eq("user_id", user_id) \
+            .order("updated_at", desc=True) \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        _st().error(f"Could not load your requests: {e}")
+        return []
+
+
+def load_all_tickets(status: str | None = None,
+                     category: str | None = None,
+                     limit: int = 200) -> list[dict]:
+    """Admin: all tickets, optionally filtered."""
+    try:
+        supabase = get_supabase()
+        query = supabase.table("support_tickets").select("*")
+        if status:
+            query = query.eq("status", status)
+        if category:
+            query = query.eq("category", category)
+        res = query.order("updated_at", desc=True).limit(limit).execute()
+        return res.data or []
+    except Exception as e:
+        _st().error(f"Could not load tickets: {e}")
+        return []
+
+
+def get_ticket(ticket_id: str) -> dict | None:
+    """Load a single ticket. RLS decides whether the caller may see it."""
+    try:
+        supabase = get_supabase()
+        res = supabase.table("support_tickets") \
+            .select("*") \
+            .eq("id", ticket_id) \
+            .limit(1) \
+            .execute()
+        rows = res.data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        _st().error(f"Could not load ticket: {e}")
+        return None
+
+
+def update_ticket(ticket_id: str, updates: dict,
+                  actor_id: str | None = None) -> bool:
+    """Update ticket fields (status, severity, priority, assignment).
+
+    Status transitions are written to the S21 audit trail — the same
+    infrastructure S40 will use for document workflow transitions.
+    """
+    try:
+        supabase = get_supabase()
+        payload = dict(updates)
+        payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+        if payload.get("status") in ("resolved", "closed"):
+            payload.setdefault("resolved_at",
+                               datetime.now(timezone.utc).isoformat())
+
+        supabase.table("support_tickets") \
+            .update(payload) \
+            .eq("id", ticket_id) \
+            .execute()
+
+        if "status" in updates:
+            ticket = get_ticket(ticket_id)
+            log_audit_event(
+                company_id=(ticket or {}).get("client_id"),
+                user_id=actor_id,
+                event_type="support_ticket_status_changed",
+                event_subtype=updates["status"],
+                resource_id=ticket_id,
+                summary=f"Ticket moved to {updates['status'].replace('_', ' ')}",
+                metadata={k: v for k, v in updates.items() if k != "status"},
+            )
+        return True
+    except Exception as e:
+        _st().error(f"Could not update ticket: {e}")
+        return False
+
+
+def mark_thread_read(thread_id: str, reader_role: str) -> bool:
+    """Mark messages from the other party as read.
+
+    reader_role is who is doing the reading, so a client marks admin
+    messages read and vice versa.
+    """
+    try:
+        other = "admin" if reader_role == "client" else "client"
+        supabase = get_supabase()
+        supabase.table("messages") \
+            .update({"read_at": datetime.now(timezone.utc).isoformat()}) \
+            .eq("thread_id", thread_id) \
+            .eq("author_role", other) \
+            .is_("read_at", "null") \
+            .execute()
+        return True
+    except Exception:
+        return False
+
+
+def count_unread_replies(user_id: str) -> int:
+    """Client-facing badge: unread admin replies across this user's tickets."""
+    try:
+        supabase = get_supabase()
+        tickets = supabase.table("support_tickets") \
+            .select("thread_id") \
+            .eq("user_id", user_id) \
+            .not_.in_("status", ["closed"]) \
+            .execute()
+        thread_ids = [t["thread_id"] for t in (tickets.data or [])]
+        if not thread_ids:
+            return 0
+        res = supabase.table("messages") \
+            .select("id", count="exact") \
+            .in_("thread_id", thread_ids) \
+            .eq("author_role", "admin") \
+            .is_("read_at", "null") \
+            .execute()
+        return res.count or 0
+    except Exception:
+        return 0
 
 
 # ── S17: Monitoring sources (dynamic, from DB) ────────────────────────────────
