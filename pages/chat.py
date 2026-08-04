@@ -6,6 +6,7 @@ Previous conversations accessible via the History panel.
 
 import io
 import os
+import uuid
 import requests
 from datetime import date
 import streamlit as st
@@ -14,7 +15,8 @@ from auth import get_user_id
 from database import (
     get_supabase, get_supabase_admin,
     load_clients, create_client_record, update_client_record, delete_client_record,
-    load_chat_history, save_message, clear_chat_history, build_client_context,
+    load_chat_history, load_chat_sessions, save_message, delete_chat_session,
+    clear_chat_history, build_client_context,
     log_token_usage,
 )
 from rag import retrieve, get_knowledge_base_summary
@@ -128,19 +130,29 @@ def answer_question(
 
 def init_session():
     defaults = {
-        "messages":         [],
-        "selected_client":  None,
-        "chat_country":     "EU",
-        "chat_language":    "en",
-        "chat_top_k":       6,
-        "show_history":     False,
-        "history_loaded":   False,
-        "company_docs":     {},
-        "confirm_delete":   False,
+        "messages":               [],
+        "selected_client":        None,
+        "session_id":             str(uuid.uuid4()),
+        "chat_country":           "EU",
+        "chat_language":          "en",
+        "chat_top_k":             6,
+        "show_history":           False,
+        "history_loaded":         False,
+        "company_docs":           {},
+        "confirm_delete":         False,
+        "confirm_delete_session": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
+
+
+def start_new_session():
+    """Begin a fresh conversation: clear messages, mint a new session_id."""
+    st.session_state.messages = []
+    st.session_state.session_id = str(uuid.uuid4())
+    st.session_state.show_history = False
+    st.session_state.confirm_delete_session = None
 
 init_session()
 user_id = get_user_id()
@@ -222,8 +234,9 @@ with st.sidebar:
         selected = client_options[selected_name]
         if st.session_state.selected_client != selected:
             st.session_state.selected_client = selected
-            st.session_state.messages = []
             st.session_state.history_loaded = False
+            # Switching client starts a new conversation.
+            start_new_session()
 
     # Chat tools under client selector
     if st.session_state.selected_client:
@@ -234,8 +247,7 @@ with st.sidebar:
                 st.session_state.show_history = not st.session_state.show_history
         with col_n:
             if st.button("✚ New chat", key="btn_new_chat", use_container_width=True):
-                st.session_state.messages = []
-                st.session_state.show_history = False
+                start_new_session()
                 st.rerun()
 
     # ── History panel in sidebar ──────────────────────────────
@@ -249,26 +261,65 @@ with st.sidebar:
                 st.session_state.show_history = False
                 st.rerun()
         try:
-            history = load_chat_history(st.session_state.selected_client["id"], user_id)
-            if not history:
+            sessions = load_chat_sessions(
+                st.session_state.selected_client["id"], user_id)
+
+            if not sessions:
                 st.caption("No saved conversations yet.")
             else:
-                user_msgs = [m for m in history if m["role"] == "user"]
-                st.caption(f"{len(user_msgs)} questions · {len(history)} messages total")
+                st.caption(f"{len(sessions)} conversation"
+                           f"{'s' if len(sessions) != 1 else ''}")
 
-                if st.button("📂 Load full history", type="primary", key="btn_load_hist",
-                              use_container_width=True):
-                    st.session_state.messages = history
-                    st.session_state.show_history = False
-                    st.rerun()
+                for s in sessions:
+                    sid = s["session_id"]
+                    is_active = (sid == st.session_state.session_id)
 
-                st.markdown("**Questions asked:**")
-                for i, msg in enumerate(user_msgs):
-                    preview = msg["content"][:55] + ("…" if len(msg["content"]) > 55 else "")
-                    st.caption(f"{i+1}. 👤 {preview}")
+                    title = s["title"]
+                    preview = title[:42] + ("…" if len(title) > 42 else "")
+                    day = (s["last_at"] or "")[:10]
+
+                    if st.session_state.confirm_delete_session == sid:
+                        st.warning(f"Delete “{preview}”?")
+                        col_y, col_n2 = st.columns(2)
+                        with col_y:
+                            if st.button("Delete", type="primary",
+                                         key=f"cdel_yes_{sid}",
+                                         use_container_width=True):
+                                delete_chat_session(
+                                    st.session_state.selected_client["id"],
+                                    user_id, sid)
+                                # If we deleted the open conversation, reset.
+                                if is_active:
+                                    start_new_session()
+                                st.session_state.confirm_delete_session = None
+                                st.rerun()
+                        with col_n2:
+                            if st.button("Cancel", key=f"cdel_no_{sid}",
+                                         use_container_width=True):
+                                st.session_state.confirm_delete_session = None
+                                st.rerun()
+                        continue
+
+                    col_load, col_del = st.columns([5, 1])
+                    with col_load:
+                        label = ("● " if is_active else "") + preview
+                        if st.button(label, key=f"load_{sid}",
+                                     use_container_width=True,
+                                     help=f"{day} · {s['message_count']} messages"):
+                            msgs = load_chat_history(
+                                st.session_state.selected_client["id"],
+                                user_id, session_id=sid)
+                            st.session_state.messages = msgs
+                            st.session_state.session_id = sid
+                            st.session_state.show_history = False
+                            st.rerun()
+                    with col_del:
+                        if st.button("🗑", key=f"del_{sid}",
+                                     use_container_width=True):
+                            st.session_state.confirm_delete_session = sid
+                            st.rerun()
 
                 st.divider()
-                st.caption("⚠️ Note: individual conversation selection coming soon. Currently all messages are stored together.")
 
                 if not st.session_state.get("confirm_delete"):
                     if st.button("🗑️ Delete all history", key="btn_del_hist",
@@ -283,9 +334,8 @@ with st.sidebar:
                                       use_container_width=True):
                             clear_chat_history(
                                 st.session_state.selected_client["id"], user_id)
-                            st.session_state.messages = []
                             st.session_state.confirm_delete = False
-                            st.session_state.show_history = False
+                            start_new_session()
                             st.rerun()
                     with col_no:
                         if st.button("Cancel", key="btn_cancel_del",
@@ -390,10 +440,43 @@ st.caption(
 )
 
 # ── Answer helper ─────────────────────────────────────────────
+def serialise_sources(context_chunks) -> list[dict]:
+    """Convert retrieved Chunk objects into jsonb-safe dicts.
+
+    Text is truncated: the stored copy exists to re-render the citation panel,
+    not to be a second copy of the knowledge base.
+    """
+    payload = []
+    for c in context_chunks or []:
+        try:
+            payload.append({
+                "source": getattr(c, "source", "") or "",
+                "text":   (getattr(c, "text", "") or "")[:800],
+            })
+        except Exception:
+            continue
+    return payload
+
+
+def render_sources(sources: list[dict], key_suffix: str = ""):
+    """Render the citation expander from stored source dicts."""
+    if not sources:
+        return
+    with st.expander("Sources used"):
+        for i, s in enumerate(sources, 1):
+            st.markdown(f"**{i}. {s.get('source', 'Unknown source')}**")
+            text = s.get("text", "") or ""
+            st.text(text[:400] + ("..." if len(text) > 400 else ""))
+
+
 def handle_prompt(prompt: str):
     """Process a user prompt and generate an answer."""
-    save_message(selected_client["id"], user_id, "user", prompt)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    session_id = st.session_state.session_id
+
+    save_message(selected_client["id"], user_id, "user", prompt,
+                 session_id=session_id)
+    st.session_state.messages.append({"role": "user", "content": prompt,
+                                      "sources": []})
     with st.chat_message("user"):
         st.markdown(prompt)
 
@@ -429,14 +512,13 @@ def handle_prompt(prompt: str):
 
         st.markdown(answer)
 
-        if context_chunks:
-            with st.expander("Sources used"):
-                for i, chunk in enumerate(context_chunks, 1):
-                    st.markdown(f"**{i}. {chunk.source}**")
-                    st.text(chunk.text[:400] + ("..." if len(chunk.text) > 400 else ""))
+        sources_payload = serialise_sources(context_chunks)
+        render_sources(sources_payload)
 
-    save_message(selected_client["id"], user_id, "assistant", answer)
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+    save_message(selected_client["id"], user_id, "assistant", answer,
+                 session_id=session_id, sources=sources_payload)
+    st.session_state.messages.append({"role": "assistant", "content": answer,
+                                      "sources": sources_payload})
 
 
 # ── Chat messages ─────────────────────────────────────────────
@@ -501,9 +583,11 @@ if not st.session_state.messages:
 
 else:
     # ── CONVERSATION STATE — messages + native chat input ─────
-    for msg in st.session_state.messages:
+    for idx, msg in enumerate(st.session_state.messages):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            if msg["role"] == "assistant":
+                render_sources(msg.get("sources") or [], key_suffix=str(idx))
 
     if prompt := st.chat_input("Ask a compliance question…"):
         handle_prompt(prompt)
