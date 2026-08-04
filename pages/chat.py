@@ -21,7 +21,6 @@ from database import (
     save_answer_feedback, load_feedback_for_session,
     FEEDBACK_MODE, FEEDBACK_REASONS,
 )
-from support_widget import render_help_widget
 from rag import retrieve, get_knowledge_base_summary
 
 # ── Constants ─────────────────────────────────────────────────
@@ -444,14 +443,6 @@ st.caption(
     f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
     f"{selected_client.get('sector','')} · "
     f"{selected_client.get('company_size','')} FTE · {reg_str}"
-)
-
-# Pinned to the viewport, so its position in the layout is irrelevant.
-render_help_widget(
-    user_id=user_id,
-    context="chat",
-    context_ref=st.session_state.session_id,
-    client_id=selected_client.get("id"),
 )
 
 # ── Answer helper ─────────────────────────────────────────────
