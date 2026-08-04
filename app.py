@@ -1,5 +1,6 @@
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
+from database import count_unread_replies
 
 st.set_page_config(
     page_title="RECOSA",
@@ -174,11 +175,21 @@ audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
 alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
 activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
 
+# Support carries an unread badge. st.navigation has no badge slot, so the
+# count goes in the title — without it, a support inbox nobody is prompted
+# to check is the main way replies go unread.
+_unread = count_unread_replies(user_id)
+support   = st.Page(
+    "pages/support.py",
+    title=f"Support ({_unread})" if _unread else "Support",
+    icon="💬",
+)
+
 pg = st.navigation({
     "":           [chat],
     "Compliance": [dashboard, gap],
     "Tools":      [documents, audit],
-    "Account":    [activity],
+    "Account":    [activity, support],
     "Updates":    [alerts],
 })
 pg.run()

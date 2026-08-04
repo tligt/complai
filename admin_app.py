@@ -1,6 +1,6 @@
 import streamlit as st
 from auth import init_auth, is_logged_in, login_ui, get_user_id
-from database import is_admin
+from database import is_admin, count_open_tickets
 
 st.set_page_config(
     page_title="RECOSA Admin",
@@ -115,9 +115,20 @@ dashboard  = st.Page("pages_admin/dashboard.py",  title="Dashboard",     icon="�
 monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",    icon="📡")
 kb         = st.Page("pages_admin/kb.py",         title="Knowledge Base",icon="📚")
 audit_log  = st.Page("pages_admin/audit_log.py",  title="Audit Trail",   icon="🕐")
+feedback   = st.Page("pages_admin/feedback.py",   title="Feedback",      icon="👍")
+
+# Open + in-progress count in the title: st.navigation has no badge slot,
+# and an unattended ticket queue is the failure mode worth designing against.
+_open_tickets = count_open_tickets()
+tickets = st.Page(
+    "pages_admin/tickets.py",
+    title=f"Tickets ({_open_tickets})" if _open_tickets else "Tickets",
+    icon="🎫",
+)
 
 pg = st.navigation({
-    "Admin": [home, dashboard, audit_log],
+    "Admin":   [home, dashboard, audit_log],
+    "Support": [tickets, feedback],
     "Content": [monitoring, kb],
 })
 pg.run()
