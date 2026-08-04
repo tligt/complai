@@ -62,19 +62,38 @@ def render_help_widget(user_id: str,
                        context_ref: str | None = None,
                        client_id: str | None = None,
                        label: str = "Help",
-                       floating: bool = True):
+                       placement: str = "sidebar"):
     """Render the help popover.
 
     context     — the surface the user is on, captured not asked
     context_ref — chat_session_id, document_id etc. where one exists
-    floating    — pin to the viewport so it survives scrolling
+    placement   — "sidebar" | "fixed" | "inline"
+
+    "sidebar" is the default because it is the only one that reliably stays
+    in view: Streamlit's sidebar scrolls independently of page content, with
+    no CSS or version dependency.
+
+    "fixed" pins the widget to the viewport via st.container(key=...), which
+    renders a `st-key-{key}` class. That requires Streamlit >= 1.42 — on
+    older versions the key is not applied, the CSS has nothing to hook onto,
+    and the widget silently falls back to scrolling inline.
     """
     if context not in VALID_CONTEXTS:
         context = "other"
 
-    if floating:
+    if placement == "sidebar":
+        with st.sidebar:
+            st.divider()
+            _render_form(user_id, context, context_ref, client_id, label)
+        return
+
+    if placement == "fixed":
         st.markdown(_FLOAT_CSS, unsafe_allow_html=True)
-        container = st.container(key="recosa_help_widget")
+        try:
+            container = st.container(key="recosa_help_widget")
+        except TypeError:
+            # Streamlit < 1.42 — no key support, so no targetable class.
+            container = st.container()
     else:
         container = st.container()
 
@@ -86,7 +105,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
     unread = count_unread_replies(user_id)
     button_label = f"💬 {label}" + (f" ({unread})" if unread else "")
 
-    with st.popover(button_label):
+    with st.popover(button_label, use_container_width=True):
         if unread:
             st.info(f"You have {unread} unread "
                     f"repl{'y' if unread == 1 else 'ies'} — "
