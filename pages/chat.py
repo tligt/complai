@@ -527,8 +527,10 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
         if st.button("👍", key=f"fb_up_{key_suffix}",
                      type="primary" if current == "up" else "secondary",
                      help="This answer was useful"):
-            _save("up")
-            st.rerun()
+            # Rerun only on success — otherwise the rerun wipes the error
+            # message before it can be read.
+            if _save("up"):
+                st.rerun()
 
     with col_down:
         if st.button("👎", key=f"fb_down_{key_suffix}",
@@ -536,9 +538,9 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                      help="Something was wrong with this answer"):
             if FEEDBACK_MODE == "beta":
                 st.session_state[f"fb_detail_{key_suffix}"] = True
-            else:
-                _save("down")
-            st.rerun()
+                st.rerun()
+            elif _save("down"):
+                st.rerun()
 
     with col_msg:
         if current == "up":
@@ -570,15 +572,15 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                 if st.button("Submit", type="primary",
                              key=f"fb_submit_{key_suffix}",
                              use_container_width=True):
-                    _save("down", reasons=picked, comment=note)
-                    st.session_state[f"fb_detail_{key_suffix}"] = False
-                    st.rerun()
+                    if _save("down", reasons=picked, comment=note):
+                        st.session_state[f"fb_detail_{key_suffix}"] = False
+                        st.rerun()
             with col_c:
                 if st.button("Skip", key=f"fb_skip_{key_suffix}",
                              use_container_width=True):
-                    _save("down")
-                    st.session_state[f"fb_detail_{key_suffix}"] = False
-                    st.rerun()
+                    if _save("down"):
+                        st.session_state[f"fb_detail_{key_suffix}"] = False
+                        st.rerun()
 
 
 def handle_prompt(prompt: str):
