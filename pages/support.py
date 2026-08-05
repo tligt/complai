@@ -55,10 +55,13 @@ init()
 
 st.markdown("## Support")
 
-# Deep link from a notification email: ?ticket=<uuid>
+# Deep links are normally consumed in app.py, which captures the param
+# before the auth stop can discard it. This is a fallback for the case where
+# the param somehow survives to here — harmless when app.py already handled it.
 qp_ticket = st.query_params.get("ticket")
 if qp_ticket and not st.session_state.support_open_ticket:
     st.session_state.support_open_ticket = qp_ticket
+    del st.query_params["ticket"]
 
 
 # ── Detail view ───────────────────────────────────────────────
@@ -74,7 +77,8 @@ if st.session_state.support_open_ticket:
 
     if st.button("← Back to all requests"):
         st.session_state.support_open_ticket = None
-        st.query_params.pop("ticket", None)
+        if "ticket" in st.query_params:
+            del st.query_params["ticket"]
         st.rerun()
 
     icon, label = STATUS_LABELS.get(ticket["status"], ("", ticket["status"]))
