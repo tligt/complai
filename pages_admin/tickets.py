@@ -11,14 +11,18 @@ high-severity one from a trial. reported_severity keeps the original claim,
 so the gap between claimed and actual urgency stays measurable.
 """
 
+import os
+
 import streamlit as st
 from auth import get_user_id
 from database import (
     load_all_tickets, get_ticket, load_thread_messages,
     post_thread_message, update_ticket, mark_thread_read,
-    get_all_profiles,
+    get_all_profiles, get_ticket_owner_email,
+    thread_has_unread_admin_message,
     TICKET_CATEGORIES, TICKET_SEVERITIES, TICKET_STATUSES, TICKET_PRIORITIES,
 )
+from email_sender import send_ticket_reply_notification
 
 admin_id = get_user_id()
 
@@ -56,10 +60,55 @@ CONTEXT_LABELS = {
 PRIORITY_RANK = {"urgent": 0, "high": 1, "normal": 2, "low": 3}
 SEVERITY_RANK = {"critical": 0, "high": 1, "normal": 2, "low": 3}
 
+NOTIFY_ENABLED = os.environ.get("NOTIFY_ENABLED", "false").strip().lower() == "true"
+
+
+def send_reply(ticket: dict, body: str, resolve: bool = False) -> bool:
+    """Post an admin reply, move the ticket on, and nudge the client.
+
+    Order matters: the unread check has to happen before the insert, or the
+    message we are about to write is itself the unread one and every reply
+    looks like a repeat. Notification failure is swallowed — a Brevo outage
+    must never lose a reply that is already committed to the database.
+    """
+    had_unread = thread_has_unread_admin_message(ticket["thread_id"])
+
+    message_id = post_thread_message(ticket["thread_id"], admin_id, "admin", body)
+    if not message_id:
+        return False  # post_thread_message already surfaced the error
+
+    if resolve:
+        update_ticket(ticket["id"], {"status": "resolved"}, actor_id=admin_id)
+    elif ticket["status"] == "open":
+        update_ticket(ticket["id"], {"status": "in_progress"}, actor_id=admin_id)
+
+    if not NOTIFY_ENABLED:
+        st.session_state.adm_notice = ("info", "Reply posted. Email notifications are off.")
+        return True
+    if had_unread:
+        st.session_state.adm_notice = (
+            "info", "Reply posted. No email sent — the client has an unread reply already.")
+        return True
+
+    email = get_ticket_owner_email(ticket["id"])
+    if not email:
+        st.session_state.adm_notice = (
+            "warning", "Reply posted, but no email address on file for this client.")
+        return True
+
+    sent = send_ticket_reply_notification(email, ticket["id"])
+    st.session_state.adm_notice = (
+        ("success", f"Reply posted. Notification sent to {email}.") if sent
+        else ("warning", "Reply posted, but the notification email failed to send.")
+    )
+    return True
+
 
 def init():
     if "admin_open_ticket" not in st.session_state:
         st.session_state.admin_open_ticket = None
+    if "adm_notice" not in st.session_state:
+        st.session_state.adm_notice = None
 
 
 init()
@@ -81,6 +130,11 @@ if st.session_state.admin_open_ticket:
     if st.button("← Back to queue"):
         st.session_state.admin_open_ticket = None
         st.rerun()
+
+    notice = st.session_state.pop("adm_notice", None)
+    if notice:
+        {"success": st.success, "info": st.info,
+         "warning": st.warning}.get(notice[0], st.info)(notice[1])
 
     st.markdown(f"### {t['subject']}")
     st.caption(
@@ -164,29 +218,37 @@ if st.session_state.admin_open_ticket:
 
     st.divider()
 
+    # Clear the box via a next-run flag rather than writing to the widget key
+    # directly — direct overwrite conflicts with the instantiated widget.
+    if st.session_state.pop("adm_reply_clear", False):
+        st.session_state.pop("adm_reply", None)
+
     reply = st.text_area("Reply to client", key="adm_reply", height=130)
     col_r, col_rs = st.columns([1, 1])
     with col_r:
         if st.button("Send reply", type="primary", use_container_width=True):
             if reply.strip():
-                post_thread_message(t["thread_id"], admin_id, "admin", reply)
-                if t["status"] == "open":
-                    update_ticket(t["id"], {"status": "in_progress"},
-                                  actor_id=admin_id)
-                st.session_state.pop("adm_reply", None)
-                st.rerun()
+                if send_reply(t, reply):
+                    st.session_state.adm_reply_clear = True
+                    st.rerun()
             else:
                 st.warning("Nothing to send.")
     with col_rs:
         if st.button("Send & mark resolved", use_container_width=True):
             if reply.strip():
-                post_thread_message(t["thread_id"], admin_id, "admin", reply)
-            update_ticket(t["id"], {"status": "resolved"}, actor_id=admin_id)
-            st.session_state.pop("adm_reply", None)
-            st.rerun()
+                if send_reply(t, reply, resolve=True):
+                    st.session_state.adm_reply_clear = True
+                    st.rerun()
+            else:
+                # No reply to send, so nothing to notify about — just close it.
+                update_ticket(t["id"], {"status": "resolved"}, actor_id=admin_id)
+                st.rerun()
 
-    st.caption("Reply notifications to the client are content-free — "
-               "subject and link only, never the body.")
+    st.caption(
+        "Reply notifications are content-free — a reference and a link only. "
+        "Never the subject or the body."
+        + ("" if NOTIFY_ENABLED else "  Currently disabled (NOTIFY_ENABLED is off).")
+    )
     st.stop()
 
 
