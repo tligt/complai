@@ -102,6 +102,19 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
+# ── Deep link capture ─────────────────────────────────────────
+# Must happen before init_auth(), because an unauthenticated arrival from a
+# notification email hits st.stop() on the login screen and the rerun after
+# login carries neither the /support path nor the query string. Session
+# state does survive it, so the id is parked there and consumed once
+# navigation exists.
+#
+# The param is deleted immediately: leaving it in the URL means the next
+# rerun re-captures it, which fights the switch_page below and loops.
+if "ticket" in st.query_params:
+    st.session_state.pending_ticket = st.query_params["ticket"]
+    del st.query_params["ticket"]
+
 # ── Auth ──────────────────────────────────────────────────────
 init_auth()
 
@@ -193,6 +206,15 @@ pg = st.navigation({
     "Account":    [activity, support],
     "Updates":    [alerts],
 })
+
+# A ticket deep link bypasses everything else and goes straight to the
+# thread. Reading a ticket needs no client context — the ticket carries its
+# own client_id from creation time — so there is nothing to gate on.
+_pending = st.session_state.pop("pending_ticket", None)
+if _pending:
+    st.session_state.support_open_ticket = _pending
+    st.switch_page(support)
+
 pg.run()
 
 # ── Help widget ───────────────────────────────────────────────
@@ -203,18 +225,23 @@ pg.run()
 # Called after pg.run() so it lands at the bottom of the sidebar, below
 # whatever the active page contributed, and so session state written by
 # that page (selected client, chat session) is already populated.
+# Keyed on url_path (derived from the module filename), not title. Titles
+# are display strings and this one already moves: Support becomes
+# "Support (2)" when replies are unread, which silently dropped the context
+# to "other" on exactly the page where a ticket is most likely to be raised.
 PAGE_CONTEXT = {
-    "Chat":            "chat",
-    "Dashboard":       "dashboard",
-    "Gap Assessment":  "gap_assessment",
-    "Documents":       "document_generation",
-    "Web Audit":       "website_audit",
-    "Alerts":          "compliance_pulse",
-    "Activity Log":    "account",
-    "Support":         "account",
+    "chat":      "chat",
+    "dashboard": "dashboard",
+    "gap":       "gap_assessment",
+    "documents": "document_generation",
+    "audit":     "website_audit",
+    "alerts":    "compliance_pulse",
+    "activity":  "account",
+    "support":   "account",
 }
 
-_ctx = PAGE_CONTEXT.get(pg.title, "other")
+# The default page is served at the root, so its url_path is empty.
+_ctx = PAGE_CONTEXT.get(pg.url_path or "chat", "other")
 _client = st.session_state.get("selected_client") or {}
 
 render_help_widget(
