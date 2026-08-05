@@ -1370,6 +1370,58 @@ def count_open_tickets() -> int:
         return 0
 
 
+def get_ticket_owner_email(ticket_id: str) -> str | None:
+    """Email of the client who owns a ticket, for reply notifications.
+
+    Service role: an admin replying needs to read another user's profile
+    row, which the session client cannot do under RLS.
+    """
+    try:
+        supabase = get_supabase_admin()
+        t = supabase.table("support_tickets") \
+            .select("user_id") \
+            .eq("id", ticket_id) \
+            .limit(1) \
+            .execute()
+        rows = t.data or []
+        if not rows or not rows[0].get("user_id"):
+            return None
+
+        p = supabase.table("profiles") \
+            .select("email") \
+            .eq("id", rows[0]["user_id"]) \
+            .limit(1) \
+            .execute()
+        prows = p.data or []
+        return (prows[0].get("email") if prows else None) or None
+    except Exception as e:
+        print(f"Could not resolve ticket owner email: {e}")
+        return None
+
+
+def thread_has_unread_admin_message(thread_id: str) -> bool:
+    """True if an earlier admin reply in this thread is still unread.
+
+    Used to throttle notifications to the 0 -> 1 unread transition: posting
+    three replies in a row while working a ticket should produce one nudge,
+    not three. Read state lives per-message on messages.read_at, and
+    mark_thread_read('client') clears it when the client opens the thread —
+    so the next reply after they read is a fresh 0 -> 1 and does notify.
+    """
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("messages") \
+            .select("id", count="exact") \
+            .eq("thread_id", thread_id) \
+            .eq("author_role", "admin") \
+            .is_("read_at", "null") \
+            .execute()
+        return (res.count or 0) > 0
+    except Exception as e:
+        print(f"Could not check unread admin messages: {e}")
+        return True  # fail closed: skip the email rather than risk a burst
+
+
 # ── S17: Monitoring sources (dynamic, from DB) ────────────────────────────────
 
 def load_monitoring_sources(monitor_type: str | None = None) -> list[dict]:

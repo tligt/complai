@@ -211,3 +211,90 @@ def send_regulatory_alert(update: dict) -> bool:
     except Exception as e:
         print(f"Alert email error: {e}")
         return False
+
+
+# ── S22: Support ticket reply notification ────────────────────────────────────
+
+def send_ticket_reply_notification(
+    to_email: str,
+    ticket_id: str,
+    ticket_ref: str | None = None,
+) -> bool:
+    """Content-free nudge telling a client a reply is waiting.
+
+    Deliberately excludes the message body AND the ticket subject, category
+    and severity. All of those are client-authored and routinely contain
+    compliance content ("do we have to notify the APD about the 3 August
+    breach?"), which must never transit Brevo. The email carries a reference
+    and a link, nothing else.
+
+    Returns False (without raising) on any failure so a Brevo outage can
+    never break the reply that triggered it.
+    """
+    if os.environ.get("NOTIFY_ENABLED", "false").strip().lower() != "true":
+        return False
+
+    api_key    = os.environ.get("BREVO_API_KEY")
+    from_email = os.environ.get("BREVO_FROM_EMAIL")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
+    base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+
+    if not (api_key and from_email and base_url and to_email):
+        return False
+
+    label = ticket_ref or str(ticket_id)[:8]
+    link  = f"{base_url}/support?ticket={ticket_id}"
+
+    text_body = (
+        f"You have a new reply on your RECOSA support request {label}.\n\n"
+        f"Open it here: {link}\n\n"
+        "For confidentiality, replies are only readable inside RECOSA.\n"
+        "RECOSA - recosa.eu"
+    )
+
+    html_body = f"""
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+  <div style="background:#003366;padding:20px;border-radius:8px 8px 0 0">
+    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+    <p style="color:#c9d6e3;margin:6px 0 0;font-size:13px">Support</p>
+  </div>
+  <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2">
+    <p style="color:#333;line-height:1.6;margin:0 0 18px">
+      You have a new reply on your support request
+      <strong>{label}</strong>.
+    </p>
+    <p style="margin:0 0 18px">
+      <a href="{link}"
+         style="display:inline-block;background:#003366;color:#fff;
+                padding:11px 24px;border-radius:6px;text-decoration:none;
+                font-weight:bold;font-size:14px">Open the request &rarr;</a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin:0">
+      For confidentiality, replies are only readable inside RECOSA.
+      Nothing about your request is included in this email.
+    </p>
+  </div>
+  <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;
+              text-align:center">
+    <p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+  </div>
+</div>
+"""
+
+    try:
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={"api-key": api_key, "Content-Type": "application/json"},
+            json={
+                "sender":      {"name": from_name, "email": from_email},
+                "to":          [{"email": to_email}],
+                "subject":     f"RECOSA support - new reply on request {label}",
+                "textContent": text_body,
+                "htmlContent": html_body,
+            },
+            timeout=10,
+        )
+        return response.status_code in (200, 201, 202)
+    except Exception as e:
+        print(f"Ticket reply notification error: {e}")
+        return False
