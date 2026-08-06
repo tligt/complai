@@ -116,6 +116,7 @@ monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",    icon="�
 kb         = st.Page("pages_admin/kb.py",         title="Knowledge Base",icon="📚")
 audit_log  = st.Page("pages_admin/audit_log.py",  title="Audit Trail",   icon="🕐")
 feedback   = st.Page("pages_admin/feedback.py",   title="Feedback",      icon="👍")
+versions   = st.Page("pages_admin/versions.py", title="Versions", icon="🔧")
 
 # Open + in-progress count in the title: st.navigation has no badge slot,
 # and an unattended ticket queue is the failure mode worth designing against.
@@ -127,7 +128,7 @@ tickets = st.Page(
 )
 
 pg = st.navigation({
-    "Admin":   [home, dashboard, audit_log],
+    "Admin":   [home, dashboard, audit_log, versions],
     "Support": [tickets, feedback],
     "Content": [monitoring, kb],
 })
