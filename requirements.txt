@@ -1,13 +1,54 @@
-streamlit
-pypdf
-numpy
-requests
-python-dotenv
-qdrant-client
-langdetect
-beautifulsoup4
-supabase
-reportlab
-resend
-python-docx
-starlette<1.4
+# RECOSA — Python dependencies
+#
+# EXACT PINS. Verified identical on both deployments (client app and admin
+# BO) on 6 Aug 2026, Python 3.14.
+#
+# Why exact rather than ranges: Streamlit Cloud reinstalls this file on
+# EVERY reboot, including reboots triggered by nothing more than saving a
+# secret. On 5 Aug 2026 a Starlette MINOR release took both apps down with
+# 500s on health checks before any application code ran — Starlette 1.4
+# added a required keyword-only `thread_minimum_size` to
+# GZipResponder.__init__(), which Streamlit's _MediaAwareGZipResponder
+# subclass does not pass. Major-version caps would not have caught it.
+#
+# To upgrade: change one pin at a time, redeploy, confirm BOTH apps come up.
+# To re-verify after a deliberate upgrade:
+#
+#     pip freeze | grep -iE "^(streamlit|starlette|supabase|qdrant-client|pypdf|python-docx|reportlab|beautifulsoup4|numpy|requests|python-dotenv)="
+
+# ── Core app ──────────────────────────────────────────────────
+streamlit==1.61.1
+
+# ── ASGI stack ────────────────────────────────────────────────
+# DO NOT move to 1.4.x until Streamlit ships a compatible
+# _MediaAwareGZipResponder. See the header note.
+starlette==1.3.1
+
+# ── Database & auth ───────────────────────────────────────────
+supabase==2.31.0
+
+# ── Vector store & retrieval ──────────────────────────────────
+qdrant-client==1.19.0
+numpy==2.5.1
+
+# ── Document handling ─────────────────────────────────────────
+pypdf==6.14.2
+python-docx==1.2.0
+reportlab==5.0.0
+
+# ── Web & parsing ─────────────────────────────────────────────
+requests==2.34.2
+beautifulsoup4==4.15.0
+
+# ── Config ────────────────────────────────────────────────────
+python-dotenv==1.2.2
+
+# ── Removed in S23 ────────────────────────────────────────────
+# resend      — dead since the migration to Brevo; nothing imports it.
+# langdetect  — listed but never imported anywhere in the repo.
+#
+# Not listed, deliberately: `mistralai`. Mistral is called through raw
+# requests.post() against the REST API, so the SDK is not a dependency.
+#
+# System packages live in packages.txt (currently: libreoffice, required by
+# convert_docx_to_pdf / convert_docx_to_odt in document_generator.py).
