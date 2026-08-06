@@ -204,7 +204,7 @@ pg = st.navigation({
     "":           [chat],
     "Compliance": [dashboard, gap],
     "Tools":      [documents, audit],
-    "Account":    [activity, support, Versions],
+    "Account":    [activity, support, versions],
     "Updates":    [alerts],
 })
 
