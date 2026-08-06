@@ -274,21 +274,34 @@ else:
     op_rows = []
     for ob in operational:
         res = gap_by_id.get(ob["id"])
-        op_rows.append((ob, (res or {}).get("status", "missing"), res or {}))
+        # No result at all means the obligation postdates the last assessment
+        # — which happens every time Compliance Pulse adds a requirement.
+        # Defaulting that to "missing" would report an untested obligation as
+        # a failure.
+        status = (res or {}).get("status", "not_assessed")
+        op_rows.append((ob, status, res or {}))
 
     n_ok      = sum(1 for _, s, _ in op_rows if s == "compliant")
     n_partial = sum(1 for _, s, _ in op_rows if s == "partial")
     n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
-    n_open    = len(op_rows) - n_ok - n_partial - n_na
+    n_unknown = sum(1 for _, s, _ in op_rows if s == "not_assessed")
+    n_open    = len(op_rows) - n_ok - n_partial - n_na - n_unknown
 
-    m1, m2, m3, m4 = st.columns(4)
+    m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("In place", n_ok)
     m2.metric("Partial", n_partial)
     m3.metric("Not in place", n_open)
-    m4.metric("Not yet in force", len(forthcoming))
+    m4.metric("Not assessed", n_unknown)
+    m5.metric("Not yet in force", len(forthcoming))
 
-    ICONS = {"compliant": "✅", "partial": "🟡",
-             "not_applicable": "⚪", "missing": "❌"}
+    if n_unknown:
+        st.caption(
+            f"{n_unknown} obligation(s) were not covered by the assessment on "
+            f"{gap_date} — most likely added since. Re-run to include them."
+        )
+
+    ICONS = {"compliant": "✅", "partial": "🟡", "not_applicable": "⚪",
+             "not_assessed": "🔍", "missing": "❌"}
 
     # Highest priority first — an operational gap on access control matters
     # more than one on penetration testing.

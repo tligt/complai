@@ -147,7 +147,7 @@ with tab1:
                 for ob in p_obs:
                     result = results_by_id.get(ob["id"], {})
                     status = result.get("status","missing")
-                    icons = {"compliant":"✅","partial":"⚠️","missing":"❌"}
+                    icons = {"compliant":"✅","partial":"⚠️","missing":"❌","not_assessed":"🔍","not_applicable":"⚪"}
                     icon = icons.get(status,"❌")
                     col_ob, col_st = st.columns([5,1])
                     col_ob.markdown(f"{icon} **{ob['title']}** `{ob['article']}`")
@@ -197,7 +197,7 @@ with tab1:
                     for ob in p_obs:
                         result = results_by_id.get(ob["id"], {})
                         status = result.get("status","missing")
-                        icon = "✅" if status=="compliant" else ("⚠️" if status=="partial" else "❌")
+                        icon = {"compliant":"✅","partial":"⚠️","not_assessed":"🔍","not_applicable":"⚪"}.get(status, "❌")
                         story.append(Paragraph(f"{icon} {ob['title']} ({ob['article']})", S("ob", fontSize=9, textColor=HexColor("#000000"), leading=13, spaceAfter=2)))
                         if status in ("partial","missing"):
                             story.append(Paragraph(result.get("explanation",""), S("ex", fontSize=8, textColor=MGRAY, leading=11, spaceAfter=2, leftIndent=12)))
@@ -392,8 +392,13 @@ with tab2:
 
         # Scores
         st.subheader("Compliance scores")
-        st.caption("Based on quality of documents provided — not penalised for missing documents.")
-        c1,c2,c3,c4 = st.columns(4)
+        st.caption(
+            f"Scored on the {assessment.get('n_assessed', 0)} of "
+            f"{assessment.get('n_total', 0)} obligations that could be assessed. "
+            "Documents you have not provided, and obligations not yet in force, "
+            "are reported but never scored against you."
+        )
+        c1,c2,c3,c4,c5 = st.columns(5)
 
         def score_emoji(s):
             if s >= 75: return "🟢"
@@ -407,6 +412,16 @@ with tab2:
                   f"{assessment['score_nis2']}/100")
         c4.metric(f"{score_emoji(assessment['score_eprivacy'])} ePrivacy",
                   f"{assessment['score_eprivacy']}/100")
+
+        # A regulation with nothing assessable shows "—", not 0. Zero would
+        # read as "you comply with none of it" when the truth is "we had
+        # nothing to go on".
+        _scored = assessment.get("scored_regulations", [])
+        _ai = assessment.get("score_eu_ai_act", 0)
+        c5.metric(
+            f"{score_emoji(_ai) if 'EU_AI_ACT' in _scored else '⚪'} EU AI Act",
+            f"{_ai}/100" if "EU_AI_ACT" in _scored else "—",
+        )
 
         # Missing documents summary
         missing_docs = [DOCUMENT_TYPES[dt] for dt in doc_types_ordered
@@ -422,8 +437,9 @@ with tab2:
 
         # Results by regulation
         results_by_id = {r["id"]: r for r in assessment["results"]}
-        for regulation in ["GDPR","NIS2","EPRIVACY"]:
-            reg_labels = {"GDPR":"GDPR","NIS2":"NIS2 Directive","EPRIVACY":"ePrivacy Directive"}
+        for regulation in ["GDPR","NIS2","EPRIVACY","EU_AI_ACT"]:
+            reg_labels = {"GDPR":"GDPR","NIS2":"NIS2 Directive",
+                          "EPRIVACY":"ePrivacy Directive","EU_AI_ACT":"EU AI Act"}
             reg_obs = [o for o in OBLIGATIONS if o["regulation"] == regulation]
             reg_results = [results_by_id.get(o["id"],{}) for o in reg_obs]
 
@@ -431,11 +447,16 @@ with tab2:
             n_p  = sum(1 for r in reg_results if r.get("status") == "partial")
             n_m  = sum(1 for r in reg_results if r.get("status") == "missing")
             n_na = sum(1 for r in reg_results if r.get("status") == "not_applicable")
+            n_ns = sum(1 for r in reg_results if r.get("status") == "not_assessed")
+
+            if not reg_obs:
+                continue
 
             with st.expander(
                 f"**{reg_labels[regulation]}** — "
                 f"✅ {n_c} · ⚠️ {n_p} · ❌ {n_m}"
-                + (f" · ➖ {n_na} N/A" if n_na else ""),
+                + (f" · 🔍 {n_ns} not assessed" if n_ns else "")
+                + (f" · ⚪ {n_na} N/A" if n_na else ""),
                 expanded=(n_m + n_p > 0)
             ):
                 for priority in ["high","medium","low"]:
@@ -449,7 +470,7 @@ with tab2:
                         result = results_by_id.get(ob["id"],{})
                         status = result.get("status","missing")
                         if status == "not_applicable": continue
-                        icons = {"compliant":"✅","partial":"⚠️","missing":"❌"}
+                        icons = {"compliant":"✅","partial":"⚠️","missing":"❌","not_assessed":"🔍","not_applicable":"⚪"}
                         icon = icons.get(status,"❌")
                         col_ob, col_st = st.columns([5,1])
                         col_ob.markdown(f"{icon} **{ob['title']}** `{ob['article']}`")
