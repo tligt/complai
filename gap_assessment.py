@@ -18,7 +18,27 @@ from obligations import (            # noqa: F401
     OBLIGATION_BY_ID, DOCUMENT_OBLIGATIONS, OPERATIONAL_OBLIGATIONS,
     DOC_CATALOG, REG_DOCS, REGULATION_LABELS,
     KIND_DOCUMENT, KIND_OPERATIONAL,
+    is_in_force, applies_from_label, split_by_force,
 )
+
+# Status vocabulary. NOT_ASSESSED is deliberately distinct from "missing":
+# "missing" asserts the client does not meet an obligation we examined,
+# NOT_ASSESSED says we had no evidence to examine. Conflating them either
+# defames the client or flatters them, and it wrecks the score either way.
+COMPLIANT      = "compliant"
+PARTIAL        = "partial"
+MISSING        = "missing"
+NOT_APPLICABLE = "not_applicable"
+NOT_ASSESSED   = "not_assessed"
+
+UNSCORED_STATUSES = (NOT_APPLICABLE, NOT_ASSESSED)
+
+# Relative weights, renormalised over whichever regulations actually have
+# assessable obligations — so a client who does not use AI is not dragged
+# down by an EU AI Act score of zero.
+REGULATION_WEIGHTS = {
+    "GDPR": 0.40, "NIS2": 0.30, "EU_AI_ACT": 0.20, "EPRIVACY": 0.10,
+}
 
 
 # ── Document text extraction ──────────────────────────────────
@@ -51,13 +71,36 @@ def extract_text_from_storage(file_path: str) -> str:
     try:
         admin = get_supabase_admin()
         content = admin.storage.from_("compliance-files").download(file_path)
-        name = file_path.lower()
-        if name.endswith(".pdf"):
+
+        # Sniff the format from the bytes, not the filename. Upload paths are
+        # built with re.sub(r"[^a-zA-Z0-9_-]", "_", name), which turns
+        # "policy.pdf" into "policy_pdf" — so extension matching silently
+        # failed and every PDF fell through to .decode(), producing binary
+        # soup that the model then reported as "a corrupted document".
+        if content[:4] == b"%PDF":
             reader = PdfReader(io.BytesIO(content))
-            return "\n\n".join(p.extract_text() for p in reader.pages if p.extract_text())
-        elif name.endswith(".docx"):
+            return "\n\n".join(p.extract_text() for p in reader.pages
+                               if p.extract_text())
+        if content[:4] == b"PK\x03\x04":          # zip container => docx
             doc = DocxDocument(io.BytesIO(content))
             return "\n\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+        # Fall back to filename for anything unsniffable, then to plain text.
+        name = file_path.lower()
+        if name.endswith(".pdf") or "_pdf" in name:
+            try:
+                reader = PdfReader(io.BytesIO(content))
+                return "\n\n".join(p.extract_text() for p in reader.pages
+                                   if p.extract_text())
+            except Exception:
+                pass
+        if name.endswith(".docx") or "_docx" in name:
+            try:
+                doc = DocxDocument(io.BytesIO(content))
+                return "\n\n".join(p.text for p in doc.paragraphs
+                                   if p.text.strip())
+            except Exception:
+                pass
         return content.decode("utf-8", errors="ignore")
     except Exception as e:
         return ""
@@ -101,7 +144,7 @@ def analyse_obligation(obligation: dict, document_text: str,
         doc_label = DOCUMENT_TYPES.get(obligation.get("doc_type",""), "document")
         return {"id": ob_id, "status": "missing",
                 "explanation": f"No {doc_label} provided — cannot assess this obligation.",
-                "recommendation": f"Upload or generate a {doc_label} in COMPLAI."}
+                "recommendation": f"Upload or generate a {doc_label} in RECOSA."}
 
     # Mistral analysis
     if len(document_text) <= 6000:
@@ -329,7 +372,7 @@ def run_document_review(
             doc_results.append({
                 "id": ob["id"], "status": "missing",
                 "explanation": f"No {DOCUMENT_TYPES.get(doc_type,'document')} provided.",
-                "recommendation": f"Upload or generate a {DOCUMENT_TYPES.get(doc_type,'document')} in COMPLAI."
+                "recommendation": f"Upload or generate a {DOCUMENT_TYPES.get(doc_type,'document')} in RECOSA."
             })
 
     # Combine and reorder
@@ -400,9 +443,34 @@ def run_gap_assessment(
             text=f"Analysing {i+1}/{total}: {obligation['title'][:50]}..."
         )
 
-        # Get relevant document text for this obligation
+        # Not yet binding: report the date, do not judge the client on it.
+        if not is_in_force(obligation):
+            results.append({
+                "id": obligation["id"], "status": NOT_ASSESSED,
+                "explanation": f"Applies from {applies_from_label(obligation)}. "
+                               "Not assessed because it is not yet in force.",
+                "recommendation": "",
+            })
+            continue
+
         doc_type = obligation.get("doc_type")
         doc_text = doc_texts.get(doc_type, "") if doc_type else ""
+
+        # No document to read means we have no evidence either way. Saying
+        # "missing" would assert the client fails an obligation we never
+        # examined — and it used to drag the score down, because the exclusion
+        # filter matched the substring "not provided" against an explanation
+        # that actually read "No X provided". Set the status directly instead
+        # of inferring it from prose, and skip the API call entirely.
+        if doc_type and not doc_text.strip():
+            label = DOCUMENT_TYPES.get(doc_type, "document")
+            results.append({
+                "id": obligation["id"], "status": NOT_ASSESSED,
+                "explanation": f"No {label} in the repository — this obligation "
+                               "could not be assessed.",
+                "recommendation": f"Upload or generate a {label} in RECOSA.",
+            })
+            continue
 
         # For obligations with no specific doc_type, combine all available texts
         if not doc_type and not obligation["profile_question"]:
@@ -416,34 +484,49 @@ def run_gap_assessment(
 
     progress.empty()
 
-    # Scores
-    def calc_score(reg: str) -> int:
-        # Exclude "not_applicable" AND "not provided" (missing due to no document)
-        # Score reflects quality of what's provided, not completeness
+    # ── Scores ────────────────────────────────────────────────
+    def calc_score(reg: str):
+        """Score for one regulation, or None if nothing was assessable.
+
+        None and 0 mean very different things: None is "we have no basis to
+        score this", 0 is "we assessed it and you meet none of it". Returning
+        0 for both is how an unassessed regulation used to drag the overall
+        score down.
+        """
         reg_results = [
             r for r, o in zip(results, OBLIGATIONS)
-            if o["regulation"] == reg
-            and r["status"] != "not_applicable"
-            and not (r["status"] == "missing" and
-                     "not provided" in r.get("explanation","").lower())
+            if o["regulation"] == reg and r["status"] not in UNSCORED_STATUSES
         ]
         if not reg_results:
-            return 0  # no assessable obligations = no score
-        compliant = sum(1 for r in reg_results if r["status"] == "compliant")
-        partial   = sum(1 for r in reg_results if r["status"] == "partial")
+            return None
+        compliant = sum(1 for r in reg_results if r["status"] == COMPLIANT)
+        partial   = sum(1 for r in reg_results if r["status"] == PARTIAL)
         return int((compliant + partial * 0.5) / len(reg_results) * 100)
 
-    score_gdpr     = calc_score("GDPR")
-    score_nis2     = calc_score("NIS2")
-    score_eprivacy = calc_score("EPRIVACY")
-    score_overall  = int(score_gdpr * 0.5 + score_nis2 * 0.35 + score_eprivacy * 0.15)
+    raw = {reg: calc_score(reg) for reg in REGULATION_WEIGHTS}
+    scored = {reg: s for reg, s in raw.items() if s is not None}
+
+    if scored:
+        total_weight = sum(REGULATION_WEIGHTS[r] for r in scored)
+        score_overall = int(round(sum(
+            s * REGULATION_WEIGHTS[r] for r, s in scored.items()
+        ) / total_weight))
+    else:
+        score_overall = 0
+
+    n_assessed = sum(1 for r in results if r["status"] not in UNSCORED_STATUSES)
 
     return {
         "results": results,
-        "score_gdpr": score_gdpr,
-        "score_nis2": score_nis2,
-        "score_eprivacy": score_eprivacy,
-        "score_overall": score_overall,
+        # 0 for storage compatibility; scored_regulations says which are real.
+        "score_gdpr":      raw["GDPR"]      or 0,
+        "score_nis2":      raw["NIS2"]      or 0,
+        "score_eprivacy":  raw["EPRIVACY"]  or 0,
+        "score_eu_ai_act": raw["EU_AI_ACT"] or 0,
+        "score_overall":   score_overall,
+        "scored_regulations": sorted(scored),
+        "n_assessed": n_assessed,
+        "n_total": len(results),
     }
 
 
@@ -496,14 +579,14 @@ def generate_gap_report_pdf(assessment: dict, client: dict,
     story.append(HRFlowable(width="100%", thickness=2, color=NAVY))
     story.append(Spacer(1, 4))
     story.append(Paragraph(company, S_SUB))
-    story.append(Paragraph(f"Generated by COMPLAI · {today}", S_DATE))
+    story.append(Paragraph(f"Generated by RECOSA · {today}", S_DATE))
 
     # Document versions used
     if doc_versions:
         story.append(Paragraph("Documents assessed:", S_H2))
         for dt, info in doc_versions.items():
             label = DOCUMENT_TYPES.get(dt, dt)
-            src = "COMPLAI generated" if info.get("source") == "complai_generated" else "Client upload"
+            src = "RECOSA generated" if info.get("source") == "complai_generated" else "Client upload"
             story.append(Paragraph(
                 f"• {label} — v{info.get('version',1)} ({src})", S_SMALL))
         story.append(Spacer(1, 8))
@@ -523,6 +606,8 @@ def generate_gap_report_pdf(assessment: dict, client: dict,
         ["GDPR",      f"{assessment['score_gdpr']}/100",     status_label(assessment['score_gdpr'])],
         ["NIS2",      f"{assessment['score_nis2']}/100",     status_label(assessment['score_nis2'])],
         ["ePrivacy",  f"{assessment['score_eprivacy']}/100", status_label(assessment['score_eprivacy'])],
+        ["EU AI Act", f"{assessment.get('score_eu_ai_act', 0)}/100",
+         status_label(assessment.get('score_eu_ai_act', 0))],
         ["OVERALL",   f"{assessment['score_overall']}/100",  status_label(assessment['score_overall'])],
     ]
     t = Table(score_data, colWidths=[8*cm, 4*cm, 5*cm])
@@ -545,21 +630,24 @@ def generate_gap_report_pdf(assessment: dict, client: dict,
     n_c = statuses.count("compliant")
     n_p = statuses.count("partial")
     n_m = statuses.count("missing")
-    n_na = statuses.count("not_applicable")
-    n_total = len([s for s in statuses if s != "not_applicable"])
+    n_na = statuses.count(NOT_APPLICABLE)
+    n_ns = statuses.count(NOT_ASSESSED)
+    n_total = len([s for s in statuses if s not in UNSCORED_STATUSES])
 
     story.append(Paragraph(
         f"Out of <b>{n_total}</b> applicable obligations: "
         f"<font color='#27AE60'><b>{n_c} compliant</b></font>, "
         f"<font color='#E67E22'><b>{n_p} partial</b></font>, "
         f"<font color='#C0392B'><b>{n_m} missing</b></font>."
-        + (f" {n_na} not applicable." if n_na else ""), S_BODY))
+        + (f" {n_na} not applicable." if n_na else "")
+        + (f" {n_ns} could not be assessed." if n_ns else ""), S_BODY))
 
     story.append(PageBreak())
 
     # Gaps by regulation
-    for regulation in ["GDPR", "NIS2", "EPRIVACY"]:
-        reg_labels = {"GDPR":"GDPR","NIS2":"NIS2 Directive","EPRIVACY":"ePrivacy Directive"}
+    for regulation in ["GDPR", "NIS2", "EPRIVACY", "EU_AI_ACT"]:
+        reg_labels = {"GDPR":"GDPR","NIS2":"NIS2 Directive",
+                      "EPRIVACY":"ePrivacy Directive","EU_AI_ACT":"EU AI Act"}
         reg_obs = [o for o in OBLIGATIONS if o["regulation"] == regulation]
         has_gaps = any(
             results_by_id.get(o["id"],{}).get("status") in ["partial","missing"]
@@ -593,7 +681,7 @@ def generate_gap_report_pdf(assessment: dict, client: dict,
                 if ob.get("doc_type"):
                     doc_label = DOCUMENT_TYPES.get(ob["doc_type"], ob["doc_type"])
                     story.append(Paragraph(
-                        f"📄 Generate a compliant {doc_label} in COMPLAI → Documents page", S_REC))
+                        f"📄 Generate a compliant {doc_label} in RECOSA → Documents page", S_REC))
 
         story.append(Spacer(1, 8))
 
@@ -636,7 +724,7 @@ def generate_gap_report_pdf(assessment: dict, client: dict,
     story.append(HRFlowable(width="100%", thickness=1, color=LGRAY))
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        f"Generated by COMPLAI · complai.be · {today} · "
+        f"Generated by RECOSA · recosa.eu · {today} · "
         "AI analysis of provided documents and self-reported information. "
         "Review with a qualified legal or cybersecurity professional.", S_SMALL))
 
@@ -655,10 +743,12 @@ def save_gap_assessment(user_id: str, client_id: str | None,
         res = supabase.table("gap_assessments").insert({
             "user_id": user_id,
             "client_id": client_id,
-            "regulations": ["GDPR","NIS2","EPRIVACY"],
+            "regulations": assessment.get("scored_regulations")
+                           or ["GDPR","NIS2","EPRIVACY"],
             "score_gdpr": assessment["score_gdpr"],
             "score_nis2": assessment["score_nis2"],
             "score_eprivacy": assessment["score_eprivacy"],
+            "score_eu_ai_act": assessment.get("score_eu_ai_act", 0),
             "score_overall": assessment["score_overall"],
             "gaps": assessment["results"],
             "profile_answers": profile_answers,
@@ -670,7 +760,7 @@ def save_gap_assessment(user_id: str, client_id: str | None,
 
     if pdf_bytes and assessment_id:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = f"{user_id}/{client_id or 'advisory'}/gap_reports/COMPLAI_gap_{ts}.pdf"
+        path = f"{user_id}/{client_id or 'advisory'}/gap_reports/RECOSA_gap_{ts}.pdf"
         stored = upload_file("compliance-files", path, pdf_bytes, "application/pdf")
         if stored:
             try:
@@ -693,7 +783,8 @@ def save_gap_assessment(user_id: str, client_id: str | None,
             metadata={"score_overall": assessment["score_overall"],
                       "score_gdpr": assessment["score_gdpr"],
                       "score_nis2": assessment["score_nis2"],
-                      "score_eprivacy": assessment["score_eprivacy"]},
+                      "score_eprivacy": assessment["score_eprivacy"],
+                      "score_eu_ai_act": assessment.get("score_eu_ai_act", 0)},
         )
 
     return assessment_id
@@ -704,7 +795,7 @@ def load_gap_assessment_history(user_id: str, client_id: str | None) -> list[dic
     try:
         supabase = get_supabase()
         q = supabase.table("gap_assessments") \
-            .select("id,created_at,score_overall,score_gdpr,score_nis2,score_eprivacy,file_path_pdf") \
+            .select("id,created_at,score_overall,score_gdpr,score_nis2,score_eprivacy,score_eu_ai_act,file_path_pdf") \
             .eq("user_id", user_id) \
             .order("created_at", desc=True).limit(10)
         if client_id:
