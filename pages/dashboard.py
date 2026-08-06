@@ -8,6 +8,10 @@ from database import (
     get_current_client_documents,
 )
 from auth import get_user_id
+from obligations import (
+    OBLIGATION_TO_DOC, DOC_CATALOG, REG_DOCS, REGULATION_LABELS,
+    OBLIGATION_BY_ID, operational_for_regulations,
+)
 
 st.title("📊 Dashboard")
 st.caption("Your compliance status at a glance.")
@@ -37,42 +41,12 @@ company_name = client.get("company_name", "Your company")
 client_id    = client.get("id")
 regulations  = client.get("regulations") or ["GDPR"]
 
-# ── Obligation ID → document type mapping ─────────────────────
-OBLIGATION_TO_DOC = {
-    "gdpr_01": "privacy_policy",
-    "gdpr_07": "privacy_policy",
-    "gdpr_12": "privacy_policy",
-    "gdpr_15": "privacy_policy",
-    "gdpr_02": "rop",
-    "gdpr_03": "rop",
-    "gdpr_09": "rop",
-    "gdpr_05": "dpa",
-    "gdpr_11": "dpa",
-    "gdpr_06": "incident_response",
-    "nis2_01": "incident_response",
-    "nis2_02": "incident_response",
-    "nis2_03": "incident_response",
-    "nis2_04": "incident_response",
-    "eprivacy_01": "cookie_policy",
-    "eprivacy_02": "cookie_policy",
-}
-
-# ── Document catalog ──────────────────────────────────────────
-DOC_CATALOG = {
-    "privacy_policy":    {"label": "Privacy Policy",              "regulations": ["GDPR"]},
-    "rop":               {"label": "Records of Processing (RoPA)", "regulations": ["GDPR"]},
-    "dpa":               {"label": "Data Processing Agreement",    "regulations": ["GDPR"]},
-    "incident_response": {"label": "Incident Response Plan",      "regulations": ["GDPR", "NIS2"]},
-    "cookie_policy":     {"label": "Cookie Policy",               "regulations": ["GDPR"]},
-}
-
-REG_LABELS = {"GDPR": "GDPR", "NIS2": "NIS2", "EU_AI_ACT": "EU AI Act"}
-
-REG_DOCS = {
-    "GDPR":     ["privacy_policy", "rop", "dpa", "incident_response", "cookie_policy"],
-    "NIS2":     ["incident_response"],
-    "EU_AI_ACT": [],
-}
+# Obligation → document mapping, the document catalogue and the
+# regulation→documents map are all DERIVED from obligations.py. They used to
+# be hand-maintained here and disagreed with gap_assessment.py — including
+# keying RoPA as "rop" while everything else used "ropa", so a generated
+# RoPA never matched this checklist.
+REG_LABELS = REGULATION_LABELS
 
 # ── Load data ─────────────────────────────────────────────────
 try:
@@ -104,6 +78,7 @@ except Exception:
 # ── Load last gap assessment ──────────────────────────────────
 last_gap = None
 doc_gap_status = {}  # doc_type → {"status": compliant/partial/missing, "details": [...]}
+gap_by_id = {}       # obligation id → gap result, for operational obligations
 
 try:
     admin = get_supabase_admin()
@@ -116,6 +91,10 @@ try:
     if gap_res.data:
         last_gap = gap_res.data[0]
         gaps = last_gap.get("gaps") or []
+
+        # Every result by id — operational obligations have no doc_type and
+        # would otherwise be silently dropped from the dashboard entirely.
+        gap_by_id = {g.get("id"): g for g in gaps if g.get("id")}
 
         # Aggregate obligation statuses per document type
         doc_obligations = {}  # doc_type → list of statuses
@@ -202,7 +181,7 @@ else:
 
 relevant_docs = {
     k: v for k, v in DOC_CATALOG.items()
-    if any(r in regulations for r in v["regulations"])
+    if v["regulations"] and any(r in regulations for r in v["regulations"])
 }
 
 for doc_type, meta in relevant_docs.items():
@@ -258,6 +237,81 @@ for doc_type, meta in relevant_docs.items():
                 st.markdown(f"{icon} **{item['id'].upper()}** — {item['explanation']}")
                 if item.get("recommendation"):
                     st.caption(f"→ {item['recommendation']}")
+
+st.divider()
+
+# ═══════════════════════════════════════════════════════════════
+# SECTION 2b — Operational obligations
+# ═══════════════════════════════════════════════════════════════
+# These are practices, procedures and arrangements — data subject rights
+# handling, privacy by design, staff training, access control. No document
+# discharges them, which is exactly why they used to distort the document
+# scores: a complete privacy policy was marked Partial because it could not
+# satisfy obligations that were never about the policy. They are surfaced
+# here on their own terms instead of being hidden or mis-attributed.
+st.subheader("⚙️ Operational obligations")
+
+operational = operational_for_regulations(regulations)
+
+if not last_gap:
+    st.caption(
+        f"{len(operational)} obligations in scope that no document can satisfy. "
+        "Run a gap assessment to see where you stand on them."
+    )
+else:
+    st.caption(
+        "Practices and procedures rather than documents. These do not affect "
+        f"your document scores. Assessed on {gap_date}."
+    )
+
+    op_rows = []
+    for ob in operational:
+        res = gap_by_id.get(ob["id"])
+        op_rows.append((ob, (res or {}).get("status", "missing"), res or {}))
+
+    n_ok      = sum(1 for _, s, _ in op_rows if s == "compliant")
+    n_partial = sum(1 for _, s, _ in op_rows if s == "partial")
+    n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
+    n_open    = len(op_rows) - n_ok - n_partial - n_na
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("In place", n_ok)
+    m2.metric("Partial", n_partial)
+    m3.metric("Not in place", n_open)
+
+    ICONS = {"compliant": "✅", "partial": "🟡",
+             "not_applicable": "⚪", "missing": "❌"}
+
+    # Highest priority first — an operational gap on access control matters
+    # more than one on penetration testing.
+    PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+    op_rows.sort(key=lambda r: (
+        0 if r[1] in ("missing", "partial") else 1,
+        PRIORITY_RANK.get(r[0]["priority"], 9),
+    ))
+
+    for reg in regulations:
+        reg_rows = [r for r in op_rows
+                    if REG_LABELS.get(r[0]["regulation"]) and
+                    (r[0]["regulation"] == reg or
+                     (reg == "GDPR" and r[0]["regulation"] == "EPRIVACY"))]
+        if not reg_rows:
+            continue
+        with st.expander(
+            f"{REG_LABELS.get(reg, reg)} — "
+            f"{sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial'))} "
+            f"of {len(reg_rows)} need attention",
+            expanded=False,
+        ):
+            for ob, status, res in reg_rows:
+                st.markdown(
+                    f"{ICONS.get(status, '❔')} **{ob['title']}**  "
+                    f"`{ob['article']}`"
+                )
+                explanation = res.get("explanation") or ob["description"]
+                st.caption(explanation)
+                if res.get("recommendation") and status != "compliant":
+                    st.caption(f"→ {res['recommendation']}")
 
 st.divider()
 
