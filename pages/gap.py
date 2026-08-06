@@ -16,6 +16,16 @@ from gap_assessment import (
 
 user_id = get_user_id()
 
+# Status keys are internal; these are what the client reads. capitalize()
+# on a snake_case key renders "Not_assessed", which reads like a bug.
+STATUS_LABELS = {
+    "compliant":      "Compliant",
+    "partial":        "Partial",
+    "missing":        "Missing",
+    "not_applicable": "Not applicable",
+    "not_assessed":   "Not assessed",
+}
+
 st.title("🔍 Gap Assessment")
 st.divider()
 
@@ -151,7 +161,7 @@ with tab1:
                     icon = icons.get(status,"❌")
                     col_ob, col_st = st.columns([5,1])
                     col_ob.markdown(f"{icon} **{ob['title']}** `{ob['article']}`")
-                    col_st.caption(status.capitalize())
+                    col_st.caption(STATUS_LABELS.get(status, status.replace('_', ' ').capitalize()))
                     if status in ("partial","missing"):
                         st.caption(f"↳ {result.get('explanation','')}")
                         if result.get("recommendation"):
@@ -474,7 +484,7 @@ with tab2:
                         icon = icons.get(status,"❌")
                         col_ob, col_st = st.columns([5,1])
                         col_ob.markdown(f"{icon} **{ob['title']}** `{ob['article']}`")
-                        col_st.caption(status.capitalize())
+                        col_st.caption(STATUS_LABELS.get(status, status.replace('_', ' ').capitalize()))
                         if status in ("partial","missing"):
                             st.caption(f"↳ {result.get('explanation','')}")
                             if result.get("recommendation"):
