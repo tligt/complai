@@ -11,6 +11,7 @@ from auth import get_user_id
 from obligations import (
     OBLIGATION_TO_DOC, DOC_CATALOG, REG_DOCS, REGULATION_LABELS,
     OBLIGATION_BY_ID, operational_for_regulations,
+    split_by_force, applies_from_label,
 )
 
 st.title("📊 Dashboard")
@@ -264,6 +265,12 @@ else:
         f"your document scores. Assessed on {gap_date}."
     )
 
+    # Obligations that do not bind yet are reported but never counted as
+    # failures. Marking a client red today for a duty arriving in December
+    # 2027 is a false alarm, and false alarms are how a compliance tool
+    # loses the client's attention for the alarms that matter.
+    operational, forthcoming = split_by_force(operational)
+
     op_rows = []
     for ob in operational:
         res = gap_by_id.get(ob["id"])
@@ -274,10 +281,11 @@ else:
     n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
     n_open    = len(op_rows) - n_ok - n_partial - n_na
 
-    m1, m2, m3 = st.columns(3)
+    m1, m2, m3, m4 = st.columns(4)
     m1.metric("In place", n_ok)
     m2.metric("Partial", n_partial)
     m3.metric("Not in place", n_open)
+    m4.metric("Not yet in force", len(forthcoming))
 
     ICONS = {"compliant": "✅", "partial": "🟡",
              "not_applicable": "⚪", "missing": "❌"}
@@ -308,10 +316,28 @@ else:
                     f"{ICONS.get(status, '❔')} **{ob['title']}**  "
                     f"`{ob['article']}`"
                 )
+                if not ob.get("statutory", True):
+                    st.caption("↳ Recommended by RECOSA — not a standalone "
+                               "statutory requirement.")
                 explanation = res.get("explanation") or ob["description"]
                 st.caption(explanation)
                 if res.get("recommendation") and status != "compliant":
                     st.caption(f"→ {res['recommendation']}")
+
+    if forthcoming:
+        with st.expander(
+            f"🕓 Not yet in force ({len(forthcoming)})", expanded=False
+        ):
+            st.caption(
+                "Already law, but not yet binding. Nothing to do today — "
+                "shown so the dates are not a surprise."
+            )
+            for ob in sorted(forthcoming, key=lambda o: o["applies_from"]):
+                st.markdown(
+                    f"**{ob['title']}**  `{ob['article']}`  ·  "
+                    f"applies from **{applies_from_label(ob)}**"
+                )
+                st.caption(ob["description"])
 
 st.divider()
 
