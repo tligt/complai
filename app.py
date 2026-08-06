@@ -188,6 +188,7 @@ documents = st.Page("pages/documents.py", title="Documents",      icon="📄")
 audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
 alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
 activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
+versions   = st.Page("pages_admin/versions.py", title="Versions", icon="🔧")
 
 # Support carries an unread badge. st.navigation has no badge slot, so the
 # count goes in the title — without it, a support inbox nobody is prompted
@@ -203,7 +204,7 @@ pg = st.navigation({
     "":           [chat],
     "Compliance": [dashboard, gap],
     "Tools":      [documents, audit],
-    "Account":    [activity, support],
+    "Account":    [activity, support, Versions],
     "Updates":    [alerts],
 })
 
