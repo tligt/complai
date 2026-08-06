@@ -12,14 +12,9 @@ from database import get_supabase
 
 # ── Constants ─────────────────────────────────────────────────
 
-DOCUMENT_TYPES = {
-    "privacy_policy": "Privacy Policy",
-    "cookie_policy": "Cookie Policy",
-    "dpa": "Data Processing Agreement (DPA)",
-    "ropa": "Record of Processing Activities (RoPA)",
-    "incident_response": "Incident Response Plan",
-    "ai_transparency": "AI System Transparency Notice",
-}
+# Document types come from the obligation registry — a private copy here
+# was one of the three competing definitions S23 removed.
+from obligations import DOCUMENT_TYPES   # noqa: E402
 
 LEGAL_FORMS = {
     "BE": ["SRL", "SA", "SNC", "SCS", "SC", "ASBL", "Fondation", "Other"],

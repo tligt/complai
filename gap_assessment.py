@@ -9,261 +9,16 @@ from datetime import date, datetime
 from pypdf import PdfReader
 from docx import Document as DocxDocument
 
-# ── Document type to obligations mapping ──────────────────────
-DOCUMENT_TYPES = {
-    "privacy_policy":   "Privacy Policy",
-    "cookie_policy":    "Cookie Policy",
-    "dpa":              "Data Processing Agreement",
-    "ropa":             "Record of Processing Activities",
-    "incident_response":"Incident Response Plan",
-    "ai_transparency":  "AI Transparency Notice",
-}
-
-# ── Obligations registry ──────────────────────────────────────
-# doc_type: which document covers this obligation
-# profile_question: if set, answered via profile question not doc analysis
-# None doc_type + None profile_question = procedural, assessed from docs generally
-
-OBLIGATIONS = [
-    # ── GDPR ─────────────────────────────────────────────────
-    {"id":"gdpr_01","regulation":"GDPR","article":"Art. 13-14","priority":"high",
-     "title":"Privacy policy published and up to date",
-     "description":"A privacy policy must explain what data is collected, why, legal basis, retention, rights and contact details.",
-     "doc_type":"privacy_policy","profile_question":None},
-
-    {"id":"gdpr_02","regulation":"GDPR","article":"Art. 6","priority":"high",
-     "title":"Legal basis identified for each processing activity",
-     "description":"Every processing activity must have a documented legal basis under Article 6.",
-     "doc_type":"ropa","profile_question":None},
-
-    {"id":"gdpr_03","regulation":"GDPR","article":"Art. 30","priority":"high",
-     "title":"Record of Processing Activities (RoPA) maintained",
-     "description":"A written record of all processing activities including purposes, categories of data, recipients and retention periods.",
-     "doc_type":"ropa","profile_question":None},
-
-    {"id":"gdpr_04","regulation":"GDPR","article":"Art. 37","priority":"high",
-     "title":"DPO appointed if required",
-     "description":"A Data Protection Officer must be appointed if required by GDPR Art. 37.",
-     "doc_type":None,"profile_question":"dpo"},
-
-    {"id":"gdpr_05","regulation":"GDPR","article":"Art. 28","priority":"high",
-     "title":"Data Processing Agreements with all processors",
-     "description":"A written DPA must be in place with every third-party processor handling personal data.",
-     "doc_type":"dpa","profile_question":None},
-
-    {"id":"gdpr_06","regulation":"GDPR","article":"Art. 33-34","priority":"high",
-     "title":"Data breach notification procedure in place",
-     "description":"A documented procedure for detecting, reporting and investigating breaches within 72 hours.",
-     "doc_type":"incident_response","profile_question":None},
-
-    {"id":"gdpr_07","regulation":"GDPR","article":"Art. 15-22","priority":"high",
-     "title":"Data subject rights procedure documented",
-     "description":"Procedures to handle access, rectification, erasure, portability and objection requests.",
-     "doc_type":"privacy_policy","profile_question":None},
-
-    {"id":"gdpr_08","regulation":"GDPR","article":"Art. 7","priority":"medium",
-     "title":"Consent mechanism for marketing communications",
-     "description":"Valid consent mechanism for marketing where consent is the legal basis.",
-     "doc_type":"privacy_policy","profile_question":"marketing"},
-
-    {"id":"gdpr_09","regulation":"GDPR","article":"Art. 5(1)(e)","priority":"medium",
-     "title":"Retention periods defined and enforced",
-     "description":"Retention periods must be defined for each data category.",
-     "doc_type":"ropa","profile_question":None},
-
-    {"id":"gdpr_10","regulation":"GDPR","article":"Art. 35","priority":"medium",
-     "title":"DPIA conducted for high-risk processing",
-     "description":"Data Protection Impact Assessment for high-risk processing activities.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_11","regulation":"GDPR","article":"Art. 44-49","priority":"medium",
-     "title":"International transfer safeguards in place",
-     "description":"Transfers outside the EU/EEA must rely on adequacy decision, SCCs or BCRs.",
-     "doc_type":"dpa","profile_question":None},
-
-    {"id":"gdpr_12","regulation":"GDPR","article":"Art. 25","priority":"medium",
-     "title":"Privacy by design and by default",
-     "description":"Data protection must be considered from the outset of system or process design.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_13","regulation":"GDPR","article":"Art. 5","priority":"medium",
-     "title":"Employee privacy and data protection training",
-     "description":"Staff handling personal data must receive appropriate training.",
-     "doc_type":None,"profile_question":"training"},
-
-    {"id":"gdpr_14","regulation":"GDPR","article":"Art. 5(1)(c)","priority":"medium",
-     "title":"Data minimisation principles applied",
-     "description":"Only necessary personal data should be collected and processed.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_15","regulation":"GDPR","article":"Art. 13","priority":"high",
-     "title":"Privacy notice provided at point of data collection",
-     "description":"Privacy notice must be provided at the time of collection.",
-     "doc_type":"privacy_policy","profile_question":None},
-
-    {"id":"gdpr_16","regulation":"GDPR","article":"Art. 9","priority":"high",
-     "title":"Special category data safeguards",
-     "description":"Additional legal grounds and safeguards for special category data.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_17","regulation":"GDPR","article":"Art. 26","priority":"low",
-     "title":"Joint controller arrangement documented",
-     "description":"Joint controller arrangement setting out respective responsibilities.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_18","regulation":"GDPR","article":"Art. 6(1)(f)","priority":"low",
-     "title":"Legitimate interest assessment documented",
-     "description":"LIA balancing test conducted and documented where legitimate interests is used.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_19","regulation":"GDPR","article":"Art. 8","priority":"medium",
-     "title":"Children's data safeguards implemented",
-     "description":"Appropriate safeguards including age verification and parental consent.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"gdpr_20","regulation":"GDPR","article":"Art. 32","priority":"medium",
-     "title":"Technical and organisational security measures documented",
-     "description":"Appropriate technical and organisational measures to ensure security of personal data.",
-     "doc_type":None,"profile_question":None},
-
-    # ── NIS2 ─────────────────────────────────────────────────
-    {"id":"nis2_01","regulation":"NIS2","article":"Art. 21","priority":"high",
-     "title":"Cybersecurity risk assessment conducted",
-     "description":"Formal risk assessment identifying threats, vulnerabilities and impact on systems.",
-     "doc_type":"incident_response","profile_question":None},
-
-    {"id":"nis2_02","regulation":"NIS2","article":"Art. 21","priority":"high",
-     "title":"Incident response plan documented",
-     "description":"Documented incident response plan covering detection, containment, recovery and review.",
-     "doc_type":"incident_response","profile_question":None},
-
-    {"id":"nis2_03","regulation":"NIS2","article":"Art. 23","priority":"high",
-     "title":"Incident reporting procedure (24h/72h)",
-     "description":"Procedure for reporting significant incidents within 24h (early warning) and 72h (full notification).",
-     "doc_type":"incident_response","profile_question":None},
-
-    {"id":"nis2_04","regulation":"NIS2","article":"Art. 21","priority":"high",
-     "title":"Business continuity plan in place",
-     "description":"Business continuity plan covering backup, disaster recovery and crisis management.",
-     "doc_type":"incident_response","profile_question":None},
-
-    {"id":"nis2_05","regulation":"NIS2","article":"Art. 21","priority":"high",
-     "title":"Supply chain security policy",
-     "description":"Security policies addressing risks from suppliers and third-party service providers.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_06","regulation":"NIS2","article":"Art. 21","priority":"high",
-     "title":"Access control and authentication policy",
-     "description":"Policies governing access control, MFA and privileged access management.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_07","regulation":"NIS2","article":"Art. 21","priority":"medium",
-     "title":"Encryption policy for data in transit and at rest",
-     "description":"Policy requiring encryption of sensitive data both in transit and at rest.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_08","regulation":"NIS2","article":"Art. 21","priority":"medium",
-     "title":"Vulnerability management process",
-     "description":"Process for identifying, assessing and remediating security vulnerabilities.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_09","regulation":"NIS2","article":"Art. 21","priority":"medium",
-     "title":"Security awareness training for all staff",
-     "description":"Regular cybersecurity awareness training for all employees.",
-     "doc_type":None,"profile_question":"training"},
-
-    {"id":"nis2_10","regulation":"NIS2","article":"Art. 21","priority":"medium",
-     "title":"Backup and recovery procedures documented",
-     "description":"Documented backup procedures including frequency, storage and tested recovery.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_11","regulation":"NIS2","article":"Art. 3","priority":"high",
-     "title":"Registered with national NIS2 authority",
-     "description":"Essential and important entities must register with national authority (CCB/ANSSI).",
-     "doc_type":None,"profile_question":"nis2_registered"},
-
-    {"id":"nis2_12","regulation":"NIS2","article":"Art. 20","priority":"high",
-     "title":"Management body approved cybersecurity policy",
-     "description":"Management body must approve and oversee cybersecurity risk management measures.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_13","regulation":"NIS2","article":"Art. 21","priority":"medium",
-     "title":"Network security monitoring in place",
-     "description":"Monitoring of network and information systems for cybersecurity events.",
-     "doc_type":None,"profile_question":None},
-
-    {"id":"nis2_14","regulation":"NIS2","article":"Art. 21","priority":"low",
-     "title":"Penetration testing conducted",
-     "description":"Regular penetration testing to identify and address vulnerabilities.",
-     "doc_type":None,"profile_question":"pentest"},
-
-    {"id":"nis2_15","regulation":"NIS2","article":"Art. 21","priority":"low",
-     "title":"Security audit trail maintained",
-     "description":"Logs of security-relevant events maintained and protected from tampering.",
-     "doc_type":None,"profile_question":None},
-
-    # ── ePrivacy ─────────────────────────────────────────────
-    {"id":"eprivacy_01","regulation":"EPRIVACY","article":"Art. 5(3)","priority":"high",
-     "title":"Cookie consent banner implemented",
-     "description":"Valid consent must be obtained before placing non-essential cookies.",
-     "doc_type":"cookie_policy","profile_question":"cookies"},
-
-    {"id":"eprivacy_02","regulation":"EPRIVACY","article":"Art. 5(3)","priority":"high",
-     "title":"Cookie policy published",
-     "description":"Cookie policy explaining cookies used, their purpose, duration and how to manage preferences.",
-     "doc_type":"cookie_policy","profile_question":"cookies"},
-
-    {"id":"eprivacy_03","regulation":"EPRIVACY","article":"Art. 13","priority":"high",
-     "title":"Marketing email opt-in mechanism",
-     "description":"Prior consent must be obtained before sending marketing emails.",
-     "doc_type":"privacy_policy","profile_question":"marketing"},
-
-    {"id":"eprivacy_04","regulation":"EPRIVACY","article":"Art. 13","priority":"medium",
-     "title":"Opt-out mechanism for marketing communications",
-     "description":"Every marketing communication must include a clear unsubscribe mechanism.",
-     "doc_type":None,"profile_question":"marketing"},
-
-    {"id":"eprivacy_05","regulation":"EPRIVACY","article":"Art. 5(3)","priority":"medium",
-     "title":"Cookie consent records maintained",
-     "description":"Records of cookie consents must be maintained to demonstrate valid consent.",
-     "doc_type":None,"profile_question":"cookies"},
-]
-
-PROFILE_QUESTIONS = {
-    "dpo": {
-        "question": "Have you appointed a Data Protection Officer (DPO)?",
-        "options": ["Yes", "No", "Not required for our organisation"],
-        "compliant_answers": ["Yes", "Not required for our organisation"],
-    },
-    "nis2_registered": {
-        "question": "Have you registered with your national NIS2 authority (CCB for Belgium, ANSSI for France)?",
-        "options": ["Yes", "No", "Not applicable — we are not in scope for NIS2"],
-        "compliant_answers": ["Yes", "Not applicable — we are not in scope for NIS2"],
-    },
-    "training": {
-        "question": "Do you conduct regular security and privacy training for all staff?",
-        "options": ["Yes — formal training programme", "Partially — some staff or informal", "No"],
-        "compliant_answers": ["Yes — formal training programme"],
-        "partial_answers": ["Partially — some staff or informal"],
-    },
-    "pentest": {
-        "question": "Have you conducted a penetration test in the last 12 months?",
-        "options": ["Yes", "No", "Not applicable"],
-        "compliant_answers": ["Yes", "Not applicable"],
-    },
-    "cookies": {
-        "question": "Do you use cookies or tracking technologies on your website?",
-        "options": ["Yes — including non-essential cookies", "No — essential cookies only", "We have no website"],
-        "compliant_answers": ["No — essential cookies only", "We have no website"],
-        "na_answers": ["No — essential cookies only", "We have no website"],
-    },
-    "marketing": {
-        "question": "Do you send marketing emails to prospects or customers?",
-        "options": ["Yes", "No"],
-        "compliant_answers": ["No"],
-        "na_answers": ["No"],
-    },
-}
+# ── Obligation registry ───────────────────────────────────────
+# Single source of truth now lives in obligations.py. Re-exported here so
+# existing importers (pages/gap.py) keep working unchanged.
+from obligations import (            # noqa: F401
+    DOCUMENT_TYPES, OBLIGATIONS, PROFILE_QUESTIONS,
+    DOC_OBLIGATIONS, DOC_SCORING_OBLIGATIONS, OBLIGATION_TO_DOC,
+    OBLIGATION_BY_ID, DOCUMENT_OBLIGATIONS, OPERATIONAL_OBLIGATIONS,
+    DOC_CATALOG, REG_DOCS, REGULATION_LABELS,
+    KIND_DOCUMENT, KIND_OPERATIONAL,
+)
 
 
 # ── Document text extraction ──────────────────────────────────
@@ -430,20 +185,6 @@ DOCUMENT:
 
 # ── Document-specific obligations mapping ─────────────────────
 
-DOC_OBLIGATIONS = {
-    # Privacy policy: assessed on content quality — does it cover these topics?
-    "privacy_policy":    ["gdpr_01","gdpr_07","gdpr_14","gdpr_16","gdpr_20"],
-    # Cookie policy: does it explain cookies, consent, management?
-    "cookie_policy":     ["eprivacy_01","eprivacy_02","eprivacy_05"],
-    # DPA: does it cover Art. 28 clauses and transfer safeguards?
-    "dpa":               ["gdpr_05","gdpr_11"],
-    # RoPA: does it document processing activities with legal basis and retention?
-    "ropa":              ["gdpr_02","gdpr_03","gdpr_09"],
-    # Incident response: does it cover detection, reporting, recovery, NIS2 timelines?
-    "incident_response": ["gdpr_06","nis2_01","nis2_02","nis2_03","nis2_04"],
-    # AI transparency notice
-    "ai_transparency":   [],
-}
 
 def _assess_obligations_batch(
     obligations: list,
@@ -596,13 +337,23 @@ def run_document_review(
     results = [all_results.get(ob["id"], {"id": ob["id"], "status": "missing",
                "explanation": "", "recommendation": ""}) for ob in obligations]
 
-    n_compliant = sum(1 for r in results if r["status"] == "compliant")
-    n_partial   = sum(1 for r in results if r["status"] == "partial")
-    score = int((n_compliant + n_partial * 0.5) / len(results) * 100) if results else 0
+    # Score only on obligations this document actually SATISFIES. The review
+    # set is deliberately wider — it asks a privacy policy about data
+    # minimisation (gdpr_14) and security measures (gdpr_20) because that is
+    # useful feedback — but those are operational obligations that no
+    # document can discharge, so counting them would mark a complete policy
+    # as merely partial. Reported, not scored.
+    scoring_ids = set(DOC_SCORING_OBLIGATIONS.get(doc_type, []))
+    scored = [r for r in results if r["id"] in scoring_ids]
+
+    n_compliant = sum(1 for r in scored if r["status"] == "compliant")
+    n_partial   = sum(1 for r in scored if r["status"] == "partial")
+    score = int((n_compliant + n_partial * 0.5) / len(scored) * 100) if scored else 0
 
     return {
         "results": results,
         "score": score,
+        "scored_ids": sorted(scoring_ids),
         "doc_type": doc_type,
         "doc_label": DOCUMENT_TYPES.get(doc_type, doc_type),
         "obligations": obligations,
