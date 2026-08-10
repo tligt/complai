@@ -375,13 +375,23 @@ def seed_from_catalogue(
     created, errors = 0, []
     for a in activity_rows:
         role = a.pop("_system_role", "processor")
+        statutory = a.pop("_retention_is_statutory", False)
         payload = {**a, "user_id": user_id, "client_id": client_id}
+
+        # Catalogue defaults deliberately omit security measures, the
+        # balancing test, and any retention period the vendor does not
+        # determine — those are client facts, not vendor facts. The activity
+        # is still created so the client can complete it; the gap belongs in
+        # the readiness figures, not in a blocked seed.
+        if not (payload.get("retention_period") or "").strip():
+            payload["retention_basis"] = (
+                "Set by national law — confirm the period that applies to you."
+                if statutory else
+                "To be set by your own retention policy."
+            )
+
         verrs = INV.validate_activity(payload, scope=client_id)
         if verrs:
-            # Catalogue defaults omit security measures and the balancing
-            # test on purpose — those are client facts, not vendor facts.
-            # The activity is still created so the client can complete it;
-            # the completeness score is where the gap belongs.
             payload.setdefault("notes", "Seeded from the RECOSA catalogue — please review.")
         try:
             ares = sb.table("processing_activities").insert(payload).execute()

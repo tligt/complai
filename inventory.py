@@ -201,6 +201,52 @@ def get_catalogue_entry(key: str) -> dict | None:
     return None
 
 
+# ── Catalogue principles ──────────────────────────────────────────────────
+# The rules behind the defaults, surfaced in the app rather than buried in
+# code comments. RLS restricts this table to audience='client' rows, so the
+# internal reasoning is not merely unrendered — it is unreadable from here.
+
+def get_principles() -> list[dict]:
+    def load():
+        try:
+            return (
+                get_supabase().table("catalogue_principles")
+                .select("*").eq("active", True).order("sort_order")
+                .execute().data or []
+            )
+        except Exception:
+            return []
+
+    return _cached("principles", load)
+
+
+def principle(key: str, lang: str = "en") -> dict | None:
+    """One principle with title and body resolved to a language."""
+    if lang not in LANGUAGES:
+        lang = "en"
+    for p in get_principles():
+        if p["key"] == key:
+            return {
+                "key": p["key"],
+                "title": p.get(f"title_{lang}") or p.get("title_en"),
+                "body": p.get(f"body_{lang}") or p.get("body_en"),
+            }
+    return None
+
+
+def principles_for_display(lang: str = "en") -> list[dict]:
+    if lang not in LANGUAGES:
+        lang = "en"
+    return [
+        {
+            "key": p["key"],
+            "title": p.get(f"title_{lang}") or p.get("title_en"),
+            "body": p.get(f"body_{lang}") or p.get("body_en"),
+        }
+        for p in get_principles()
+    ]
+
+
 def seed_rows_for(catalogue_key: str, lang: str = "en") -> tuple[dict, list[dict]] | None:
     """
     Return (system_row, [activity_rows]) pre-filled from the catalogue.
@@ -247,9 +293,13 @@ def seed_rows_for(catalogue_key: str, lang: str = "en") -> tuple[dict, list[dict
             "data_categories": list(a.get("data_categories") or []),
             "special_categories": list(a.get("special_categories") or []),
             "art9_condition": a.get("art9_condition"),
+            # Blank wherever the vendor does not determine the period. The
+            # client must supply it — validate_activity requires it — and
+            # _retention_is_statutory tells the caller which message to show.
             "retention_period": pick(a, "retention_period"),
             "controller_role": "controller",
             "_system_role": a.get("system_role") or entry.get("default_system_role") or "processor",
+            "_retention_is_statutory": a.get("retention_is_statutory", False),
         })
 
     return system_row, activity_rows

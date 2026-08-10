@@ -361,8 +361,9 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "communications_content"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": "Duration of employment plus 1 year",
-                "retention_period_fr": "Durée du contrat de travail plus 1 an",
+                # Client policy, not a Microsoft fact. Blank by principle.
+                "retention_period_en": None,
+                "retention_period_fr": None,
                 "system_role": "processor",
             },
             {
@@ -375,8 +376,10 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "contractual"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": "Per document retention schedule",
-                "retention_period_fr": "Selon le calendrier de conservation documentaire",
+                # Not a period at all — a pointer to a schedule the client
+                # may not have written. Blank by principle.
+                "retention_period_en": None,
+                "retention_period_fr": None,
                 "system_role": "processor",
             },
             {
@@ -393,8 +396,13 @@ VENDOR_CATALOGUE = [
                                     "employment", "education_training", "financial"],
                 "special_categories": ["health"],
                 "art9_condition": "employment_social_security",
-                "retention_period_en": "5 years after end of employment",
-                "retention_period_fr": "5 ans après la fin du contrat de travail",
+                # Deliberately blank. Personnel-file retention is set by
+                # national law, not by Microsoft — 5 years in Belgium, other
+                # periods elsewhere — so a catalogue default would be wrong
+                # for some clients. See CATALOGUE_PRINCIPLES["retention"].
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
                 "system_role": "processor",
             },
             {
@@ -407,8 +415,9 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "communications_content", "images_av"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": "Duration of employment",
-                "retention_period_fr": "Durée du contrat de travail",
+                # Client policy, not a Microsoft fact. Blank by principle.
+                "retention_period_en": None,
+                "retention_period_fr": None,
                 "system_role": "processor",
             },
         ],
@@ -446,11 +455,1114 @@ VENDOR_CATALOGUE = [
                 # Sick leave and work-accident records make this Art. 9.
                 "special_categories": ["health"],
                 "art9_condition": "employment_social_security",
-                "retention_period_en": "5 years (social documents, Belgian law)",
-                "retention_period_fr": "5 ans (documents sociaux, droit belge)",
+                # Belgian social-document retention is 5 years, but a French
+                # client on a French payroll bureau has a different period.
+                # Statutory, therefore not a vendor default.
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
                 "system_role": "processor",
             },
         ],
+    },
+
+    # ── Marketing and CRM ─────────────────────────────────────────────────
+
+    {
+        "key": "hubspot",
+        "name": "HubSpot",
+        "vendor_legal_name": "HubSpot Ireland Limited",
+        "category": "crm_marketing",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        # EU data hosting is available on some plans. SCCs are the safe
+        # default for a client who has not checked which region their
+        # portal sits in.
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://legal.hubspot.com/dpa",
+        "privacy_policy_url": "https://legal.hubspot.com/privacy-policy",
+        "sets_cookies": True,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "medium",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "If your portal is hosted in the EU region, the transfer basis may "
+            "be 'no transfer outside the EEA'. Check your account settings."
+        ),
+        "role_note_fr": (
+            "Si votre portail est hébergé dans la région UE, la base de "
+            "transfert peut être « aucun transfert hors EEE ». Vérifiez les "
+            "paramètres de votre compte."
+        ),
+        "domain_patterns": [
+            ("hs-scripts.com", "script_src", "high"),
+            ("hubspot.com", "domain", "medium"),
+            ("__hstc", "cookie_name", "high"),
+        ],
+        "activities": [
+            {
+                "name_en": "Customer and prospect management",
+                "name_fr": "Gestion des clients et prospects",
+                "purpose_en": "Recording and managing commercial relationships",
+                "purpose_fr": "Enregistrement et gestion des relations commerciales",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["customers", "prospects", "supplier_contacts"],
+                "data_categories": ["identity", "contact", "employment",
+                                    "contractual", "usage_behavioural"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+            {
+                "name_en": "Marketing email",
+                "name_fr": "Emailing marketing",
+                "purpose_en": "Sending commercial communications to contacts who opted in",
+                "purpose_fr": "Envoi de communications commerciales aux contacts inscrits",
+                "legal_basis": "consent",
+                "data_subject_categories": ["prospects", "customers"],
+                "data_categories": ["identity", "contact", "marketing_preferences",
+                                    "usage_behavioural"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "brevo",
+        "name": "Brevo",
+        "vendor_legal_name": "Brevo SAS",
+        "category": "email_comms",
+        "establishment_country": "FR",
+        "processing_country": "FR",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": "https://www.brevo.com/legal/termsofuse/",
+        "privacy_policy_url": "https://www.brevo.com/legal/privacypolicy/",
+        # Brevo rewrites links for click tracking on transactional sends and
+        # this cannot be disabled. Anonymous tracking is the mitigation.
+        "sets_cookies": True,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "medium",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Click tracking rewrites links through a Brevo domain and cannot "
+            "be turned off for transactional email. Enabling anonymous "
+            "tracking in Brevo's settings stops clicks being tied to a contact."
+        ),
+        "role_note_fr": (
+            "Le suivi des clics réécrit les liens via un domaine Brevo et ne "
+            "peut pas être désactivé pour les emails transactionnels. Le suivi "
+            "anonyme dans les paramètres Brevo évite de lier les clics à un contact."
+        ),
+        "domain_patterns": [
+            ("sendinblue.com", "domain", "medium"),
+            ("sibautomation.com", "script_src", "high"),
+        ],
+        "activities": [
+            {
+                "name_en": "Transactional email",
+                "name_fr": "Emails transactionnels",
+                "purpose_en": "Sending service notifications triggered by user actions",
+                "purpose_fr": "Envoi de notifications de service déclenchées par l'utilisateur",
+                "legal_basis": "contract",
+                "data_subject_categories": ["customers"],
+                "data_categories": ["identity", "contact"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "meta_pixel",
+        "name": "Meta Pixel",
+        "vendor_legal_name": "Meta Platforms Ireland Limited",
+        "category": "crm_marketing",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://www.facebook.com/legal/terms/dataprocessing",
+        "privacy_policy_url": "https://www.facebook.com/privacy/policy/",
+        "sets_cookies": True,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "low",
+        # Joint controller, not processor. Following Fashion ID (C-40/17),
+        # the site operator and the platform jointly determine the purposes
+        # of the collection stage, and Meta's own controller addendum says
+        # so. This is the entry that exercises the vocabulary.
+        "default_system_role": "joint_controller",
+        "role_note_en": (
+            "Meta is a joint controller for the collection and transmission "
+            "stage, not a processor. You need a joint controller arrangement "
+            "under Art. 26 and your privacy notice must say so."
+        ),
+        "role_note_fr": (
+            "Meta est responsable conjoint pour la collecte et la "
+            "transmission, et non sous-traitant. Un accord de responsabilité "
+            "conjointe (art. 26) est requis et votre politique de "
+            "confidentialité doit le mentionner."
+        ),
+        "domain_patterns": [
+            ("connect.facebook.net", "script_src", "high"),
+            ("facebook.com/tr", "domain", "high"),
+            ("_fbp", "cookie_name", "high"),
+        ],
+        "activities": [
+            {
+                "name_en": "Advertising measurement and audiences",
+                "name_fr": "Mesure publicitaire et audiences",
+                "purpose_en": "Measuring advertising performance and building audiences",
+                "purpose_fr": "Mesure des performances publicitaires et création d'audiences",
+                "legal_basis": "consent",
+                "data_subject_categories": ["website_visitors", "prospects"],
+                "data_categories": ["device_technical", "usage_behavioural"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "joint_controller",
+            },
+        ],
+    },
+
+    {
+        "key": "linkedin_insight",
+        "name": "LinkedIn Insight Tag",
+        "vendor_legal_name": "LinkedIn Ireland Unlimited Company",
+        "category": "crm_marketing",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://legal.linkedin.com/dpa",
+        "privacy_policy_url": "https://www.linkedin.com/legal/privacy-policy",
+        "sets_cookies": True,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "low",
+        "default_system_role": "joint_controller",
+        "role_note_en": (
+            "LinkedIn operates as a joint controller for conversion tracking "
+            "and audience building. An Art. 26 arrangement applies."
+        ),
+        "role_note_fr": (
+            "LinkedIn agit en responsable conjoint pour le suivi des "
+            "conversions et la constitution d'audiences. Un accord au titre "
+            "de l'art. 26 s'applique."
+        ),
+        "domain_patterns": [
+            ("snap.licdn.com", "script_src", "high"),
+            ("li_sugr", "cookie_name", "medium"),
+        ],
+        "activities": [
+            {
+                "name_en": "Advertising conversion tracking",
+                "name_fr": "Suivi des conversions publicitaires",
+                "purpose_en": "Measuring campaign conversions and building audiences",
+                "purpose_fr": "Mesure des conversions et création d'audiences",
+                "legal_basis": "consent",
+                "data_subject_categories": ["website_visitors", "prospects"],
+                "data_categories": ["device_technical", "usage_behavioural", "employment"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "joint_controller",
+            },
+        ],
+    },
+
+    # ── Payments ──────────────────────────────────────────────────────────
+
+    {
+        "key": "stripe",
+        "name": "Stripe",
+        "vendor_legal_name": "Stripe Payments Europe, Limited",
+        "category": "payments",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://stripe.com/legal/dpa",
+        "privacy_policy_url": "https://stripe.com/privacy",
+        "sets_cookies": True,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "high",
+        "default_system_role": "processor",
+        # The nuance that catches people out: Stripe is a processor for the
+        # payment you asked it to take, and an independent controller for
+        # its own anti-money-laundering and fraud duties. Both are true at
+        # once, and only the first belongs in your DPA.
+        "role_note_en": (
+            "Stripe acts as your processor for payment processing, but as an "
+            "independent controller for its own fraud prevention and "
+            "anti-money-laundering obligations. Record the processor role here."
+        ),
+        "role_note_fr": (
+            "Stripe agit comme sous-traitant pour le traitement des paiements, "
+            "mais comme responsable indépendant pour ses propres obligations "
+            "de lutte contre la fraude et le blanchiment. Enregistrez ici le "
+            "rôle de sous-traitant."
+        ),
+        "domain_patterns": [
+            ("js.stripe.com", "script_src", "high"),
+            ("__stripe_mid", "cookie_name", "high"),
+        ],
+        "activities": [
+            {
+                "name_en": "Payment processing",
+                "name_fr": "Traitement des paiements",
+                "purpose_en": "Taking and reconciling customer payments",
+                "purpose_fr": "Encaissement et rapprochement des paiements clients",
+                "legal_basis": "contract",
+                "data_subject_categories": ["customers"],
+                "data_categories": ["identity", "contact", "financial", "transaction"],
+                "special_categories": [],
+                "art9_condition": None,
+                # Accounting retention is statutory and differs by country
+                # (7 years in Belgium, 10 in France for some records).
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "mollie",
+        "name": "Mollie",
+        "vendor_legal_name": "Mollie B.V.",
+        "category": "payments",
+        "establishment_country": "NL",
+        "processing_country": "NL",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": "https://www.mollie.com/legal/data-processing-agreement",
+        "privacy_policy_url": "https://www.mollie.com/privacy",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "high",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "As with other payment providers, Mollie is an independent "
+            "controller for its own regulatory obligations alongside its "
+            "processor role for your transactions."
+        ),
+        "role_note_fr": (
+            "Comme les autres prestataires de paiement, Mollie est "
+            "responsable indépendant pour ses obligations réglementaires, en "
+            "plus de son rôle de sous-traitant pour vos transactions."
+        ),
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Payment processing",
+                "name_fr": "Traitement des paiements",
+                "purpose_en": "Taking and reconciling customer payments",
+                "purpose_fr": "Encaissement et rapprochement des paiements clients",
+                "legal_basis": "contract",
+                "data_subject_categories": ["customers"],
+                "data_categories": ["identity", "contact", "financial", "transaction"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    # ── Accounting and ERP ────────────────────────────────────────────────
+
+    {
+        "key": "odoo",
+        "name": "Odoo",
+        "vendor_legal_name": "Odoo S.A.",
+        "category": "accounting_finance",
+        "establishment_country": "BE",
+        "processing_country": "EU",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": "https://www.odoo.com/gdpr",
+        "privacy_policy_url": "https://www.odoo.com/privacy",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "high",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Odoo Online hosts in the EU by default. A self-hosted or "
+            "partner-hosted instance may sit elsewhere — record where yours runs."
+        ),
+        "role_note_fr": (
+            "Odoo Online héberge par défaut dans l'UE. Une instance "
+            "auto-hébergée ou hébergée par un partenaire peut se trouver "
+            "ailleurs — indiquez où se trouve la vôtre."
+        ),
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Invoicing and accounts receivable",
+                "name_fr": "Facturation et comptabilité clients",
+                "purpose_en": "Issuing invoices and tracking payment",
+                "purpose_fr": "Émission des factures et suivi des paiements",
+                "legal_basis": "legal_obligation",
+                "data_subject_categories": ["customers", "supplier_contacts"],
+                "data_categories": ["identity", "contact", "financial",
+                                    "transaction", "contractual"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "exact_online",
+        "name": "Exact Online",
+        "vendor_legal_name": "Exact Group B.V.",
+        "category": "accounting_finance",
+        "establishment_country": "NL",
+        "processing_country": "NL",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": None,
+        "privacy_policy_url": "https://www.exact.com/privacy-statement",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "high",
+        "default_system_role": "processor",
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Bookkeeping and financial records",
+                "name_fr": "Comptabilité et pièces financières",
+                "purpose_en": "Maintaining statutory accounting records",
+                "purpose_fr": "Tenue des documents comptables obligatoires",
+                "legal_basis": "legal_obligation",
+                "data_subject_categories": ["customers", "supplier_contacts", "employees"],
+                "data_categories": ["identity", "contact", "financial", "transaction"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    # ── Hosting and infrastructure ────────────────────────────────────────
+
+    {
+        "key": "ovhcloud",
+        "name": "OVHcloud",
+        "vendor_legal_name": "OVH SAS",
+        "category": "hosting_infrastructure",
+        "establishment_country": "FR",
+        "processing_country": "FR",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": "https://www.ovhcloud.com/en/terms-and-conditions/contracts/",
+        "privacy_policy_url": "https://www.ovhcloud.com/en/personal-data-protection/",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "critical",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Confirm which datacentre region your services run in. OVHcloud "
+            "operates outside the EU as well as inside it."
+        ),
+        "role_note_fr": (
+            "Vérifiez la région du datacentre utilisé. OVHcloud opère "
+            "également hors de l'UE."
+        ),
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Website and application hosting",
+                "name_fr": "Hébergement du site et des applications",
+                "purpose_en": "Running the infrastructure your services depend on",
+                "purpose_fr": "Exploitation de l'infrastructure de vos services",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["website_visitors", "customers"],
+                "data_categories": ["device_technical", "usage_behavioural"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "aws",
+        "name": "Amazon Web Services",
+        "vendor_legal_name": "Amazon Web Services EMEA SARL",
+        "category": "hosting_infrastructure",
+        "establishment_country": "LU",
+        # Region-dependent. SCCs are the conservative default because AWS
+        # support and some managed services can reach across regions even
+        # when the workload itself is pinned to eu-west-1.
+        "processing_country": "EU",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://aws.amazon.com/compliance/gdpr-center/",
+        "privacy_policy_url": "https://aws.amazon.com/privacy/",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "critical",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Record the specific region your workloads run in. Pinning "
+            "storage to an EU region does not by itself remove every transfer "
+            "— support access and some managed services can still cross."
+        ),
+        "role_note_fr": (
+            "Indiquez la région où s'exécutent vos charges de travail. "
+            "Limiter le stockage à une région UE ne supprime pas à soi seul "
+            "tout transfert — l'accès support et certains services gérés "
+            "peuvent encore en générer."
+        ),
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Cloud infrastructure and storage",
+                "name_fr": "Infrastructure et stockage cloud",
+                "purpose_en": "Running and storing your applications and data",
+                "purpose_fr": "Exécution et stockage de vos applications et données",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["customers", "website_visitors", "employees"],
+                "data_categories": ["identity", "contact", "device_technical"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    # ── Productivity ──────────────────────────────────────────────────────
+
+    {
+        "key": "google_workspace",
+        "name": "Google Workspace",
+        "vendor_legal_name": "Google Ireland Limited",
+        "category": "productivity_storage",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://workspace.google.com/terms/dpa_terms.html",
+        "privacy_policy_url": "https://policies.google.com/privacy",
+        "sets_cookies": False,
+        "ai_role": "deployer",
+        "ai_conditional": True,
+        "ai_note_en": (
+            "Set to deployer only if Gemini for Workspace is licensed and "
+            "enabled. Otherwise leave as 'not an AI system'."
+        ),
+        "ai_note_fr": (
+            "Sélectionnez « déployeur » uniquement si Gemini for Workspace est "
+            "sous licence et activé. Sinon, laissez « pas un système d'IA »."
+        ),
+        "default_criticality": "critical",
+        "default_system_role": "processor",
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Business email and calendaring",
+                "name_fr": "Messagerie professionnelle et agenda",
+                "purpose_en": "Internal and external business correspondence",
+                "purpose_fr": "Correspondance professionnelle interne et externe",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["employees", "customers", "prospects",
+                                            "supplier_contacts"],
+                "data_categories": ["identity", "contact", "communications_content"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+            {
+                "name_en": "Document and file storage",
+                "name_fr": "Stockage de documents et de fichiers",
+                "purpose_en": "Storing and sharing business documents",
+                "purpose_fr": "Stockage et partage de documents professionnels",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["employees", "customers", "supplier_contacts"],
+                "data_categories": ["identity", "contact", "contractual"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+            {
+                "name_en": "HR record storage",
+                "name_fr": "Conservation des dossiers RH",
+                "purpose_en": "Storing personnel files and HR documentation",
+                "purpose_fr": "Conservation des dossiers du personnel",
+                "legal_basis": "legal_obligation",
+                "data_subject_categories": ["employees", "job_applicants"],
+                "data_categories": ["identity", "contact", "government_id",
+                                    "employment", "education_training", "financial"],
+                "special_categories": ["health"],
+                "art9_condition": "employment_social_security",
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "slack",
+        "name": "Slack",
+        "vendor_legal_name": "Slack Technologies Limited",
+        "category": "email_comms",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://slack.com/trust/compliance/data-processing-addendum",
+        "privacy_policy_url": "https://slack.com/trust/privacy/privacy-policy",
+        "sets_cookies": False,
+        "ai_role": "deployer",
+        "ai_conditional": True,
+        "ai_note_en": (
+            "Set to deployer only if Slack AI is enabled on your workspace."
+        ),
+        "ai_note_fr": (
+            "Sélectionnez « déployeur » uniquement si Slack AI est activé sur "
+            "votre espace de travail."
+        ),
+        "default_criticality": "medium",
+        "default_system_role": "processor",
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Internal collaboration and messaging",
+                "name_fr": "Collaboration et messagerie interne",
+                "purpose_en": "Team communication and coordination",
+                "purpose_fr": "Communication et coordination d'équipe",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["employees", "contractors"],
+                "data_categories": ["identity", "contact", "communications_content"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    # ── Support ───────────────────────────────────────────────────────────
+
+    {
+        "key": "zendesk",
+        "name": "Zendesk",
+        "vendor_legal_name": "Zendesk International Ltd.",
+        "category": "support_ticketing",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://www.zendesk.com/company/data-processing-form/",
+        "privacy_policy_url": "https://www.zendesk.com/company/privacy-and-data-protection/",
+        "sets_cookies": True,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "medium",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Support tickets frequently contain whatever the customer chose to "
+            "put in them, including health or financial details. Review "
+            "whether special category data reaches this system in practice."
+        ),
+        "role_note_fr": (
+            "Les tickets de support contiennent souvent tout ce que le client "
+            "y a écrit, y compris des données de santé ou financières. "
+            "Vérifiez si des données sensibles y parviennent en pratique."
+        ),
+        "domain_patterns": [
+            ("zdassets.com", "script_src", "high"),
+        ],
+        "activities": [
+            {
+                "name_en": "Customer support",
+                "name_fr": "Support client",
+                "purpose_en": "Handling and tracking customer enquiries",
+                "purpose_fr": "Traitement et suivi des demandes clients",
+                "legal_basis": "contract",
+                "data_subject_categories": ["customers"],
+                "data_categories": ["identity", "contact", "communications_content",
+                                    "contractual"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    # ── HR and payroll ────────────────────────────────────────────────────
+
+    {
+        "key": "partena",
+        "name": "Partena Professional",
+        "vendor_legal_name": "Partena Professional",
+        "category": "hr_payroll",
+        "establishment_country": "BE",
+        "processing_country": "BE",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": None,
+        "privacy_policy_url": "https://www.partena-professional.be/en/privacy-policy",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "high",
+        "default_system_role": "processor",
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Payroll administration",
+                "name_fr": "Administration de la paie",
+                "purpose_en": ("Calculating and paying salaries, and meeting social "
+                               "security and tax reporting obligations"),
+                "purpose_fr": ("Calcul et paiement des salaires, et respect des "
+                               "obligations sociales et fiscales"),
+                "legal_basis": "legal_obligation",
+                "data_subject_categories": ["employees"],
+                "data_categories": ["identity", "contact", "government_id",
+                                    "financial", "employment"],
+                "special_categories": ["health"],
+                "art9_condition": "employment_social_security",
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "payfit",
+        "name": "PayFit",
+        "vendor_legal_name": "PayFit SAS",
+        "category": "hr_payroll",
+        "establishment_country": "FR",
+        "processing_country": "FR",
+        "transfer_mechanism": "none_eea",
+        "dpa_status": "signed",
+        "dpa_url": None,
+        "privacy_policy_url": "https://payfit.com/fr/politique-de-confidentialite/",
+        "sets_cookies": False,
+        "ai_role": "none",
+        "ai_conditional": False,
+        "default_criticality": "high",
+        "default_system_role": "processor",
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "Payroll administration",
+                "name_fr": "Administration de la paie",
+                "purpose_en": ("Calculating and paying salaries, and meeting social "
+                               "security and tax reporting obligations"),
+                "purpose_fr": ("Calcul et paiement des salaires, et respect des "
+                               "obligations sociales et fiscales"),
+                "legal_basis": "legal_obligation",
+                "data_subject_categories": ["employees"],
+                "data_categories": ["identity", "contact", "government_id",
+                                    "financial", "employment"],
+                "special_categories": ["health"],
+                "art9_condition": "employment_social_security",
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": True,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    # ── AI assistants ─────────────────────────────────────────────────────
+    # Unconditional deployers, unlike the AI features bundled into
+    # productivity suites: nobody has ChatGPT or Claude switched off by
+    # default, so these attach AI Act deployer duties from the moment the
+    # client confirms they use them.
+
+    {
+        "key": "openai",
+        "name": "ChatGPT (OpenAI)",
+        "vendor_legal_name": "OpenAI Ireland Limited",
+        "category": "ai_assistant",
+        "establishment_country": "IE",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "signed",
+        "dpa_url": "https://openai.com/policies/data-processing-addendum/",
+        "privacy_policy_url": "https://openai.com/policies/privacy-policy/",
+        "sets_cookies": False,
+        "ai_role": "deployer",
+        "ai_conditional": False,
+        "ai_note_en": (
+            "As a deployer you have transparency duties under Art. 50 where "
+            "outputs reach customers, and staff-training duties under Art. 4."
+        ),
+        "ai_note_fr": (
+            "En tant que déployeur, vous avez des obligations de transparence "
+            "(art. 50) lorsque les résultats atteignent vos clients, et des "
+            "obligations de formation du personnel (art. 4)."
+        ),
+        "default_criticality": "low",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Consumer ChatGPT accounts are not covered by a business DPA and "
+            "may train on your inputs. Only the Team, Enterprise and API "
+            "tiers carry processor terms — record which one you actually use."
+        ),
+        "role_note_fr": (
+            "Les comptes ChatGPT grand public ne sont pas couverts par un DPA "
+            "professionnel et peuvent servir à l'entraînement. Seules les "
+            "offres Team, Enterprise et API prévoient des clauses de "
+            "sous-traitance — indiquez celle que vous utilisez réellement."
+        ),
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "AI-assisted drafting and analysis",
+                "name_fr": "Rédaction et analyse assistées par IA",
+                "purpose_en": "Drafting, summarising and analysing business content",
+                "purpose_fr": "Rédaction, synthèse et analyse de contenus professionnels",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["employees", "customers"],
+                "data_categories": ["communications_content"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+
+    {
+        "key": "anthropic_claude",
+        "name": "Claude (Anthropic)",
+        # Anthropic contracts through more than one entity depending on plan
+        # and region. Left for the client to confirm from their own order
+        # form rather than asserted here.
+        "vendor_legal_name": "Anthropic PBC",
+        "category": "ai_assistant",
+        "establishment_country": "US",
+        "processing_country": "US",
+        "transfer_mechanism": "scc",
+        "dpa_status": "unknown",
+        "dpa_url": None,
+        "privacy_policy_url": "https://www.anthropic.com/legal/privacy",
+        "sets_cookies": False,
+        "ai_role": "deployer",
+        "ai_conditional": False,
+        "ai_note_en": (
+            "As a deployer you have transparency duties under Art. 50 where "
+            "outputs reach customers, and staff-training duties under Art. 4."
+        ),
+        "ai_note_fr": (
+            "En tant que déployeur, vous avez des obligations de transparence "
+            "(art. 50) lorsque les résultats atteignent vos clients, et des "
+            "obligations de formation du personnel (art. 4)."
+        ),
+        "default_criticality": "low",
+        "default_system_role": "processor",
+        "role_note_en": (
+            "Confirm the contracting entity and whether a processing "
+            "agreement is in place — this varies by plan and region, so no "
+            "default is asserted here."
+        ),
+        "role_note_fr": (
+            "Confirmez l'entité contractante et l'existence d'un accord de "
+            "sous-traitance — cela varie selon l'offre et la région, aucune "
+            "valeur par défaut n'est donc proposée ici."
+        ),
+        "domain_patterns": [],
+        "activities": [
+            {
+                "name_en": "AI-assisted drafting and analysis",
+                "name_fr": "Rédaction et analyse assistées par IA",
+                "purpose_en": "Drafting, summarising and analysing business content",
+                "purpose_fr": "Rédaction, synthèse et analyse de contenus professionnels",
+                "legal_basis": "legitimate_interests",
+                "data_subject_categories": ["employees", "customers"],
+                "data_categories": ["communications_content"],
+                "special_categories": [],
+                "art9_condition": None,
+                "retention_period_en": None,
+                "retention_period_fr": None,
+                "retention_is_statutory": False,
+                "system_role": "processor",
+            },
+        ],
+    },
+]
+
+
+# ── Catalogue principles ──────────────────────────────────────────────────
+#
+# The rules behind the catalogue defaults, written down where they can be
+# read rather than inferred from the values themselves. Two audiences:
+#
+#   audience="client"   rendered on the inventory page, so a client can see
+#                       why a field is pre-filled or deliberately blank
+#   audience="internal" the reasoning behind a design decision, kept beside
+#                       the content it governs so it is findable later
+#
+# Both are seeded into catalogue_principles and read at runtime, so revising
+# a principle is a seed re-run rather than a redeploy.
+
+CATALOGUE_PRINCIPLES = [
+    {
+        "key": "defaults_not_facts",
+        "audience": "client",
+        "title_en": "Catalogue values are starting points, not findings",
+        "title_fr": "Les valeurs du catalogue sont des points de départ",
+        "body_en": (
+            "When you add a tool from our list, we pre-fill what is typically "
+            "true of that vendor. Your own contract, region and configuration "
+            "override it. Nothing is recorded as fact until you confirm it."
+        ),
+        "body_fr": (
+            "Lorsque vous ajoutez un outil depuis notre liste, nous "
+            "pré-remplissons ce qui est généralement vrai pour ce "
+            "fournisseur. Votre contrat, votre région et votre configuration "
+            "priment. Rien n'est enregistré comme fait tant que vous ne "
+            "l'avez pas confirmé."
+        ),
+        "rationale_en": (
+            "A catalogue row is a compliance assertion made on the client's "
+            "behalf. Framing it as a default rather than a finding is what "
+            "makes it defensible when a vendor changes its terms."
+        ),
+    },
+    {
+        "key": "retention",
+        "audience": "client",
+        "title_en": "Retention periods come from the law, not the vendor",
+        "title_fr": "Les durées de conservation viennent de la loi",
+        "body_en": (
+            "We pre-fill a retention period only where the vendor genuinely "
+            "determines it — an analytics tool's own data expiry, for "
+            "example. Where the period is set by national law, such as "
+            "payroll and accounting records, we leave it blank for you to "
+            "complete, because it differs between Belgium and France."
+        ),
+        "body_fr": (
+            "Nous pré-remplissons une durée de conservation uniquement "
+            "lorsque le fournisseur la détermine réellement — par exemple "
+            "l'expiration des données d'un outil d'analyse. Lorsque la durée "
+            "est fixée par la loi nationale, comme pour la paie et la "
+            "comptabilité, nous la laissons vide car elle diffère entre la "
+            "Belgique et la France."
+        ),
+        "rationale_en": (
+            "The first draft carried '5 years after end of employment' on the "
+            "Microsoft 365 HR activity. That is Belgian social-document law, "
+            "not a Microsoft fact, and shipping it to a French client would "
+            "put a wrong period into a filed RoPA."
+        ),
+    },
+    {
+        "key": "processor_default",
+        "audience": "client",
+        "title_en": "Processor by default, joint controller where it is arguable",
+        "title_fr": "Sous-traitant par défaut, responsable conjoint si discutable",
+        "body_en": (
+            "Most vendors act as your processor. Advertising and social "
+            "platforms are different: following the Fashion ID judgment, you "
+            "and the platform jointly decide the purpose of the data "
+            "collection, which needs an Art. 26 arrangement. Where the "
+            "position is contested we say so rather than choosing for you."
+        ),
+        "body_fr": (
+            "La plupart des fournisseurs agissent comme sous-traitants. Les "
+            "plateformes publicitaires et sociales font exception : depuis "
+            "l'arrêt Fashion ID, vous et la plateforme déterminez "
+            "conjointement la finalité de la collecte, ce qui exige un accord "
+            "au titre de l'art. 26. Lorsque la qualification est discutée, "
+            "nous le signalons plutôt que de choisir à votre place."
+        ),
+        "rationale_en": (
+            "Meta Pixel and LinkedIn Insight Tag ship as joint_controller; "
+            "Google Analytics ships as processor with the counter-argument "
+            "surfaced, because the supervisory authorities have not settled it."
+        ),
+    },
+    {
+        "key": "ai_off_by_default",
+        "audience": "client",
+        "title_en": "AI features are assumed off until you say otherwise",
+        "title_fr": "Les fonctions d'IA sont supposées désactivées",
+        "body_en": (
+            "Where an AI capability depends on a licence or a setting — "
+            "Copilot in Microsoft 365, Gemini in Google Workspace — we record "
+            "the tool as not an AI system and ask you. Dedicated AI tools such "
+            "as ChatGPT or Claude are recorded as AI from the start."
+        ),
+        "body_fr": (
+            "Lorsqu'une fonction d'IA dépend d'une licence ou d'un paramètre — "
+            "Copilot dans Microsoft 365, Gemini dans Google Workspace — nous "
+            "enregistrons l'outil comme n'étant pas un système d'IA et nous "
+            "vous posons la question. Les outils d'IA dédiés comme ChatGPT ou "
+            "Claude sont enregistrés comme tels d'emblée."
+        ),
+        "rationale_en": (
+            "Assuming Copilot is enabled would attach AI Act deployer duties "
+            "to a tenant that has never touched it. An over-broad compliance "
+            "obligation is still a wrong answer."
+        ),
+    },
+    {
+        "key": "gap_vs_error",
+        "audience": "client",
+        "title_en": "An unanswered question is a gap, not a mistake",
+        "title_fr": "Une question sans réponse est une lacune, pas une erreur",
+        "body_en": (
+            "Fields left as 'not yet established' are recorded as gaps and "
+            "shown in your readiness figures. We only block you where the "
+            "record would otherwise be wrong — for example, special category "
+            "data with no Art. 9(2) condition, or a claim of no international "
+            "transfer alongside a non-EEA country."
+        ),
+        "body_fr": (
+            "Les champs laissés « à déterminer » sont enregistrés comme "
+            "lacunes et apparaissent dans vos indicateurs. Nous ne bloquons "
+            "que lorsque le registre serait sinon inexact — par exemple des "
+            "données sensibles sans condition de l'art. 9(2), ou l'absence "
+            "déclarée de transfert avec un pays hors EEE."
+        ),
+        "rationale_en": (
+            "Blocking on incompleteness produces abandoned forms. Blocking on "
+            "contradiction prevents a document that is evidence against the "
+            "client."
+        ),
+    },
+    {
+        "key": "deleting_a_system",
+        "audience": "client",
+        "title_en": "Removing a tool keeps the record of what it did",
+        "title_fr": "Supprimer un outil conserve le registre associé",
+        "body_en": (
+            "Deleting a system unlinks it from your processing activities but "
+            "leaves those activities in place. Stopping use of a tool does not "
+            "erase the fact that the processing happened."
+        ),
+        "body_fr": (
+            "La suppression d'un système le dissocie de vos traitements mais "
+            "conserve ces traitements. Cesser d'utiliser un outil n'efface pas "
+            "le fait que le traitement a eu lieu."
+        ),
+        "rationale_en": (
+            "The join cascades, the activities do not. A client who swaps "
+            "payroll providers should not silently lose their payroll RoPA row."
+        ),
+    },
+    {
+        "key": "cookie_detail",
+        "audience": "client",
+        "title_en": "Cookies are recorded per vendor for now",
+        "title_fr": "Les cookies sont enregistrés par fournisseur",
+        "body_en": (
+            "We record which vendors set cookies, not the individual cookie "
+            "names and durations. Those are impractical to enter by hand and "
+            "will be filled automatically once website scanning is available."
+        ),
+        "body_fr": (
+            "Nous enregistrons les fournisseurs qui déposent des cookies, "
+            "sans détailler chaque nom et durée. Ces informations sont peu "
+            "praticables à saisir manuellement et seront complétées "
+            "automatiquement dès que l'analyse de site sera disponible."
+        ),
+        "rationale_en": (
+            "Vendor-level detail is enough for the S25 Cookie Policy vendor "
+            "table. Cookie-level rows arrive with the S41 scanner."
+        ),
+    },
+    {
+        "key": "append_only_vocabulary",
+        "audience": "internal",
+        "title_en": "Vocabulary codes are append-only",
+        "title_fr": None,
+        "body_en": (
+            "Never rename or delete a reference code. Client rows hold them as "
+            "plain text in TEXT[] columns, so a rename orphans live compliance "
+            "data and only the orphan check would notice. Retire a term by "
+            "setting active = False."
+        ),
+        "body_fr": None,
+        "rationale_en": (
+            "The cost of the denormalised array columns. Accepted because "
+            "normalising would turn one RoPA row into three joins."
+        ),
+    },
+    {
+        "key": "authored_in_python_served_from_postgres",
+        "audience": "internal",
+        "title_en": "Reference data is authored in Python, served from Postgres",
+        "title_fr": None,
+        "body_en": (
+            "inventory_seed.py is the authored source and is never read at "
+            "runtime; inventory.py reads the tables. Authoring wants a "
+            "reviewable diff, serving wants a queryable table with per-language "
+            "labels and per-workspace rows."
+        ),
+        "body_fr": None,
+        "rationale_en": (
+            "Three roadmap items force the Postgres side: the S41 scanner "
+            "resolves domains by query, labels need translating, and S45 "
+            "Enterprise taxonomies are per-workspace by definition."
+        ),
     },
 ]
 
@@ -562,14 +1674,15 @@ def emit_sql() -> str:
                 "catalogue_id, name_en, name_fr, purpose_en, purpose_fr, legal_basis, "
                 "data_subject_categories, data_categories, special_categories, "
                 "art9_condition, retention_period_en, retention_period_fr, "
-                "system_role, sort_order"
+                "retention_is_statutory, system_role, sort_order"
             )
             avals = ", ".join(_q(x) for x in [
                 a["name_en"], a.get("name_fr"), a.get("purpose_en"), a.get("purpose_fr"),
                 a.get("legal_basis"), a.get("data_subject_categories", []),
                 a.get("data_categories", []), a.get("special_categories", []),
                 a.get("art9_condition"), a.get("retention_period_en"),
-                a.get("retention_period_fr"), a.get("system_role", "processor"), j,
+                a.get("retention_period_fr"), a.get("retention_is_statutory", False),
+                a.get("system_role", "processor"), j,
             ])
             w(f"INSERT INTO vendor_catalogue_activities ({acols})")
             w(f"SELECT id, {avals} FROM vendor_catalogue WHERE key = {_q(v['key'])}")
@@ -582,6 +1695,7 @@ def emit_sql() -> str:
             w("    art9_condition = EXCLUDED.art9_condition,")
             w("    retention_period_en = EXCLUDED.retention_period_en,")
             w("    retention_period_fr = EXCLUDED.retention_period_fr,")
+            w("    retention_is_statutory = EXCLUDED.retention_is_statutory,")
             w("    system_role = EXCLUDED.system_role, sort_order = EXCLUDED.sort_order;")
 
         for pattern, match_type, confidence in v.get("domain_patterns", []):
@@ -592,6 +1706,24 @@ def emit_sql() -> str:
             w("    confidence = EXCLUDED.confidence;")
 
     w("")
+    w("-- ── Catalogue principles ──────────────────────────────────────────────────")
+    w("-- The reasoning behind the defaults, stored rather than left in comments.")
+    for i, p in enumerate(CATALOGUE_PRINCIPLES):
+        pcols = ("key, audience, title_en, title_fr, body_en, body_fr, "
+                 "rationale_en, sort_order, active")
+        pvals = ", ".join(_q(x) for x in [
+            p["key"], p["audience"], p["title_en"], p.get("title_fr"),
+            p["body_en"], p.get("body_fr"), p.get("rationale_en"), i, True,
+        ])
+        w(f"INSERT INTO catalogue_principles ({pcols})")
+        w(f"VALUES ({pvals})")
+        w("ON CONFLICT (key) DO UPDATE SET")
+        w("    audience = EXCLUDED.audience, title_en = EXCLUDED.title_en,")
+        w("    title_fr = EXCLUDED.title_fr, body_en = EXCLUDED.body_en,")
+        w("    body_fr = EXCLUDED.body_fr, rationale_en = EXCLUDED.rationale_en,")
+        w("    sort_order = EXCLUDED.sort_order, active = EXCLUDED.active;")
+
+    w("")
     w("COMMIT;")
     w("")
     w("-- ── Verification ──────────────────────────────────────────────────────────")
@@ -600,6 +1732,7 @@ def emit_sql() -> str:
     w("SELECT v.key, COUNT(a.id) AS activities FROM vendor_catalogue v")
     w("LEFT JOIN vendor_catalogue_activities a ON a.catalogue_id = v.id")
     w("GROUP BY v.key ORDER BY v.key;")
+    w("SELECT audience, COUNT(*) FROM catalogue_principles GROUP BY audience;")
     w("")
 
     return "\n".join(out)
@@ -644,6 +1777,25 @@ def self_check() -> list[str]:
                 errors.append(f"{v['key']}/{a['name_en']}: Art. 9 data without a condition")
             if a.get("art9_condition") and a["art9_condition"] not in codes["art9_condition"]:
                 errors.append(f"{v['key']}/{a['name_en']}: unknown art9_condition")
+            # The retention principle, enforced rather than merely stated: an
+            # activity cannot both declare its period statutory and carry a
+            # hardcoded default, or the default silently wins for every client
+            # regardless of country.
+            if a.get("retention_is_statutory") and a.get("retention_period_en"):
+                errors.append(
+                    f"{v['key']}/{a['name_en']}: retention marked statutory but "
+                    f"a default period is set"
+                )
+
+    seen_keys = set()
+    for p in CATALOGUE_PRINCIPLES:
+        if p["key"] in seen_keys:
+            errors.append(f"principle {p['key']}: duplicate key")
+        seen_keys.add(p["key"])
+        if p["audience"] not in ("client", "internal"):
+            errors.append(f"principle {p['key']}: bad audience {p['audience']!r}")
+        if p["audience"] == "client" and not p.get("body_fr"):
+            errors.append(f"principle {p['key']}: client-facing but no French text")
 
     return errors
 
