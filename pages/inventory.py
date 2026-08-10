@@ -60,6 +60,16 @@ c1.metric("Systems", ready["systems"])
 c2.metric("Processing activities", ready["activities"])
 c3.metric("Ready for RoPA", f"{ready['complete_activities']}/{ready['activities']}")
 
+# The rules behind the pre-filled values, readable where the values are.
+# Without this a client sees a blank retention field and reads it as a bug
+# rather than as a deliberate refusal to guess at their national law.
+_principles = INV.principles_for_display(lang)
+if _principles:
+    with st.expander("How this inventory is filled in"):
+        for p in _principles:
+            st.markdown(f"**{p['title']}**")
+            st.caption(p["body"])
+
 tab_systems, tab_activities = st.tabs(["Systems", "Processing activities"])
 
 
@@ -285,6 +295,10 @@ with tab_activities:
                     "Why that period", value=a.get("retention_basis") or "",
                     help="The rule or reason — a statutory limitation period, a contract term.",
                 )
+            if not (a.get("retention_period") or "").strip():
+                _rp = INV.principle("retention", lang)
+                if _rp:
+                    st.caption(_rp["body"])
 
             measures = st.multiselect(
                 "Security measures", options=sec_codes,
