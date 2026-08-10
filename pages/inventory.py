@@ -18,6 +18,7 @@ the Art. 9 flag all depend on. Uglier, and correct.
 import pandas as pd
 import streamlit as st
 
+from auth import get_user_id
 import inventory as INV
 import inventory_store as STORE
 
@@ -28,14 +29,20 @@ st.caption(
     "once means those documents can be generated rather than written."
 )
 
-user = st.session_state.get("user") or {}
-user_id = user.get("id")
-client_id = st.session_state.get("current_client_id")
-lang = st.session_state.get("language", "en")
-
+# app.py gates on is_logged_in() before navigation runs, so this page never
+# renders unauthenticated. The guard stays as a cheap backstop against the
+# page being reached some other way.
+user_id = get_user_id()
 if not user_id:
     st.warning("Please sign in to manage your inventory.")
     st.stop()
+
+# Same contract as the help widget in app.py: selected_client is a dict, and
+# it is legitimately absent for Starter and Professional, where the user is
+# the company. A None client_id is handled throughout the store layer.
+_client = st.session_state.get("selected_client") or {}
+client_id = _client.get("id")
+lang = _client.get("language") or "en"
 
 
 # ── Data ──────────────────────────────────────────────────────────────────
