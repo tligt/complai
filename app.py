@@ -184,6 +184,7 @@ with st.sidebar:
 chat      = st.Page("pages/chat.py",      title="Chat",           icon="💬", default=True)
 dashboard = st.Page("pages/dashboard.py", title="Dashboard",      icon="📊")
 gap       = st.Page("pages/gap.py",       title="Gap Assessment", icon="🔍")
+inventory = st.Page("pages/inventory.py", title="Systems",        icon="🗂️")
 documents = st.Page("pages/documents.py", title="Documents",      icon="📄")
 audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
 alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
@@ -202,7 +203,7 @@ support   = st.Page(
 pg = st.navigation({
     "":           [chat],
     "Compliance": [dashboard, gap],
-    "Tools":      [documents, audit],
+    "Tools":      [inventory, documents, audit],
     "Account":    [activity, support],
     "Updates":    [alerts],
 })
@@ -233,6 +234,7 @@ PAGE_CONTEXT = {
     "chat":      "chat",
     "dashboard": "dashboard",
     "gap":       "gap_assessment",
+    "inventory": "inventory",
     "documents": "document_generation",
     "audit":     "website_audit",
     "alerts":    "compliance_pulse",
