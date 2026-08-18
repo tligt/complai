@@ -1,5 +1,5 @@
 """
-pages/inventory.py — vendor and processing-activity intake (S24).
+pages/inventory.py — vendor and processing-activity intake (S24, amended S25).
 
 Two tabs, two deliberately different interaction models.
 
@@ -13,12 +13,29 @@ enumerated multi-select, and st.data_editor has no multiselect column type —
 the alternative inside a grid is comma-separated free text, which would put
 uncontrolled vocabulary into the exact columns the RoPA, the gap scoring and
 the Art. 9 flag all depend on. Uglier, and correct.
+
+── S25 amendments ────────────────────────────────────────────────────────
+Two bugs fixed, both silent:
+
+1. client_id was read only from st.session_state["selected_client"], which is
+   populated in Advisory flows and absent everywhere else. So Starter and
+   Professional clients wrote every system and activity with client_id NULL,
+   while pages/documents.py resolved the same company through load_clients()
+   and got a real id. The Cookie Policy read found nothing. Resolution is now
+   shared: session first, then the user's sole client.
+
+2. lang read _client["language"], a key that has never existed — so the page
+   has been English-only since it shipped and the seeded French labels were
+   unreachable. Document languages are a company property (plural); the UI
+   language belongs to the user. Until a user language column exists, the
+   first document language is the best available fallback.
 """
 
 import pandas as pd
 import streamlit as st
 
 from auth import get_user_id
+from database import load_clients
 import inventory as INV
 import inventory_store as STORE
 
@@ -37,12 +54,47 @@ if not user_id:
     st.warning("Please sign in to manage your inventory.")
     st.stop()
 
-# Same contract as the help widget in app.py: selected_client is a dict, and
-# it is legitimately absent for Starter and Professional, where the user is
-# the company. A None client_id is handled throughout the store layer.
+
+# ── Client resolution (S25) ───────────────────────────────────────────────
+# One identity per company, resolved the same way on every page. Writing NULL
+# here and a real id elsewhere is what broke the Cookie Policy read, and it
+# would have broken the RoPA (S26) and the register (S27) in turn.
+
 _client = st.session_state.get("selected_client") or {}
 client_id = _client.get("id")
-lang = _client.get("language") or "en"
+
+if not client_id:
+    _owned = load_clients(user_id) or []
+    if len(_owned) == 1:
+        # Starter and Professional: the user is the company. There is exactly
+        # one client row, so using it is unambiguous.
+        _client = _owned[0]
+        client_id = _client["id"]
+    elif len(_owned) > 1:
+        # Advisory, with nothing selected. Guessing would attach a vendor to
+        # the wrong company — a silent, hard-to-notice error in a document that
+        # later gets filed. Stop and ask instead.
+        st.warning(
+            "Select a client before editing the inventory. Systems and "
+            "processing activities belong to a specific company."
+        )
+        st.stop()
+    else:
+        st.info("Create a client profile before filling in your inventory.")
+        st.stop()
+
+# Language for labels. See the module docstring: this is UI chrome, so it
+# should follow the user once a user language column exists. Until then the
+# first document language is the closest available signal.
+lang = (
+    st.session_state.get("ui_language")
+    or (_client.get("document_languages") or ["en"])[0]
+)
+if lang not in INV.LANGUAGES:
+    # label_for and note_for coerce internally, but options_for builds
+    # label_{lang} by direct lookup — a bad code yields a dict of None labels
+    # and every dropdown renders blank. Normalise once here.
+    lang = "en"
 
 
 # ── Data ──────────────────────────────────────────────────────────────────
@@ -168,7 +220,8 @@ with tab_systems:
 
     st.caption(
         "Codes such as `scc` or `not_required` are shown raw in this table; "
-        "their full meaning appears wherever they are used in a document."
+        "their full meaning appears wherever they are used in a document. "
+        "Scroll the table sideways to reach *Sets cookies*, *AI role* and *Notes*."
     )
 
     if st.button("Save changes", type="primary", key="inv_systems_save"):
