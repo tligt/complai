@@ -11,6 +11,22 @@ from document_generator import (
     build_docx, convert_docx_to_pdf, convert_docx_to_odt,
 )
 
+# ── S25: templated document types ─────────────────────────────
+# Tier 1 documents are rendered from a reviewed template plus merge fields
+# instead of being written by the LLM at runtime. The flag keeps the old
+# prompt path reachable for one sprint (D-11) so a regression can be compared
+# against it rather than reconstructed from memory.
+#
+#   TEMPLATE_DOC_TYPES="cookie_policy"   default — cookie policy templated
+#   TEMPLATE_DOC_TYPES=""                everything back on the LLM path
+#
+# The templated path needs a real client_id: it reads the S24 inventory. So
+# Advisory / external-company generation stays on the LLM path regardless.
+TEMPLATE_DOC_TYPES = {
+    t.strip() for t in os.environ.get("TEMPLATE_DOC_TYPES", "cookie_policy").split(",")
+    if t.strip()
+}
+
 user_id = get_user_id()
 
 st.title("📄 Document Generation")
@@ -68,12 +84,33 @@ doc_type = st.selectbox(
     key="doc_type_select"
 )
 
-language = st.selectbox(
-    "Document language",
-    options=["en", "fr", "nl"],
-    format_func=lambda x: {"en": "EN — English", "fr": "FR — Français", "nl": "NL — Nederlands"}[x],
-    key="doc_lang_select"
+# ── S25: is this generation templated? ────────────────────────
+use_template = bool(
+    doc_type in TEMPLATE_DOC_TYPES
+    and mode == "existing_client"
+    and client_id
 )
+
+if use_template:
+    # A templated document is generated in every language the client issues
+    # documents in, as one group — not one language at a time. Asking here
+    # would imply the languages are separate documents, which is exactly the
+    # confusion document_group_id exists to prevent.
+    doc_langs = (selected_client or {}).get("document_languages") or ["en"]
+    st.info(
+        "This document is generated from a reviewed template using your "
+        "systems inventory. It will be produced in: "
+        + ", ".join(l.upper() for l in doc_langs)
+        + ".  You can change these in the client profile."
+    )
+    language = doc_langs[0]
+else:
+    language = st.selectbox(
+        "Document language",
+        options=["en", "fr", "nl"],
+        format_func=lambda x: {"en": "EN — English", "fr": "FR — Français", "nl": "NL — Nederlands"}[x],
+        key="doc_lang_select"
+    )
 
 st.divider()
 
@@ -126,6 +163,9 @@ if context_key != st.session_state.doc_context_key:
 pf = st.session_state.doc_prefill
 
 # ── Universal fields ──────────────────────────────────────────
+# Kept for templated documents too: this form writes back to the clients table
+# via update_client_profile, and the template reads its merge fields from
+# there. Filling it in is how a blocked required field gets unblocked.
 st.subheader("Company information")
 st.caption("Fields marked ✱ are required.")
 
@@ -188,6 +228,28 @@ st.text_input(
 )
 # Read current value from session state — this works reliably
 contact_email = st.session_state.get("f_contact_stable", st.session_state.doc_contact_email)
+
+# ── S25: registered address and enterprise number ─────────────
+# Required merge fields for the Cookie Policy, and absent from the pre-S25
+# form. Shown for templated documents only, so the LLM path is untouched.
+registered_address = None
+enterprise_number = None
+if use_template:
+    col5, col6 = st.columns(2)
+    registered_address = col5.text_area(
+        "Registered address ✱",
+        value=pf.get("registered_address", "") or (selected_client or {}).get("registered_address", "") or "",
+        height=80,
+        placeholder="Rue Example 1\n1000 Brussels\nBelgium",
+        key=f"f_regaddr_{context_key}",
+    )
+    enterprise_number = col6.text_input(
+        "Company registration number",
+        value=pf.get("enterprise_number", "") or (selected_client or {}).get("enterprise_number", "") or "",
+        placeholder="0123.456.789",
+        help="BCE/KBO in Belgium, SIREN or SIRET in France.",
+        key=f"f_entnum_{context_key}",
+    )
 
 # ── Structured field helpers ──────────────────────────────────
 
@@ -326,7 +388,9 @@ def retention_editor():
 
 
 # ── AI suggestion button (for privacy_policy and ropa) ──────────
-if doc_type in ["privacy_policy", "ropa", "cookie_policy"] and (selected_client or mode == "external_company"):
+# Not offered for templated documents: their content comes from the inventory,
+# so suggesting activities here would produce data the document never reads.
+if (not use_template) and doc_type in ["privacy_policy", "ropa", "cookie_policy"] and (selected_client or mode == "external_company"):
     st.divider()
     col_ai1, col_ai2 = st.columns([3, 1])
     col_ai1.markdown("**🤖 Let AI suggest processing activities based on your profile**")
@@ -369,7 +433,36 @@ incident_response_contact = escalation_procedure = None
 processing_activities_text = third_party_processors_text = retention_periods_text = ""
 international_transfers = False
 
-if doc_type == "privacy_policy":
+if use_template:
+    # No editors. The vendor list comes from the S24 inventory, so retyping it
+    # here would create a second source that drifts from the first.
+    st.caption(
+        "The third-party services in this document are taken from your systems "
+        "inventory — every system marked as setting cookies. To change what "
+        "appears, edit the inventory on the Systems page."
+    )
+    try:
+        from template_store import _load_vendor_rows
+        _preview_vendors = _load_vendor_rows(client_id, language)
+    except Exception as e:
+        _preview_vendors = []
+        st.warning(f"Could not read the inventory: {e}")
+
+    if _preview_vendors:
+        st.markdown(
+            "\n".join(
+                f"- **{v['vendor_name']}** — {v.get('purpose') or 'purpose not recorded'}"
+                for v in _preview_vendors
+            )
+        )
+    else:
+        st.warning(
+            "No systems in your inventory are marked as setting cookies. The "
+            "document will state that no third-party cookies are used — make "
+            "sure that is actually true before publishing it."
+        )
+
+elif doc_type == "privacy_policy":
     processing_activities_text = activity_editor()
     st.divider()
     third_party_processors_text = processor_editor()
@@ -451,7 +544,7 @@ elif doc_type == "ai_transparency":
     )
 
 # ── Confirmation checkbox ────────────────────────────────────────
-if doc_type in ["privacy_policy", "ropa"]:
+if (not use_template) and doc_type in ["privacy_policy", "ropa"]:
     st.divider()
     st.session_state.doc_confirmed = st.checkbox(
         "✅ I have reviewed all processing activities and, to the best of my knowledge, "
@@ -472,7 +565,71 @@ generate = st.button(
     key=f"btn_gen_{context_key}"
 )
 
-if generate:
+# ══════════════════════════════════════════════════════════════
+# S25 — TEMPLATED PATH
+# ══════════════════════════════════════════════════════════════
+if generate and use_template:
+    from docgen_templates import generate_templated_document
+
+    def _s(v): return (v or "").strip()
+
+    # Write the form back to the client profile FIRST. The template reads its
+    # merge fields from the clients table, not from this form, so a blocked
+    # required field is unblocked by saving — not by typing and generating.
+    profile_update = {
+        "website_url": _s(website_url) or None,
+        "dpo_name": _s(dpo_name) or None,
+        "dpo_email": _s(dpo_email) or None,
+        "contact_email": _s(contact_email) or None,
+        "legal_name": _s(legal_name) or None,
+        "legal_form": legal_form or None,
+        "registered_address": _s(registered_address) or None,
+        "enterprise_number": _s(enterprise_number) or None,
+    }
+    update_client_profile(client_id, user_id, profile_update)
+
+    company_display = f"{_s(legal_name)} {legal_form or ''}".strip()
+
+    with st.spinner("Generating from template..."):
+        outcome = generate_templated_document(
+            user_id=user_id,
+            client_id=client_id,
+            doc_type=doc_type,
+            company_name=company_display,
+        )
+
+    if not outcome.ok:
+        st.error(outcome.message)
+        if outcome.missing_required:
+            st.caption(
+                "Fill these in above and generate again. The document is not "
+                "produced with them missing, because a compliance document that "
+                "cannot identify the company is wrong rather than incomplete."
+            )
+    else:
+        st.success(outcome.message)
+
+        for item in outcome.saved:
+            st.divider()
+            st.markdown(f"### {item['language'].upper()}")
+            if item["outstanding"]:
+                st.warning(
+                    f"{item['outstanding']} field(s) are marked "
+                    "`[[ TO COMPLETE: … ]]` in this version."
+                )
+            with st.expander("Preview", expanded=False):
+                st.markdown(item["body"])
+
+        st.caption(
+            "Generated from a reviewed template. Files are saved to your "
+            "document history below. Review with a qualified legal "
+            "professional before publishing."
+        )
+
+# ══════════════════════════════════════════════════════════════
+# LLM PATH (unchanged)
+# ══════════════════════════════════════════════════════════════
+elif generate:
     legal_name = st.session_state.get("f_legal_name_stable", "") or legal_name or ""
     contact_email = st.session_state.get("f_contact_stable", "") or contact_email or ""
 
