@@ -212,6 +212,28 @@ check("missing block reported", "does_not_exist" in res.unknown_tags)
 check("missing block placeholdered not crashed", "TO COMPLETE" in res.body)
 
 
+print("\n--- line endings ---")
+# A CRLF template silently lost every block: _BLOCK_RE is anchored with
+# [ \t]*$ and cannot match the \r. Shipped a Cookie Policy with no vendor
+# table. Conditionals and fields are unanchored, so ONLY blocks broke — which
+# is why it looked like a complete document.
+_lb = "Services:\n\n{{#block:cookie_table}}\n\nAfter.\n"
+for label, src in [("LF", _lb), ("CRLF", _lb.replace("\n", "\r\n")),
+                   ("CR", _lb.replace("\n", "\r"))]:
+    res = render_template(src, values={}, specs=[], language="en",
+                          block_renderers=DEFAULT_BLOCK_RENDERERS,
+                          block_context={"vendors": VENDORS})
+    check(f"{label}: block renders", "Google Analytics" in (res.body or ""))
+    check(f"{label}: no unresolved tags", res.unknown_tags == [])
+    check(f"{label}: no stray CR in body", "\r" not in (res.body or ""))
+
+res = render_template("{{#if:has_dpo}}x{{/if:has_dpo}}\r\n{{legal_name}}\r\n",
+                      values={"has_dpo": True, "legal_name": "RECOSA SRL"},
+                      specs=SPECS, language="en")
+check("CRLF: fields and conditionals unaffected",
+      "RECOSA SRL" in res.body and "x" in res.body)
+
+
 print("\n--- theme passthrough ---")
 res = render_template("x", values={}, specs=[], language="en", theme="default")
 check("theme accepted and ignored", res.body.strip() == "x")

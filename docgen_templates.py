@@ -119,6 +119,7 @@ def generate_templated_document(
         )
 
     saved: list[dict[str, Any]] = []
+    unresolved: list[tuple[str, list[str]]] = []
     for d in renderable:
         # include_header=False: the template body carries its own title,
         # company block and date. Letting build_docx add its own produced the
@@ -153,6 +154,14 @@ def generate_templated_document(
             jurisdictions_applied=d.jurisdictions_applied,
         )
 
+        if d.result.unknown_tags:
+            # Surfaced, not swallowed. This is how the missing vendor table
+            # went unnoticed: the renderer DID record the stripped block in
+            # unknown_tags, and nothing ever showed it. A tag that fails to
+            # resolve means content is missing from a legal document, which is
+            # worth interrupting someone for.
+            unresolved.append((d.language, d.result.unknown_tags))
+
         saved.append({
             "document_id": doc_id,
             "language": d.language,
@@ -173,6 +182,15 @@ def generate_templated_document(
         parts.append(
             f"{summary['outstanding_total']} field(s) left to complete — "
             "they appear as marked placeholders in the document."
+        )
+    if unresolved:
+        detail = "; ".join(
+            f"{lang.upper()}: {', '.join(tags)}" for lang, tags in unresolved
+        )
+        parts.append(
+            "WARNING — parts of the template did not resolve and are missing "
+            f"from the document ({detail}). Do not publish it until this is "
+            "fixed."
         )
     if summary["revision_split"]:
         # Honest rather than hidden: the languages are tracking different

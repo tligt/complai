@@ -233,6 +233,18 @@ def render_template(
     """
     del theme  # S43
 
+    # Normalise line endings BEFORE anything is matched.
+    #
+    # _BLOCK_RE is anchored with [ \t]*$, which cannot match a '\r' sitting
+    # before the newline — so a CRLF template silently lost every block, and
+    # only blocks: conditionals and merge fields are unanchored and matched
+    # fine. A Cookie Policy shipped without its third-party vendor table
+    # because the seed SQL was saved on Windows.
+    #
+    # Body text comes from Postgres, authored on whatever machine ran the
+    # seed, so the renderer cannot assume anything about line endings.
+    body_md = body_md.replace("\r\n", "\n").replace("\r", "\n")
+
     spec_by_name = {s.name: s for s in specs}
     block_renderers = block_renderers or {}
     block_context = block_context or {}
