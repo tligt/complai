@@ -134,21 +134,65 @@ def save_document_with_files(
     docx_bytes: bytes,
     pdf_bytes: bytes | None = None,
     odt_bytes: bytes | None = None,
+    *,
+    template_version_id: str | None = None,
+    document_group_id: str | None = None,
+    outstanding_fields: list | None = None,
+    jurisdictions_applied: list | None = None,
+    brand_profile_version: str | None = None,
 ) -> str | None:
-    """Save document record and upload files to Supabase Storage. Returns document ID."""
+    """Save document record and upload files to Supabase Storage. Returns document ID.
+
+    S25 stamping (all optional, keyword-only):
+
+      template_version_id   which template version produced this. Cheap to
+                            record now, impossible to reconstruct later — a
+                            document generated today is otherwise
+                            indistinguishable from one generated against a
+                            later revision.
+      document_group_id     ties the language siblings of one generation
+                            together. Two rows for a Brussels client are the
+                            SAME document in two languages, not two documents,
+                            and S27 adoption applies to the group.
+      outstanding_fields    unresolved placeholders, per language. A French
+                            body can carry one its Dutch sibling does not, so
+                            completeness must be summed across the group.
+      jurisdictions_applied which markets' rules were resolved into this text.
+      brand_profile_version unused until S43; taken now so the call sites do
+                            not need touching again.
+
+    Documents generated before S25, or by the Tier 2/3 LLM path, pass none of
+    these and carry NULL. That is the honest record, not a gap to backfill.
+    """
     import re
     from datetime import datetime
     from database import upload_file, update_document_paths
 
+    record = {
+        "user_id": user_id,
+        "client_id": client_id,
+        "document_type": document_type,
+        "language": language,
+        "company_name": company_name,
+    }
+
+    # Only send stamping columns when they carry a value. Omitting them lets
+    # the column defaults apply, and keeps this working if the S25 migration
+    # has not been applied to a given environment yet.
+    if template_version_id:
+        record["template_version_id"] = template_version_id
+    if document_group_id:
+        record["document_group_id"] = document_group_id
+    if outstanding_fields is not None:
+        record["outstanding_fields"] = outstanding_fields
+    if jurisdictions_applied:
+        record["jurisdictions_applied"] = jurisdictions_applied
+    if brand_profile_version:
+        record["brand_profile_version"] = brand_profile_version
+
     try:
         supabase = get_supabase()
-        res = supabase.table("documents").insert({
-            "user_id": user_id,
-            "client_id": client_id,
-            "document_type": document_type,
-            "language": language,
-            "company_name": company_name,
-        }).execute()
+        res = supabase.table("documents").insert(record).execute()
         doc_id = res.data[0]["id"] if res.data else None
     except Exception as e:
         st.error(f"Could not save document record: {e}")
