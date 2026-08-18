@@ -78,7 +78,10 @@ def generate_templated_document(
     docs = TS.generate(
         client_id,
         doc_type,
-        generation_date=date.today().strftime("%d %B %Y"),
+        # A date object, not a string: template_store formats it per
+        # language. Formatting here would put English month names into a
+        # French document.
+        generation_date=date.today(),
         languages=languages,
         theme=theme,
     )
@@ -117,7 +120,13 @@ def generate_templated_document(
 
     saved: list[dict[str, Any]] = []
     for d in renderable:
-        docx_bytes = build_docx(d.result.body, doc_type, company_name, d.language)
+        # include_header=False: the template body carries its own title,
+        # company block and date. Letting build_docx add its own produced the
+        # title and date twice, once in English.
+        docx_bytes = build_docx(
+            d.result.body, doc_type, company_name, d.language,
+            include_header=False,
+        )
 
         pdf_bytes = None
         if make_pdf:
@@ -203,7 +212,10 @@ def preview_templated_document(
     """
     docs = TS.generate(
         client_id, doc_type,
-        generation_date=date.today().strftime("%d %B %Y"),
+        # A date object, not a string: template_store formats it per
+        # language. Formatting here would put English month names into a
+        # French document.
+        generation_date=date.today(),
         languages=[language], theme=theme,
     )
     if not docs:

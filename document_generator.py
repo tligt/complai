@@ -666,63 +666,95 @@ data processed by the AI system, contact for questions. Date: {today}"""
 # ── DOCX builder ──────────────────────────────────────────────
 
 def build_docx(document_text: str, document_type: str,
-               company_name: str, language: str) -> bytes:
-    """Build a professional DOCX using python-docx with full markdown parsing."""
+               company_name: str, language: str,
+               include_header: bool = True) -> bytes:
+    """Build a professional DOCX from markdown.
+
+    ── S25 rewrite ───────────────────────────────────────────────────────
+    Four defects fixed, three of them silently corrupting every document
+    generated before now:
+
+    1. sanitize() ran `re.sub(r'[--]', '', text)`. That was a
+       control-character class whose literal control bytes were stripped from
+       the source at some point, leaving a range from '-' to '-' — a literal
+       hyphen. EVERY hyphen was being deleted from EVERY document:
+       "Qu'est-ce" became "Qu'estce", "sous-traitant" became "soustraitant".
+       Same class of accident as the `log` find-and-replace incident.
+
+    2. parse_inline() ran `re.sub(r'\\[([^\\]]+)\\]\\([^\\)]+\\)', r'', text)`.
+       The replacement was `r'\\1'` — the backslash-one is gone, so markdown
+       links were DELETED entirely rather than reduced to their text. A
+       document referring to "[the supervisory authority](https://...)" lost
+       the phrase as well as the URL.
+
+    3. Markdown tables were not parsed at all. The line simply fell through to
+       body text and, because a pipe row looks like nothing else, produced a
+       row of pipes — or vanished. This is how the first templated Cookie
+       Policy shipped with its third-party vendor disclosure missing while
+       reading as a complete document.
+
+    4. The parser was line-oriented, so a hard-wrapped source produced one
+       paragraph per LINE rather than per paragraph. Consecutive body lines
+       are now joined, with two trailing spaces honoured as a markdown hard
+       break (used by multi-line address blocks).
+
+    Also: sanitize() was defined twice and applied twice; em dashes are kept
+    rather than degraded to "--"; the footer says RECOSA.
+
+    include_header=False suppresses the generated title block for documents
+    whose body already carries its own — otherwise a templated document shows
+    its title, company and date twice.
+    """
     import re
 
+    # Control characters that lxml cannot serialise. Tab, newline and carriage
+    # return are deliberately absent from this class: they are legal in XML and
+    # removing them would destroy the document's structure.
+    _CONTROL_CHARS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f]')
+
     def sanitize(text: str) -> str:
         if not text:
             return ""
-        text = re.sub(r'[--]', '', text)
-        text = text.replace(' ', ' ').replace('’', "'").replace('‘', "'")
-        text = text.replace('“', '"').replace('”', '"')
-        text = text.replace('–', '-').replace('—', '--')
-        text = text.replace('…', '...')
+        text = _CONTROL_CHARS.sub('', text)
+        text = text.replace('\u00a0', ' ')          # non-breaking space
+        text = text.replace('\u2019', "'").replace('\u2018', "'")
+        text = text.replace('\u201c', '"').replace('\u201d', '"')
+        text = text.replace('\u2026', '...')
+        # En and em dashes are valid XML and read correctly in Word. The old
+        # code degraded '—' to '--', which looks like a typo in a legal text.
         return text.encode('utf-8', errors='ignore').decode('utf-8')
 
     document_text = sanitize(document_text)
     company_name = sanitize(company_name)
 
-    # Sanitize text — remove control characters and invalid XML chars
-    # that lxml cannot handle
-    def sanitize(text: str) -> str:
-        if not text:
-            return ""
-        # Remove XML-illegal control characters (except tab, newline, carriage return)
-        text = re.sub(r'[--]', '', text)
-        # Replace non-breaking spaces and other problematic unicode
-        text = text.replace(' ', ' ').replace('’', "'").replace('‘', "'")
-        text = text.replace('“', '"').replace('”', '"')
-        text = text.replace('–', '-').replace('—', '--')
-        text = text.replace('…', '...')
-        # Ensure valid UTF-8 by encoding and decoding
-        return text.encode('utf-8', errors='ignore').decode('utf-8')
-
-    document_text = sanitize(document_text)
-    company_name = sanitize(company_name)
     from docx import Document as DocxDocument
     from docx.shared import Pt, RGBColor, Inches, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
 
     doc_title = DOCUMENT_TYPES.get(document_type, "Compliance Document")
-    today = date.today().strftime("%d %B %Y")
+
+    # Date in the document's language. strftime('%B') is English regardless of
+    # locale unless the locale is installed, which is not guaranteed on
+    # Streamlit Cloud — and setlocale() is process-global and not thread-safe.
+    try:
+        from template_store import format_date
+        today = format_date(date.today(), language)
+    except Exception:
+        today = date.today().strftime("%d %B %Y")
 
     doc = DocxDocument()
 
-    # Page margins
     for section in doc.sections:
         section.top_margin = Cm(2.5)
         section.bottom_margin = Cm(2.5)
         section.left_margin = Cm(3)
         section.right_margin = Cm(2.5)
 
-    # Define styles
-    styles = doc.styles
-
     def set_run_font(run, size=10, bold=False, italic=False,
-                     color=(0x33,0x33,0x33)):
+                     color=(0x33, 0x33, 0x33)):
         run.font.name = "Arial"
         run.font.size = Pt(size)
         run.font.bold = bold
@@ -734,7 +766,6 @@ def build_docx(document_text: str, document_type: str,
         p.paragraph_format.space_after = Pt(after)
 
     def add_border_bottom(p, color="D3D1C7"):
-        """Add bottom border to paragraph."""
         pPr = p._p.get_or_add_pPr()
         pBdr = OxmlElement("w:pBdr")
         bottom = OxmlElement("w:bottom")
@@ -746,83 +777,134 @@ def build_docx(document_text: str, document_type: str,
         pPr.append(pBdr)
 
     def parse_inline(p, text):
-        """Parse inline markdown: **bold**, *italic*, strip [text](url) to text."""
+        """Inline markdown: ***b+i***, **bold**, *italic*, `code`, [text](url).
+
+        A literal "\\n" in the joined text is a markdown hard break and becomes
+        a line break inside the paragraph, not a new paragraph.
+        """
         if not text:
             return
-        # Sanitize
-        text = re.sub(r'[--]', '', text)
-        # Strip markdown links: [text](url) -> text
-        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'', text)
-        # Parse bold+italic ***text***
-        parts = re.split(r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)', text)
-        for part in parts:
-            if part.startswith('***') and part.endswith('***'):
-                run = p.add_run(part[3:-3])
-                set_run_font(run, bold=True, italic=True)
-            elif part.startswith('**') and part.endswith('**'):
-                run = p.add_run(part[2:-2])
-                set_run_font(run, bold=True)
-            elif part.startswith('*') and part.endswith('*'):
-                run = p.add_run(part[1:-1])
-                set_run_font(run, italic=True)
-            elif part.startswith('`') and part.endswith('`'):
-                run = p.add_run(part[1:-1])
-                set_run_font(run, color=(0x44,0x44,0x44))
-            else:
-                if part:
-                    run = p.add_run(part)
-                    set_run_font(run)
+        text = _CONTROL_CHARS.sub('', text)
+        # Links reduce to their TEXT. The old code substituted an empty string,
+        # deleting the phrase along with the URL.
+        text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)
+
+        for line_idx, segment in enumerate(text.split('\n')):
+            if line_idx:
+                p.add_run().add_break()
+            parts = re.split(
+                r'(\*\*\*[^*]+\*\*\*|\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)', segment
+            )
+            for part in parts:
+                if not part:
+                    continue
+                if part.startswith('***') and part.endswith('***'):
+                    set_run_font(p.add_run(part[3:-3]), bold=True, italic=True)
+                elif part.startswith('**') and part.endswith('**'):
+                    set_run_font(p.add_run(part[2:-2]), bold=True)
+                elif part.startswith('*') and part.endswith('*'):
+                    set_run_font(p.add_run(part[1:-1]), italic=True)
+                elif part.startswith('`') and part.endswith('`'):
+                    set_run_font(p.add_run(part[1:-1]), color=(0x44, 0x44, 0x44))
+                else:
+                    set_run_font(p.add_run(part))
+
+    # ── Markdown table support ────────────────────────────────
+    _TABLE_ROW = re.compile(r'^\s*\|.*\|\s*$')
+    _TABLE_SEP = re.compile(r'^\s*\|[\s:|-]+\|\s*$')
+
+    def split_row(line):
+        cells = line.strip().strip('|').split('|')
+        # Restore pipes escaped by the block renderer so a vendor name
+        # containing '|' does not silently split the row.
+        return [c.strip().replace('\\|', '|') for c in cells]
+
+    def add_table(rows):
+        header, body = rows[0], rows[1:]
+        table = doc.add_table(rows=1, cols=len(header))
+        table.style = 'Table Grid'
+        table.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+        for idx, cell_text in enumerate(header):
+            cell = table.rows[0].cells[idx]
+            cell.text = ""
+            p = cell.paragraphs[0]
+            add_para_spacing(p, before=2, after=2)
+            run = p.add_run(cell_text)
+            set_run_font(run, size=9, bold=True, color=(0x1B, 0x2A, 0x4A))
+
+        for row in body:
+            cells = table.add_row().cells
+            for idx in range(len(header)):
+                value = row[idx] if idx < len(row) else ""
+                cells[idx].text = ""
+                p = cells[idx].paragraphs[0]
+                add_para_spacing(p, before=2, after=2)
+                parse_inline(p, value)
+                for run in p.runs:
+                    run.font.size = Pt(9)
+
+        doc.add_paragraph()
 
     # ── Document header ───────────────────────────────────────
-    # Title block
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    add_para_spacing(p, before=0, after=4)
-    run = p.add_run(doc_title)
-    run.font.name = "Arial"
-    run.font.size = Pt(22)
-    run.font.bold = True
-    run.font.color.rgb = RGBColor(0x1B, 0x2A, 0x4A)
-    add_border_bottom(p, "1B2A4A")
+    if include_header:
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        add_para_spacing(p, before=0, after=4)
+        run = p.add_run(doc_title)
+        run.font.name = "Arial"
+        run.font.size = Pt(22)
+        run.font.bold = True
+        run.font.color.rgb = RGBColor(0x1B, 0x2A, 0x4A)
+        add_border_bottom(p, "1B2A4A")
 
-    p2 = doc.add_paragraph()
-    add_para_spacing(p2, before=6, after=2)
-    run2 = p2.add_run(company_name)
-    run2.font.name = "Arial"
-    run2.font.size = Pt(13)
-    run2.font.color.rgb = RGBColor(0x4A, 0x3B, 0x8C)
+        p2 = doc.add_paragraph()
+        add_para_spacing(p2, before=6, after=2)
+        run2 = p2.add_run(company_name)
+        run2.font.name = "Arial"
+        run2.font.size = Pt(13)
+        run2.font.color.rgb = RGBColor(0x4A, 0x3B, 0x8C)
 
-    p3 = doc.add_paragraph()
-    add_para_spacing(p3, before=0, after=16)
-    run3 = p3.add_run(today)
-    run3.font.name = "Arial"
-    run3.font.size = Pt(10)
-    run3.font.italic = True
-    run3.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
+        p3 = doc.add_paragraph()
+        add_para_spacing(p3, before=0, after=16)
+        run3 = p3.add_run(today)
+        run3.font.name = "Arial"
+        run3.font.size = Pt(10)
+        run3.font.italic = True
+        run3.font.color.rgb = RGBColor(0x88, 0x88, 0x88)
 
     # ── Parse document text ───────────────────────────────────
     lines = document_text.strip().split('\n')
     i = 0
     while i < len(lines):
-        line = lines[i].rstrip()
+        raw = lines[i]
+        line = raw.rstrip()
 
-        # Skip duplicate title lines that Mistral often adds
-        if line.strip('# ').strip() == doc_title or line.strip('# ').strip() == company_name:
+        # Skip duplicate title lines that the LLM path often adds.
+        if line.strip('# ').strip() in (doc_title, company_name):
             i += 1
             continue
 
-        # Blank line
         if not line.strip():
             p = doc.add_paragraph()
             add_para_spacing(p, before=0, after=2)
             i += 1
             continue
 
-        # H1: # Title or 1. Title
+        # Table: a pipe row followed by a separator row.
+        if (_TABLE_ROW.match(line) and i + 1 < len(lines)
+                and _TABLE_SEP.match(lines[i + 1])):
+            rows = [split_row(line)]
+            j = i + 2
+            while j < len(lines) and _TABLE_ROW.match(lines[j].rstrip()):
+                rows.append(split_row(lines[j]))
+                j += 1
+            add_table(rows)
+            i = j
+            continue
+
+        # H1: '# Title' / '## Title' / '1. Title'
         if re.match(r'^#{1,2}\s+', line) or re.match(r'^\d+\.\s+[A-Z]', line):
-            clean = re.sub(r'^#{1,2}\s+', '', line).strip()
-            clean = re.sub(r'^\d+\.\s+', '', clean)
-            # Restore number prefix for numbered headings
             m = re.match(r'^(\d+\.\s+)(.*)', line)
             if m:
                 clean = m.group(1) + re.sub(r'^#{1,2}\s+', '', m.group(2))
@@ -831,7 +913,7 @@ def build_docx(document_text: str, document_type: str,
             p = doc.add_paragraph()
             add_para_spacing(p, before=14, after=4)
             add_border_bottom(p, "D3D1C7")
-            run = p.add_run(clean)
+            run = p.add_run(clean.strip())
             run.font.name = "Arial"
             run.font.size = Pt(13)
             run.font.bold = True
@@ -839,7 +921,7 @@ def build_docx(document_text: str, document_type: str,
             i += 1
             continue
 
-        # H2: ## Title or 1.1 Title
+        # H2
         if re.match(r'^###\s+', line) or re.match(r'^\d+\.\d+\s+[A-Z]', line):
             clean = re.sub(r'^#{2,3}\s+', '', line).strip()
             p = doc.add_paragraph()
@@ -852,9 +934,18 @@ def build_docx(document_text: str, document_type: str,
             i += 1
             continue
 
-        # Bullet: - or * or •
-        if re.match(r'^[-*•]\s+', line):
-            clean = re.sub(r'^[-*•]\s+', '', line)
+        # Horizontal rule — checked BEFORE bullets, since '---' also matches
+        # the bullet pattern's leading '-'.
+        if re.match(r'^-{3,}$', line.strip()):
+            p = doc.add_paragraph()
+            add_border_bottom(p, "D3D1C7")
+            add_para_spacing(p, before=4, after=4)
+            i += 1
+            continue
+
+        # Bullet
+        if re.match(r'^[-*\u2022]\s+', line):
+            clean = re.sub(r'^[-*\u2022]\s+', '', line)
             p = doc.add_paragraph(style='List Bullet')
             add_para_spacing(p, before=1, after=1)
             p.paragraph_format.left_indent = Cm(1)
@@ -862,7 +953,7 @@ def build_docx(document_text: str, document_type: str,
             i += 1
             continue
 
-        # Numbered list: 1. item (but NOT section headings)
+        # Numbered list (not a section heading)
         m_num = re.match(r'^(\d+)\.\s+(.+)', line)
         if m_num and not re.match(r'^\d+\.\s+[A-Z][A-Z]', line):
             p = doc.add_paragraph(style='List Number')
@@ -871,20 +962,42 @@ def build_docx(document_text: str, document_type: str,
             i += 1
             continue
 
-        # Horizontal rule ---
-        if re.match(r'^-{3,}$', line.strip()):
-            p = doc.add_paragraph()
-            add_border_bottom(p, "D3D1C7")
-            add_para_spacing(p, before=4, after=4)
+        # Body paragraph — join consecutive lines.
+        #
+        # Source markdown is hard-wrapped, so one line is NOT one paragraph.
+        # Two or more trailing spaces are a markdown hard break and become a
+        # line break within the paragraph; anything else joins with a space.
+        # This is what keeps a three-line address block intact while stopping
+        # every wrapped sentence from becoming its own paragraph.
+        chunk = []
+        while i < len(lines):
+            candidate = lines[i]
+            stripped = candidate.rstrip()
+            if not stripped.strip():
+                break
+            if (re.match(r'^#{1,3}\s+', stripped)
+                    or re.match(r'^[-*\u2022]\s+', stripped)
+                    or re.match(r'^\d+\.\s+', stripped)
+                    or re.match(r'^-{3,}$', stripped.strip())
+                    or _TABLE_ROW.match(stripped)):
+                break
+            hard_break = len(candidate) - len(stripped) >= 2
+            chunk.append(stripped + ('\n' if hard_break else ''))
             i += 1
-            continue
 
-        # Body text
+        text = ""
+        for part in chunk:
+            if not text:
+                text = part
+            elif text.endswith('\n'):
+                text += part
+            else:
+                text += ' ' + part
+
         p = doc.add_paragraph()
         add_para_spacing(p, before=0, after=5)
         p.paragraph_format.line_spacing = Pt(14)
-        parse_inline(p, line)
-        i += 1
+        parse_inline(p, text)
 
     # Footer
     doc.add_paragraph()
@@ -894,7 +1007,7 @@ def build_docx(document_text: str, document_type: str,
     p = doc.add_paragraph()
     add_para_spacing(p, before=4, after=0)
     run = p.add_run(
-        f"Generated by COMPLAI · complai.be · {today} · "
+        f"Generated by RECOSA \u00b7 recosa.eu \u00b7 {today} \u00b7 "
         "This document is a starting point and should be reviewed by a qualified legal professional."
     )
     run.font.name = "Arial"

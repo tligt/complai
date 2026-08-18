@@ -60,8 +60,8 @@ EFFECTIVE_FROM = date.today().isoformat()
 BODY_EN = """\
 # Cookie Policy
 
-**{{legal_name}}** {{legal_form}}
-{{registered_address}}
+**{{legal_name}}** {{legal_form}}  
+{{registered_address}}  
 Company registration number: {{enterprise_number}}
 
 Last updated: {{generation_date}}
@@ -204,8 +204,8 @@ supervisory authority in the country where you live or work.
 BODY_FR = """\
 # Politique relative aux cookies
 
-**{{legal_name}}** {{legal_form}}
-{{registered_address}}
+**{{legal_name}}** {{legal_form}}  
+{{registered_address}}  
 Numéro d'entreprise : {{enterprise_number}}
 
 Dernière mise à jour : {{generation_date}}

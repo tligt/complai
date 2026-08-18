@@ -311,8 +311,19 @@ def render_template(
 
 
 def _tidy(text: str) -> str:
-    """Collapse the blank-line debris conditionals leave behind."""
-    text = re.sub(r"[ \t]+\n", "\n", text)
+    """Collapse the blank-line debris conditionals leave behind.
+
+    Trailing whitespace is stripped EXCEPT for a markdown hard break — two or
+    more trailing spaces, normalised to exactly two. Without this exception a
+    multi-line address block collapses onto one line, because markdown ignores
+    a single newline. Learned from the first real generated document, where
+    "RECOSA SRL / Rue X / Company number Y" rendered as one run-on line.
+    """
+    text = re.sub(
+        r"[ \t]*\n",
+        lambda m: "  \n" if len(m.group(0)) >= 3 else "\n",
+        text,
+    )
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip() + "\n"
 

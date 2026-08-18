@@ -273,6 +273,47 @@ def load_client(client_id: str) -> dict[str, Any] | None:
 
 
 # ---------------------------------------------------------------------------
+# Date formatting
+# ---------------------------------------------------------------------------
+# Month names in a table rather than via locale.setlocale().
+#
+# Two reasons. Locale support depends on which locales are INSTALLED in the
+# container — Streamlit Cloud has no guarantee of fr_FR or nl_NL, so
+# setlocale() raises or silently falls back to English. And setlocale() is
+# process-global and not thread-safe, so one document rendering in French
+# would change the date format of a concurrent request.
+#
+# Caught by the first real generated document, which read
+# "Dernière mise à jour : 18 August 2026".
+
+_MONTHS = {
+    "en": ("January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"),
+    "fr": ("janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+           "août", "septembre", "octobre", "novembre", "décembre"),
+    "nl": ("januari", "februari", "maart", "april", "mei", "juni", "juli",
+           "augustus", "september", "oktober", "november", "december"),
+    "de": ("Januar", "Februar", "März", "April", "Mai", "Juni", "Juli",
+           "August", "September", "Oktober", "November", "Dezember"),
+}
+
+
+def format_date(value, language: str) -> str:
+    """Render a date in the document's language.
+
+    A plain string passes through untouched, so a caller that has already
+    formatted one is not second-guessed.
+    """
+    if isinstance(value, str):
+        return value
+    months = _MONTHS.get(language, _MONTHS["en"])
+    name = months[value.month - 1]
+    if language == "de":
+        return f"{value.day}. {name} {value.year}"
+    return f"{value.day} {name} {value.year}"
+
+
+# ---------------------------------------------------------------------------
 # Context building
 # ---------------------------------------------------------------------------
 
@@ -291,16 +332,25 @@ def build_values(
         establishment_code=(client.get("country") or "").upper() or None,
     )
 
+    # The address is client-authored free text and usually multi-line. Markdown
+    # ignores a single newline, so each line gets a hard break — otherwise a
+    # three-line address renders as one run-on line in the document header.
+    _address = client.get("registered_address")
+    if _address:
+        _address = "  \n".join(
+            line.strip() for line in str(_address).splitlines() if line.strip()
+        )
+
     values: dict[str, Any] = {
         "legal_name": client.get("legal_name"),
         "legal_form": client.get("legal_form"),
-        "registered_address": client.get("registered_address"),
+        "registered_address": _address,
         "enterprise_number": client.get("enterprise_number"),
         "contact_email": client.get("contact_email"),
         "website_url": client.get("website_url"),
         "dpo_name": client.get("dpo_name"),
         "dpo_email": client.get("dpo_email"),
-        "generation_date": generation_date,
+        "generation_date": format_date(generation_date, language),
     }
 
     # A DPO exists only if BOTH name and email are present. A name with no
