@@ -348,18 +348,35 @@ with tab_activities:
     st.divider()
 
     # --- Selection ---------------------------------------------------------
-    NEW = "__new__"
-    options = [NEW] + [a["id"] for a in activities]
+    # A radio, not a dropdown with an "add new" option in it. Streamlit
+    # selectboxes are type-to-filter, so a dropdown whose first entry is
+    # "Add a new activity" reads as a text input: a client types the name of
+    # the activity they want to create, the option list filters to nothing,
+    # and the text vanishes when focus moves. Nothing they typed was ever
+    # going anywhere. The mode switch has to be visibly a mode switch.
     by_id = {a["id"]: a for a in activities}
 
-    selected = st.selectbox(
-        "Edit an activity",
-        options=options,
-        format_func=lambda i: "➕ Add a new activity" if i == NEW else by_id[i]["name"],
-        key="inv_act_select",
-    )
+    if activities:
+        mode = st.radio(
+            "Mode",
+            options=("Add a new activity", "Edit an existing one"),
+            horizontal=True,
+            key="inv_act_mode",
+            label_visibility="collapsed",
+        )
+    else:
+        mode = "Add a new activity"
 
-    existing = None if selected == NEW else by_id[selected]
+    existing = None
+    if mode == "Edit an existing one":
+        selected = st.selectbox(
+            "Which activity",
+            options=[a["id"] for a in activities],
+            format_func=lambda i: by_id[i]["name"],
+            key="inv_act_select",
+        )
+        existing = by_id.get(selected)
+
     aid = None if existing is None else existing["id"]
     form_key = f"inv_act_form_{aid or 'new'}"
 
@@ -536,6 +553,7 @@ with tab_activities:
         else:
             st.success("Saved.")
             st.session_state.pop("inv_act_select", None)
+            st.session_state.pop("inv_act_mode", None)
             st.rerun()
 
     if deleted and aid:
@@ -544,6 +562,7 @@ with tab_activities:
             st.error(e)
         if not errs:
             st.session_state.pop("inv_act_select", None)
+            st.session_state.pop("inv_act_mode", None)
             st.rerun()
 
     if ready["activity_gaps"]:
@@ -590,18 +609,31 @@ with tab_controllers:
 
     st.divider()
 
-    CP_NEW = "__new__"
-    cp_options = [CP_NEW] + [c["id"] for c in counterparties]
+    # Same fix as the activities tab: a radio for the mode, a picker only when
+    # there is something to pick. See the comment there.
     cp_by_id = {c["id"]: c for c in counterparties}
 
-    cp_selected = st.selectbox(
-        "Edit a controller",
-        options=cp_options,
-        format_func=lambda i: "➕ Add a controller" if i == CP_NEW else cp_by_id[i]["legal_name"],
-        key="inv_cp_select",
-    )
+    if counterparties:
+        cp_mode = st.radio(
+            "Mode",
+            options=("Add a controller", "Edit an existing one"),
+            horizontal=True,
+            key="inv_cp_mode",
+            label_visibility="collapsed",
+        )
+    else:
+        cp_mode = "Add a controller"
 
-    cp_existing = None if cp_selected == CP_NEW else cp_by_id[cp_selected]
+    cp_existing = None
+    if cp_mode == "Edit an existing one":
+        cp_selected = st.selectbox(
+            "Which controller",
+            options=[c["id"] for c in counterparties],
+            format_func=lambda i: cp_by_id[i]["legal_name"],
+            key="inv_cp_select",
+        )
+        cp_existing = cp_by_id.get(cp_selected)
+
     cp_id = None if cp_existing is None else cp_existing["id"]
     c = cp_existing or {}
 
@@ -668,6 +700,7 @@ with tab_controllers:
         else:
             st.success("Saved.")
             st.session_state.pop("inv_cp_select", None)
+            st.session_state.pop("inv_cp_mode", None)
             st.rerun()
 
     if cp_deleted and cp_id:
@@ -678,4 +711,5 @@ with tab_controllers:
             st.error(e)
         if not cp_errs:
             st.session_state.pop("inv_cp_select", None)
+            st.session_state.pop("inv_cp_mode", None)
             st.rerun()
