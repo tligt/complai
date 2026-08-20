@@ -186,6 +186,31 @@ def metadata_for(value_type: str, code: str, scope: str | None = None) -> dict:
 
 # ── Transfer helpers ──────────────────────────────────────────────────────
 
+def country_error(country: str | None, field: str = "Country") -> str | None:
+    """Reject anything that is not a two-letter ISO code (or an EEA sentinel).
+
+    Not cosmetic. is_third_country() matches against ISO-2, so a client who
+    types "United States" instead of "US" is silently treated as EEA-internal:
+    the transfer-safeguard check in readiness() never fires and an unsafeguarded
+    third-country transfer reaches a generated Art. 30 record.
+
+    The help text alone did not hold — the first real controller entered was
+    "BELGIUM". A silent wrong answer is the failure this blocks.
+    """
+    code = (country or "").strip()
+    if not code:
+        return None  # absence is a gap, reported by readiness(), not an error
+    code = code.upper()
+    if code in EEA_SENTINELS:
+        return None
+    if len(code) != 2 or not code.isalpha():
+        return (
+            f"{field} must be a two-letter ISO country code "
+            f"(BE, FR, DE, US…), not {country!r}."
+        )
+    return None
+
+
 def is_third_country(country: str | None) -> bool:
     """True when a processing country is outside the EEA.
 
@@ -386,6 +411,10 @@ def validate_system(row: dict, scope: str | None = None) -> list[str]:
     if row.get("dpa_signed_on") and row.get("dpa_status") != "signed":
         errors.append("A DPA signature date requires the status to be 'signed'.")
 
+    cerr = country_error(row.get("processing_country"), "Processing country")
+    if cerr:
+        errors.append(cerr)
+
     # Leaving the mechanism at 'unknown' is allowed — that is a gap, and the
     # completeness score is where gaps belong. Claiming no transfer while
     # naming a non-EEA country is different: it is a contradiction the RoPA
@@ -436,16 +465,39 @@ def validate_activity(row: dict, scope: str | None = None) -> list[str]:
         if row.get("art9_condition") not in codes_for("art9_condition", scope):
             errors.append("Special category data requires an Art. 9(2) condition.")
 
-    # Driven by the metadata flag rather than a hardcoded basis name, so the
-    # rule follows the vocabulary if it changes.
-    if basis and metadata_for("legal_basis", basis, scope).get("requires_balancing_test"):
-        if not (row.get("legitimate_interest_note") or "").strip():
-            errors.append("Legitimate interests requires a recorded balancing test.")
-
-    if not (row.get("retention_period") or "").strip():
-        errors.append("A retention period is required (Art. 30(1)(f)).")
+    # NOT VALIDATED HERE, deliberately: the balancing test (Art. 6(1)(f)) and
+    # the retention period (Art. 30(1)(f)).
+    #
+    # Both used to block the write. Combined with seed_from_catalogue — which
+    # inserts rows that fail validation on purpose, so a client is not blocked
+    # at the tick — that made every seeded activity UNEDITABLE: changing an
+    # activity's role or linking a controller failed on a field the client was
+    # not touching. The people it hit were the ones doing the right thing.
+    #
+    # Both are still enforced, by readiness(), which is the pre-generation gate
+    # and the correct place for it. This function decides whether a row can be
+    # RECORDED; readiness() decides whether it can be PUBLISHED. Recording an
+    # incomplete fact is how a client makes progress; publishing one is how a
+    # record becomes wrong.
+    #
+    # The Art. 9(2) condition above stays blocking because the database CHECK
+    # enforces it regardless — letting it through here would only turn a
+    # field-level message into a raw 23514.
 
     return errors
+
+
+def needs_balancing_test(legal_basis: str | None, scope: str | None = None) -> bool:
+    """Whether this Art. 6 basis requires a recorded balancing test.
+
+    Driven by the vocabulary metadata flag rather than a hardcoded basis name,
+    so the rule follows the vocabulary if the code is ever retired or renamed.
+    """
+    if not legal_basis:
+        return False
+    return bool(
+        metadata_for("legal_basis", legal_basis, scope).get("requires_balancing_test")
+    )
 
 
 def validate_counterparty(row: dict, scope: str | None = None) -> list[str]:
@@ -468,6 +520,10 @@ def validate_counterparty(row: dict, scope: str | None = None) -> list[str]:
 
     if row.get("dpa_signed_on") and status != "signed":
         errors.append("A DPA signature date requires the status to be 'signed'.")
+
+    cerr = country_error(row.get("country"))
+    if cerr:
+        errors.append(cerr)
 
     email = (row.get("contact_email") or "").strip()
     if email and ("@" not in email or email.startswith("@") or email.endswith("@")):

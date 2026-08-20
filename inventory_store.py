@@ -644,6 +644,7 @@ def readiness(
     systems: list[dict],
     links: list[dict],
     counterparty_links: list[dict] | None = None,
+    client_id_scope: str | None = None,
 ) -> dict:
     """Report what is missing before a RoPA can be honestly generated.
 
@@ -670,8 +671,19 @@ def readiness(
 
         if not a.get("legal_basis"):
             blocks.append("no Art. 6 legal basis")
+
+        # Art. 30(1)(f). Blocking rather than a gap: a record that states a
+        # purpose and no erasure period is not an incomplete record, it is one
+        # that omits a mandatory field.
         if not (a.get("retention_period") or "").strip():
-            missing.append("retention period")
+            blocks.append("no retention period (Art. 30(1)(f))")
+
+        # Art. 6(1)(f). The balancing test is a condition of the basis being
+        # available at all, so a record claiming legitimate interests without
+        # one documents a probable breach — the same reasoning as Art. 9(2).
+        if INV.needs_balancing_test(a.get("legal_basis"), client_id_scope):
+            if not (a.get("legitimate_interest_note") or "").strip():
+                blocks.append("legitimate interests with no recorded balancing test")
         if not a.get("data_categories"):
             missing.append("data categories")
         if not a.get("security_measures"):
