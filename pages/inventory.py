@@ -121,7 +121,7 @@ cp_links = STORE.load_counterparty_links(user_id, client_id)
 system_name = {s["id"]: s["name"] for s in systems}
 counterparty_name = {c["id"]: c["legal_name"] for c in counterparties}
 
-ready = STORE.readiness(activities, systems, links, cp_links)
+ready = STORE.readiness(activities, systems, links, cp_links, client_id)
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Systems", ready["systems"])
