@@ -17,13 +17,21 @@ from document_generator import (
 # prompt path reachable for one sprint (D-11) so a regression can be compared
 # against it rather than reconstructed from memory.
 #
-#   TEMPLATE_DOC_TYPES="cookie_policy"   default — cookie policy templated
+#   TEMPLATE_DOC_TYPES="cookie_policy,ropa_controller,ropa_processor"
+#                                        default — all Tier 1 templated
 #   TEMPLATE_DOC_TYPES=""                everything back on the LLM path
+#
+# S26 retired the single "ropa" doc_type. Art. 30(1) and Art. 30(2) prescribe
+# different content and are differently pivoted, and the CNIL recommends an
+# organisation acting as both keep two separate registers. There is no LLM
+# fallback for either — they never had one under the new names.
 #
 # The templated path needs a real client_id: it reads the S24 inventory. So
 # Advisory / external-company generation stays on the LLM path regardless.
 TEMPLATE_DOC_TYPES = {
-    t.strip() for t in os.environ.get("TEMPLATE_DOC_TYPES", "cookie_policy").split(",")
+    t.strip() for t in os.environ.get(
+        "TEMPLATE_DOC_TYPES", "cookie_policy,ropa_controller,ropa_processor"
+    ).split(",")
     if t.strip()
 }
 
@@ -77,9 +85,37 @@ if mode == "existing_client":
 
 st.divider()
 
+# S26. Art. 30 registers are built from the inventory rather than a form, so
+# the page can tell in advance whether one is worth offering.
+REGISTER_DOC_TYPES = {"ropa_controller", "ropa_processor"}
+
+_register_state = None
+if mode == "existing_client" and client_id:
+    try:
+        import inventory_store as _STORE
+        _acts = _STORE.load_activities(user_id, client_id)
+        _register_state = _STORE.readiness(
+            _acts,
+            _STORE.load_systems(user_id, client_id),
+            _STORE.load_links(user_id, client_id),
+            _STORE.load_counterparty_links(user_id, client_id),
+            client_id,
+        )
+    except Exception:
+        # A failed inventory read must not take the page down. Without it the
+        # gate simply does not apply and generation behaves as it did before.
+        _register_state = None
+
+_offered = list(DOCUMENT_TYPES.keys())
+if _register_state is not None and not _register_state["processor_activities"]:
+    # No processing carried out for another controller means no Art. 30(2)
+    # record to keep. An empty processor register is a document nobody needs,
+    # and offering it invites a client to file one that says nothing.
+    _offered = [d for d in _offered if d != "ropa_processor"]
+
 doc_type = st.selectbox(
     "Document type",
-    options=list(DOCUMENT_TYPES.keys()),
+    options=_offered,
     format_func=lambda x: DOCUMENT_TYPES[x],
     key="doc_type_select"
 )
@@ -556,13 +592,43 @@ if (not use_template) and doc_type in ["privacy_policy", "ropa"]:
 else:
     st.session_state.doc_confirmed = True
 
+# ── S26: the register gate ────────────────────────────────────
+# render_template blocks only on missing FieldSpec scalars. Per-activity gaps
+# live inside a block renderer, which is called after the decision to generate
+# has already been made and cannot stop it. So anything that would make the
+# record INACCURATE has to be caught here (D-30).
+#
+# Gaps are not blocked: a register missing a security-measures description is
+# incomplete but truthful, and Art. 30(1)(g) asks for one "where possible".
+_register_blocked = False
+if doc_type in REGISTER_DOC_TYPES and _register_state is not None:
+    if _register_state["blocking"]:
+        _register_blocked = True
+        st.error(
+            "**This record cannot be generated yet — these would make it "
+            "inaccurate:**\n\n- " + "\n- ".join(_register_state["blocking"])
+        )
+        st.caption(
+            "Resolve them under *Systems, activities and controllers*. A record "
+            "that states a purpose with no legal basis, or names special "
+            "category data with no Art. 9(2) condition, documents a problem "
+            "rather than demonstrating compliance."
+        )
+    elif _register_state["activity_gaps"]:
+        st.warning(
+            "This record can be generated, but these fields are not yet "
+            "recorded and will show as missing:\n\n- "
+            + "\n- ".join(_register_state["activity_gaps"])
+        )
+
 # ── Generate ──────────────────────────────────────────────────
 st.divider()
 generate = st.button(
     f"⚡ Generate {DOCUMENT_TYPES[doc_type]}",
     type="primary",
     use_container_width=True,
-    key=f"btn_gen_{context_key}"
+    key=f"btn_gen_{context_key}",
+    disabled=_register_blocked,
 )
 
 # ══════════════════════════════════════════════════════════════
@@ -616,6 +682,12 @@ if generate and use_template:
                 st.warning(
                     f"{item['outstanding']} field(s) are marked "
                     "`[[ TO COMPLETE: … ]]` in this version."
+                )
+            if item.get("has_xlsx"):
+                st.caption(
+                    "Saved as both a spreadsheet and a Word document. The "
+                    "spreadsheet is the working copy — it filters and sorts, "
+                    "which is what a register is for."
                 )
             with st.expander("Preview", expanded=False):
                 st.markdown(item["body"])
