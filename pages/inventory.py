@@ -318,8 +318,8 @@ with tab_activities:
     crim_codes, crim_labels = INV.options_for("criminal_data", lang, client_id)
     sec_codes, sec_labels = INV.options_for("security_measure", lang, client_id)
 
-    blocking_names = {b.split(":")[0] for b in ready["blocking"]}
-    gap_names = {g.split(":")[0] for g in ready["activity_gaps"]}
+    blocking_ids = set(ready["blocking_ids"])
+    gap_ids = set(ready["gap_ids"])
 
     # --- Summary -----------------------------------------------------------
     # Read-only, all rows, no widgets. This is what replaced the expander-per-
@@ -334,8 +334,8 @@ with tab_activities:
                 "Art. 9": "Yes" if a.get("special_categories") else "",
                 "Systems": len(STORE.systems_for_activity(links, a["id"])),
                 "Status": (
-                    "Must fix" if a["name"] in blocking_names
-                    else "Incomplete" if a["name"] in gap_names
+                    "Must fix" if a["id"] in blocking_ids
+                    else "Incomplete" if a["id"] in gap_ids
                     else "Complete"
                 ),
             }
