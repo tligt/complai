@@ -1,5 +1,5 @@
 """
-inventory_store.py — reads and writes for the S24 inventory.
+inventory_store.py — reads and writes for the S24 inventory (amended S26).
 
 ── Why the diff is done by ID, not by the editor's delta ──────────────────
 st.data_editor exposes its changes through st.session_state[key] as
@@ -26,11 +26,26 @@ sorting and filtering are free.
 
 The id column is hidden from the client via column_config={"id": None},
 which suppresses display while keeping the column in the returned data.
+
+── S26 amendments ─────────────────────────────────────────────────────────
+1. Counterparty CRUD. Art. 30(2) requires a processor to name each controller
+   it processes for. The table is new; so is the join.
+
+2. Per-link roles. _reconcile_links used to hardcode role='processor' on every
+   insert, so every manually linked system was asserted a processor with no
+   evidence — a false statement in Art. 30(1)(d). It now takes a mapping and
+   defaults to 'unknown', and it UPDATES a role that changed rather than only
+   inserting and deleting.
+
+3. readiness() covers the gaps the RoPA actually depends on. It is now a
+   pre-generation gate, not just a progress metric: render_template blocks
+   only on FieldSpec scalars, and per-activity gaps live inside a block
+   renderer where the renderer structurally cannot see them.
 """
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Mapping
 
 import pandas as pd
 
@@ -54,8 +69,25 @@ ACTIVITY_EDITABLE = (
     "name", "purpose", "legal_basis", "legitimate_interest_note",
     "controller_role", "data_subject_categories", "data_categories",
     "special_categories", "art9_condition", "criminal_data",
-    "retention_period", "retention_basis", "security_measures", "notes",
+    "retention_period", "retention_basis", "security_measures",
+    "counterparty_register_note", "notes",
 )
+
+COUNTERPARTY_EDITABLE = (
+    "legal_name", "trading_name", "contact_name", "contact_email",
+    "registered_address", "country",
+    "dpa_status", "dpa_signed_on", "dpa_url", "notes",
+)
+
+# The role code meaning "we have not confirmed this", added to the system_role
+# vocabulary in the S26 migration. Named here rather than inlined so the
+# readiness check and the reconcile default cannot drift apart.
+ROLE_UNKNOWN = "unknown"
+
+# activity_systems.role values that do not describe a third party. A client's
+# own server is not a recipient, so these are excluded from Art. 30(1)(d)
+# rather than printed as a recipient category.
+NON_RECIPIENT_ROLES = frozenset({"internal"})
 
 
 # ── Reads ─────────────────────────────────────────────────────────────────
@@ -99,8 +131,47 @@ def load_links(user_id: str, client_id: str | None = None) -> list[dict]:
         return []
 
 
+def load_counterparties(user_id: str, client_id: str | None = None) -> list[dict]:
+    """Controllers on whose behalf this client processes (Art. 30(2)(a))."""
+    try:
+        q = (
+            get_supabase().table("processing_counterparties")
+            .select("*").eq("user_id", user_id).order("legal_name")
+        )
+        if client_id:
+            q = q.eq("client_id", client_id)
+        return q.execute().data or []
+    except Exception:
+        return []
+
+
+def load_counterparty_links(user_id: str, client_id: str | None = None) -> list[dict]:
+    try:
+        q = (
+            get_supabase().table("activity_counterparties")
+            .select("*").eq("user_id", user_id)
+        )
+        if client_id:
+            q = q.eq("client_id", client_id)
+        return q.execute().data or []
+    except Exception:
+        return []
+
+
 def systems_for_activity(links: list[dict], activity_id: str) -> list[str]:
     return [l["system_id"] for l in links if l["activity_id"] == activity_id]
+
+
+def roles_for_activity(links: list[dict], activity_id: str) -> dict[str, str]:
+    """system_id -> role, for one activity. Feeds the per-link role controls."""
+    return {
+        l["system_id"]: (l.get("role") or ROLE_UNKNOWN)
+        for l in links if l["activity_id"] == activity_id
+    }
+
+
+def counterparties_for_activity(links: list[dict], activity_id: str) -> list[str]:
+    return [l["counterparty_id"] for l in links if l["activity_id"] == activity_id]
 
 
 # ── Diff ──────────────────────────────────────────────────────────────────
@@ -189,7 +260,7 @@ def diff_by_id(
     return inserts, updates, delete_ids
 
 
-# ── Writes ────────────────────────────────────────────────────────────────
+# ── Writes: systems ───────────────────────────────────────────────────────
 
 def commit_systems(
     base_rows: list[dict],
@@ -250,14 +321,23 @@ def commit_systems(
     return result
 
 
+# ── Writes: activities ────────────────────────────────────────────────────
+
 def save_activity(
     row: dict,
-    system_ids: list[str],
+    system_roles: Mapping[str, str] | list[str],
     user_id: str,
     client_id: str | None,
     activity_id: str | None = None,
+    counterparty_ids: list[str] | None = None,
 ) -> tuple[str | None, list[str]]:
-    """Insert or update one activity and reconcile its system links."""
+    """Insert or update one activity and reconcile its links.
+
+    `system_roles` maps system_id -> role code. A bare list of system ids is
+    still accepted and every link defaults to 'unknown' — the old signature
+    passed a list and silently meant 'processor', which is exactly the claim
+    this sprint removes.
+    """
     payload = {c: row.get(c) for c in ACTIVITY_EDITABLE}
     payload = {**payload, "user_id": user_id, "client_id": client_id}
 
@@ -277,46 +357,120 @@ def save_activity(
     except Exception as e:
         return None, [str(e)]
 
-    link_errs = _reconcile_links(activity_id, system_ids, user_id, client_id)
+    if not isinstance(system_roles, Mapping):
+        system_roles = {sid: ROLE_UNKNOWN for sid in (system_roles or [])}
+
+    link_errs = _reconcile_links(activity_id, system_roles, user_id, client_id)
+    link_errs += _reconcile_counterparties(
+        activity_id, counterparty_ids or [], user_id, client_id
+    )
     return activity_id, link_errs
 
 
 def _reconcile_links(
     activity_id: str,
-    system_ids: list[str],
+    system_roles: Mapping[str, str],
     user_id: str,
     client_id: str | None,
 ) -> list[str]:
-    """Make activity_systems match `system_ids` exactly."""
+    """Make activity_systems match `system_roles` exactly, roles included.
+
+    The role used to be hardcoded to 'processor' here, so a client who linked
+    a vendor by hand got a confident processor claim with nothing behind it.
+    For a Cookie Policy that was cosmetic; for Art. 30(1)(d) recipient
+    categories it is a false statement in a document that gets filed.
+
+    Roles now default to 'unknown', which renders as "Not recorded" — a
+    visible gap the client can close, rather than an invisible assertion.
+    """
     sb = get_supabase()
     errors: list[str] = []
 
     try:
         existing = (
-            sb.table("activity_systems").select("id, system_id")
+            sb.table("activity_systems").select("id, system_id, role")
             .eq("activity_id", activity_id).execute().data or []
         )
     except Exception as e:
         return [str(e)]
 
-    have = {r["system_id"]: r["id"] for r in existing}
-    want = set(system_ids)
+    have = {r["system_id"]: r for r in existing}
+    want = dict(system_roles)
 
-    for system_id in want - set(have):
+    known_roles = INV.codes_for("system_role", client_id)
+
+    for system_id, role in want.items():
+        role = role or ROLE_UNKNOWN
+        if known_roles and role not in known_roles:
+            errors.append(f"Unknown role {role!r} — recorded as not confirmed.")
+            role = ROLE_UNKNOWN
+
+        current = have.get(system_id)
+        if current is None:
+            try:
+                sb.table("activity_systems").insert({
+                    "user_id": user_id,
+                    "client_id": client_id,
+                    "activity_id": activity_id,
+                    "system_id": system_id,
+                    "role": role,
+                }).execute()
+            except Exception as e:
+                errors.append(str(e))
+        elif (current.get("role") or ROLE_UNKNOWN) != role:
+            # The branch the old implementation lacked entirely: a link that
+            # already existed could never have its role corrected, because
+            # reconcile only ever inserted and deleted.
+            try:
+                sb.table("activity_systems").update({"role": role}) \
+                    .eq("id", current["id"]).execute()
+            except Exception as e:
+                errors.append(str(e))
+
+    for system_id in set(have) - set(want):
         try:
-            sb.table("activity_systems").insert({
+            sb.table("activity_systems").delete().eq("id", have[system_id]["id"]).execute()
+        except Exception as e:
+            errors.append(str(e))
+
+    return errors
+
+
+def _reconcile_counterparties(
+    activity_id: str,
+    counterparty_ids: list[str],
+    user_id: str,
+    client_id: str | None,
+) -> list[str]:
+    """Make activity_counterparties match `counterparty_ids` exactly."""
+    sb = get_supabase()
+    errors: list[str] = []
+
+    try:
+        existing = (
+            sb.table("activity_counterparties").select("id, counterparty_id")
+            .eq("activity_id", activity_id).execute().data or []
+        )
+    except Exception as e:
+        return [str(e)]
+
+    have = {r["counterparty_id"]: r["id"] for r in existing}
+    want = set(counterparty_ids)
+
+    for cp_id in want - set(have):
+        try:
+            sb.table("activity_counterparties").insert({
                 "user_id": user_id,
                 "client_id": client_id,
                 "activity_id": activity_id,
-                "system_id": system_id,
-                "role": "processor",
+                "counterparty_id": cp_id,
             }).execute()
         except Exception as e:
             errors.append(str(e))
 
-    for system_id in set(have) - want:
+    for cp_id in set(have) - want:
         try:
-            sb.table("activity_systems").delete().eq("id", have[system_id]).execute()
+            sb.table("activity_counterparties").delete().eq("id", have[cp_id]).execute()
         except Exception as e:
             errors.append(str(e))
 
@@ -326,6 +480,54 @@ def _reconcile_links(
 def delete_activity(activity_id: str) -> list[str]:
     try:
         get_supabase().table("processing_activities").delete().eq("id", activity_id).execute()
+        return []
+    except Exception as e:
+        return [str(e)]
+
+
+# ── Writes: counterparties ────────────────────────────────────────────────
+
+def save_counterparty(
+    row: dict,
+    user_id: str,
+    client_id: str | None,
+    counterparty_id: str | None = None,
+) -> tuple[str | None, list[str]]:
+    """Insert or update one Art. 30(2) controller identity."""
+    payload = {c: row.get(c) for c in COUNTERPARTY_EDITABLE}
+    payload = {**payload, "user_id": user_id, "client_id": client_id}
+
+    errs = INV.validate_counterparty(payload, scope=client_id)
+    if errs:
+        return None, errs
+
+    sb = get_supabase()
+    try:
+        if counterparty_id:
+            sb.table("processing_counterparties").update(payload) \
+                .eq("id", counterparty_id).execute()
+            return counterparty_id, []
+        res = sb.table("processing_counterparties").insert(payload).execute()
+        new_id = (res.data or [{}])[0].get("id")
+        if not new_id:
+            # The S21 lesson: an insert that succeeds but returns nothing
+            # usually means a missing SELECT policy, not a failed write.
+            return None, ["Saved, but could not read the row back — check RLS."]
+        return new_id, []
+    except Exception as e:
+        return None, [str(e)]
+
+
+def delete_counterparty(counterparty_id: str) -> list[str]:
+    """Delete a counterparty. activity_counterparties cascades.
+
+    The activities survive, for the same reason deleting a system leaves them
+    standing: losing a customer should not erase the record of what was
+    processed for them.
+    """
+    try:
+        get_supabase().table("processing_counterparties") \
+            .delete().eq("id", counterparty_id).execute()
         return []
     except Exception as e:
         return [str(e)]
@@ -372,9 +574,9 @@ def seed_from_catalogue(
         # which is the common case on a second visit rather than an error.
         return {"error": f"{system_row['name']} may already be in your inventory ({e})"}
 
-    created, errors = 0, []
+    created, errors, incomplete = 0, [], []
     for a in activity_rows:
-        role = a.pop("_system_role", "processor")
+        role = a.pop("_system_role", ROLE_UNKNOWN)
         statutory = a.pop("_retention_is_statutory", False)
         payload = {**a, "user_id": user_id, "client_id": client_id}
 
@@ -390,9 +592,15 @@ def seed_from_catalogue(
                 "To be set by your own retention policy."
             )
 
+        # The seed path deliberately inserts rows that fail validation, so a
+        # client is not blocked at the tick. S26 makes that visible: the
+        # caller gets the list back and the page reports it, rather than the
+        # only trace being a note buried on the row.
         verrs = INV.validate_activity(payload, scope=client_id)
         if verrs:
             payload.setdefault("notes", "Seeded from the RECOSA catalogue — please review.")
+            incomplete.append(f"{payload.get('name')}: {'; '.join(verrs)}")
+
         try:
             ares = sb.table("processing_activities").insert(payload).execute()
             activity_id = (ares.data or [{}])[0].get("id")
@@ -413,6 +621,7 @@ def seed_from_catalogue(
         "system_name": system_row["name"],
         "activities_created": created,
         "errors": errors,
+        "incomplete": incomplete,
     }
 
 
@@ -421,18 +630,46 @@ def already_seeded(systems: list[dict]) -> set[str]:
 
 
 # ── Completeness ──────────────────────────────────────────────────────────
-# A lightweight precursor to the S41 field-level score. Reported, not scored:
-# the point at this stage is to tell a client what is missing before they
-# generate a RoPA that quietly omits it.
+# A lightweight precursor to the S42 field-level score, promoted in S26 from
+# a progress metric to a pre-generation gate.
+#
+# The gate has to live here rather than in the renderer. render_template
+# blocks only on missing FieldSpec scalars; per-activity gaps live inside a
+# block renderer, which is called after the decision to generate has already
+# been made and has no way to stop it. So anything that should prevent a RoPA
+# being emitted must be caught before generate() is called.
 
-def readiness(activities: list[dict], systems: list[dict], links: list[dict]) -> dict:
+def readiness(
+    activities: list[dict],
+    systems: list[dict],
+    links: list[dict],
+    counterparty_links: list[dict] | None = None,
+) -> dict:
+    """Report what is missing before a RoPA can be honestly generated.
+
+    counterparty_links is optional so existing call sites keep working, but a
+    caller that omits it will see every processor-side activity reported as
+    missing its controllers. Pass it.
+    """
+    counterparty_links = counterparty_links or []
+
     linked_activity_ids = {l["activity_id"] for l in links}
+    systems_by_id = {s["id"]: s for s in systems}
+    cp_activity_ids = {l["activity_id"] for l in counterparty_links}
+
+    links_by_activity: dict[str, list[dict]] = {}
+    for l in links:
+        links_by_activity.setdefault(l["activity_id"], []).append(l)
 
     gaps: list[str] = []
+    blocking: list[str] = []
+
     for a in activities:
-        missing = []
+        missing: list[str] = []
+        blocks: list[str] = []
+
         if not a.get("legal_basis"):
-            missing.append("legal basis")
+            blocks.append("no Art. 6 legal basis")
         if not (a.get("retention_period") or "").strip():
             missing.append("retention period")
         if not a.get("data_categories"):
@@ -441,6 +678,41 @@ def readiness(activities: list[dict], systems: list[dict], links: list[dict]) ->
             missing.append("security measures")
         if a["id"] not in linked_activity_ids:
             missing.append("no system linked")
+
+        # Art. 9(1) without an Art. 9(2) condition is unlawful processing. The
+        # database CHECK enforces this on write, but rows predating it — or
+        # written by a path that bypassed validation — would otherwise reach
+        # a generated record. This blocks.
+        if a.get("special_categories") and not a.get("art9_condition"):
+            blocks.append("special category data with no Art. 9(2) condition")
+
+        # Art. 30(2)(a): a processor must name each controller it acts for, or
+        # say where the maintained list is kept. Categories of PROCESSING may
+        # be described in the record; the controllers themselves are named.
+        if a.get("controller_role") == "processor":
+            has_named = a["id"] in cp_activity_ids
+            has_register = bool((a.get("counterparty_register_note") or "").strip())
+            if not (has_named or has_register):
+                blocks.append("processor activity with no controller recorded")
+
+        # Art. 30(1)(e): a transfer out of the EEA must state its safeguard.
+        # Derived from the systems the activity actually uses, so a client
+        # never restates a fact already recorded against the vendor.
+        for link in links_by_activity.get(a["id"], []):
+            sysrow = systems_by_id.get(link["system_id"])
+            if not sysrow:
+                continue
+            if INV.is_third_country(sysrow.get("processing_country")):
+                if (sysrow.get("transfer_mechanism") or "unknown") == "unknown":
+                    blocks.append(
+                        f"transfer to {sysrow.get('processing_country')} via "
+                        f"{sysrow.get('name')} with no safeguard recorded"
+                    )
+            if (link.get("role") or ROLE_UNKNOWN) == ROLE_UNKNOWN:
+                missing.append(f"role not confirmed for {sysrow.get('name')}")
+
+        if blocks:
+            blocking.append(f"{a['name']}: {', '.join(blocks)}")
         if missing:
             gaps.append(f"{a['name']}: {', '.join(missing)}")
 
@@ -450,11 +722,23 @@ def readiness(activities: list[dict], systems: list[dict], links: list[dict]) ->
     ]
 
     total = len(activities)
-    complete = total - len([g for g in gaps])
+    incomplete_names = {g.split(":")[0] for g in gaps} | {b.split(":")[0] for b in blocking}
+    complete = total - len(incomplete_names)
+
+    controller_count = sum(1 for a in activities if a.get("controller_role") != "processor")
+    processor_count = total - controller_count
+
     return {
         "activities": total,
         "systems": len(systems),
         "complete_activities": max(complete, 0),
         "activity_gaps": gaps,
+        "blocking": blocking,
+        "can_generate": not blocking,
         "dpa_gaps": vendor_gaps,
+        # The CNIL recommends two separate registers where an organisation is
+        # both controller and processor, so the counts drive which documents
+        # are offered rather than being decoration.
+        "controller_activities": controller_count,
+        "processor_activities": processor_count,
     }

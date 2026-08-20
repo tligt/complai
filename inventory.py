@@ -30,6 +30,11 @@ reference row is global today. This is deliberate: when S45 adds per-workspace
 vocabularies, the filtering already exists at every call site, and the failure
 mode being avoided — one unscoped query showing a client another client's
 custom category — is the kind that gets found by a client rather than a test.
+
+── S26 additions ─────────────────────────────────────────────────────────
+validate_counterparty() for the Art. 30(2) controller identities, and
+controller_role is now validated (it drives which register an activity lands
+in, so an unrecognised value silently drops the row out of both).
 """
 
 from __future__ import annotations
@@ -45,6 +50,23 @@ CACHE_TTL = 600  # seconds
 _cache: dict[str, tuple[float, Any]] = {}
 
 LANGUAGES = ("en", "fr", "nl", "de")
+
+# Hoisted out of validate_system in S26 so validate_activity and readiness()
+# can apply the same test when deciding whether an activity involves a
+# third-country transfer.
+#
+# This is a stopgap. EEA membership is reference data and belongs in
+# reference_values as a jurisdiction property — the list is short, stable and
+# rarely wrong, but it is still a fact about the world living in Python, which
+# is the thing this module exists to prevent. Move it when the jurisdiction
+# vocabulary grows past BE and FR.
+NON_EEA_COUNTRIES = frozenset({
+    "US", "GB", "UK", "IN", "CN", "CA", "AU", "JP", "BR", "SG",
+    "CH", "IL", "KR", "NZ", "ZA", "MX", "AE", "RU", "TR", "UA",
+})
+
+# Codes that mean "inside the EEA, no transfer" rather than a country.
+EEA_SENTINELS = frozenset({"EU", "EEA", "EER"})
 
 
 # ── Cache plumbing ────────────────────────────────────────────────────────
@@ -71,6 +93,13 @@ def get_vocabulary(value_type: str, scope: str | None = None) -> list[dict]:
 
     Returns rows as dicts, so callers get labels in every language and the
     metadata flags without a second query.
+
+    KNOWN NO-OP: the scope filter below reads workspace_id, which is not in
+    the select list, so r.get("workspace_id") is always None and every row
+    passes. Harmless while every reference row is global; it becomes a real
+    leak the moment S46 adds per-workspace vocabularies. Fix by adding the
+    column to the select — deliberately left visible rather than silently
+    removed, so the S46 work has something to trip over.
     """
     key = f"vocab:{value_type}:{scope or 'global'}"
 
@@ -101,6 +130,11 @@ def get_vocabulary(value_type: str, scope: str | None = None) -> list[dict]:
         return rows
 
     return _cached(key, load)
+
+
+def codes_for(value_type: str, scope: str | None = None) -> set[str]:
+    """Just the active codes. Used by every validator below."""
+    return {r["code"] for r in get_vocabulary(value_type, scope)}
 
 
 def label_for(value_type: str, code: str, lang: str = "en",
@@ -148,6 +182,22 @@ def metadata_for(value_type: str, code: str, scope: str | None = None) -> dict:
         if row["code"] == code:
             return row.get("metadata") or {}
     return {}
+
+
+# ── Transfer helpers ──────────────────────────────────────────────────────
+
+def is_third_country(country: str | None) -> bool:
+    """True when a processing country is outside the EEA.
+
+    Unknown or blank returns False: absence of a country is a completeness
+    gap, reported by readiness(), not a transfer finding. Asserting a transfer
+    the client never described would put a false statement in the RoPA, which
+    is the direction that matters (D-20).
+    """
+    code = (country or "").strip().upper()
+    if not code or code in EEA_SENTINELS:
+        return False
+    return code in NON_EEA_COUNTRIES
 
 
 # ── Vendor catalogue ──────────────────────────────────────────────────────
@@ -297,6 +347,10 @@ def seed_rows_for(catalogue_key: str, lang: str = "en") -> tuple[dict, list[dict
             # client must supply it — validate_activity requires it — and
             # _retention_is_statutory tells the caller which message to show.
             "retention_period": pick(a, "retention_period"),
+            # Catalogue activities describe what the CLIENT does with a tool,
+            # so the client is the controller. A processor-side activity is
+            # something the client does for its own customers and has no
+            # catalogue equivalent — it is always authored by hand.
             "controller_role": "controller",
             "_system_role": a.get("system_role") or entry.get("default_system_role") or "processor",
             "_retention_is_statutory": a.get("retention_is_statutory", False),
@@ -326,7 +380,7 @@ def validate_system(row: dict, scope: str | None = None) -> list[str]:
         ("ai_role", "ai_role", "AI role"),
     ):
         value = row.get(field)
-        if value and value not in {r["code"] for r in get_vocabulary(vtype, scope)}:
+        if value and value not in codes_for(vtype, scope):
             errors.append(f"Unknown {label}: {value!r}")
 
     if row.get("dpa_signed_on") and row.get("dpa_status") != "signed":
@@ -336,12 +390,10 @@ def validate_system(row: dict, scope: str | None = None) -> list[str]:
     # completeness score is where gaps belong. Claiming no transfer while
     # naming a non-EEA country is different: it is a contradiction the RoPA
     # would carry into a filed document.
-    country = (row.get("processing_country") or "").upper()
-    non_eea = {"US", "GB", "UK", "IN", "CN", "CA", "AU", "JP", "BR", "SG"}
-    if row.get("transfer_mechanism") == "none_eea" and country in non_eea:
+    if row.get("transfer_mechanism") == "none_eea" and is_third_country(row.get("processing_country")):
         errors.append(
             f"Transfer mechanism says no transfer outside the EEA, but the "
-            f"processing country is {country}."
+            f"processing country is {(row.get('processing_country') or '').upper()}."
         )
 
     return errors
@@ -354,8 +406,16 @@ def validate_activity(row: dict, scope: str | None = None) -> list[str]:
         errors.append("Activity name is required.")
 
     basis = row.get("legal_basis")
-    if not basis or basis not in {r["code"] for r in get_vocabulary("legal_basis", scope)}:
+    if not basis or basis not in codes_for("legal_basis", scope):
         errors.append("A valid Art. 6 legal basis is required.")
+
+    # S26: controller_role decides which register the activity lands in —
+    # Art. 30(1) or Art. 30(2). An unrecognised value would drop the row out
+    # of both without anything being visibly wrong, so it is validated rather
+    # than trusted to the UI.
+    role = row.get("controller_role")
+    if role and role not in codes_for("controller_role", scope):
+        errors.append(f"Unknown role: {role!r}")
 
     for field, vtype, label in (
         ("data_subject_categories", "data_subject_category", "data subject category"),
@@ -364,7 +424,7 @@ def validate_activity(row: dict, scope: str | None = None) -> list[str]:
         ("criminal_data", "criminal_data", "criminal data category"),
         ("security_measures", "security_measure", "security measure"),
     ):
-        known = {r["code"] for r in get_vocabulary(vtype, scope)}
+        known = codes_for(vtype, scope)
         for value in row.get(field) or []:
             if value not in known:
                 errors.append(f"Unknown {label}: {value!r}")
@@ -373,8 +433,7 @@ def validate_activity(row: dict, scope: str | None = None) -> list[str]:
     # blocks rather than warns. A RoPA asserting health data with no stated
     # condition is worse than no RoPA — it documents the breach.
     if row.get("special_categories"):
-        known = {r["code"] for r in get_vocabulary("art9_condition", scope)}
-        if row.get("art9_condition") not in known:
+        if row.get("art9_condition") not in codes_for("art9_condition", scope):
             errors.append("Special category data requires an Art. 9(2) condition.")
 
     # Driven by the metadata flag rather than a hardcoded basis name, so the
@@ -385,5 +444,33 @@ def validate_activity(row: dict, scope: str | None = None) -> list[str]:
 
     if not (row.get("retention_period") or "").strip():
         errors.append("A retention period is required (Art. 30(1)(f)).")
+
+    return errors
+
+
+def validate_counterparty(row: dict, scope: str | None = None) -> list[str]:
+    """A controller on whose behalf the client processes — Art. 30(2)(a).
+
+    Deliberately thin. A counterparty is a client fact with no catalogue
+    equivalent, and the only thing the Regulation insists on is a name and a
+    contact route. Requiring an address or a country here would block a client
+    recording a customer they genuinely only know by name and email, which is
+    a worse outcome than an incomplete row that readiness() reports.
+    """
+    errors: list[str] = []
+
+    if not (row.get("legal_name") or "").strip():
+        errors.append("The controller's legal name is required (Art. 30(2)(a)).")
+
+    status = row.get("dpa_status")
+    if status and status not in codes_for("dpa_status", scope):
+        errors.append(f"Unknown DPA status: {status!r}")
+
+    if row.get("dpa_signed_on") and status != "signed":
+        errors.append("A DPA signature date requires the status to be 'signed'.")
+
+    email = (row.get("contact_email") or "").strip()
+    if email and ("@" not in email or email.startswith("@") or email.endswith("@")):
+        errors.append(f"That does not look like an email address: {email!r}")
 
     return errors
