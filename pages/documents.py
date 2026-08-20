@@ -866,6 +866,9 @@ def _render_send_form(doc, slot_key, label, company):
         send_to = st.text_input("Recipient email ✱", placeholder="colleague@company.com",
                                 key=f"to_{slot_key}")
         available = []
+        # XLSX first for registers: it is the working copy, and the format a
+        # supervisory authority is used to receiving a record in.
+        if doc.get("file_path_xlsx"): available.append("XLSX")
         if doc.get("file_path_docx"): available.append("DOCX")
         if doc.get("file_path_pdf"):  available.append("PDF")
         if doc.get("file_path_odt"):  available.append("ODT")
@@ -884,7 +887,8 @@ def _render_send_form(doc, slot_key, label, company):
 
     fmt_map = {"DOCX": ("file_path_docx", ".docx"),
                "PDF":  ("file_path_pdf",  ".pdf"),
-               "ODT":  ("file_path_odt",  ".odt")}
+               "ODT":  ("file_path_odt",  ".odt"),
+               "XLSX": ("file_path_xlsx", ".xlsx")}
     path_key, ext = fmt_map[send_fmt]
     fpath = doc.get(path_key)
     if not fpath:
@@ -917,16 +921,17 @@ def _render_language_row(doc, slot_key, label, company):
     outstanding = doc.get("outstanding_fields") or []
     n_out = len(outstanding) if isinstance(outstanding, list) else 0
 
-    c0, c1, c2, c3, c4 = st.columns([2, 1, 1, 1, 1])
+    c0, c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1, 1])
     badge = f"**{lang}**"
     if n_out:
         badge += f" · :orange[{n_out} to complete]"
     c0.markdown(badge)
 
     for col, path_key, flabel in [
-        (c1, "file_path_docx", "DOCX"),
-        (c2, "file_path_pdf",  "PDF"),
-        (c3, "file_path_odt",  "ODT"),
+        (c1, "file_path_xlsx", "XLSX"),
+        (c2, "file_path_docx", "DOCX"),
+        (c3, "file_path_pdf",  "PDF"),
+        (c4, "file_path_odt",  "ODT"),
     ]:
         fpath = doc.get(path_key)
         url = get_signed_url("compliance-files", fpath, expires_in=300) if fpath else None
@@ -936,7 +941,7 @@ def _render_language_row(doc, slot_key, label, company):
             col.caption("—")
 
     open_key = f"send_open_{slot_key}"
-    if c4.button("✉", key=f"btn_send_{slot_key}", use_container_width=True,
+    if c5.button("✉", key=f"btn_send_{slot_key}", use_container_width=True,
                  help="Send by email"):
         st.session_state[open_key] = not st.session_state.get(open_key, False)
         st.rerun()
