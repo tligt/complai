@@ -74,6 +74,7 @@ def generate_templated_document(
     """
     from document_generator import build_docx, convert_docx_to_pdf  # noqa: PLC0415
     from document_generator import save_document_with_files  # noqa: PLC0415
+    from obligations import DOCUMENT_TYPES  # noqa: PLC0415
 
     docs = TS.generate(
         client_id,
@@ -120,6 +121,7 @@ def generate_templated_document(
 
     saved: list[dict[str, Any]] = []
     unresolved: list[tuple[str, list[str]]] = []
+    xlsx_failures: list[str] = []
     for d in renderable:
         # include_header=False: the template body carries its own title,
         # company block and date. Letting build_docx add its own produced the
@@ -128,6 +130,33 @@ def generate_templated_document(
             d.result.body, doc_type, company_name, d.language,
             include_header=False,
         )
+
+        # A register is a table and gets filtered, sorted and handed to an
+        # authority; the CNIL publishes its own model register as a
+        # spreadsheet. Built from the SAME render as the DOCX — same template
+        # version, same content, one documents row (D-29).
+        #
+        # Failure here degrades rather than blocks: the DOCX is still a
+        # complete record, and losing it because openpyxl is missing from an
+        # environment would be a worse outcome than a missing convenience.
+        xlsx_bytes = None
+        if d.result.blocks:
+            try:
+                from document_xlsx import build_xlsx  # noqa: PLC0415
+                xlsx_bytes = build_xlsx(
+                    d.result.blocks,
+                    title=f"{DOCUMENT_TYPES.get(doc_type, doc_type)} \u2014 {company_name}",
+                    prose=d.result.body,
+                    metadata=[
+                        ("Company", company_name),
+                        ("Language", d.language.upper()),
+                        ("Generated", date.today().isoformat()),
+                        ("Template version", d.template_version_id or "\u2014"),
+                        ("Template revision", d.source_revision or "\u2014"),
+                    ],
+                )
+            except Exception as exc:
+                xlsx_failures.append(f"{d.language.upper()}: {exc}")
 
         pdf_bytes = None
         if make_pdf:
@@ -147,6 +176,7 @@ def generate_templated_document(
             company_name=company_name,
             docx_bytes=docx_bytes,
             pdf_bytes=pdf_bytes,
+            xlsx_bytes=xlsx_bytes,
             # S25 stamping
             template_version_id=d.template_version_id,
             document_group_id=d.document_group_id,
@@ -169,6 +199,7 @@ def generate_templated_document(
             "source_revision": d.source_revision,
             "outstanding": len(d.result.outstanding_fields),
             "body": d.result.body,
+            "has_xlsx": xlsx_bytes is not None,
         })
 
     parts = [f"Generated in {', '.join(s['language'].upper() for s in saved)}."]
@@ -191,6 +222,15 @@ def generate_templated_document(
             "WARNING — parts of the template did not resolve and are missing "
             f"from the document ({detail}). Do not publish it until this is "
             "fixed."
+        )
+    if xlsx_failures:
+        # Reported, not swallowed. The DOCX is complete, so this is a degraded
+        # result rather than a failure — but a client expecting a spreadsheet
+        # needs to be told why there isn't one.
+        parts.append(
+            "The spreadsheet version could not be built ("
+            + "; ".join(xlsx_failures)
+            + "). The Word version is complete."
         )
     if summary["revision_split"]:
         # Honest rather than hidden: the languages are tracking different

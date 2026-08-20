@@ -52,10 +52,35 @@ DOCUMENT_TYPES = {
     "privacy_policy":    "Privacy Policy",
     "cookie_policy":     "Cookie Policy",
     "dpa":               "Data Processing Agreement",
-    "ropa":              "Record of Processing Activities",
+    "ropa_controller":   "Record of Processing Activities — Controller",
+    "ropa_processor":    "Record of Processing Activities — Processor",
     "incident_response": "Incident Response Plan",
     "ai_transparency":   "AI System Transparency Notice",
 }
+
+# Retired, never deleted. Client rows in `documents` and `gap_assessments`
+# hold doc_type as plain text, so a removed key leaves those rows unlabelable —
+# the same reasoning as the append-only vocabulary rule.
+#
+# "ropa" split in S26 because Art. 30(1) and Art. 30(2) prescribe different
+# content (eight items against five) and are differently pivoted: 30(1) is one
+# row per activity, 30(2) is one row per controller. The CNIL recommends an
+# organisation acting as both keep two separate registers rather than one
+# blended record.
+RETIRED_DOCUMENT_TYPES = {
+    "ropa": "Record of Processing Activities (retired \u2014 split into the "
+            "controller and processor registers in S26)",
+}
+
+
+def document_label(doc_type: str) -> str:
+    """Label for any doc_type, live or retired. Falls back to the raw code so
+    an unrecognised value is visibly odd rather than blank."""
+    return (
+        DOCUMENT_TYPES.get(doc_type)
+        or RETIRED_DOCUMENT_TYPES.get(doc_type)
+        or doc_type
+    )
 
 # EPRIVACY is not a regulation clients select in their profile; it rides
 # along with GDPR. Without this, cookie obligations would vanish from the
@@ -86,14 +111,14 @@ OBLIGATIONS = [
      "priority": "high", "kind": "document",
      "title": "Legal basis identified for each processing activity",
      "description": "Every processing activity must have a documented legal basis under Article 6.",
-     "doc_type": "ropa", "profile_question": None, "review_in": [],
+     "doc_type": "ropa_controller", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_03", "regulation": "GDPR", "article": "Art. 30",
      "priority": "high", "kind": "document",
      "title": "Record of Processing Activities (RoPA) maintained",
      "description": "A written record of all processing activities including purposes, categories of data, recipients and retention periods.",
-     "doc_type": "ropa", "profile_question": None, "review_in": [],
+     "doc_type": "ropa_controller", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_04", "regulation": "GDPR", "article": "Art. 37",
@@ -135,7 +160,7 @@ OBLIGATIONS = [
      "priority": "medium", "kind": "document",
      "title": "Retention periods defined and enforced",
      "description": "Retention periods must be defined for each data category.",
-     "doc_type": "ropa", "profile_question": None, "review_in": [],
+     "doc_type": "ropa_controller", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_10", "regulation": "GDPR", "article": "Art. 35",
@@ -568,6 +593,23 @@ def _client_regulation(reg: str) -> str:
     return REGULATION_PARENT.get(reg, reg)
 
 
+# Regulations for document types that are GENERATABLE but not yet SCORED.
+#
+# ropa_processor is the live case. The Art. 30(2) obligation is deliberately
+# not in OBLIGATIONS: scoring it would mark every controller-only client red
+# for a register they do not need, and the applicability predicate that would
+# prevent that belongs to S28A. Without this override the document would drop
+# out of REG_DOCS and be invisible on the dashboard despite being generatable.
+#
+# UNDER-REPORT, KNOWINGLY: a client that IS a processor and has no Art. 30(2)
+# register is not flagged. Between falsely flagging every controller and
+# missing some processors, the under-report is the safer error. It must be
+# closed in S28A, where readiness()'s processor_activities count becomes the
+# predicate — this is a blocking dependency of that sprint, not a nicety.
+DOC_TYPE_REGULATIONS = {
+    "ropa_processor": ["GDPR"],
+}
+
 # doc_type -> {"label", "regulations"}, for the dashboard checklist.
 DOC_CATALOG = {
     dt: {
@@ -575,7 +617,7 @@ DOC_CATALOG = {
         "regulations": sorted({
             _client_regulation(o["regulation"])
             for o in OBLIGATIONS if o["doc_type"] == dt
-        }),
+        }) or DOC_TYPE_REGULATIONS.get(dt, []),
     }
     for dt, label in DOCUMENT_TYPES.items()
 }
