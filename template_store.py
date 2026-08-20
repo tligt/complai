@@ -197,6 +197,28 @@ def _load_inventory(client_id: str) -> dict[str, Any]:
     }
 
 
+# Guidance strings a pre-S26 catalogue seed wrote into retention_basis. They
+# are prompts to the client, not legal bases, and must never reach a filed
+# register. Matched rather than migrated: the rows are the client's and a
+# migration that rewrote their text would be editing their record for them.
+_RETENTION_GUIDANCE_PREFIXES = (
+    "To be set by your own retention policy",
+    "Set by national law",
+    "Retention: to be set by",
+    "Retention: set by national law",
+)
+
+
+def _clean_retention_basis(value: str | None) -> str | None:
+    if not value:
+        return None
+    stripped = value.strip()
+    for prefix in _RETENTION_GUIDANCE_PREFIXES:
+        if stripped.lower().startswith(prefix.lower()):
+            return None
+    return stripped
+
+
 def _labels(value_type: str, codes: Sequence[str] | None, language: str) -> str | None:
     from inventory import label_for  # noqa: PLC0415
     if not codes:
@@ -290,7 +312,7 @@ def build_ropa_controller_rows(
             "recipients": "; ".join(recipients) or None,
             "transfers": "; ".join(transfers) or None,
             "retention_period": a.get("retention_period"),
-            "retention_basis": a.get("retention_basis"),
+            "retention_basis": _clean_retention_basis(a.get("retention_basis")),
             "security_measures": _labels(
                 "security_measure", a.get("security_measures"), language),
         })
@@ -449,6 +471,14 @@ _ROPA_FIELDS = [
     FieldSpec("has_legal_form", "Legal form recorded", flag=True),
     FieldSpec("has_enterprise_number", "Registration number recorded", flag=True),
     FieldSpec("has_last_updated", "Inventory change date known", flag=True),
+    # Art. 30(2) only. True when at least one processor activity identifies its
+    # controllers by reference to a maintained list rather than naming them.
+    #
+    # Without this, a register that names every controller directly still
+    # carries a paragraph explaining what a register reference means — a
+    # filed record describing a mechanism it does not use, which invites the
+    # question "which list, and where?"
+    FieldSpec("has_register_reference", "Uses a maintained controller list", flag=True),
 ]
 
 FIELD_SPECS: dict[str, list[FieldSpec]] = {
@@ -713,6 +743,8 @@ def build_values(
         values["has_enterprise_number"] = bool(
             (client.get("enterprise_number") or "").strip())
         values["has_last_updated"] = bool(values.get("record_last_updated"))
+        values["has_register_reference"] = bool(
+            (block_context or {}).get("ropa_processor_caption"))
 
     return values, resolution.codes_applied
 
@@ -764,6 +796,10 @@ class GeneratedDocument:
     document_group_id: str
     jurisdictions_applied: list[str]
     skipped_reason: str | None = None
+    # The document's own title, in its own language. obligations.DOCUMENT_TYPES
+    # is English-only, so anything building a filename, a sheet title or a
+    # subject line from it puts an English heading on a French document.
+    title: str | None = None
 
 
 def generate(
@@ -848,6 +884,7 @@ def generate(
             source_revision=version.source_revision,
             document_group_id=group_id,
             jurisdictions_applied=codes,
+            title=values.get("record_type"),
         ))
 
     return out

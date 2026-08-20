@@ -39,7 +39,7 @@ from template_renderer import Block
 # autofit, and a register whose columns are all 8 characters wide is unreadable
 # in exactly the situation it exists for.
 _MIN_WIDTH = 14
-_MAX_WIDTH = 60
+_MAX_WIDTH = 42
 
 
 def _sheet_title(name: str) -> str:
@@ -63,13 +63,23 @@ def _strip_markdown(text: str) -> str:
         line = line.replace("**", "").replace("__", "")
         line = re.sub(r"(?<!\w)[*_](?=\S)(.+?)(?<=\S)[*_](?!\w)", r"\1", line)
         out.append(line)
-    # Collapse the blank runs the stripped table leaves behind.
-    collapsed: list[str] = []
+    # Rejoin hard-wrapped paragraphs.
+    #
+    # Template bodies wrap at ~79 characters so a lawyer can review them as a
+    # git diff. A spreadsheet cell has no such constraint, and the wrap reads
+    # as a sentence broken mid-clause. Consecutive non-blank lines are one
+    # paragraph; a blank line separates them.
+    paragraphs: list[str] = []
+    buf: list[str] = []
     for line in out:
-        if not line.strip() and collapsed and not collapsed[-1].strip():
-            continue
-        collapsed.append(line)
-    return "\n".join(collapsed).strip()
+        if line.strip():
+            buf.append(line.strip())
+        elif buf:
+            paragraphs.append(" ".join(buf))
+            buf = []
+    if buf:
+        paragraphs.append(" ".join(buf))
+    return "\n".join(paragraphs).strip()
 
 
 def build_xlsx(
@@ -152,6 +162,21 @@ def build_xlsx(
         for line in ws.iter_rows(min_row=2):
             for cell in line:
                 cell.alignment = wrap
+
+        # Row height sized to the longest wrapped cell. Excel auto-fits height
+        # only for cells it lays out itself; a file written by openpyxl opens
+        # with every row one line tall and every long value clipped.
+        for r_idx, line in enumerate(ws.iter_rows(min_row=2), start=2):
+            lines_needed = 1
+            for c_idx, cell in enumerate(line, start=1):
+                if cell.value is None:
+                    continue
+                width = ws.column_dimensions[get_column_letter(c_idx)].width or _MIN_WIDTH
+                lines_needed = max(
+                    lines_needed,
+                    -(-len(str(cell.value)) // max(int(width) - 2, 1)),
+                )
+            ws.row_dimensions[r_idx].height = min(15 * lines_needed, 200)
 
         # Filters and a frozen header: the two things that make a register
         # usable when someone is looking for one row among sixty.

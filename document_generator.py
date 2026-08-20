@@ -932,7 +932,22 @@ def build_docx(document_text: str, document_type: str,
                 clean = m.group(1) + re.sub(r'^#{1,2}\s+', '', m.group(2))
             else:
                 clean = re.sub(r'^#{1,2}\s+', '', line)
+            # Word's Heading style, THEN the direct formatting.
+            #
+            # Direct run formatting alone renders correctly but leaves every
+            # paragraph semantically Normal: the navigation pane is empty, a
+            # table of contents cannot be built, and assistive software sees
+            # flat text. For a record that gets forwarded, opened by someone
+            # who did not make it, and read alongside thirty others, structure
+            # is not decoration.
+            #
+            # The style is applied first so the explicit run properties below
+            # override its font, size and colour — the appearance is unchanged.
             p = doc.add_paragraph()
+            try:
+                p.style = doc.styles["Heading 1"]
+            except KeyError:
+                pass  # a template without the style still renders, unstyled
             add_para_spacing(p, before=14, after=4)
             add_border_bottom(p, "D3D1C7")
             run = p.add_run(clean.strip())
@@ -947,6 +962,10 @@ def build_docx(document_text: str, document_type: str,
         if re.match(r'^###\s+', line) or re.match(r'^\d+\.\d+\s+[A-Z]', line):
             clean = re.sub(r'^#{2,3}\s+', '', line).strip()
             p = doc.add_paragraph()
+            try:
+                p.style = doc.styles["Heading 2"]
+            except KeyError:
+                pass
             add_para_spacing(p, before=10, after=3)
             run = p.add_run(clean)
             run.font.name = "Arial"

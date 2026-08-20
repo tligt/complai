@@ -105,10 +105,12 @@ No processing is recorded as carried out on behalf of another controller.
 This record reflects the controllers, processing activities and systems
 recorded in RECOSA as at the date above.
 
+{{#if:has_register_reference}}
 Where controllers are identified by reference to a maintained list rather than
 named individually above, that list is kept current and can be produced in full
 on request. The reference identifies where the list is held; it does not
 replace the obligation to be able to produce it.
+{{/if:has_register_reference}}
 
 Where a field is shown as incomplete, the underlying information has not yet
 been confirmed. It is shown as missing rather than inferred.
@@ -170,11 +172,13 @@ n'est enregistré.
 Ce registre reflète les responsables du traitement, les activités de traitement
 et les systèmes enregistrés dans RECOSA à la date indiquée ci-dessus.
 
+{{#if:has_register_reference}}
 Lorsque les responsables du traitement sont identifiés par renvoi à une liste
 tenue à jour plutôt que nommés individuellement ci-dessus, cette liste est
 maintenue à jour et peut être communiquée intégralement sur demande. Le renvoi
 indique où la liste est conservée ; il ne dispense pas de l'obligation de
 pouvoir la produire.
+{{/if:has_register_reference}}
 
 Lorsqu'une rubrique est signalée comme incomplète, l'information correspondante
 n'a pas encore été confirmée. Elle est présentée comme manquante plutôt que
@@ -190,6 +194,9 @@ DOC = TemplateDoc(
     sprint="S26",
     bodies={"en": BODY_EN, "fr": BODY_FR},
     blocks={"ropa_processor_table"},
+    source_revision=2,
+    version_no=2,
+    change_note="S26: register-reference paragraph now conditional.",
 )
 
 

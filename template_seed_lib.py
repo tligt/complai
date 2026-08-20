@@ -234,6 +234,25 @@ SET title = EXCLUDED.title,
     sort_order = EXCLUDED.sort_order;
 """)
 
+    # Supersede any earlier in-force version FIRST.
+    #
+    # dtv_one_in_force_per_language allows exactly one in_force row per
+    # (template, language). Emitting a version 2 as in_force while version 1
+    # still is violates it, and the seed fails on a unique constraint rather
+    # than doing anything useful. A revision is a supersession, not an
+    # addition — the previous body stays in the table as evidence of what a
+    # document generated last month was rendered from.
+    if doc.version_no > 1:
+        parts.append(f"""
+UPDATE document_template_versions v
+SET status = 'superseded'
+FROM document_templates t
+WHERE t.id = v.template_id
+  AND t.doc_type = '{doc.doc_type}'
+  AND v.status = 'in_force'
+  AND v.version_no < {doc.version_no};
+""")
+
     for lang, body in doc.bodies.items():
         quoted = _dollar_quote(body, f"body_{lang}")
         parts.append(f"""
@@ -266,8 +285,15 @@ SET source_revision = EXCLUDED.source_revision,
 -- WHERE t.doc_type = '{doc.doc_type}'
 -- ORDER BY v.language;
 --
--- Expect {len(doc.bodies)} rows ({langs}), all in_force,
--- all at source_revision {doc.source_revision}.
+-- Expect {len(doc.bodies)} in_force rows ({langs}) at version {doc.version_no},
+-- source_revision {doc.source_revision}. Earlier versions remain, superseded —
+-- they are what previously generated documents were rendered from and must
+-- not be deleted.
+--
+-- SELECT t.doc_type, v.language, v.version_no, v.status
+-- FROM document_template_versions v
+-- JOIN document_templates t ON t.id = v.template_id
+-- WHERE t.doc_type = '{doc.doc_type}' ORDER BY v.language, v.version_no;
 --
 -- NOTE ON RE-RUNNING: the ON CONFLICT arbiter is the real UNIQUE constraint
 -- (template_id, language, version_no). It is NOT the partial index

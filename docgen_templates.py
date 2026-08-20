@@ -145,7 +145,11 @@ def generate_templated_document(
                 from document_xlsx import build_xlsx  # noqa: PLC0415
                 xlsx_bytes = build_xlsx(
                     d.result.blocks,
-                    title=f"{DOCUMENT_TYPES.get(doc_type, doc_type)} \u2014 {company_name}",
+                    # record_type is the template's own translated title.
+                    # DOCUMENT_TYPES is English-only, so using it put an
+                    # English heading on a French register.
+                    title=f"{d.title or DOCUMENT_TYPES.get(doc_type, doc_type)}"
+                          f" \u2014 {company_name}",
                     prose=d.result.body,
                     metadata=[
                         ("Company", company_name),

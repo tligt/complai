@@ -586,10 +586,22 @@ def seed_from_catalogue(
         # is still created so the client can complete it; the gap belongs in
         # the readiness figures, not in a blocked seed.
         if not (payload.get("retention_period") or "").strip():
-            payload["retention_basis"] = (
-                "Set by national law — confirm the period that applies to you."
+            # Guidance goes in NOTES, not retention_basis.
+            #
+            # retention_basis is an Art. 30(1)(f) column: it states WHY a
+            # period is what it is. Writing an instruction there put
+            # "3 years — To be set by your own retention policy." into a filed
+            # register. A prompt addressed to the client is not a legal basis,
+            # and the register is the one place it must never appear.
+            guidance = (
+                "Retention: set by national law — confirm the period that "
+                "applies to you."
                 if statutory else
-                "To be set by your own retention policy."
+                "Retention: to be set by your own retention policy."
+            )
+            existing_note = (payload.get("notes") or "").strip()
+            payload["notes"] = (
+                f"{existing_note} {guidance}".strip() if existing_note else guidance
             )
 
         # The seed path deliberately inserts rows that fail validation, so a
