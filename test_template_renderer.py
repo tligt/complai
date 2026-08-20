@@ -244,3 +244,109 @@ if FAILS:
     print(f"{len(FAILS)} FAILED: {', '.join(FAILS)}")
     sys.exit(1)
 print("All passed.")
+
+
+# ===========================================================================
+# S26 — structured blocks and the two RoPA registers
+# ===========================================================================
+
+from template_renderer import (  # noqa: E402
+    Block,
+    render_ropa_controller_table,
+    render_ropa_processor_table,
+)
+
+print("\n--- Block: str renderers unchanged ---")
+
+res = render_template(
+    "## Cookies\n\n{{#block:cookie_table}}\n",
+    values={}, specs=[], language="en",
+    block_renderers=DEFAULT_BLOCK_RENDERERS,
+    block_context={"vendors": VENDORS},
+)
+check("str renderer still substitutes", "Google Analytics" in res.body)
+check("str renderer contributes no structured block", res.blocks == [],
+      "the cookie table is prose-only by design")
+
+
+print("\n--- Block: structured renderers ---")
+
+C_ROWS = [{
+    "name": "Payroll administration", "purpose": "Paying staff",
+    "data_subjects": "Employees", "data_categories": "Identity, bank details",
+    "special_categories": "Health data", "art9_condition": "Employment and social security",
+    "recipients": "Microsoft 365 (Processor)", "transfers": None,
+    "retention_period": "10 years", "retention_basis": "Statutory limitation period",
+    "security_measures": "Encryption at rest, access control",
+}]
+
+res = render_template(
+    "## Record\n\n{{#block:ropa_controller_table}}\n",
+    values={}, specs=[], language="en",
+    block_renderers=DEFAULT_BLOCK_RENDERERS,
+    block_context={"ropa_controller_rows": C_ROWS},
+)
+check("controller block renders into body", "Payroll administration" in res.body)
+check("controller block collected", len(res.blocks) == 1)
+check("collected block is structured", isinstance(res.blocks[0], Block))
+check("block carries its name", res.blocks[0].name == "ropa_controller_table")
+check("eight Art.30(1) columns", len(res.blocks[0].headers) == 8,
+      f"got {len(res.blocks[0].headers)}")
+check("row survives as data, not markdown",
+      res.blocks[0].rows[0][0] == "Payroll administration — Paying staff")
+check("Art.9 condition sits with the special category",
+      "Employment and social security" in res.blocks[0].rows[0][3],
+      "a record naming health data without the condition documents a breach")
+check("empty transfer cell is an em dash in prose",
+      "—" in res.body)
+
+b = render_ropa_controller_table({"ropa_controller_rows": []}, "fr")
+check("empty controller register gives a sentence, not a blank table",
+      "Aucune activité" in b.to_markdown())
+check("empty block still declares its headers", len(b.headers) == 8)
+
+print("\n--- Block: processor register pivots by controller ---")
+
+P_GROUPS = [{
+    "controller_name": "Mercedes", "contact_name": "F. Fonder",
+    "contact_email": "f@example.be",
+    "processing_categories": "Payroll administration; HR record storage",
+    "transfers": None, "security_measures": "Encryption at rest",
+}]
+
+res = render_template(
+    "{{#block:ropa_processor_table}}\n",
+    values={}, specs=[], language="fr",
+    block_renderers=DEFAULT_BLOCK_RENDERERS,
+    block_context={
+        "ropa_processor_groups": P_GROUPS,
+        "ropa_processor_caption": "Registre client tenu dans HubSpot.",
+    },
+)
+check("FR processor headers used", "Responsable du traitement" in res.body)
+check("five Art.30(2) columns", len(res.blocks[0].headers) == 5)
+check("one row per controller, not per activity", len(res.blocks[0].rows) == 1,
+      "Art.30(2) is pivoted by controller")
+check("categories of PROCESSING listed under the controller",
+      "Payroll administration; HR record storage" in res.body)
+check("register reference travels as a caption",
+      "HubSpot" in res.body and res.blocks[0].caption is not None)
+
+b = render_ropa_processor_table({}, "de")
+check("no processor rows gives the DE sentence",
+      "keine Verarbeitung" in b.to_markdown())
+
+print("\n--- Block: pipes and line endings ---")
+
+res = render_template(
+    "{{#block:ropa_controller_table}}\r\n",
+    values={}, specs=[], language="en",
+    block_renderers=DEFAULT_BLOCK_RENDERERS,
+    block_context={"ropa_controller_rows": [
+        {"name": "A | B", "purpose": None, "data_subjects": "Staff"}]},
+)
+check("CRLF: structured block still renders", res.blocks and res.blocks[0].rows)
+check("pipe escaped in markdown", r"A \| B" in res.body,
+      "an unescaped pipe silently splits the table")
+check("pipe NOT escaped in the structured row", res.blocks[0].rows[0][0] == "A | B",
+      "escaping is a markdown concern; XLSX must get the real value")

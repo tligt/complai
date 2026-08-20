@@ -79,6 +79,50 @@ class FieldSpec:
 
 
 @dataclass
+class Block:
+    """Tabular content in structured form — S26.
+
+    A block renderer may return a plain markdown string (the S25 contract,
+    unchanged) or one of these. The difference matters only when a document
+    has to be emitted in a format that is not prose: a markdown table is fine
+    for DOCX and useless for XLSX, and parsing our own markdown back into rows
+    to build a spreadsheet would mean unescaping the pipes _cell() escaped.
+
+    So the renderer keeps the data, render_template substitutes to_markdown()
+    into the body, and RenderResult carries the structured form alongside for
+    whatever else needs it (D-29).
+
+    Headers are per-language and live in the renderer, not the template body,
+    because a table with a variable row count cannot be a merge field without
+    putting loops in the template (D-01a).
+    """
+    name: str
+    headers: list[str] = dc_field(default_factory=list)
+    rows: list[list[Any]] = dc_field(default_factory=list)
+    # Rendered instead of the table when there are no rows. An empty table in
+    # a filed record reads as "we have none"; a sentence can say why.
+    empty_text: str | None = None
+    # Free-text note placed under the table in prose output. Used to carry the
+    # Art. 30(2) register reference, which is a statement about the record
+    # rather than a row in it.
+    caption: str | None = None
+
+    def to_markdown(self) -> str:
+        if not self.rows:
+            return self.empty_text or ""
+        lines = [
+            "| " + " | ".join(_cell(h) for h in self.headers) + " |",
+            "|" + "---|" * len(self.headers),
+        ]
+        for row in self.rows:
+            lines.append("| " + " | ".join(_cell(c) for c in row) + " |")
+        if self.caption:
+            lines.append("")
+            lines.append(self.caption)
+        return "\n".join(lines)
+
+
+@dataclass
 class RenderResult:
     body: str | None
     blocked: bool
@@ -86,6 +130,7 @@ class RenderResult:
     outstanding_fields: list[dict[str, str]] = dc_field(default_factory=list)
     unknown_tags: list[str] = dc_field(default_factory=list)
     jurisdictions_applied: list[str] = dc_field(default_factory=list)
+    blocks: list["Block"] = dc_field(default_factory=list)
 
     @property
     def is_complete(self) -> bool:
@@ -213,7 +258,10 @@ def resolve_jurisdictions(
 # Rendering
 # ---------------------------------------------------------------------------
 
-BlockRenderer = Callable[[Mapping[str, Any], str], str]
+# A renderer returns either markdown (S25) or a Block (S26). Both are
+# supported permanently — the Cookie Policy's vendor table is prose-only and
+# gains nothing from being structured.
+BlockRenderer = Callable[[Mapping[str, Any], str], "str | Block"]
 
 
 def render_template(
@@ -263,6 +311,7 @@ def render_template(
 
     # --- 2. Blocks ---------------------------------------------------------
     missing_blocks: list[str] = []
+    collected_blocks: list[Block] = []
 
     def _render_block(match: re.Match[str]) -> str:
         name = match.group(1)
@@ -270,7 +319,11 @@ def render_template(
         if renderer is None:
             missing_blocks.append(name)
             return PLACEHOLDER_FORMAT.format(label=f"block '{name}' unavailable")
-        return renderer(block_context, language)
+        out = renderer(block_context, language)
+        if isinstance(out, Block):
+            collected_blocks.append(out)
+            return out.to_markdown()
+        return out
 
     body = _BLOCK_RE.sub(_render_block, body)
 
@@ -319,6 +372,10 @@ def render_template(
         missing_required=sorted(set(missing_required)),
         outstanding_fields=outstanding,
         unknown_tags=sorted(set(unknown + missing_blocks)),
+        # Kept even when the render is blocked: the caller may still want to
+        # show a client what the record WOULD contain once the blocking field
+        # is supplied.
+        blocks=collected_blocks,
     )
 
 
@@ -397,6 +454,133 @@ def _cell(value: Any) -> str:
     return str(value).replace("|", "\\|").replace("\n", " ").strip()
 
 
+# ---------------------------------------------------------------------------
+# RoPA blocks — S26
+# ---------------------------------------------------------------------------
+# TWO REGISTERS, NOT ONE.
+#
+# The CNIL recommends an organisation acting as both controller and processor
+# keep two separate registers rather than one blended record, and Art. 30(1)
+# and 30(2) prescribe different content. They are also differently PIVOTED:
+# 30(1) is one row per activity; 30(2) is one row per controller, listing the
+# categories of processing carried out for them.
+#
+# Same underlying rows, two groupings. The grouping is done in template_store,
+# which owns label resolution; these functions only format.
+
+_ROPA_C_HEADERS = {
+    "en": ("Activity and purpose", "Data subjects", "Personal data",
+           "Special categories", "Recipients", "Transfers outside the EEA",
+           "Retention", "Security measures"),
+    "fr": ("Activité et finalité", "Personnes concernées", "Données",
+           "Catégories particulières", "Destinataires", "Transferts hors EEE",
+           "Conservation", "Mesures de sécurité"),
+    "nl": ("Activiteit en doel", "Betrokkenen", "Persoonsgegevens",
+           "Bijzondere categorieën", "Ontvangers", "Doorgifte buiten de EER",
+           "Bewaartermijn", "Beveiligingsmaatregelen"),
+    "de": ("Tätigkeit und Zweck", "Betroffene Personen", "Daten",
+           "Besondere Kategorien", "Empfänger", "Übermittlung außerhalb des EWR",
+           "Speicherdauer", "Sicherheitsmaßnahmen"),
+}
+
+_ROPA_P_HEADERS = {
+    "en": ("Controller", "Contact", "Categories of processing carried out",
+           "Transfers outside the EEA", "Security measures"),
+    "fr": ("Responsable du traitement", "Contact",
+           "Catégories de traitements effectués", "Transferts hors EEE",
+           "Mesures de sécurité"),
+    "nl": ("Verwerkingsverantwoordelijke", "Contact",
+           "Categorieën van verwerkingen", "Doorgifte buiten de EER",
+           "Beveiligingsmaatregelen"),
+    "de": ("Verantwortlicher", "Kontakt", "Kategorien der Verarbeitungen",
+           "Übermittlung außerhalb des EWR", "Sicherheitsmaßnahmen"),
+}
+
+_ROPA_C_EMPTY = {
+    "en": "_No processing activities are recorded for which you are the controller._",
+    "fr": "_Aucune activité de traitement dont vous êtes responsable n'est enregistrée._",
+    "nl": "_Er zijn geen verwerkingsactiviteiten geregistreerd waarvoor u verwerkingsverantwoordelijke bent._",
+    "de": "_Es sind keine Verarbeitungstätigkeiten erfasst, für die Sie Verantwortlicher sind._",
+}
+
+_ROPA_P_EMPTY = {
+    "en": "_No processing is recorded as carried out on behalf of another controller._",
+    "fr": "_Aucun traitement effectué pour le compte d'un autre responsable n'est enregistré._",
+    "nl": "_Er is geen verwerking geregistreerd die namens een andere verwerkingsverantwoordelijke wordt uitgevoerd._",
+    "de": "_Es ist keine Verarbeitung im Auftrag eines anderen Verantwortlichen erfasst._",
+}
+
+
+def _pick(mapping: Mapping[str, Any], language: str) -> Any:
+    return mapping.get(language, mapping["en"])
+
+
+def render_ropa_controller_table(context: Mapping[str, Any], language: str):
+    """Art. 30(1) — one row per activity the client controls.
+
+    Expects context["ropa_controller_rows"]: mappings already resolved to the
+    target language by template_store, which owns inventory.label_for.
+    """
+    rows_in = context.get("ropa_controller_rows") or []
+    block = Block(
+        name="ropa_controller_table",
+        headers=list(_pick(_ROPA_C_HEADERS, language)),
+        empty_text=_pick(_ROPA_C_EMPTY, language),
+    )
+    for r in rows_in:
+        block.rows.append([
+            _join(r.get("name"), r.get("purpose")),
+            r.get("data_subjects"),
+            r.get("data_categories"),
+            # Art. 9(1) data is meaningless in a record without the Art. 9(2)
+            # condition beside it, so they share one cell rather than risking
+            # a column being dropped in a narrow layout.
+            _join(r.get("special_categories"), r.get("art9_condition")),
+            r.get("recipients"),
+            r.get("transfers"),
+            _join(r.get("retention_period"), r.get("retention_basis")),
+            r.get("security_measures"),
+        ])
+    return block
+
+
+def render_ropa_processor_table(context: Mapping[str, Any], language: str):
+    """Art. 30(2) — one row per CONTROLLER, not per activity.
+
+    Art. 30(2)(b) allows the categories of PROCESSING to be described in
+    categories; the controllers themselves are named individually. Grouping by
+    controller is what makes that shape visible.
+
+    context["ropa_processor_groups"] is built by template_store; where a client
+    keeps a maintained customer list instead of naming each controller, the
+    reference travels as context["ropa_processor_caption"].
+    """
+    groups = context.get("ropa_processor_groups") or []
+    block = Block(
+        name="ropa_processor_table",
+        headers=list(_pick(_ROPA_P_HEADERS, language)),
+        empty_text=_pick(_ROPA_P_EMPTY, language),
+        caption=context.get("ropa_processor_caption") or None,
+    )
+    for g in groups:
+        block.rows.append([
+            g.get("controller_name"),
+            _join(g.get("contact_name"), g.get("contact_email")),
+            g.get("processing_categories"),
+            g.get("transfers"),
+            g.get("security_measures"),
+        ])
+    return block
+
+
+def _join(*parts: Any, sep: str = " — ") -> str | None:
+    """Combine non-empty parts into one cell."""
+    kept = [str(p).strip() for p in parts if p is not None and str(p).strip()]
+    return sep.join(kept) if kept else None
+
+
 DEFAULT_BLOCK_RENDERERS: dict[str, BlockRenderer] = {
     "cookie_table": render_cookie_table,
+    "ropa_controller_table": render_ropa_controller_table,
+    "ropa_processor_table": render_ropa_processor_table,
 }
