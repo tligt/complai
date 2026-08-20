@@ -664,6 +664,8 @@ def readiness(
 
     gaps: list[str] = []
     blocking: list[str] = []
+    gap_ids: set[str] = set()
+    blocking_ids: set[str] = set()
 
     for a in activities:
         missing: list[str] = []
@@ -725,8 +727,10 @@ def readiness(
 
         if blocks:
             blocking.append(f"{a['name']}: {', '.join(blocks)}")
+            blocking_ids.add(a["id"])
         if missing:
             gaps.append(f"{a['name']}: {', '.join(missing)}")
+            gap_ids.add(a["id"])
 
     vendor_gaps = [
         s["name"] for s in systems
@@ -734,8 +738,7 @@ def readiness(
     ]
 
     total = len(activities)
-    incomplete_names = {g.split(":")[0] for g in gaps} | {b.split(":")[0] for b in blocking}
-    complete = total - len(incomplete_names)
+    complete = total - len(gap_ids | blocking_ids)
 
     controller_count = sum(1 for a in activities if a.get("controller_role") != "processor")
     processor_count = total - controller_count
@@ -746,6 +749,13 @@ def readiness(
         "complete_activities": max(complete, 0),
         "activity_gaps": gaps,
         "blocking": blocking,
+        # Ids, not names. Two activities can legitimately share a name — a
+        # catalogue seed from two vendors produces exactly that — and matching
+        # on the name marked both rows broken when only one was, with no way
+        # for the client to tell which they had already fixed. Names are for
+        # reading; ids are for deciding.
+        "gap_ids": sorted(gap_ids),
+        "blocking_ids": sorted(blocking_ids),
         "can_generate": not blocking,
         "dpa_gaps": vendor_gaps,
         # The CNIL recommends two separate registers where an organisation is
