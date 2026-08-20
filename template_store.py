@@ -442,6 +442,13 @@ _ROPA_FIELDS = [
     FieldSpec("record_last_updated", "Inventory last changed"),
     FieldSpec("has_rows", "Register has at least one row", flag=True),
     FieldSpec("has_dpo_section", "Has a DPO to name", flag=True),
+    # Guards for the optional identity fields. Without these the header of a
+    # filed record reads "Company registration number: [[ TO COMPLETE ]]",
+    # which is worse than omitting the line: it draws an auditor's eye to a
+    # gap that may not be one — a sole trader has no enterprise number.
+    FieldSpec("has_legal_form", "Legal form recorded", flag=True),
+    FieldSpec("has_enterprise_number", "Registration number recorded", flag=True),
+    FieldSpec("has_last_updated", "Inventory change date known", flag=True),
 ]
 
 FIELD_SPECS: dict[str, list[FieldSpec]] = {
@@ -702,6 +709,10 @@ def build_values(
         )
         values["has_rows"] = len(rows) > 0
         values["has_dpo_section"] = values["has_dpo"]
+        values["has_legal_form"] = bool((client.get("legal_form") or "").strip())
+        values["has_enterprise_number"] = bool(
+            (client.get("enterprise_number") or "").strip())
+        values["has_last_updated"] = bool(values.get("record_last_updated"))
 
     return values, resolution.codes_applied
 
