@@ -365,7 +365,9 @@ def load_document_files(user_id: str, client_id: str | None) -> list[dict]:
     try:
         supabase = get_supabase()
         q = supabase.table("documents") \
-            .select("id, document_type, language, company_name, generated_at, file_path_docx, file_path_pdf, file_path_odt") \
+            .select("id, document_type, language, company_name, generated_at, "
+                    "file_path_docx, file_path_pdf, file_path_odt, "
+                    "file_path_xlsx, outstanding_fields, document_group_id") \
             .eq("user_id", user_id) \
             .order("generated_at", desc=True) \
             .limit(20)
