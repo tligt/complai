@@ -49,6 +49,9 @@ python-dotenv==1.2.2
 #
 # Not listed, deliberately: `mistralai`. Mistral is called through raw
 # requests.post() against the REST API, so the SDK is not a dependency.
+
+openpyxl
+pandas
 #
 # System packages live in packages.txt (currently: libreoffice, required by
 # convert_docx_to_pdf / convert_docx_to_odt in document_generator.py).
