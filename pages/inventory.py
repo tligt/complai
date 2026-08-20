@@ -356,6 +356,23 @@ with tab_activities:
     # going anywhere. The mode switch has to be visibly a mode switch.
     by_id = {a["id"]: a for a in activities}
 
+    # Two activities can share a name — a catalogue seed from two vendors
+    # produces exactly that. A picker whose format_func returns only the name
+    # renders both options identically, so one of them is unreachable: the
+    # client sees the duplicate in the summary table and cannot open it.
+    # Disambiguate only where it is needed, so the common case stays clean.
+    _name_counts: dict[str, int] = {}
+    for _a in activities:
+        _name_counts[_a["name"]] = _name_counts.get(_a["name"], 0) + 1
+
+    def _activity_label(activity_id: str) -> str:
+        row = by_id[activity_id]
+        if _name_counts.get(row["name"], 0) < 2:
+            return row["name"]
+        n = len(STORE.systems_for_activity(links, activity_id))
+        basis = basis_labels.get(row.get("legal_basis"), row.get("legal_basis") or "no basis")
+        return f"{row['name']} — {basis}, {n} system{'' if n == 1 else 's'}"
+
     if activities:
         mode = st.radio(
             "Mode",
@@ -372,7 +389,7 @@ with tab_activities:
         selected = st.selectbox(
             "Which activity",
             options=[a["id"] for a in activities],
-            format_func=lambda i: by_id[i]["name"],
+            format_func=_activity_label,
             key="inv_act_select",
         )
         existing = by_id.get(selected)
