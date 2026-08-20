@@ -34,11 +34,14 @@ enforcement, not this code.
 
 from __future__ import annotations
 
+import re as _re
 import uuid
 from dataclasses import dataclass
+from datetime import date as _date
 from typing import Any, Mapping, Sequence
 
 from template_renderer import (
+    Block,
     DEFAULT_BLOCK_RENDERERS,
     FieldSpec,
     RenderResult,
@@ -143,6 +146,251 @@ def _load_vendor_rows(client_id: str, language: str) -> list[dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# RoPA loaders — S26
+# ---------------------------------------------------------------------------
+# Unlike _load_vendor_rows these are NOT filtered on sets_cookies: a RoPA lists
+# every system supporting an activity, which is most of the inventory.
+#
+# Labels are resolved here, not in the renderer, for the same reason the cookie
+# table's are: inventory.py owns translation and the English fallback, and a
+# pure renderer must not reach into Postgres.
+
+
+def _load_inventory(client_id: str) -> dict[str, Any]:
+    """One pass over everything both registers need.
+
+    Four queries rather than four per activity. PostgREST has no GROUP BY, so
+    the joining is done in Python — the same pattern inventory.get_catalogue()
+    uses, and at SME scale (15-60 activities) it is well under a round trip.
+    """
+    sb = _get_client()
+
+    def _fetch(table: str, cols: str) -> list[dict[str, Any]]:
+        try:
+            return (
+                sb.table(table).select(cols).eq("client_id", client_id)
+                .execute().data or []
+            )
+        except Exception:
+            return []
+
+    return {
+        "activities": _fetch(
+            "processing_activities",
+            "id, name, purpose, legal_basis, controller_role, "
+            "data_subject_categories, data_categories, special_categories, "
+            "art9_condition, criminal_data, retention_period, retention_basis, "
+            "security_measures, counterparty_register_note, updated_at",
+        ),
+        "systems": _fetch(
+            "systems",
+            "id, name, vendor_legal_name, category, processing_country, "
+            "transfer_mechanism, updated_at",
+        ),
+        "links": _fetch("activity_systems", "activity_id, system_id, role"),
+        "counterparties": _fetch(
+            "processing_counterparties",
+            "id, legal_name, trading_name, contact_name, contact_email, "
+            "registered_address, country, updated_at",
+        ),
+        "cp_links": _fetch("activity_counterparties", "activity_id, counterparty_id"),
+    }
+
+
+def _labels(value_type: str, codes: Sequence[str] | None, language: str) -> str | None:
+    from inventory import label_for  # noqa: PLC0415
+    if not codes:
+        return None
+    return ", ".join(label_for(value_type, c, language) for c in codes)
+
+
+def _recipient_cell(sysrow: Mapping[str, Any], role: str | None, language: str) -> str:
+    """One recipient, as vendor — product type (role).
+
+    Art. 30(1)(d) asks for CATEGORIES of recipients. Naming the vendor as well
+    exceeds that and is what an auditor actually wants; the category satisfies
+    the Article, the name makes the record useful.
+
+    The legal entity is preferred over the trade name — "Microsoft Ireland
+    Operations Limited" is who the data goes to — with a fallback so a client
+    who never filled it in still gets a readable row.
+    """
+    from inventory import label_for  # noqa: PLC0415
+
+    name = sysrow.get("vendor_legal_name") or sysrow.get("name")
+    bits = [name]
+    if sysrow.get("category"):
+        bits.append(f"— {label_for('system_category', sysrow['category'], language)}")
+    if role:
+        bits.append(f"({label_for('system_role', role, language)})")
+    return " ".join(b for b in bits if b)
+
+
+def _transfer_cell(sysrow: Mapping[str, Any], language: str) -> str | None:
+    """Art. 30(1)(e). None when the processing stays inside the EEA."""
+    from inventory import is_third_country, label_for  # noqa: PLC0415
+
+    country = (sysrow.get("processing_country") or "").upper()
+    if not is_third_country(country):
+        return None
+    mech = sysrow.get("transfer_mechanism") or "unknown"
+    return (
+        f"{country} via {sysrow.get('vendor_legal_name') or sysrow.get('name')} "
+        f"— {label_for('transfer_mechanism', mech, language)}"
+    )
+
+
+def build_ropa_controller_rows(
+    inv: Mapping[str, Any], language: str
+) -> list[dict[str, Any]]:
+    """Art. 30(1) rows: one per activity the client controls."""
+    systems_by_id = {s["id"]: s for s in inv["systems"]}
+    links_by_activity: dict[str, list[dict]] = {}
+    for l in inv["links"]:
+        links_by_activity.setdefault(l["activity_id"], []).append(l)
+
+    rows: list[dict[str, Any]] = []
+    for a in sorted(inv["activities"], key=lambda r: (r.get("name") or "")):
+        if a.get("controller_role") == "processor":
+            continue
+
+        recipients: list[str] = []
+        transfers: list[str] = []
+        for l in links_by_activity.get(a["id"], []):
+            sysrow = systems_by_id.get(l["system_id"])
+            if not sysrow:
+                continue
+            # A client's own server is not a recipient. Printing "internal" in
+            # the recipients column asserts a disclosure that never happened.
+            if (l.get("role") or "") not in _NON_RECIPIENT_ROLES:
+                recipients.append(_recipient_cell(sysrow, l.get("role"), language))
+            t = _transfer_cell(sysrow, language)
+            if t and t not in transfers:
+                transfers.append(t)
+
+        specials = _labels("special_category", a.get("special_categories"), language)
+        criminal = _labels("criminal_data", a.get("criminal_data"), language)
+
+        rows.append({
+            "name": a.get("name"),
+            "purpose": a.get("purpose"),
+            "data_subjects": _labels(
+                "data_subject_category", a.get("data_subject_categories"), language),
+            "data_categories": ", ".join(
+                x for x in (
+                    _labels("data_category", a.get("data_categories"), language),
+                    criminal,
+                ) if x
+            ) or None,
+            "special_categories": specials,
+            "art9_condition": (
+                _labels("art9_condition", [a["art9_condition"]], language)
+                if specials and a.get("art9_condition") else None
+            ),
+            "recipients": "; ".join(recipients) or None,
+            "transfers": "; ".join(transfers) or None,
+            "retention_period": a.get("retention_period"),
+            "retention_basis": a.get("retention_basis"),
+            "security_measures": _labels(
+                "security_measure", a.get("security_measures"), language),
+        })
+    return rows
+
+
+def build_ropa_processor_groups(
+    inv: Mapping[str, Any], language: str
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Art. 30(2) groups: one per CONTROLLER, plus the register caption.
+
+    Pivoted by controller rather than activity. Art. 30(2)(b) permits the
+    categories of PROCESSING to be described in categories; the controllers
+    themselves are named. Grouping this way is what makes that shape visible.
+
+    Activities carrying only a register note contribute to the caption instead
+    of a row — a maintained customer list identified by reference, which is
+    what processors with fluctuating rosters actually keep.
+    """
+    processor_acts = [
+        a for a in inv["activities"] if a.get("controller_role") == "processor"
+    ]
+    if not processor_acts:
+        return [], None
+
+    by_activity = {a["id"]: a for a in processor_acts}
+    cp_by_id = {c["id"]: c for c in inv["counterparties"]}
+    systems_by_id = {s["id"]: s for s in inv["systems"]}
+
+    links_by_activity: dict[str, list[dict]] = {}
+    for l in inv["links"]:
+        links_by_activity.setdefault(l["activity_id"], []).append(l)
+
+    grouped: dict[str, list[dict]] = {}
+    for l in inv["cp_links"]:
+        if l["activity_id"] in by_activity:
+            grouped.setdefault(l["counterparty_id"], []).append(
+                by_activity[l["activity_id"]])
+
+    groups: list[dict[str, Any]] = []
+    for cp_id, acts in sorted(
+        grouped.items(),
+        key=lambda kv: (cp_by_id.get(kv[0], {}).get("legal_name") or ""),
+    ):
+        cp = cp_by_id.get(cp_id)
+        if not cp:
+            continue
+
+        transfers: list[str] = []
+        measures: set[str] = set()
+        for a in acts:
+            for code in a.get("security_measures") or []:
+                measures.add(code)
+            for l in links_by_activity.get(a["id"], []):
+                sysrow = systems_by_id.get(l["system_id"])
+                if not sysrow:
+                    continue
+                t = _transfer_cell(sysrow, language)
+                if t and t not in transfers:
+                    transfers.append(t)
+
+        groups.append({
+            "controller_name": cp.get("legal_name"),
+            "contact_name": cp.get("contact_name"),
+            "contact_email": cp.get("contact_email"),
+            "processing_categories": "; ".join(
+                sorted({a.get("name") or "" for a in acts} - {""})) or None,
+            "transfers": "; ".join(transfers) or None,
+            "security_measures": _labels(
+                "security_measure", sorted(measures), language),
+        })
+
+    notes = sorted({
+        (a.get("counterparty_register_note") or "").strip()
+        for a in processor_acts
+        if (a.get("counterparty_register_note") or "").strip()
+    })
+    caption = None
+    if notes:
+        lead = _REGISTER_CAPTION.get(language, _REGISTER_CAPTION["en"])
+        caption = lead + " " + " ".join(notes)
+
+    return groups, caption
+
+
+_NON_RECIPIENT_ROLES = frozenset({"internal"})
+
+_REGISTER_CAPTION = {
+    "en": "_Controllers not named individually above are recorded in a maintained "
+          "list, producible on request:_",
+    "fr": "_Les responsables du traitement non nommés ci-dessus figurent dans une "
+          "liste tenue à jour, communicable sur demande :_",
+    "nl": "_Verwerkingsverantwoordelijken die hierboven niet afzonderlijk worden "
+          "genoemd, staan in een bijgehouden lijst, op verzoek beschikbaar:_",
+    "de": "_Oben nicht einzeln genannte Verantwortliche sind in einer gepflegten "
+          "Liste erfasst, die auf Anfrage vorgelegt werden kann:_",
+}
+
+
+# ---------------------------------------------------------------------------
 # Field specifications, per document type
 # ---------------------------------------------------------------------------
 # These are the renderer's contract with the template. They live in code, in
@@ -184,9 +432,32 @@ _META_FIELDS = [
     FieldSpec("has_vendors", "Has recorded third-party systems", flag=True),
 ]
 
+# S26. Deliberately NOT sharing _JURISDICTION_FIELDS: the ePrivacy numbers are
+# cookie-policy content and have no place in an Art. 30 record. A register does
+# name a supervisory authority only where the client has a representative or a
+# DPO to point at, which is handled by the common fields.
+_ROPA_FIELDS = [
+    FieldSpec("record_type", "Which register this is", required=True),
+    FieldSpec("record_as_at", "Record produced as at", required=True),
+    FieldSpec("record_last_updated", "Inventory last changed"),
+    FieldSpec("has_rows", "Register has at least one row", flag=True),
+    FieldSpec("has_dpo_section", "Has a DPO to name", flag=True),
+]
+
 FIELD_SPECS: dict[str, list[FieldSpec]] = {
     "cookie_policy": _COMMON_CLIENT_FIELDS + _JURISDICTION_FIELDS + _META_FIELDS,
-    # S26 adds ropa and dpa here.
+    "ropa_controller": _COMMON_CLIENT_FIELDS + _ROPA_FIELDS,
+    "ropa_processor": _COMMON_CLIENT_FIELDS + _ROPA_FIELDS,
+    # S26A adds dpa here.
+}
+
+# Which block each document type expects. Used to build only the context a
+# render actually needs — a controller register must not run the counterparty
+# queries, and vice versa.
+DOC_BLOCKS = {
+    "cookie_policy": ("cookie_table",),
+    "ropa_controller": ("ropa_controller_table",),
+    "ropa_processor": ("ropa_processor_table",),
 }
 
 
@@ -298,14 +569,28 @@ _MONTHS = {
 }
 
 
+_ISO_DATE_RE = _re.compile(r"^(\d{4})-(\d{2})-(\d{2})$")
+
+
 def format_date(value, language: str) -> str:
     """Render a date in the document's language.
 
-    A plain string passes through untouched, so a caller that has already
-    formatted one is not second-guessed.
+    A string that is already prose passes through untouched, so a caller that
+    has formatted one is not second-guessed.
+
+    An ISO-8601 date string is NOT prose and is parsed. S25 passed every string
+    straight through on the reasoning that a string means "already formatted",
+    which is true of "18 août 2026" and false of "2026-08-18" — and a caller
+    handing over an ISO string is the common case, because that is what comes
+    back from Postgres and what st.date_input().isoformat() produces. The
+    result was the same failure the month table was written to fix, reachable
+    through a different door: a French document dated 2026-08-18.
     """
     if isinstance(value, str):
-        return value
+        m = _ISO_DATE_RE.match(value.strip())
+        if not m:
+            return value
+        value = _date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
     months = _MONTHS.get(language, _MONTHS["en"])
     name = months[value.month - 1]
     if language == "de":
@@ -317,13 +602,37 @@ def format_date(value, language: str) -> str:
 # Context building
 # ---------------------------------------------------------------------------
 
+_RECORD_TYPE_LABEL = {
+    "ropa_controller": {
+        "en": "Record of processing activities — as controller (Art. 30(1) GDPR)",
+        "fr": "Registre des activités de traitement — en qualité de responsable "
+              "du traitement (art. 30(1) RGPD)",
+        "nl": "Register van verwerkingsactiviteiten — als verwerkingsverantwoordelijke "
+              "(art. 30(1) AVG)",
+        "de": "Verzeichnis von Verarbeitungstätigkeiten — als Verantwortlicher "
+              "(Art. 30(1) DSGVO)",
+    },
+    "ropa_processor": {
+        "en": "Record of processing activities — as processor (Art. 30(2) GDPR)",
+        "fr": "Registre des activités de traitement — en qualité de sous-traitant "
+              "(art. 30(2) RGPD)",
+        "nl": "Register van verwerkingsactiviteiten — als verwerker (art. 30(2) AVG)",
+        "de": "Verzeichnis von Verarbeitungstätigkeiten — als Auftragsverarbeiter "
+              "(Art. 30(2) DSGVO)",
+    },
+}
+
+
 def build_values(
     client: Mapping[str, Any],
     jurisdictions: Mapping[str, Mapping[str, Any]],
     *,
     language: str,
     generation_date: str,
-    vendors: Sequence[Mapping[str, Any]],
+    vendors: Sequence[Mapping[str, Any]] = (),
+    doc_type: str = "cookie_policy",
+    block_context: Mapping[str, Any] | None = None,
+    last_updated: str | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     """Assemble the merge-field values. Returns (values, jurisdiction_codes)."""
     resolution = resolve_jurisdictions(
@@ -373,12 +682,67 @@ def build_values(
 
     values["has_vendors"] = len(vendors) > 0
 
+    # --- Art. 30 register fields ------------------------------------------
+    if doc_type in _RECORD_TYPE_LABEL:
+        ctx = block_context or {}
+        rows = (
+            ctx.get("ropa_controller_rows")
+            if doc_type == "ropa_controller"
+            else ctx.get("ropa_processor_groups")
+        ) or []
+
+        values["record_type"] = _RECORD_TYPE_LABEL[doc_type].get(
+            language, _RECORD_TYPE_LABEL[doc_type]["en"])
+        # D-28: a RoPA is a live view, so an export is a point-in-time
+        # snapshot and must say so on its face rather than implying currency
+        # it cannot have.
+        values["record_as_at"] = format_date(generation_date, language)
+        values["record_last_updated"] = (
+            format_date(last_updated, language) if last_updated else None
+        )
+        values["has_rows"] = len(rows) > 0
+        values["has_dpo_section"] = values["has_dpo"]
+
     return values, resolution.codes_applied
 
 
 # ---------------------------------------------------------------------------
 # Generation
 # ---------------------------------------------------------------------------
+
+def build_block_context(
+    doc_type: str, client_id: str, language: str
+) -> tuple[dict[str, Any], str | None]:
+    """The block data one document type needs, and the inventory's last change.
+
+    Dispatched on doc_type so a controller register never runs the counterparty
+    queries and a Cookie Policy never loads the whole inventory.
+    """
+    if doc_type == "cookie_policy":
+        return {"vendors": _load_vendor_rows(client_id, language)}, None
+
+    if doc_type not in ("ropa_controller", "ropa_processor"):
+        return {}, None
+
+    inv = _load_inventory(client_id)
+
+    stamps = [
+        r.get("updated_at")
+        for key in ("activities", "systems", "counterparties")
+        for r in inv[key]
+        if r.get("updated_at")
+    ]
+    last_updated = max(stamps)[:10] if stamps else None
+
+    if doc_type == "ropa_controller":
+        return {"ropa_controller_rows": build_ropa_controller_rows(inv, language)}, last_updated
+
+    groups, caption = build_ropa_processor_groups(inv, language)
+    return {
+        "ropa_processor_groups": groups,
+        "ropa_processor_caption": caption,
+    }, last_updated
+
 
 @dataclass
 class GeneratedDocument:
@@ -444,12 +808,15 @@ def generate(
             ))
             continue
 
-        vendors = _load_vendor_rows(client_id, lang)
+        block_context, last_updated = build_block_context(doc_type, client_id, lang)
         values, codes = build_values(
             client, jurisdictions,
             language=lang,
             generation_date=generation_date,
-            vendors=vendors,
+            vendors=block_context.get("vendors") or (),
+            doc_type=doc_type,
+            block_context=block_context,
+            last_updated=last_updated,
         )
 
         result = render_template(
@@ -458,7 +825,7 @@ def generate(
             specs=specs,
             language=lang,
             block_renderers=DEFAULT_BLOCK_RENDERERS,
-            block_context={"vendors": vendors},
+            block_context=block_context,
             theme=theme,
         )
         result.jurisdictions_applied = codes
