@@ -1,0 +1,69 @@
+# .github/workflows/seed-dpa.yml
+#
+# Runs the S26A authoring chain and hands back the SQL as a download.
+# Manual trigger only — seeds are authored deliberately, not on every push.
+#
+# The generated templates are committed back, because the whole point of
+# moving the body out of a Python literal was to make it diffable in a pull
+# request. If the job commits nothing, the templates already matched.
+
+name: Seed — DPA (S26A)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # No pip install. These scripts import only the standard library and
+      # each other — template_seed_lib pulls FIELD_SPECS from template_store,
+      # which imports template_renderer, and none of those touch supabase or
+      # streamlit at import time. If this step ever needs requirements.txt,
+      # something has leaked a runtime dependency into the authoring layer.
+
+      - name: Self-test the patch anchors
+        run: python template_seed_dpa_patch.py --self-test
+
+      - name: Generate the template bodies
+        run: python template_seed_dpa_patch.py
+
+      - name: Show the diff against the Official Journal text
+        run: |
+          echo "--- EN ---"
+          diff -u templates/raw/dpa_scc_en.oj.md templates/dpa_scc_en.md || true
+          echo "--- FR ---"
+          diff -u templates/raw/dpa_scc_fr.oj.md templates/dpa_scc_fr.md || true
+
+      # Emits nothing and exits 1 if check_bodies() fails, so the job goes red
+      # rather than uploading an empty file that looks like a success.
+      - name: Emit the seed SQL
+        run: python template_seed_dpa.py > seed_s26a_dpa.sql
+
+      - name: Confirm the SQL is not empty
+        run: test -s seed_s26a_dpa.sql
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seed_s26a_dpa
+          path: |
+            seed_s26a_dpa.sql
+            templates/dpa_scc_en.md
+            templates/dpa_scc_fr.md
+
+      - name: Commit the regenerated templates
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add templates/dpa_scc_en.md templates/dpa_scc_fr.md
+          git diff --staged --quiet || git commit -m "S26A: regenerate DPA template bodies from OJ text"
+          git push
