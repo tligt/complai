@@ -136,7 +136,14 @@ def normalise(text: str) -> str:
     )
     # Unwrap: a newline not followed by a blank line, a list marker, or a heading
     # is a PDF wrap, not a paragraph break.
-    text = re.sub(r"(?<=[^\n])\n(?![\n\s]|[a-z0-9]\)|\(\w\)|\d\)|#|ANNEX|SECTION|Clause|OPTION)", " ", text)
+    # \d\.\d protects numbered sub-clause headings ("7.2. Purpose limitation",
+    # "9.1 Data breach ..."). Without it this unwrap merges them back onto the
+    # preceding paragraph and undoes what extract_oj_pdf.py separated.
+    text = re.sub(
+        r"(?<=[^\n])\n(?![\n\s]|[a-z0-9]\)|\(\w\)|\d\)|\d\.\d|#|ANNEX|SECTION|Clause|OPTION)",
+        " ",
+        text,
+    )
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
