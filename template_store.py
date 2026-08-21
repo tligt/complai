@@ -921,3 +921,7 @@ def group_summary(docs: Sequence[GeneratedDocument]) -> dict[str, Any]:
         "source_revisions": revisions,
         "revision_split": len(revisions) > 1,
     }
+
+from template_dpa import DPA_FIELDS, DPA_BLOCKS  # noqa: E402
+FIELD_SPECS["dpa"] = DPA_FIELDS
+DOC_BLOCKS["dpa"] = DPA_BLOCKS
