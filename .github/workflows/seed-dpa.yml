@@ -3,9 +3,11 @@
 # Runs the S26A authoring chain and hands back the SQL as a download.
 # Manual trigger only — seeds are authored deliberately, not on every push.
 #
-# The generated templates are committed back, because the whole point of
-# moving the body out of a Python literal was to make it diffable in a pull
-# request. If the job commits nothing, the templates already matched.
+# The whole chain runs from a clean checkout with nothing placed by hand: the
+# Official Journal text is downloaded, the template bodies are derived from it,
+# and the seed SQL is emitted. That is the stronger form of D-42 — if EUR-Lex
+# ever changes the text, the diff step shows it rather than the build silently
+# agreeing with a stale committed file.
 
 name: Seed — DPA (S26A)
 
@@ -34,6 +36,9 @@ jobs:
       - name: Self-test the patch anchors
         run: python template_seed_dpa_patch.py --self-test
 
+      - name: Fetch the Official Journal text
+        run: python fetch_oj_text.py
+
       - name: Generate the template bodies
         run: python template_seed_dpa_patch.py
 
@@ -57,13 +62,19 @@ jobs:
           name: seed_s26a_dpa
           path: |
             seed_s26a_dpa.sql
+            templates/raw/dpa_scc_en.oj.md
+            templates/raw/dpa_scc_fr.oj.md
             templates/dpa_scc_en.md
             templates/dpa_scc_fr.md
 
-      - name: Commit the regenerated templates
+      # Committed so the body is reviewable in a pull request, which is the
+      # reason it left the Python string literal in the first place. Committing
+      # nothing means the files already matched.
+      - name: Commit the fetched and regenerated templates
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add templates/raw/dpa_scc_en.oj.md templates/raw/dpa_scc_fr.oj.md
           git add templates/dpa_scc_en.md templates/dpa_scc_fr.md
-          git diff --staged --quiet || git commit -m "S26A: regenerate DPA template bodies from OJ text"
+          git diff --staged --quiet || git commit -m "S26A: fetch OJ text and regenerate DPA template bodies"
           git push
