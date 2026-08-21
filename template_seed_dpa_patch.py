@@ -218,9 +218,16 @@ def truncate_at_annexes(text: str, cfg: dict, label: str) -> str:
 # RECOSA-authored annexes. These ARE RECOSA's work and do need counsel review.
 #
 # Merge fields:
-#   REQUIRED  legal_name, registered_address, dpa_contact_name,
-#             dpa_contact_position, dpa_contact_details, sub_processor_notice_period
-#   OPTIONAL  company_number, dpo_contact  (renderer supplies a visible placeholder)
+#   REQUIRED  legal_name, registered_address, contact_email,
+#             sub_processor_notice_period
+#   OPTIONAL  enterprise_number, dpo_name, dpo_email
+#   FLAGS     has_enterprise_number, has_dpo, has_subprocessors
+#
+# Optional identity fields are guarded by flags rather than left to render as
+# "[[ TO COMPLETE ]]" — the same reasoning as _ROPA_FIELDS. In a signed
+# contract a visible placeholder is worse than an omitted line: it draws the
+# counterparty's eye to a gap that may not be one, since a sole trader has no
+# enterprise number and most SMEs have no DPO.
 #   BLOCKS    annex_ii_processing, annex_iii_security, annex_iii_assistance,
 #             annex_iii_breach_elements, subprocessor_schedule
 #
@@ -243,47 +250,61 @@ To be completed by the controller on acceptance.
 **Processor(s):** *Identity and contact details of the processor(s) and, where applicable, of the processor's data protection officer.*
 
 1. Name: **{{legal_name}}**
-   Company registration number: {{company_number}}
+
    Address: {{registered_address}}
-   Contact person's name, position and contact details: {{dpa_contact_name}}, {{dpa_contact_position}}, {{dpa_contact_details}}
-   Data protection officer: {{dpo_contact}}
+
+{{#if:has_enterprise_number}}
+   Company registration number: {{enterprise_number}}
+
+{{/if:has_enterprise_number}}
+   Contact for matters arising under these Clauses: {{contact_email}}
+
+{{#if:has_dpo}}
+   Data protection officer: {{dpo_name}}, {{dpo_email}}
+
+{{/if:has_dpo}}
    Signature and accession date: ..........................................................
 
 ## ANNEX II — Description of the processing
 
-{{annex_ii_processing}}
+{{#block:annex_ii_processing}}
 
 ## ANNEX III — Technical and organisational measures including technical and organisational measures to ensure the security of the data
 
 ### 1. Security measures implemented by the processor (Clause 7.4(a))
 
-{{annex_iii_security}}
+{{#block:annex_iii_security}}
 
 ### 2. Measures by which the processor assists the controller (Clause 8(d))
 
-{{annex_iii_assistance}}
+{{#block:annex_iii_assistance}}
 
 ### 3. Elements provided when assisting with breach notification (Clause 9.2)
 
-{{annex_iii_breach_elements}}
+{{#block:annex_iii_breach_elements}}
 
 ## ANNEX IV — List of sub-processors
 
 **Not completed.** This Annex is completed only in the case of specific authorisation of sub-processors under Clause 7.7(a), Option 1. These Clauses are entered into on the basis of Option 2, general written authorisation from an agreed list. The agreed list is set out in Schedule 1.
 
-<!-- SCC END — end of the verbatim transcription -->
+<!-- SCC END -->
 
 ---
 
 # SCHEDULE 1 — Agreed list of sub-processors
 
 <!-- NOT PART OF THE CLAUSES. Referenced as the agreed list for the purposes of
-     Clause 7.7(a), Option 2. Kept outside the Clauses so that a change of vendor
+     Clause 7.7(a), Option 2. Kept outside the Clauses so a change of vendor
      updates a schedule rather than requiring the contract to be re-signed. -->
 
-The processor engages the following sub-processors. Changes to this list are notified to the controller at least {{sub_processor_notice_period}} in advance, in accordance with Clause 7.7(a).
+{{#if:has_subprocessors}}
+The processor engages the sub-processors listed below. Changes to this list are notified to the controller at least {{sub_processor_notice_period}} in advance, in accordance with Clause 7.7(a).
 
-{{subprocessor_schedule}}
+{{#block:subprocessor_schedule}}
+{{/if:has_subprocessors}}
+{{#ifnot:has_subprocessors}}
+The processor engages no sub-processors for the processing described in Annex II. Should that change, the controller will be informed at least {{sub_processor_notice_period}} in advance, in accordance with Clause 7.7(a).
+{{/ifnot:has_subprocessors}}
 """
 
 ANNEXES_FR = """
@@ -301,46 +322,60 @@ ANNEXES_FR = """
 **Sous-traitant(s) :** *Identité et coordonnées du ou des sous-traitants et, le cas échéant, du délégué à la protection des données du sous-traitant.*
 
 1. Nom : **{{legal_name}}**
-   Numéro d'entreprise : {{company_number}}
+
    Adresse : {{registered_address}}
-   Nom, fonction et coordonnées de la personne de contact : {{dpa_contact_name}}, {{dpa_contact_position}}, {{dpa_contact_details}}
-   Délégué à la protection des données : {{dpo_contact}}
+
+{{#if:has_enterprise_number}}
+   Numéro d'entreprise : {{enterprise_number}}
+
+{{/if:has_enterprise_number}}
+   Contact pour les questions relevant des présentes clauses : {{contact_email}}
+
+{{#if:has_dpo}}
+   Délégué à la protection des données : {{dpo_name}}, {{dpo_email}}
+
+{{/if:has_dpo}}
    Signature et date d'adhésion : ..........................................................
 
 ## ANNEXE II — Description du traitement
 
-{{annex_ii_processing}}
+{{#block:annex_ii_processing}}
 
 ## ANNEXE III — Mesures techniques et organisationnelles, y compris mesures techniques et organisationnelles visant à garantir la sécurité des données
 
 ### 1. Mesures de sécurité mises en œuvre par le sous-traitant (clause 7.4, point a)
 
-{{annex_iii_security}}
+{{#block:annex_iii_security}}
 
 ### 2. Mesures par lesquelles le sous-traitant prête assistance au responsable du traitement (clause 8, point d)
 
-{{annex_iii_assistance}}
+{{#block:annex_iii_assistance}}
 
 ### 3. Éléments communiqués lors de l'assistance en cas de violation de données (clause 9.2)
 
-{{annex_iii_breach_elements}}
+{{#block:annex_iii_breach_elements}}
 
 ## ANNEXE IV — Liste de sous-traitants ultérieurs
 
 **Non complétée.** La présente annexe n'est complétée qu'en cas d'autorisation spécifique de sous-traitants ultérieurs au titre de la clause 7.7, point a), option 1. Les présentes clauses sont conclues sur la base de l'option 2, autorisation écrite générale sur la base d'une liste convenue. La liste convenue figure à l'annexe technique 1.
 
-<!-- SCC END — fin de la transcription verbatim -->
+<!-- SCC END -->
 
 ---
 
 # ANNEXE TECHNIQUE 1 — Liste convenue de sous-traitants ultérieurs
 
-<!-- NE FAIT PAS PARTIE DES CLAUSES. Référencée comme la liste convenue aux fins
-     de la clause 7.7, point a), option 2. -->
+<!-- NE FAIT PAS PARTIE DES CLAUSES. Référencée comme la liste convenue aux
+     fins de la clause 7.7, point a), option 2. -->
 
-Le sous-traitant a recours aux sous-traitants ultérieurs suivants. Toute modification de cette liste est notifiée au responsable du traitement au moins {{sub_processor_notice_period}} à l'avance, conformément à la clause 7.7, point a).
+{{#if:has_subprocessors}}
+Le sous-traitant a recours aux sous-traitants ultérieurs énumérés ci-dessous. Toute modification de cette liste est notifiée au responsable du traitement au moins {{sub_processor_notice_period}} à l'avance, conformément à la clause 7.7, point a).
 
-{{subprocessor_schedule}}
+{{#block:subprocessor_schedule}}
+{{/if:has_subprocessors}}
+{{#ifnot:has_subprocessors}}
+Le sous-traitant n'a recours à aucun sous-traitant ultérieur pour le traitement décrit à l'annexe II. En cas de changement, le responsable du traitement en sera informé au moins {{sub_processor_notice_period}} à l'avance, conformément à la clause 7.7, point a).
+{{/ifnot:has_subprocessors}}
 """
 
 COVERS = {
@@ -374,21 +409,26 @@ ANNEXES = {"en": ANNEXES_EN, "fr": ANNEXES_FR}
 
 # Fields the renderer must supply. Kept here so FIELD_SPECS["dpa"] can be checked
 # against the template rather than drifting from it.
-EXPECTED_FIELDS = {
-    "legal_name",
-    "company_number",
-    "registered_address",
-    "dpa_contact_name",
-    "dpa_contact_position",
-    "dpa_contact_details",
-    "dpo_contact",
-    "sub_processor_notice_period",
+EXPECTED_BLOCKS = {
     "annex_ii_processing",
     "annex_iii_security",
     "annex_iii_assistance",
     "annex_iii_breach_elements",
     "subprocessor_schedule",
 }
+
+EXPECTED_FIELDS = {
+    "legal_name",
+    "registered_address",
+    "enterprise_number",
+    "contact_email",
+    "dpo_name",
+    "dpo_email",
+    "sub_processor_notice_period",
+}
+
+# Flags are tested in conditionals, never substituted (template_seed_lib check 1).
+EXPECTED_FLAGS = {"has_enterprise_number", "has_dpo", "has_subprocessors"}
 
 
 def build(lang: str, raw_dir: Path | None = None) -> str:
@@ -419,7 +459,18 @@ def verify(body: str, lang: str) -> None:
     clauses = len(re.findall(r"(?m)^\s*#*\s*Clause\s+(?:10|[1-9])(?![.\d])", visible))
     sections = len(re.findall(r"(?m)^\s*#*\s*SECTION\s+I{1,3}\b", visible))
     annexes = len(re.findall(r"(?m)^\s*#*\s*ANNEXE?\s+(?:IV|I{1,3})\b", visible))
-    fields = set(re.findall(r"\{\{(\w+)\}\}", body))
+    fields = set(re.findall(r"\{\{([a-z0-9_]+)\}\}", body))
+    blocks = set(re.findall(r"\{\{#block:([a-z0-9_]+)\}\}", body))
+    opens = sorted(re.findall(r"\{\{#(if|ifnot):([a-z0-9_]+)\}\}", body))
+    closes = sorted(re.findall(r"\{\{/(if|ifnot):([a-z0-9_]+)\}\}", body))
+    # template_seed_lib check 4b: the renderer anchors _BLOCK_RE with [ \t]*$,
+    # so a block tag with anything beside it never matches and the table
+    # vanishes from the document without any error.
+    stray = [
+        line.strip()[:60]
+        for line in body.splitlines()
+        if "{{#block:" in line and not (line.strip().startswith("{{#block:") and line.strip().endswith("}}"))
+    ]
 
     problems = []
     if clauses != 10:
@@ -428,6 +479,14 @@ def verify(body: str, lang: str) -> None:
         problems.append(f"section headings: {sections}, expected 3")
     if annexes != 4:
         problems.append(f"annex headings: {annexes}, expected 4")
+    if opens != closes:
+        problems.append(f"unbalanced conditionals: {opens} vs {closes}")
+    if {n for _, n in opens} != EXPECTED_FLAGS:
+        problems.append(f"flags: {sorted({n for _, n in opens})}, expected {sorted(EXPECTED_FLAGS)}")
+    if blocks != EXPECTED_BLOCKS:
+        problems.append(f"blocks: {sorted(blocks)}, expected {sorted(EXPECTED_BLOCKS)}")
+    if stray:
+        problems.append(f"block tags sharing a line with other text: {stray}")
     if fields != EXPECTED_FIELDS:
         missing = EXPECTED_FIELDS - fields
         extra = fields - EXPECTED_FIELDS
@@ -487,7 +546,8 @@ def self_test() -> int:
                     ("OPTION 2 text survived", "DROP-" not in body),
                     ("wrong OPTION 1 count", body.count("KEEP-") == 4),
                     ("time period unfilled", LANGS[lang]["time_period"] not in body),
-                    ("notice field count", body.count("{{sub_processor_notice_period}}") == 2),
+                    # Clause 7.7(a) plus both branches of the Schedule 1 conditional.
+                    ("notice field count", body.count("{{sub_processor_notice_period}}") == 3),
                     ("7.7 Option 1 survived", "Annex IV applies" not in body),
                     ("OJ annex form survived", "dotted form" not in body),
                 ]
