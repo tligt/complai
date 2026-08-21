@@ -39,6 +39,11 @@ An authoring script defines a TemplateDoc and calls run(). Nothing else:
 
     if __name__ == "__main__":
         run(DOC, "seed_s26_ropa_controller.sql")
+
+A body may also come from a file rather than a string literal, via
+body_from_file(). See its docstring for when that is the right choice — the
+short version is that RECOSA's own prose belongs in Python, and a verbatim
+reproduction of somebody else's instrument does not.
 """
 
 from __future__ import annotations
@@ -47,6 +52,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from datetime import date
+from pathlib import Path
 from typing import Iterable, Mapping
 
 from template_store import FIELD_SPECS
@@ -81,6 +87,58 @@ class TemplateDoc:
     @property
     def note(self) -> str:
         return self.change_note or f"Initial version ({self.sprint})."
+
+
+# ===========================================================================
+# BODY SOURCES
+# ===========================================================================
+
+def body_from_file(path: str | Path) -> str:
+    """Read a body from a markdown file, normalising line endings on the way in.
+
+    The registers author both language bodies as Python string literals,
+    because they are RECOSA's own prose. The DPA does not: its body is a
+    verbatim reproduction of a Commission instrument, and nobody reviews a
+    contract inside a triple-quoted block. Keeping it as a file makes it
+    diffable against the Official Journal in a pull request.
+
+    WHY THIS NORMALISES RATHER THAN LETTING CHECK 7 FIRE
+    ----------------------------------------------------
+    Check 7 rejects a body containing CR, because a template saved on Windows
+    lost every block once already. That check must stay for Python-authored
+    bodies, where a CR means someone really did save wrong.
+
+    A file in the repo is different. With git's default core.autocrlf=true on
+    Windows, an LF-committed .md arrives in the working tree as CRLF through
+    nobody's fault. If check 7 fired on that, the seed would be unrunnable on
+    Windows for everyone, and the obvious workaround — stripping the check —
+    would remove the protection from the Python bodies too.
+
+    So: normalise here, and pin it at the source as well. Add to .gitattributes:
+
+        templates/*.md      text eol=lf
+        templates/raw/*.md  text eol=lf
+
+    Belt and braces on purpose. The .gitattributes line is the real fix; this
+    normalisation is what stops a checkout that predates it from reaching
+    Postgres and silently losing every {{#block:}} tag.
+
+    Relative paths resolve against this file's directory, not the working
+    directory, so a seed script produces the same body whether it is run from
+    the repo root or from anywhere else.
+    """
+    p = Path(path)
+    if not p.is_absolute():
+        p = Path(__file__).resolve().parent / p
+    if not p.exists():
+        raise FileNotFoundError(
+            f"{p} does not exist. If this is a generated template body, build "
+            f"it first:\n    python template_seed_dpa_patch.py"
+        )
+    text = p.read_text(encoding="utf-8")
+    if not text.strip():
+        raise ValueError(f"{p} is empty")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
 
 
 # ===========================================================================
@@ -137,8 +195,6 @@ def check_bodies(doc: TemplateDoc) -> list[str]:
         #     is anchored with [ \t]*$; a tag with text beside it silently
         #     never matches and the table simply does not appear.
         for line in body.splitlines():
-            if "{{#block:" in line and line.strip() != line.strip():
-                pass
             if "{{#block:" in line:
                 stripped = line.strip()
                 if not (stripped.startswith("{{#block:") and stripped.endswith("}}")):
@@ -186,6 +242,10 @@ def check_bodies(doc: TemplateDoc) -> list[str]:
     #    saved on Windows lost every block once already — _BLOCK_RE cannot
     #    match a \r before the newline. The renderer normalises defensively;
     #    catching it here means it never gets stored wrong in the first place.
+    #
+    #    Bodies loaded through body_from_file() are already normalised, so this
+    #    fires only for Python-authored bodies — which is the intent. See that
+    #    function's docstring for why the file path is treated differently.
     for lang, body in doc.bodies.items():
         if "\r" in body:
             errors.append(f"[{lang}] body contains CR characters — save as LF")
