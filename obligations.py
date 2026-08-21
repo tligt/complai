@@ -128,11 +128,26 @@ OBLIGATIONS = [
      "doc_type": None, "profile_question": "dpo", "review_in": [],
      "applies_from": None, "statutory": True},
 
+    # OPERATIONAL, not a document (D-40, S26A).
+    #
+    # This is the VENDOR side of Art. 28 — the DPAs the client receives from
+    # Microsoft, Slack, AWS. Those vendors impose their own; there is nothing
+    # for the client to author, and nobody uploads twenty vendor contracts.
+    # The obligation is discharged by holding them and recording that you do,
+    # which is systems.dpa_status / dpa_signed_on / dpa_url from S24.
+    #
+    # It pointed at doc_type "dpa" until S26A, which was a live false pass: a
+    # client generating a PROCESSOR-side DPA to offer their own customers
+    # would have marked this satisfied while still having no agreement with
+    # Slack. Two unrelated obligations, one doc_type.
+    #
+    # Satisfied by inventory state across every system where the vendor role
+    # is not 'internal'. readiness()["dpa_gaps"] already computes exactly this.
     {"id": "gdpr_05", "regulation": "GDPR", "article": "Art. 28",
-     "priority": "high", "kind": "document",
+     "priority": "high", "kind": "operational",
      "title": "Data Processing Agreements with all processors",
-     "description": "A written DPA must be in place with every third-party processor handling personal data.",
-     "doc_type": "dpa", "profile_question": None, "review_in": [],
+     "description": "A written DPA must be in place with every third-party processor handling personal data. Record each one against the vendor in your inventory.",
+     "doc_type": None, "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_06", "regulation": "GDPR", "article": "Art. 33-34",
@@ -170,11 +185,27 @@ OBLIGATIONS = [
      "doc_type": None, "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
+    # OPERATIONAL, not a document (D-40, S26A). Same defect as gdpr_05.
+    #
+    # A transfer safeguard is not something the client writes. AWS's own DPA
+    # carries the Chapter V clauses; the client's compliance is EVIDENCED by
+    # systems.processing_country and systems.transfer_mechanism, which
+    # readiness() already blocks on — "transfer to US via AWS with no
+    # safeguard recorded".
+    #
+    # It pointed at doc_type "dpa", so generating the processor-side DPA would
+    # have marked international transfers safeguarded while every vendor sat
+    # at transfer_mechanism='unknown'.
+    #
+    # Note the DPA RECOSA generates could not satisfy this even in principle:
+    # it is built on Decision 2021/915 (Art. 28 controller-processor clauses).
+    # Chapter V transfer clauses are Decision 2021/914 — a different
+    # instrument, for a different purpose.
     {"id": "gdpr_11", "regulation": "GDPR", "article": "Art. 44-49",
-     "priority": "medium", "kind": "document",
+     "priority": "medium", "kind": "operational",
      "title": "International transfer safeguards in place",
-     "description": "Transfers outside the EU/EEA must rely on adequacy decision, SCCs or BCRs.",
-     "doc_type": "dpa", "profile_question": None, "review_in": [],
+     "description": "Transfers outside the EU/EEA must rely on an adequacy decision, SCCs or BCRs. Record the mechanism against each system that processes outside the EEA.",
+     "doc_type": None, "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_12", "regulation": "GDPR", "article": "Art. 25",
@@ -598,16 +629,22 @@ def _client_regulation(reg: str) -> str:
 # ropa_processor is the live case. The Art. 30(2) obligation is deliberately
 # not in OBLIGATIONS: scoring it would mark every controller-only client red
 # for a register they do not need, and the applicability predicate that would
-# prevent that belongs to S28A. Without this override the document would drop
+# prevent that belongs to S27B. Without this override the document would drop
 # out of REG_DOCS and be invisible on the dashboard despite being generatable.
 #
 # UNDER-REPORT, KNOWINGLY: a client that IS a processor and has no Art. 30(2)
 # register is not flagged. Between falsely flagging every controller and
 # missing some processors, the under-report is the safer error. It must be
-# closed in S28A, where readiness()'s processor_activities count becomes the
+# closed in S27B, where readiness()'s processor_activities count becomes the
 # predicate — this is a blocking dependency of that sprint, not a nicety.
 DOC_TYPE_REGULATIONS = {
     "ropa_processor": ["GDPR"],
+    # S26A. The PROCESSOR-side DPA a client offers its own customers. gdpr_05
+    # covers the vendor side and is operational (D-40), so nothing in
+    # OBLIGATIONS points here — the same position ropa_processor is in, and
+    # for the same reason: scoring it would mark every controller-only client
+    # red for a document they have no use for.
+    "dpa": ["GDPR"],
 }
 
 # doc_type -> {"label", "regulations"}, for the dashboard checklist.
