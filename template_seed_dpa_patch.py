@@ -267,21 +267,21 @@ To be completed by the controller on acceptance.
 
 ## ANNEX II — Description of the processing
 
-{{#block:annex_ii_processing}}
+{{#block:dpa_annex_ii_table}}
 
 ## ANNEX III — Technical and organisational measures including technical and organisational measures to ensure the security of the data
 
 ### 1. Security measures implemented by the processor (Clause 7.4(a))
 
-{{#block:annex_iii_security}}
+{{annex_iii_security}}
 
 ### 2. Measures by which the processor assists the controller (Clause 8(d))
 
-{{#block:annex_iii_assistance}}
+{{annex_iii_assistance}}
 
 ### 3. Elements provided when assisting with breach notification (Clause 9.2)
 
-{{#block:annex_iii_breach_elements}}
+{{annex_iii_breach_elements}}
 
 ## ANNEX IV — List of sub-processors
 
@@ -300,7 +300,7 @@ To be completed by the controller on acceptance.
 {{#if:has_subprocessors}}
 The processor engages the sub-processors listed below. Changes to this list are notified to the controller at least {{sub_processor_notice_period}} in advance, in accordance with Clause 7.7(a).
 
-{{#block:subprocessor_schedule}}
+{{#block:dpa_subprocessor_table}}
 {{/if:has_subprocessors}}
 {{#ifnot:has_subprocessors}}
 The processor engages no sub-processors for the processing described in Annex II. Should that change, the controller will be informed at least {{sub_processor_notice_period}} in advance, in accordance with Clause 7.7(a).
@@ -339,21 +339,21 @@ ANNEXES_FR = """
 
 ## ANNEXE II — Description du traitement
 
-{{#block:annex_ii_processing}}
+{{#block:dpa_annex_ii_table}}
 
 ## ANNEXE III — Mesures techniques et organisationnelles, y compris mesures techniques et organisationnelles visant à garantir la sécurité des données
 
 ### 1. Mesures de sécurité mises en œuvre par le sous-traitant (clause 7.4, point a)
 
-{{#block:annex_iii_security}}
+{{annex_iii_security}}
 
 ### 2. Mesures par lesquelles le sous-traitant prête assistance au responsable du traitement (clause 8, point d)
 
-{{#block:annex_iii_assistance}}
+{{annex_iii_assistance}}
 
 ### 3. Éléments communiqués lors de l'assistance en cas de violation de données (clause 9.2)
 
-{{#block:annex_iii_breach_elements}}
+{{annex_iii_breach_elements}}
 
 ## ANNEXE IV — Liste de sous-traitants ultérieurs
 
@@ -371,7 +371,7 @@ ANNEXES_FR = """
 {{#if:has_subprocessors}}
 Le sous-traitant a recours aux sous-traitants ultérieurs énumérés ci-dessous. Toute modification de cette liste est notifiée au responsable du traitement au moins {{sub_processor_notice_period}} à l'avance, conformément à la clause 7.7, point a).
 
-{{#block:subprocessor_schedule}}
+{{#block:dpa_subprocessor_table}}
 {{/if:has_subprocessors}}
 {{#ifnot:has_subprocessors}}
 Le sous-traitant n'a recours à aucun sous-traitant ultérieur pour le traitement décrit à l'annexe II. En cas de changement, le responsable du traitement en sera informé au moins {{sub_processor_notice_period}} à l'avance, conformément à la clause 7.7, point a).
@@ -409,12 +409,13 @@ ANNEXES = {"en": ANNEXES_EN, "fr": ANNEXES_FR}
 
 # Fields the renderer must supply. Kept here so FIELD_SPECS["dpa"] can be checked
 # against the template rather than drifting from it.
+# Only genuinely tabular content is a block. The three Annex III slots are
+# merge fields: a joined string of measure labels and two pieces of prose the
+# client may edit (D-44). Routing editable prose through a block renderer would
+# put it somewhere the client cannot reach.
 EXPECTED_BLOCKS = {
-    "annex_ii_processing",
-    "annex_iii_security",
-    "annex_iii_assistance",
-    "annex_iii_breach_elements",
-    "subprocessor_schedule",
+    "dpa_annex_ii_table",
+    "dpa_subprocessor_table",
 }
 
 EXPECTED_FIELDS = {
@@ -425,6 +426,9 @@ EXPECTED_FIELDS = {
     "dpo_name",
     "dpo_email",
     "sub_processor_notice_period",
+    "annex_iii_security",
+    "annex_iii_assistance",
+    "annex_iii_breach_elements",
 }
 
 # Flags are tested in conditionals, never substituted (template_seed_lib check 1).

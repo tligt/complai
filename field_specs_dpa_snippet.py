@@ -38,6 +38,18 @@ _DPA_FIELDS = [
         required=True,
     ),
 
+    # Annex III part 1. required=True because Clause 7.4(a) obliges the
+    # processor to implement AT LEAST the measures Annex III specifies. An
+    # empty Annex III leaves that obligation with nothing to bite on — the
+    # document is wrong, not merely incomplete, which is the FieldSpec test.
+    FieldSpec("annex_iii_security", "Security measures (Annex III)", required=True),
+
+    # Annex III parts 2 and 3, D-44. Not required: build_values supplies the
+    # RECOSA default, so an absent value means the client cleared it
+    # deliberately, and a placeholder is the right signal for that.
+    FieldSpec("annex_iii_assistance", "Assistance to the controller (Annex III)"),
+    FieldSpec("annex_iii_breach_elements", "Breach notification elements (Annex III)"),
+
     FieldSpec("has_enterprise_number", "Registration number recorded", flag=True),
     FieldSpec("has_dpo", "Has a DPO", flag=True),
 
@@ -52,13 +64,7 @@ _DPA_FIELDS = [
 #     "dpa": _DPA_FIELDS,
 #
 # And in DOC_BLOCKS:
-#     "dpa": (
-#         "annex_ii_processing",
-#         "annex_iii_security",
-#         "annex_iii_assistance",
-#         "annex_iii_breach_elements",
-#         "subprocessor_schedule",
-#     ),
+#     "dpa": ("dpa_annex_ii_table", "dpa_subprocessor_table"),
 
 
 # ---------------------------------------------------------------------------

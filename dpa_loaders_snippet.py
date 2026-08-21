@@ -272,11 +272,11 @@ def dpa_breach_elements_text(language: str) -> str:
 #             for r in inv[key] if r.get("updated_at")
 #         ]
 #         return {
+#             # Consumed by the two block renderers.
 #             "dpa_annex_ii_rows": build_dpa_annex_ii_rows(inv, language),
-#             "dpa_security_measures": build_dpa_security_measures(inv, language),
-#             "dpa_assistance": dpa_assistance_text(language),
-#             "dpa_breach_elements": dpa_breach_elements_text(language),
 #             "dpa_subprocessor_rows": build_dpa_subprocessor_rows(inv, language),
+#             # Read back by build_values() below to fill the Annex III fields.
+#             "dpa_security_measures": build_dpa_security_measures(inv, language),
 #         }, (max(stamps)[:10] if stamps else None)
 #
 # ---------------------------------------------------------------------------
@@ -289,5 +289,14 @@ def dpa_breach_elements_text(language: str) -> str:
 #         values["has_subprocessors"] = bool(ctx.get("dpa_subprocessor_rows"))
 #         values["sub_processor_notice_period"] = format_notice_period(
 #             client.get("sub_processor_notice_days"), language)
+#         values["annex_iii_security"] = ctx.get("dpa_security_measures")
+#         # D-44 defaults. The client's stored text wins where present; the
+#         # default fills the blank. An empty stored string is treated as
+#         # absent by the renderer, so a client who clears the field sees a
+#         # placeholder rather than silently getting RECOSA's wording back.
+#         values["annex_iii_assistance"] = (
+#             client.get("dpa_assistance_text") or dpa_assistance_text(language))
+#         values["annex_iii_breach_elements"] = (
+#             client.get("dpa_breach_elements_text") or dpa_breach_elements_text(language))
 #
 # has_dpo is already set above for every doc_type, so the DPA gets it free.

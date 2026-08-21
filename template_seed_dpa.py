@@ -85,12 +85,13 @@ DOC = TemplateDoc(
         "en": body_from_file("templates/dpa_scc_en.md"),
         "fr": body_from_file("templates/dpa_scc_fr.md"),
     },
+    # Only the two tabular annexes are blocks. Annex III's three slots are
+    # merge fields — a joined measure string and two pieces of client-editable
+    # prose (D-44). check_bodies() rule 4c would flag any block declared here
+    # and not referenced in both bodies.
     blocks={
-        "annex_ii_processing",
-        "annex_iii_security",
-        "annex_iii_assistance",
-        "annex_iii_breach_elements",
-        "subprocessor_schedule",
+        "dpa_annex_ii_table",
+        "dpa_subprocessor_table",
     },
     change_note=(
         "Initial version (S26A). Clauses 1-10 transcribed from Commission "
