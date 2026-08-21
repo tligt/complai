@@ -3,11 +3,14 @@
 # Runs the S26A authoring chain and hands back the SQL as a download.
 # Manual trigger only — seeds are authored deliberately, not on every push.
 #
-# The whole chain runs from a clean checkout with nothing placed by hand: the
-# Official Journal text is downloaded, the template bodies are derived from it,
-# and the seed SQL is emitted. That is the stronger form of D-42 — if EUR-Lex
-# ever changes the text, the diff step shows it rather than the build silently
-# agreeing with a stale committed file.
+# INPUT: templates/raw/dpa_scc_{en,fr}.oj.md, committed to the repo.
+#
+# Those files are NOT downloaded here. EUR-Lex blocks automated fetching, and
+# in any case Decision 2021/915 has not changed since June 2021 and will not
+# change without a new instrument. They are a pinned build input, produced once
+# by extract_oj_pdf.py from the Official Journal PDF. Re-running that script is
+# a check, not a build step: if it produces a diff, either the PDF or the
+# extraction changed, and both are worth knowing about.
 
 name: Seed — DPA (S26A)
 
@@ -27,21 +30,28 @@ jobs:
         with:
           python-version: "3.12"
 
-      # No pip install. These scripts import only the standard library and
-      # each other — template_seed_lib pulls FIELD_SPECS from template_store,
-      # which imports template_renderer, and none of those touch supabase or
-      # streamlit at import time. If this step ever needs requirements.txt,
-      # something has leaked a runtime dependency into the authoring layer.
+      # No pip install. These scripts import only the standard library and each
+      # other — template_seed_lib pulls FIELD_SPECS from template_store, which
+      # imports template_renderer, and none of those touch supabase or streamlit
+      # at import time. If this job ever needs requirements.txt, something has
+      # leaked a runtime dependency into the authoring layer.
+
+      - name: Confirm the Official Journal text is committed
+        run: |
+          for f in templates/raw/dpa_scc_en.oj.md templates/raw/dpa_scc_fr.oj.md; do
+            test -s "$f" || { echo "missing or empty: $f"; exit 1; }
+            echo "$(wc -c < "$f") bytes  $f"
+          done
 
       - name: Self-test the patch anchors
         run: python template_seed_dpa_patch.py --self-test
 
-      - name: Fetch the Official Journal text
-        run: python fetch_oj_text.py
-
       - name: Generate the template bodies
         run: python template_seed_dpa_patch.py
 
+      # The D-42 artefact. This should show ONLY the six documented edits plus
+      # the annex replacement. Anything else in here is a defect — read it,
+      # do not just check that the step went green.
       - name: Show the diff against the Official Journal text
         run: |
           echo "--- EN ---"
@@ -62,19 +72,16 @@ jobs:
           name: seed_s26a_dpa
           path: |
             seed_s26a_dpa.sql
-            templates/raw/dpa_scc_en.oj.md
-            templates/raw/dpa_scc_fr.oj.md
             templates/dpa_scc_en.md
             templates/dpa_scc_fr.md
 
-      # Committed so the body is reviewable in a pull request, which is the
-      # reason it left the Python string literal in the first place. Committing
-      # nothing means the files already matched.
-      - name: Commit the fetched and regenerated templates
+      # Committed so the body is reviewable in a pull request, which is why it
+      # left the Python string literal in the first place. Committing nothing
+      # means the generated files already matched.
+      - name: Commit the regenerated templates
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add templates/raw/dpa_scc_en.oj.md templates/raw/dpa_scc_fr.oj.md
           git add templates/dpa_scc_en.md templates/dpa_scc_fr.md
-          git diff --staged --quiet || git commit -m "S26A: fetch OJ text and regenerate DPA template bodies"
+          git diff --staged --quiet || git commit -m "S26A: regenerate DPA template bodies"
           git push
