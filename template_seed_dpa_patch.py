@@ -149,6 +149,27 @@ def normalise(text: str) -> str:
     return text.strip()
 
 
+def _balance_parens(text: str) -> str:
+    """Close a parenthesis the OJ left open.
+
+    The French Clause 1(a) closes OPTION 1 with a square bracket where a round
+    one belongs: "(règlement général sur la protection des données]". The
+    bracket is the option delimiter, so resolving the option consumes it and
+    the sentence is left with an unclosed "(".
+
+    This is an OJ typesetting error, not a drafting choice — the English text
+    closes the same parenthesis correctly. Restoring it is a rendering repair.
+    Left alone, a signed French contract carries a visibly malformed sentence
+    in its first substantive clause, which is exactly the kind of thing a
+    counterparty's lawyer notices first.
+
+    Only ever ADDS a closing paren, never removes one, so a correctly balanced
+    text passes through untouched.
+    """
+    deficit = text.count("(") - text.count(")")
+    return text + ")" * deficit if deficit > 0 else text
+
+
 def resolve_options(text: str, cfg: dict, label: str) -> str:
     """E1 + E2 — collapse every marked OPTION 1/OPTION 2 pair to OPTION 1.
 
@@ -157,7 +178,9 @@ def resolve_options(text: str, cfg: dict, label: str) -> str:
     format, the count assertion fails loudly rather than emitting a contract
     with an unresolved '[OPTION 1] ... / [OPTION 2] ...' left in it.
     """
-    text, n1 = cfg["clause1_option"].subn(lambda m: m.group("one").strip(), text)
+    text, n1 = cfg["clause1_option"].subn(
+        lambda m: _balance_parens(m.group("one").strip()), text
+    )
     if n1 != 1:
         raise PatchError(f"{label}: Clause 1(a) option block matched {n1} times, expected 1")
 
