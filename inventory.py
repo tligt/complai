@@ -400,7 +400,11 @@ def seed_rows_for(catalogue_key: str, lang: str = "en") -> tuple[dict, list[dict
             # Blank wherever the vendor does not determine the period. The
             # client must supply it — validate_activity requires it — and
             # _retention_is_statutory tells the caller which message to show.
-            "retention_period": pick(a, "retention_period"),
+            #
+            # S26C: structured, and no basis code. The catalogue may know how
+            # long a tool keeps data; it never knows why the client chose to.
+            "retention_value": a.get("retention_value"),
+            "retention_unit": a.get("retention_unit"),
             # Catalogue activities describe what the CLIENT does with a tool,
             # so the client is the controller. A processor-side activity is
             # something the client does for its own customers and has no

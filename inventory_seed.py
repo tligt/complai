@@ -496,8 +496,20 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["device_technical", "usage_behavioural", "location"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": "14 months",
-                "retention_period_fr": "14 mois",
+                # S26C. Structured, not prose. 14 months is Google's own
+                # default retention setting — a vendor fact, which is why the
+                # catalogue states it at all.
+                #
+                # No basis code. WHY a client keeps analytics data 14 months is
+                # a client fact nobody has decided yet, and no code fits
+                # honestly: business_need_reviewed would assert a periodic
+                # review that is not happening, and regulatory_guidance would
+                # be wrong because CNIL's cookie guidance is 13 months, not 14.
+                # Left null so it surfaces as a gap the client fills, which is
+                # the same rule the catalogue already applies to every period a
+                # vendor does not determine.
+                "retention_value": 14,
+                "retention_unit": "months",
                 "system_role": "processor",
             },
         ],
@@ -550,8 +562,8 @@ VENDOR_CATALOGUE = [
                 "special_categories": [],
                 "art9_condition": None,
                 # Client policy, not a Microsoft fact. Blank by principle.
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "system_role": "processor",
             },
             {
@@ -566,8 +578,8 @@ VENDOR_CATALOGUE = [
                 "art9_condition": None,
                 # Not a period at all — a pointer to a schedule the client
                 # may not have written. Blank by principle.
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "system_role": "processor",
             },
             {
@@ -588,8 +600,8 @@ VENDOR_CATALOGUE = [
                 # national law, not by Microsoft — 5 years in Belgium, other
                 # periods elsewhere — so a catalogue default would be wrong
                 # for some clients. See CATALOGUE_PRINCIPLES["retention"].
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -604,8 +616,8 @@ VENDOR_CATALOGUE = [
                 "special_categories": [],
                 "art9_condition": None,
                 # Client policy, not a Microsoft fact. Blank by principle.
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "system_role": "processor",
             },
         ],
@@ -646,8 +658,8 @@ VENDOR_CATALOGUE = [
                 # Belgian social-document retention is 5 years, but a French
                 # client on a French payroll bureau has a different period.
                 # Statutory, therefore not a vendor default.
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -701,8 +713,8 @@ VENDOR_CATALOGUE = [
                                     "contractual", "usage_behavioural"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -717,8 +729,8 @@ VENDOR_CATALOGUE = [
                                     "usage_behavioural"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -768,8 +780,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -823,8 +835,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["device_technical", "usage_behavioural"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "joint_controller",
             },
@@ -871,8 +883,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["device_technical", "usage_behavioural", "employment"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "joint_controller",
             },
@@ -929,8 +941,8 @@ VENDOR_CATALOGUE = [
                 "art9_condition": None,
                 # Accounting retention is statutory and differs by country
                 # (7 years in Belgium, 10 in France for some records).
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -975,8 +987,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "financial", "transaction"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -1023,8 +1035,8 @@ VENDOR_CATALOGUE = [
                                     "transaction", "contractual"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -1059,8 +1071,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "financial", "transaction"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -1105,8 +1117,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["device_technical", "usage_behavioural"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1155,8 +1167,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "device_technical"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1202,8 +1214,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "communications_content"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1217,8 +1229,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "contractual"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1233,8 +1245,8 @@ VENDOR_CATALOGUE = [
                                     "employment", "education_training", "financial"],
                 "special_categories": ["health"],
                 "art9_condition": "employment_social_security",
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -1276,8 +1288,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["identity", "contact", "communications_content"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1327,8 +1339,8 @@ VENDOR_CATALOGUE = [
                                     "contractual"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1368,8 +1380,8 @@ VENDOR_CATALOGUE = [
                                     "financial", "employment"],
                 "special_categories": ["health"],
                 "art9_condition": "employment_social_security",
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -1407,8 +1419,8 @@ VENDOR_CATALOGUE = [
                                     "financial", "employment"],
                 "special_categories": ["health"],
                 "art9_condition": "employment_social_security",
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": True,
                 "system_role": "processor",
             },
@@ -1469,8 +1481,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["communications_content"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1527,8 +1539,8 @@ VENDOR_CATALOGUE = [
                 "data_categories": ["communications_content"],
                 "special_categories": [],
                 "art9_condition": None,
-                "retention_period_en": None,
-                "retention_period_fr": None,
+                "retention_value": None,
+                "retention_unit": None,
                 "retention_is_statutory": False,
                 "system_role": "processor",
             },
@@ -1876,15 +1888,15 @@ def emit_sql() -> str:
             acols = (
                 "catalogue_id, name_en, name_fr, purpose_en, purpose_fr, legal_basis, "
                 "data_subject_categories, data_categories, special_categories, "
-                "art9_condition, retention_period_en, retention_period_fr, "
+                "art9_condition, retention_value, retention_unit, "
                 "retention_is_statutory, system_role, sort_order"
             )
             avals = ", ".join(_q(x) for x in [
                 a["name_en"], a.get("name_fr"), a.get("purpose_en"), a.get("purpose_fr"),
                 a.get("legal_basis"), a.get("data_subject_categories", []),
                 a.get("data_categories", []), a.get("special_categories", []),
-                a.get("art9_condition"), a.get("retention_period_en"),
-                a.get("retention_period_fr"), a.get("retention_is_statutory", False),
+                a.get("art9_condition"), a.get("retention_value"),
+                a.get("retention_unit"), a.get("retention_is_statutory", False),
                 a.get("system_role", "processor"), j,
             ])
             w(f"INSERT INTO vendor_catalogue_activities ({acols})")
@@ -1896,8 +1908,8 @@ def emit_sql() -> str:
             w("    data_categories = EXCLUDED.data_categories,")
             w("    special_categories = EXCLUDED.special_categories,")
             w("    art9_condition = EXCLUDED.art9_condition,")
-            w("    retention_period_en = EXCLUDED.retention_period_en,")
-            w("    retention_period_fr = EXCLUDED.retention_period_fr,")
+            w("    retention_value = EXCLUDED.retention_value,")
+            w("    retention_unit = EXCLUDED.retention_unit,")
             w("    retention_is_statutory = EXCLUDED.retention_is_statutory,")
             w("    system_role = EXCLUDED.system_role, sort_order = EXCLUDED.sort_order;")
 
@@ -1984,10 +1996,27 @@ def self_check() -> list[str]:
             # activity cannot both declare its period statutory and carry a
             # hardcoded default, or the default silently wins for every client
             # regardless of country.
-            if a.get("retention_is_statutory") and a.get("retention_period_en"):
+            if a.get("retention_is_statutory") and a.get("retention_unit"):
                 errors.append(
                     f"{v['key']}/{a['name_en']}: retention marked statutory but "
                     f"a default period is set"
+                )
+            # S26C. Structured retention can be half-set in ways prose could
+            # not, and a half-set period is worse than none: it renders as a
+            # bare number or vanishes, and the register is where that shows up.
+            if a.get("retention_value") is not None and not a.get("retention_unit"):
+                errors.append(
+                    f"{v['key']}/{a['name_en']}: retention_value without a unit"
+                )
+            if (a.get("retention_unit") not in (None, "indefinite")
+                    and a.get("retention_value") is None):
+                errors.append(
+                    f"{v['key']}/{a['name_en']}: retention_unit without a value"
+                )
+            if a.get("retention_unit") and a["retention_unit"] not in codes["retention_unit"]:
+                errors.append(
+                    f"{v['key']}/{a['name_en']}: unknown retention_unit "
+                    f"{a['retention_unit']!r}"
                 )
 
     seen_keys = set()

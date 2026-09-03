@@ -611,7 +611,11 @@ def seed_from_catalogue(
         # determine — those are client facts, not vendor facts. The activity
         # is still created so the client can complete it; the gap belongs in
         # the readiness figures, not in a blocked seed.
-        if not (payload.get("retention_period") or "").strip():
+        # S26C: the test is now the structured unit, not the prose. Reading
+        # retention_period here after the catalogue stopped writing it would
+        # have made this branch fire for EVERY seeded activity, appending the
+        # guidance note to rows that already carry a period.
+        if not payload.get("retention_unit"):
             # Guidance goes in NOTES, not retention_basis.
             #
             # retention_basis is an Art. 30(1)(f) column: it states WHY a
