@@ -180,7 +180,14 @@ def _load_inventory(client_id: str) -> dict[str, Any]:
             "id, name, purpose, legal_basis, controller_role, "
             "data_subject_categories, data_categories, special_categories, "
             "art9_condition, criminal_data, retention_period, retention_basis, "
-            "security_measures, counterparty_register_note, updated_at",
+            "security_measures, counterparty_register_note, updated_at, "
+            # S26C. The legacy name/purpose/retention_* columns above are still
+            # selected: they are the fallback for every row not yet revisited
+            # through the new form, and D-48 declined to backfill retention.
+            "name_i18n, purpose_i18n, translation_status, "
+            "retention_value, retention_unit, retention_basis_code, "
+            "retention_archive_value, retention_archive_unit, "
+            "retention_archive_basis_code",
         ),
         "systems": _fetch(
             "systems",
@@ -195,6 +202,159 @@ def _load_inventory(client_id: str) -> dict[str, Any]:
         ),
         "cp_links": _fetch("activity_counterparties", "activity_id, counterparty_id"),
     }
+
+
+# ---------------------------------------------------------------------------
+# S26C — per-language text and structured retention
+# ---------------------------------------------------------------------------
+
+def _i18n(row: Mapping[str, Any], field: str, language: str) -> str | None:
+    """Client free text in `language`, falling back to the legacy column.
+
+    Resolution order: the requested language, then English, then the legacy
+    single-language column. English is the middle step because it is what the
+    S26C backfill assumed for text recorded before the split (D-48) — so a row
+    that has never been through the new form resolves through the fallback,
+    not to a blank cell.
+
+    A blank cell would be the worse failure. Art. 30(1)(b) asks for the
+    purpose; text in the wrong language answers it awkwardly, and no text does
+    not answer it at all.
+    """
+    blob = row.get(f"{field}_i18n") or {}
+    if isinstance(blob, Mapping):
+        for lang in (language, "en"):
+            val = blob.get(lang)
+            if val and str(val).strip():
+                return str(val).strip()
+    legacy = row.get(field)
+    return str(legacy).strip() if legacy and str(legacy).strip() else None
+
+
+def _is_unreviewed(row: Mapping[str, Any], field: str, language: str) -> bool:
+    """True when the text `_i18n` just returned is machine output nobody read.
+
+    Only true for the language actually rendered. A French document carrying
+    an unreviewed French purpose is a problem; an unreviewed German one sitting
+    unused in the same row is not.
+    """
+    status = row.get("translation_status") or {}
+    if not isinstance(status, Mapping):
+        return False
+    blob = row.get(f"{field}_i18n") or {}
+    resolved = language if (isinstance(blob, Mapping) and blob.get(language)) else "en"
+    return (status.get(field) or {}).get(resolved) == "machine_unreviewed"
+
+
+# Units carry singular and plural per language rather than living in
+# reference_values, because one label column cannot express "1 an" / "2 ans".
+# Closed set: the CHECK constraint on processing_activities.retention_unit
+# enforces the same four, and a client must never be able to add one.
+_RETENTION_UNITS: dict[str, dict[str, tuple[str, str]]] = {
+    "en": {"days": ("day", "days"), "months": ("month", "months"),
+           "years": ("year", "years")},
+    "fr": {"days": ("jour", "jours"), "months": ("mois", "mois"),
+           "years": ("an", "ans")},
+    "nl": {"days": ("dag", "dagen"), "months": ("maand", "maanden"),
+           "years": ("jaar", "jaar")},
+    "de": {"days": ("Tag", "Tage"), "months": ("Monat", "Monate"),
+           "years": ("Jahr", "Jahre")},
+}
+
+_RETENTION_INDEFINITE = {
+    "en": "No fixed end date",
+    "fr": "Sans terme fixe",
+    "nl": "Geen vaste einddatum",
+    "de": "Kein festes Enddatum",
+}
+
+# Phase labels, used ONLY when an activity has both phases. A single-phase
+# activity renders bare, so the common case reads exactly as it did before
+# S26C and the labels appear where they carry information.
+_RETENTION_PHASES = {
+    "en": ("In active use", "Then archived"),
+    "fr": ("En base active", "Puis archivage"),
+    "nl": ("In actief gebruik", "Daarna gearchiveerd"),
+    "de": ("Aktive Nutzung", "Danach archiviert"),
+}
+
+
+def format_retention(value: int | None, unit: str | None, language: str) -> str | None:
+    """One retention phase as text. Shaped like format_notice_period()."""
+    if not unit:
+        return None
+    lang = language if language in _RETENTION_UNITS else "en"
+    if unit == "indefinite":
+        return _RETENTION_INDEFINITE.get(lang, _RETENTION_INDEFINITE["en"])
+    if value is None:
+        return None
+    forms = _RETENTION_UNITS[lang].get(unit)
+    if not forms:
+        # A unit the CHECK constraint allows but this table does not know.
+        # Says so rather than dropping the period silently: a missing
+        # retention period in a filed register is a finding.
+        return f"{value} {unit}"
+    return f"{value} {forms[0] if value == 1 else forms[1]}"
+
+
+def _basis_label(code: str | None, free_text: str | None, language: str) -> str | None:
+    """A retention basis, preferring the coded vocabulary over free text."""
+    if code:
+        from inventory import label_for  # noqa: PLC0415
+        label = label_for("retention_basis", code, language)
+        if code == "other" and free_text:
+            # 'other' is the escape hatch, and its whole value is the text the
+            # client wrote. Rendering the label alone would file "Other" as a
+            # legal basis, which is not one.
+            return f"{label}: {_clean_retention_basis(free_text)}" if _clean_retention_basis(free_text) else label
+        return label
+    return _clean_retention_basis(free_text)
+
+
+def build_retention_cells(
+    row: Mapping[str, Any], language: str
+) -> tuple[str | None, str | None]:
+    """(period, basis) for an activity, covering both phases.
+
+    D-49: retention has an active phase and an optional archive phase, with
+    different durations AND different bases. Both cells label the phases only
+    when there are two, so a single-phase activity reads as it always did.
+
+    Falls back whole to the legacy free text when nothing structured has been
+    recorded. D-48 deliberately did not backfill, so mixed rows are the
+    expected state for as long as it takes clients to revisit their activities
+    — not a transient to be coded around.
+    """
+    lang = language if language in _RETENTION_PHASES else "en"
+
+    active = format_retention(row.get("retention_value"), row.get("retention_unit"), lang)
+    archive = format_retention(
+        row.get("retention_archive_value"), row.get("retention_archive_unit"), lang)
+
+    if active is None and archive is None:
+        return (
+            (str(row["retention_period"]).strip()
+             if row.get("retention_period") else None),
+            _clean_retention_basis(row.get("retention_basis")),
+        )
+
+    active_basis = _basis_label(
+        row.get("retention_basis_code"), row.get("retention_basis"), lang)
+    archive_basis = _basis_label(
+        row.get("retention_archive_basis_code"), None, lang)
+
+    if archive is None:
+        return active, active_basis
+
+    a_label, b_label = _RETENTION_PHASES[lang]
+    period = f"{a_label}: {active or '—'}; {b_label.lower()}: {archive}"
+    basis = "; ".join(
+        f"{lbl.lower() if i else lbl}: {val}"
+        for i, (lbl, val) in enumerate(
+            ((a_label, active_basis), (b_label, archive_basis)))
+        if val
+    ) or None
+    return period, basis
 
 
 # Guidance strings a pre-S26 catalogue seed wrote into retention_basis. They
@@ -272,7 +432,9 @@ def build_ropa_controller_rows(
         links_by_activity.setdefault(l["activity_id"], []).append(l)
 
     rows: list[dict[str, Any]] = []
-    for a in sorted(inv["activities"], key=lambda r: (r.get("name") or "")):
+    for a in sorted(
+        inv["activities"], key=lambda r: (_i18n(r, "name", language) or "")
+    ):
         if a.get("controller_role") == "processor":
             continue
 
@@ -293,9 +455,19 @@ def build_ropa_controller_rows(
         specials = _labels("special_category", a.get("special_categories"), language)
         criminal = _labels("criminal_data", a.get("criminal_data"), language)
 
+        _period, _basis = build_retention_cells(a, language)
         rows.append({
-            "name": a.get("name"),
-            "purpose": a.get("purpose"),
+            "name": _i18n(a, "name", language),
+            "purpose": _i18n(a, "purpose", language),
+            # Surfaced per row so a caller can tell the reader that some text
+            # in front of them is machine output nobody has confirmed. Not yet
+            # rendered by any template body — wiring it in needs a re-seed, and
+            # until then the flag travels with the data rather than being
+            # recomputed somewhere else later.
+            "unreviewed": (
+                _is_unreviewed(a, "name", language)
+                or _is_unreviewed(a, "purpose", language)
+            ),
             "data_subjects": _labels(
                 "data_subject_category", a.get("data_subject_categories"), language),
             "data_categories": ", ".join(
@@ -311,8 +483,8 @@ def build_ropa_controller_rows(
             ),
             "recipients": "; ".join(recipients) or None,
             "transfers": "; ".join(transfers) or None,
-            "retention_period": a.get("retention_period"),
-            "retention_basis": _clean_retention_basis(a.get("retention_basis")),
+            "retention_period": _period,
+            "retention_basis": _basis,
             "security_measures": _labels(
                 "security_measure", a.get("security_measures"), language),
         })
@@ -378,8 +550,12 @@ def build_ropa_processor_groups(
             "controller_name": cp.get("legal_name"),
             "contact_name": cp.get("contact_name"),
             "contact_email": cp.get("contact_email"),
+            # Art. 30(2)(b) categories of processing, which are the activity
+            # names. Resolved per language: these reach the processor register
+            # and are the same text Annex II of a DPA carries.
             "processing_categories": "; ".join(
-                sorted({a.get("name") or "" for a in acts} - {""})) or None,
+                sorted({_i18n(a, "name", language) or "" for a in acts} - {""})
+            ) or None,
             "transfers": "; ".join(transfers) or None,
             "security_measures": _labels(
                 "security_measure", sorted(measures), language),
