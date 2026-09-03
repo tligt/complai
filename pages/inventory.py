@@ -51,6 +51,7 @@ from auth import get_user_id
 from database import load_clients
 import inventory as INV
 import inventory_store as STORE
+import translate as TR
 
 st.title("Systems, activities and controllers")
 st.caption(
@@ -108,6 +109,36 @@ if lang not in INV.LANGUAGES:
     # label_{lang} by direct lookup — a bad code yields a dict of None labels
     # and every dropdown renders blank. Normalise once here.
     lang = "en"
+
+
+# S26C. Every language this client's DOCUMENTS are produced in — which is not
+# the same question as which language they are reading the app in. A Flemish
+# client working in English still needs Dutch documents, and it is the document
+# set that decides what has to be translated.
+doc_langs = [
+    l for l in (_client.get("document_languages") or [lang])
+    if l in INV.LANGUAGES
+] or [lang]
+if lang not in doc_langs:
+    # The client is authoring in a language their documents are not produced
+    # in. Keep it: throwing away what they just typed would be worse, and
+    # _i18n() falls back through it rather than rendering a blank cell.
+    doc_langs = [lang] + doc_langs
+
+
+def _i18n_get(row: dict, field: str, language: str) -> str:
+    """Stored text for one language, falling back to the legacy column."""
+    blob = (row or {}).get(f"{field}_i18n") or {}
+    if isinstance(blob, dict):
+        val = blob.get(language)
+        if val and str(val).strip():
+            return str(val).strip()
+    if language == lang:
+        # Only the language being authored in falls back to the legacy column.
+        # Showing English text in a French box would invite the client to
+        # "correct" it and silently overwrite the English.
+        return str((row or {}).get(field) or "")
+    return ""
 
 
 # ── Data ──────────────────────────────────────────────────────────────────
@@ -328,7 +359,9 @@ with tab_activities:
     if activities:
         summary = pd.DataFrame([
             {
-                "Activity": a["name"],
+                "Activity": (
+                    (a.get("name_i18n") or {}).get(lang) or a.get("name") or "—"
+                ),
                 "Your role": role_labels.get(a.get("controller_role"), a.get("controller_role") or "—"),
                 "Legal basis": basis_labels.get(a.get("legal_basis"), a.get("legal_basis") or "—"),
                 "Art. 9": "Yes" if a.get("special_categories") else "",
@@ -338,9 +371,27 @@ with tab_activities:
                     else "Incomplete" if a["id"] in gap_ids
                     else "Complete"
                 ),
+                # S26C. A translation nobody has read is outstanding work, and
+                # until the task register exists this column is the only place
+                # it is visible. Deliberately separate from Status: an
+                # untranslated purpose does not make the register wrong, it
+                # makes one language version of it thinner than the other.
+                "Translations": (
+                    f"{_n} to review" if (_n := len(TR.outstanding(
+                        {"name": a.get("name_i18n") or {},
+                         "purpose": a.get("purpose_i18n") or {}},
+                        a.get("translation_status") or {},
+                        ["name", "purpose"],
+                        [l for l in doc_langs if l != lang],
+                    ))) else ""
+                ),
             }
             for a in activities
         ])
+        if len(doc_langs) < 2:
+            # One document language: the column is always blank and reads as a
+            # feature the client is failing at rather than one not in use.
+            summary = summary.drop(columns=["Translations"])
         st.dataframe(summary, hide_index=True, width="stretch")
     else:
         st.info("No processing activities yet. Add one below, or seed them from a catalogue tool.")
@@ -418,10 +469,57 @@ with tab_activities:
         )
 
     with st.form(form_key):
-        name = st.text_input("Activity name", value=(existing or {}).get("name") or "")
-        purpose = st.text_area("Purpose", value=(existing or {}).get("purpose") or "", height=70)
-
         a = existing or {}
+        _status = a.get("translation_status") or {}
+
+        # The language the client is working in stays the primary input, in the
+        # same place it has always been. Other document languages live in an
+        # expander below: for a single-language client nothing changes at all,
+        # and for the rest the translation is one click away rather than a
+        # second form to fill before saving.
+        name = st.text_input(
+            "Activity name" + (f" ({lang.upper()})" if len(doc_langs) > 1 else ""),
+            value=_i18n_get(a, "name", lang),
+        )
+        purpose = st.text_area(
+            "Purpose" + (f" ({lang.upper()})" if len(doc_langs) > 1 else ""),
+            value=_i18n_get(a, "purpose", lang),
+            height=70,
+        )
+
+        other_langs = [l for l in doc_langs if l != lang]
+        translations: dict[str, dict[str, str]] = {}
+        if other_langs:
+            _pending = TR.outstanding(
+                {"name": a.get("name_i18n") or {}, "purpose": a.get("purpose_i18n") or {}},
+                _status, ["name", "purpose"], other_langs,
+            )
+            with st.expander(
+                "Other document languages"
+                + (f" — {len(_pending)} to review" if _pending else ""),
+                expanded=bool(_pending) and aid is not None,
+            ):
+                st.caption(
+                    "These appear in documents produced in that language. "
+                    "Drafts are proposed on save and marked below until you "
+                    "confirm them — editing and saving is what confirms one."
+                )
+                for l in other_langs:
+                    st.markdown(f"**{TR.LANGUAGE_NAMES.get(l, l)}**")
+                    for field, label, height in (
+                        ("name", "Activity name", None), ("purpose", "Purpose", 70),
+                    ):
+                        if (_status.get(field, {}) or {}).get(l) == "machine_unreviewed":
+                            st.caption(":orange[Awaiting your review]")
+                        kwargs = {
+                            "value": _i18n_get(a, field, l),
+                            "key": f"inv_act_{field}_{l}_{aid or 'new'}",
+                        }
+                        translations.setdefault(l, {})[field] = (
+                            st.text_area(f"{label} ({l.upper()})", height=height, **kwargs)
+                            if height else
+                            st.text_input(f"{label} ({l.upper()})", **kwargs)
+                        )
 
         col_a, col_b = st.columns(2)
         with col_a:
@@ -496,15 +594,88 @@ with tab_activities:
             format_func=lambda c: crim_labels.get(c, c),
         )
 
-        col_c, col_d = st.columns(2)
-        with col_c:
-            retention = st.text_input("Retention period", value=a.get("retention_period") or "")
-        with col_d:
-            retention_basis = st.text_input(
-                "Why that period", value=a.get("retention_basis") or "",
-                help="The rule or reason — a statutory limitation period, a contract term.",
+        # --- Retention (S26C) ----------------------------------------------
+        # Two phases, not one period (D-49). CNIL's model separates the base
+        # active — where data is used day to day — from archivage
+        # intermédiaire, where it is kept for a legal reason after active use
+        # ends. The two have different durations AND different bases, and
+        # collapsing them either overstates how long data is in use or
+        # understates how long it is held.
+        st.markdown("**Retention**")
+        st.caption(
+            "How long the data is actively used, and — separately — how long "
+            "it is kept afterwards for a legal reason. Most activities have "
+            "only the first."
+        )
+
+        # Both vocabularies come from reference_values, already ordered by
+        # sort_order, so the dropdowns show statutory bases before the
+        # discretionary ones — the order the seed author chose, not
+        # alphabetical.
+        _unit_all, _unit_labels = INV.options_for("retention_unit", lang, client_id)
+        _basis_all, _basis_labels = INV.options_for("retention_basis", lang, client_id)
+        _unit_codes = [None] + _unit_all
+        _basis_codes = [None] + _basis_all
+
+        def _retention_row(prefix: str, heading: str, help_text: str):
+            st.caption(heading)
+            c1, c2, c3 = st.columns([1, 1, 3])
+            with c1:
+                v = st.number_input(
+                    "Number", min_value=0, step=1,
+                    value=int(a.get(f"{prefix}value") or 0),
+                    key=f"inv_act_{prefix}value_{aid or 'new'}",
+                    help=help_text,
+                )
+            with c2:
+                _u = a.get(f"{prefix}unit")
+                u = st.selectbox(
+                    "Unit", options=_unit_codes,
+                    index=_unit_codes.index(_u) if _u in _unit_codes else 0,
+                    format_func=lambda c: "—" if c is None else _unit_labels.get(c, c),
+                    key=f"inv_act_{prefix}unit_{aid or 'new'}",
+                )
+            with c3:
+                _b = a.get(f"{prefix}basis_code")
+                b = st.selectbox(
+                    "Why that period", options=_basis_codes,
+                    index=_basis_codes.index(_b) if _b in _basis_codes else 0,
+                    format_func=lambda c: "—" if c is None else _basis_labels.get(c, c),
+                    key=f"inv_act_{prefix}basis_{aid or 'new'}",
+                )
+            if b:
+                _n = INV.note_for("retention_basis", b, lang, client_id)
+                if _n:
+                    st.caption(_n)
+            # 0 is the number_input's floor, not a period. Returned as None so
+            # the CHECK constraint never sees a zero-length retention.
+            return (v or None), u, b
+
+        ret_value, ret_unit, ret_basis_code = _retention_row(
+            "retention_", "While in active use",
+            "How long the data is actually used for this activity.",
+        )
+        arc_value, arc_unit, arc_basis_code = _retention_row(
+            "retention_archive_", "Then kept for (optional)",
+            "Leave the unit blank if there is no archiving phase.",
+        )
+
+        # Free text kept editable only where it is still the record. D-48 did
+        # not backfill, so a row that has never been through this form carries
+        # its old sentence, and hiding it would make the register look emptier
+        # than it is.
+        retention_legacy = a.get("retention_period") or ""
+        basis_legacy = a.get("retention_basis") or ""
+        if retention_legacy and not a.get("retention_unit"):
+            st.warning(
+                "This activity still records its retention as free text: "
+                f"*{retention_legacy}*"
+                + (f" — *{basis_legacy}*" if basis_legacy else "")
+                + ". Setting the fields above replaces it, and only then can "
+                "the period be produced correctly in every language."
             )
-        if not (a.get("retention_period") or "").strip():
+
+        if not (a.get("retention_unit") or a.get("retention_period")):
             _rp = INV.principle("retention", lang)
             if _rp:
                 st.caption(_rp["body"])
@@ -551,14 +722,78 @@ with tab_activities:
             deleted = st.form_submit_button("Delete") if aid else False
 
     if saved:
+        # --- S26C: assemble the per-language blobs -------------------------
+        # Anything the client typed in this submit is theirs, in every
+        # language box, so it is marked human. That is what makes editing a
+        # proposed translation the act of confirming it — there is no separate
+        # "approve" control to forget to press.
+        _i18n = {
+            "name": dict((a.get("name_i18n") or {})),
+            "purpose": dict((a.get("purpose_i18n") or {})),
+        }
+        _st = {f: dict(v) for f, v in (a.get("translation_status") or {}).items()}
+
+        for field, value in (("name", name), ("purpose", purpose)):
+            if (value or "").strip():
+                _i18n[field][lang] = value.strip()
+                _st.setdefault(field, {})[lang] = "human"
+
+        for l, fields in translations.items():
+            for field, value in fields.items():
+                before = (_i18n.get(field, {}) or {}).get(l) or ""
+                if (value or "").strip():
+                    _i18n[field][l] = value.strip()
+                    if value.strip() != before.strip():
+                        # Changed in the box: reviewed, whatever it was before.
+                        _st.setdefault(field, {})[l] = "human"
+                elif before:
+                    # Cleared deliberately. Drop the text AND the status,
+                    # rather than leaving a stale flag pointing at nothing.
+                    _i18n[field].pop(l, None)
+                    _st.get(field, {}).pop(l, None)
+
+        # --- Draft anything still missing ----------------------------------
+        # Failure is not an error (D-53 and the translate module contract): the
+        # save goes through with the translation outstanding, which is why the
+        # summary table below reports it. Blocking here would mean the whole
+        # inventory form stops working whenever Mistral is slow.
+        _todo = [
+            l for l in doc_langs
+            if l != lang and not (
+                (_i18n["name"].get(l) or "").strip()
+                and (_i18n["purpose"].get(l) or "").strip()
+            )
+        ]
+        if _todo and ((name or "").strip() or (purpose or "").strip()):
+            with st.spinner("Drafting the other language versions…"):
+                _drafts = TR.translate_fields(
+                    {"name": name, "purpose": purpose},
+                    source_lang=lang,
+                    target_langs=_todo,
+                    user_id=user_id,
+                    client_id=client_id,
+                )
+            _i18n, _st = TR.apply_translations(_i18n, _st, _drafts)
+
         row = {
             "name": name, "purpose": purpose, "legal_basis": basis,
             "legitimate_interest_note": li_note, "controller_role": ctrl,
             "data_subject_categories": subjects, "data_categories": categories,
             "special_categories": specials, "art9_condition": art9,
-            "criminal_data": criminal, "retention_period": retention,
-            "retention_basis": retention_basis, "security_measures": measures,
+            "criminal_data": criminal, "security_measures": measures,
             "counterparty_register_note": register_note, "notes": notes,
+            "name_i18n": _i18n["name"], "purpose_i18n": _i18n["purpose"],
+            "translation_status": _st,
+            "retention_value": ret_value, "retention_unit": ret_unit,
+            "retention_basis_code": ret_basis_code,
+            "retention_archive_value": arc_value,
+            "retention_archive_unit": arc_unit,
+            "retention_archive_basis_code": arc_basis_code,
+            # The legacy columns are written through unchanged. validate_activity
+            # reads name, and _i18n() in template_store falls back to them for
+            # any language the client has not filled in.
+            "retention_period": a.get("retention_period"),
+            "retention_basis": a.get("retention_basis"),
         }
         new_id, errs = STORE.save_activity(
             row, system_roles, user_id, client_id, aid,
