@@ -42,6 +42,194 @@ from __future__ import annotations
 
 VOCABULARIES: dict[str, list[tuple]] = {
 
+    # ── Retention basis (S26C) ────────────────────────────────────────────
+    # Art. 30(1)(f) asks for the envisaged erasure time limits. The PERIOD is
+    # the client's number, in retention_value; this vocabulary is the REASON.
+    #
+    # D-50: NO CODE STATES A PERIOD.
+    #
+    # Belgium is why. Art. III.86 of the Code de droit economique requires
+    # accounting books to be kept seven years. The law of 20 November 2022
+    # extended tax and VAT retention to ten years from 1 January 2023,
+    # aligning it with the fraud limitation period. VAT revision on immovable
+    # property runs longer again. Published sources disagree with each other
+    # because they are describing different obligations — so a code reading
+    # "accounting, 7 years" would be right under the CDE and wrong under the
+    # CIR. Hence statutory_accounting and statutory_tax_vat are separate.
+    #
+    # D-51: notes are GENERIC. They describe the category and tell the client
+    # to check the period that applies to them. They do not cite articles.
+    # A cited note is RECOSA asserting what national law requires, inside a
+    # filed register, in a product sold as a compliance tool — the same risk
+    # class as D-42, and it needs counsel review before it ships.
+    #
+    # metadata carries:
+    #   jurisdiction  — where the rule comes from; absent means general
+    #   statutory     — imposed by law, as opposed to chosen or recommended.
+    #                   CNIL's RH retention referentiel of 2 April 2026 draws
+    #                   the same line between obligatory and recommended
+    #                   durations, and readiness()/S26B need it to tell a
+    #                   period a client may shorten from one it may not.
+    #   requires_text — the form reveals the free-text field for this code
+    "retention_basis": [
+        ("statutory_social_documents",
+         "Statutory — social documents",
+         "Obligation légale — documents sociaux",
+         "Employment records the law requires you to keep, such as the "
+         "personnel register and individual accounts. Check the period that "
+         "applies to your situation.",
+         {"jurisdiction": ["BE"], "statutory": True},
+         "Documents liés à l'emploi que la loi impose de conserver, tels que "
+         "le registre du personnel et le compte individuel. Vérifiez le délai "
+         "applicable à votre situation."),
+
+        ("statutory_payroll",
+         "Statutory — payroll records",
+         "Obligation légale — documents de paie",
+         "Pay slips, salary calculations and the supporting records "
+         "legislation requires you to retain.",
+         {"jurisdiction": ["BE", "FR"], "statutory": True},
+         "Fiches de paie, calculs de rémunération et pièces justificatives "
+         "que la législation impose de conserver."),
+
+        ("statutory_accounting",
+         "Statutory — accounting records",
+         "Obligation légale — documents comptables",
+         "Books and supporting records kept under accounting law. The "
+         "accounting period may differ from the tax one — record them "
+         "separately where they do.",
+         {"jurisdiction": ["BE", "FR"], "statutory": True},
+         "Livres et pièces justificatives conservés au titre du droit "
+         "comptable. Le délai comptable peut différer du délai fiscal : "
+         "enregistrez-les séparément le cas échéant."),
+
+        ("statutory_tax_vat",
+         "Statutory — tax and VAT records",
+         "Obligation légale — documents fiscaux et TVA",
+         "Records kept for tax or VAT purposes. This period is often longer "
+         "than the accounting one and may be longer again for property.",
+         {"jurisdiction": ["BE", "FR"], "statutory": True},
+         "Documents conservés à des fins fiscales ou de TVA. Ce délai est "
+         "souvent plus long que le délai comptable, et davantage encore pour "
+         "les biens immobiliers."),
+
+        ("statutory_health_safety",
+         "Statutory — occupational health and safety",
+         "Obligation légale — santé et sécurité au travail",
+         "Records on workplace accidents, exposure or occupational health "
+         "that legislation requires you to keep.",
+         {"jurisdiction": ["BE", "FR"], "statutory": True},
+         "Documents relatifs aux accidents du travail, aux expositions ou à "
+         "la santé au travail que la législation impose de conserver."),
+
+        ("statutory_other",
+         "Other statutory requirement",
+         "Autre obligation légale",
+         "A retention period set by legislation not covered by the options "
+         "above. Say which in the activity notes.",
+         {"statutory": True},
+         "Un délai de conservation fixé par une législation non couverte par "
+         "les options ci-dessus. Précisez laquelle dans les notes."),
+
+        ("limitation_period",
+         "Limitation period for potential claims",
+         "Délai de prescription applicable",
+         "Kept so the data is still available if a claim is brought. Use the "
+         "limitation period that applies to the relationship.",
+         {},
+         "Conservé afin que les données restent disponibles en cas de "
+         "réclamation. Utilisez le délai de prescription applicable à la "
+         "relation concernée."),
+
+        ("contract_duration",
+         "Duration of the contractual relationship",
+         "Durée de la relation contractuelle",
+         "Kept for as long as the relationship lasts. Usually the ACTIVE "
+         "phase, with an archive phase recorded separately below.",
+         {},
+         "Conservé pendant toute la durée de la relation. Généralement la "
+         "phase ACTIVE, la phase d'archivage étant enregistrée séparément "
+         "ci-dessous."),
+
+        ("contract_plus_limitation",
+         "Contract duration plus limitation period",
+         "Durée du contrat, puis délai de prescription",
+         "Use only where the two phases genuinely cannot be separated. "
+         "Recording them as an active and an archive phase is clearer.",
+         {},
+         "À n'utiliser que si les deux phases ne peuvent réellement pas être "
+         "distinguées. Les enregistrer comme phase active et phase "
+         "d'archivage est plus clair."),
+
+        ("until_procedure_concluded",
+         "Until the procedure or investigation concludes",
+         "Jusqu'à la clôture de la procédure",
+         "For reports, investigations and disputes, where the end point is "
+         "the final decision rather than a fixed period.",
+         {},
+         "Pour les signalements, enquêtes et litiges, dont le terme est la "
+         "décision définitive plutôt qu'un délai fixe."),
+
+        ("consent_until_withdrawn",
+         "Until consent is withdrawn",
+         "Jusqu'au retrait du consentement",
+         "Only where consent is the legal basis. If the basis is anything "
+         "else, withdrawal does not end the retention.",
+         {},
+         "Uniquement lorsque le consentement est la base légale. Si la base "
+         "est autre, le retrait ne met pas fin à la conservation."),
+
+        ("regulatory_guidance",
+         "Period recommended by supervisory authority guidance",
+         "Durée recommandée par l'autorité de contrôle",
+         "A period a supervisory authority recommends rather than one the law "
+         "imposes. Name the guidance in the activity notes.",
+         {},
+         "Une durée recommandée par une autorité de contrôle plutôt "
+         "qu'imposée par la loi. Indiquez la référence dans les notes."),
+
+        ("business_need_reviewed",
+         "Business need, reviewed periodically",
+         "Besoin opérationnel, réexaminé périodiquement",
+         "No legal requirement — the period is your own decision, and the "
+         "review is what makes it defensible. State a period, not 'as long "
+         "as necessary'.",
+         {},
+         "Aucune exigence légale : le délai est votre propre décision, et le "
+         "réexamen est ce qui la rend défendable. Indiquez une durée, et non "
+         "« aussi longtemps que nécessaire »."),
+
+        ("other",
+         "Other — describe below",
+         "Autre — à préciser",
+         "Use only when no option above fits. A described reason is "
+         "acceptable; a blank one is not.",
+         {"requires_text": True},
+         "À n'utiliser que si aucune option ci-dessus ne convient. Un motif "
+         "décrit est acceptable ; un motif vide ne l'est pas."),
+    ],
+
+    # ── Retention unit ────────────────────────────────────────────────────
+    # SEEDED FOR LABELS ONLY — never read to render a period.
+    #
+    # format_retention() carries its own table because "1 an" / "2 ans" needs
+    # singular/plural agreement that one label column cannot express, and
+    # because a client must never be able to add a unit. These rows exist so
+    # the form's dropdown and the admin vocabulary page show the same set the
+    # CHECK constraint enforces.
+    "retention_unit": [
+        ("days",       "Days",       "Jours",       None, {}, None),
+        ("months",     "Months",     "Mois",        None, {}, None),
+        ("years",      "Years",      "Années",      None, {}, None),
+        ("indefinite", "Indefinite", "Indéterminée",
+         "No fixed end point. Requires a basis explaining why, and is the "
+         "hardest period to defend to a supervisory authority.",
+         {},
+         "Pas de terme fixe. Exige un motif expliquant pourquoi, et constitue "
+         "la durée la plus difficile à justifier devant une autorité de "
+         "contrôle."),
+    ],
+
     "system_category": [
         ("analytics", "Analytics and measurement", "Analyse et mesure", None, {}),
         ("crm_marketing", "CRM and marketing", "CRM et marketing", None, {}),
@@ -1612,18 +1800,33 @@ def emit_sql() -> str:
     for vtype, entries in VOCABULARIES.items():
         w("")
         w(f"-- {vtype}")
-        for i, (code, en, fr, note_en, meta) in enumerate(entries):
+        for i, entry in enumerate(entries):
+            # S26C: the tuple grew a sixth element, note_fr.
+            #
+            # reference_values has carried note_fr since the table was created
+            # and get_vocabulary() selects it, but nothing ever wrote it — so
+            # note_for(..., lang="fr") silently fell back to English for every
+            # code. Invisible while notes were unused; not invisible once the
+            # activity form shows them beside a French label.
+            #
+            # Read positionally with a default rather than by widening every
+            # existing 5-tuple: 200-odd entries edited to add a trailing None
+            # is 200 chances to shift a column.
+            code, en, fr, note_en, meta = entry[:5]
+            note_fr = entry[5] if len(entry) > 5 else None
             w(
                 "INSERT INTO reference_values "
-                "(value_type, code, workspace_id, label_en, label_fr, note_en, metadata, sort_order, active)"
+                "(value_type, code, workspace_id, label_en, label_fr, "
+                "note_en, note_fr, metadata, sort_order, active)"
             )
             w(
                 f"VALUES ({_q(vtype)}, {_q(code)}, NULL, {_q(en)}, {_q(fr)}, "
-                f"{_q(note_en)}, {_q(meta)}, {i}, TRUE)"
+                f"{_q(note_en)}, {_q(note_fr)}, {_q(meta)}, {i}, TRUE)"
             )
             w("ON CONFLICT (value_type, code, workspace_id) DO UPDATE SET")
             w("    label_en = EXCLUDED.label_en, label_fr = EXCLUDED.label_fr,")
-            w("    note_en = EXCLUDED.note_en, metadata = EXCLUDED.metadata,")
+            w("    note_en = EXCLUDED.note_en, note_fr = EXCLUDED.note_fr,")
+            w("    metadata = EXCLUDED.metadata,")
             w("    sort_order = EXCLUDED.sort_order, active = EXCLUDED.active;")
 
     # Catalogue
