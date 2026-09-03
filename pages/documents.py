@@ -491,32 +491,83 @@ processing_activities_text = third_party_processors_text = retention_periods_tex
 international_transfers = False
 
 if use_template:
-    # No editors. The vendor list comes from the S24 inventory, so retyping it
-    # here would create a second source that drifts from the first.
-    st.caption(
-        "The third-party services in this document are taken from your systems "
-        "inventory — every system marked as setting cookies. To change what "
-        "appears, edit the inventory on the Systems page."
-    )
-    try:
-        from template_store import _load_vendor_rows
-        _preview_vendors = _load_vendor_rows(client_id, language)
-    except Exception as e:
-        _preview_vendors = []
-        st.warning(f"Could not read the inventory: {e}")
-
-    if _preview_vendors:
-        st.markdown(
-            "\n".join(
-                f"- **{v['vendor_name']}** — {v.get('purpose') or 'purpose not recorded'}"
-                for v in _preview_vendors
-            )
+    # No editors on any templated path. The content comes from the S24
+    # inventory, so retyping it here would create a second source that drifts
+    # from the first.
+    #
+    # DISPATCHED ON doc_type. This branch was written in S25, when
+    # cookie_policy was the only templated document, and said so in prose: it
+    # described the cookie vendor list and called _load_vendor_rows
+    # unconditionally. S26 added the two registers and S26A the DPA, and all
+    # three inherited a caption about systems "marked as setting cookies"
+    # above a list of cookie vendors — on documents that read neither.
+    #
+    # Each templated document reads a DIFFERENT slice of the inventory, so
+    # each needs its own description of what it will pick up.
+    if doc_type == "cookie_policy":
+        st.caption(
+            "The third-party services in this document are taken from your "
+            "systems inventory — every system marked as setting cookies. To "
+            "change what appears, edit the inventory on the Systems page."
         )
+        try:
+            from template_store import _load_vendor_rows
+            _preview_vendors = _load_vendor_rows(client_id, language)
+        except Exception as e:
+            _preview_vendors = []
+            st.warning(f"Could not read the inventory: {e}")
+
+        if _preview_vendors:
+            st.markdown(
+                "\n".join(
+                    f"- **{v['vendor_name']}** — {v.get('purpose') or 'purpose not recorded'}"
+                    for v in _preview_vendors
+                )
+            )
+        else:
+            st.warning(
+                "No systems in your inventory are marked as setting cookies. "
+                "The document will state that no third-party cookies are used "
+                "— make sure that is actually true before publishing it."
+            )
+
+    elif doc_type == "ropa_controller":
+        st.caption(
+            "This record is built from the processing activities where you "
+            "determine the purposes and means, together with the systems and "
+            "recipients attached to them. Edit them under *Systems, "
+            "activities and controllers*."
+        )
+
+    elif doc_type == "ropa_processor":
+        st.caption(
+            "This record is built from the processing activities you carry "
+            "out on another controller's behalf, grouped by controller. Edit "
+            "them under *Systems, activities and controllers*."
+        )
+
+    elif doc_type == "dpa":
+        # No preview list. The two annexes are scoped differently from each
+        # other — Annex II by activity, Schedule 1 by the systems attached to
+        # those activities — and a single flat list above the form would
+        # misrepresent both. The gate below already names anything blocking.
+        st.caption(
+            "These clauses are built from the processing you carry out on a "
+            "customer's behalf. Annex II describes those activities, Schedule "
+            "1 names the sub-processors involved in them, and Annex III lists "
+            "the security measures recorded against them. Nothing you do "
+            "purely as controller appears. Edit any of it under *Systems, "
+            "activities and controllers*."
+        )
+
     else:
-        st.warning(
-            "No systems in your inventory are marked as setting cookies. The "
-            "document will state that no third-party cookies are used — make "
-            "sure that is actually true before publishing it."
+        # A doc_type added to TEMPLATE_DOC_TYPES without a caption here. Says
+        # so plainly rather than describing the wrong document, which is the
+        # failure this dispatch exists to fix.
+        st.caption(
+            "This document is generated from a reviewed template using your "
+            "systems inventory. Edit the underlying data under *Systems, "
+            "activities and controllers*."
         )
 
 elif doc_type == "privacy_policy":
