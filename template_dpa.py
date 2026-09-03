@@ -280,24 +280,46 @@ def build_annex_ii_rows(inv: Mapping[str, Any], language: str) -> list[dict[str,
     Duration is left as None when retention is unset rather than defaulted:
     Clause 7.3 confines processing to the duration Annex II specifies, so a
     guess would silently shorten or extend the client's own contract.
+
+    S26C: duration covers BOTH retention phases (D-49). Clause 7.3 says the
+    processing takes place only for the duration Annex II states, so writing
+    the active period alone would put a shorter duration in a signed contract
+    than the processor actually operates — and then process outside it. That
+    is the understatement D-49 exists to prevent, and here it is a breach of
+    the clause rather than an imprecise register entry.
     """
-    from template_store import _clean_retention_basis, _labels  # noqa: PLC0415
+    from template_store import (  # noqa: PLC0415
+        _i18n,
+        _is_unreviewed,
+        _labels,
+        build_retention_cells,
+    )
 
     rows: list[dict[str, Any]] = []
-    for a in sorted(inv["activities"], key=lambda r: (r.get("name") or "")):
+    for a in sorted(inv["activities"], key=lambda r: (_i18n(r, "name", language) or "")):
         if a.get("controller_role") != "processor":
             continue
 
         specials = _labels("special_category", a.get("special_categories"), language)
         criminal = _labels("criminal_data", a.get("criminal_data"), language)
 
+        duration, duration_basis = build_retention_cells(a, language)
+
         rows.append({
-            "name": a.get("name"),
+            "name": _i18n(a, "name", language),
             # Annex II asks for nature AND purpose as separate headings. The
             # inventory has one free-text purpose field, so nature comes from
             # the activity name and purpose carries the client's text.
-            "nature": a.get("name"),
-            "purpose": a.get("purpose"),
+            "nature": _i18n(a, "name", language),
+            "purpose": _i18n(a, "purpose", language),
+            # Whether the text above is machine output nobody confirmed. A
+            # contract is the last place unreviewed translation should appear
+            # silently — D-53 makes review a tracked task, and this is what
+            # lets a caller say so on the face of the document.
+            "unreviewed": (
+                _is_unreviewed(a, "name", language)
+                or _is_unreviewed(a, "purpose", language)
+            ),
             "data_subjects": _labels(
                 "data_subject_category", a.get("data_subject_categories"), language),
             "data_categories": ", ".join(
@@ -314,8 +336,8 @@ def build_annex_ii_rows(inv: Mapping[str, Any], language: str) -> list[dict[str,
                 _labels("security_measure", a.get("security_measures"), language)
                 if specials else None
             ),
-            "duration": a.get("retention_period"),
-            "duration_basis": _clean_retention_basis(a.get("retention_basis")),
+            "duration": duration,
+            "duration_basis": duration_basis,
         })
     return rows
 
