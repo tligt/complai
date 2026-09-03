@@ -127,17 +127,42 @@ if lang not in doc_langs:
 
 
 def _i18n_get(row: dict, field: str, language: str) -> str:
-    """Stored text for one language, falling back to the legacy column."""
+    """Stored text for ONE language. No cross-language fallback. Ever.
+
+    An earlier version fell back to the legacy column for the client's own
+    language, which put English backfilled text inside a box labelled NL. Save
+    that and translation_status records {"name": {"nl": "human"}} — the
+    database now asserts a human confirmed an English sentence as Dutch, and
+    the Dutch register renders it.
+
+    Unlabelled legacy text is shown separately, as text of unknown language,
+    for the client to place. Never pre-filled into a language it might not be.
+    """
     blob = (row or {}).get(f"{field}_i18n") or {}
     if isinstance(blob, dict):
         val = blob.get(language)
         if val and str(val).strip():
             return str(val).strip()
-    if language == lang:
-        # Only the language being authored in falls back to the legacy column.
-        # Showing English text in a French box would invite the client to
-        # "correct" it and silently overwrite the English.
-        return str((row or {}).get(field) or "")
+    return ""
+
+
+def _unplaced(row: dict, field: str) -> str:
+    """Legacy text not accounted for by any of this client's document languages.
+
+    A row backfilled as {"en": "..."} on a client whose documents are NL and FR
+    has text that belongs nowhere on this form. It is surfaced rather than
+    hidden: hiding it would make the activity look blank when the register
+    still renders that sentence through the template fallback.
+    """
+    blob = (row or {}).get(f"{field}_i18n") or {}
+    if isinstance(blob, dict) and any(
+        (blob.get(l) or "").strip() for l in doc_langs
+    ):
+        return ""
+    for candidate in (blob.get("en") if isinstance(blob, dict) else None,
+                      (row or {}).get(field)):
+        if candidate and str(candidate).strip():
+            return str(candidate).strip()
     return ""
 
 
@@ -472,54 +497,51 @@ with tab_activities:
         a = existing or {}
         _status = a.get("translation_status") or {}
 
-        # The language the client is working in stays the primary input, in the
-        # same place it has always been. Other document languages live in an
-        # expander below: for a single-language client nothing changes at all,
-        # and for the rest the translation is one click away rather than a
-        # second form to fill before saving.
-        name = st.text_input(
-            "Activity name" + (f" ({lang.upper()})" if len(doc_langs) > 1 else ""),
-            value=_i18n_get(a, "name", lang),
-        )
-        purpose = st.text_area(
-            "Purpose" + (f" ({lang.upper()})" if len(doc_langs) > 1 else ""),
-            value=_i18n_get(a, "purpose", lang),
-            height=70,
-        )
+        # ONE COLUMN PER DOCUMENT LANGUAGE. No primary, no fallback.
+        #
+        # The first version made the client's UI language the top-level input
+        # and put the others in an expander. It read as a master language even
+        # though nothing in the schema privileges one, and worse: the primary
+        # box fell back to the legacy column, so backfilled English text
+        # appeared under a box labelled NL and saving it would have recorded a
+        # human confirming English as Dutch.
+        #
+        # Columns are also honest about the work: two empty boxes side by side
+        # show what is missing, where an expander hid it behind a click.
+        _fields = (("name", "Activity name", None), ("purpose", "Purpose", 70))
 
-        other_langs = [l for l in doc_langs if l != lang]
-        translations: dict[str, dict[str, str]] = {}
-        if other_langs:
-            _pending = TR.outstanding(
-                {"name": a.get("name_i18n") or {}, "purpose": a.get("purpose_i18n") or {}},
-                _status, ["name", "purpose"], other_langs,
-            )
-            with st.expander(
-                "Other document languages"
-                + (f" — {len(_pending)} to review" if _pending else ""),
-                expanded=bool(_pending) and aid is not None,
-            ):
-                st.caption(
-                    "These appear in documents produced in that language. "
-                    "Drafts are proposed on save and marked below until you "
-                    "confirm them — editing and saving is what confirms one."
+        for field, label, _h in _fields:
+            _orphan = _unplaced(a, field)
+            if _orphan:
+                st.warning(
+                    f"**{label}** was recorded before languages were tracked, "
+                    f"and its language is unknown: *{_orphan}*\n\n"
+                    "Documents still use it as a fallback. Put it in the right "
+                    "column below — or retype it — and it stops being guessed at."
                 )
-                for l in other_langs:
-                    st.markdown(f"**{TR.LANGUAGE_NAMES.get(l, l)}**")
-                    for field, label, height in (
-                        ("name", "Activity name", None), ("purpose", "Purpose", 70),
-                    ):
-                        if (_status.get(field, {}) or {}).get(l) == "machine_unreviewed":
-                            st.caption(":orange[Awaiting your review]")
-                        kwargs = {
-                            "value": _i18n_get(a, field, l),
-                            "key": f"inv_act_{field}_{l}_{aid or 'new'}",
-                        }
-                        translations.setdefault(l, {})[field] = (
-                            st.text_area(f"{label} ({l.upper()})", height=height, **kwargs)
-                            if height else
-                            st.text_input(f"{label} ({l.upper()})", **kwargs)
-                        )
+
+        entries: dict[str, dict[str, str]] = {}
+        _cols = st.columns(len(doc_langs))
+        for _col, l in zip(_cols, doc_langs):
+            with _col:
+                st.markdown(f"**{TR.LANGUAGE_NAMES.get(l, l.upper())}**")
+                for field, label, height in _fields:
+                    if (_status.get(field, {}) or {}).get(l) == "machine_unreviewed":
+                        st.caption(":orange[Draft — edit or re-save to confirm]")
+                    kwargs = {
+                        "value": _i18n_get(a, field, l),
+                        "key": f"inv_act_{field}_{l}_{aid or 'new'}",
+                    }
+                    entries.setdefault(l, {})[field] = (
+                        st.text_area(label, height=height, **kwargs)
+                        if height else st.text_input(label, **kwargs)
+                    )
+
+        if len(doc_langs) > 1:
+            st.caption(
+                "Fill in whichever language you think in. The others are "
+                "drafted on save and marked until you confirm them."
+            )
 
         col_a, col_b = st.columns(2)
         with col_a:
@@ -723,57 +745,68 @@ with tab_activities:
 
     if saved:
         # --- S26C: assemble the per-language blobs -------------------------
-        # Anything the client typed in this submit is theirs, in every
-        # language box, so it is marked human. That is what makes editing a
-        # proposed translation the act of confirming it — there is no separate
-        # "approve" control to forget to press.
+        # No source language is privileged. Whatever the client typed in a box
+        # is theirs, in that language, marked human — which makes editing a
+        # draft the act of confirming it, with no separate approve control to
+        # forget.
         _i18n = {
-            "name": dict((a.get("name_i18n") or {})),
-            "purpose": dict((a.get("purpose_i18n") or {})),
+            "name": dict(a.get("name_i18n") or {}),
+            "purpose": dict(a.get("purpose_i18n") or {}),
         }
         _st = {f: dict(v) for f, v in (a.get("translation_status") or {}).items()}
 
-        for field, value in (("name", name), ("purpose", purpose)):
-            if (value or "").strip():
-                _i18n[field][lang] = value.strip()
-                _st.setdefault(field, {})[lang] = "human"
-
-        for l, fields in translations.items():
+        for l, fields in entries.items():
             for field, value in fields.items():
                 before = (_i18n.get(field, {}) or {}).get(l) or ""
                 if (value or "").strip():
                     _i18n[field][l] = value.strip()
-                    if value.strip() != before.strip():
-                        # Changed in the box: reviewed, whatever it was before.
+                    if value.strip() != before.strip() or \
+                            (_st.get(field, {}) or {}).get(l) != "machine_unreviewed":
                         _st.setdefault(field, {})[l] = "human"
                 elif before:
-                    # Cleared deliberately. Drop the text AND the status,
-                    # rather than leaving a stale flag pointing at nothing.
+                    # Cleared deliberately: drop the text AND the status,
+                    # rather than leaving a flag pointing at nothing.
                     _i18n[field].pop(l, None)
                     _st.get(field, {}).pop(l, None)
 
-        # --- Draft anything still missing ----------------------------------
-        # Failure is not an error (D-53 and the translate module contract): the
-        # save goes through with the translation outstanding, which is why the
-        # summary table below reports it. Blocking here would mean the whole
-        # inventory form stops working whenever Mistral is slow.
+        # --- Draft whatever is still empty ---------------------------------
+        # Source is the first document language the client actually filled, in
+        # their own order. Not a configured master: if they typed French and
+        # left Dutch blank, French is the source for this save and the reverse
+        # next time.
+        _source = next(
+            (l for l in doc_langs
+             if (_i18n["name"].get(l) or "").strip()
+             or (_i18n["purpose"].get(l) or "").strip()),
+            None,
+        )
         _todo = [
             l for l in doc_langs
-            if l != lang and not (
+            if l != _source and not (
                 (_i18n["name"].get(l) or "").strip()
                 and (_i18n["purpose"].get(l) or "").strip()
             )
-        ]
-        if _todo and ((name or "").strip() or (purpose or "").strip()):
+        ] if _source else []
+
+        if _todo:
             with st.spinner("Drafting the other language versions…"):
                 _drafts = TR.translate_fields(
-                    {"name": name, "purpose": purpose},
-                    source_lang=lang,
+                    {
+                        "name": _i18n["name"].get(_source, ""),
+                        "purpose": _i18n["purpose"].get(_source, ""),
+                    },
+                    source_lang=_source,
                     target_langs=_todo,
                     user_id=user_id,
                     client_id=client_id,
                 )
             _i18n, _st = TR.apply_translations(_i18n, _st, _drafts)
+
+        # validate_activity reads `name`, and template_store._i18n() falls back
+        # to the legacy columns for any language the blob does not cover. Kept
+        # in step with the source language rather than left to drift.
+        name = _i18n["name"].get(_source or lang) or a.get("name") or ""
+        purpose = _i18n["purpose"].get(_source or lang) or a.get("purpose") or ""
 
         row = {
             "name": name, "purpose": purpose, "legal_basis": basis,
