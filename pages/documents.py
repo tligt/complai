@@ -30,7 +30,8 @@ from document_generator import (
 # Advisory / external-company generation stays on the LLM path regardless.
 TEMPLATE_DOC_TYPES = {
     t.strip() for t in os.environ.get(
-        "TEMPLATE_DOC_TYPES", "cookie_policy,ropa_controller,ropa_processor"
+        "TEMPLATE_DOC_TYPES",
+        "cookie_policy,ropa_controller,ropa_processor,dpa",
     ).split(",")
     if t.strip()
 }
@@ -89,7 +90,11 @@ st.divider()
 # the page can tell in advance whether one is worth offering.
 REGISTER_DOC_TYPES = {"ropa_controller", "ropa_processor"}
 
+# S26A. The Art. 28 clauses are a contract, not a record, so they get their own
+# gate rather than joining REGISTER_DOC_TYPES: an incomplete register is
+# truthful and publishable, an incomplete contract is neither.
 _register_state = None
+_dpa_unmeasured: list[str] = []
 if mode == "existing_client" and client_id:
     try:
         import inventory_store as _STORE
@@ -101,17 +106,33 @@ if mode == "existing_client" and client_id:
             _STORE.load_counterparty_links(user_id, client_id),
             client_id,
         )
+        # Annex III part 1 is unioned across the processor activities, so the
+        # question is not "does this activity have measures" but "does the
+        # engagement as a whole". Naming the activities anyway: a client told
+        # only that Annex III is empty has nowhere to go.
+        _dpa_unmeasured = sorted(
+            (a.get("name") or "(unnamed activity)")
+            for a in _acts
+            if a.get("controller_role") == "processor"
+            and not (a.get("security_measures") or [])
+        )
     except Exception:
         # A failed inventory read must not take the page down. Without it the
         # gate simply does not apply and generation behaves as it did before.
         _register_state = None
+        _dpa_unmeasured = []
 
 _offered = list(DOCUMENT_TYPES.keys())
 if _register_state is not None and not _register_state["processor_activities"]:
     # No processing carried out for another controller means no Art. 30(2)
     # record to keep. An empty processor register is a document nobody needs,
     # and offering it invites a client to file one that says nothing.
-    _offered = [d for d in _offered if d != "ropa_processor"]
+    #
+    # The same fact removes the DPA. Clause 1(c) makes these Clauses apply to
+    # the processing Annex II specifies; with no processor-role activity there
+    # is no processing for them to attach to, and the contract would describe
+    # nothing.
+    _offered = [d for d in _offered if d not in ("ropa_processor", "dpa")]
 
 doc_type = st.selectbox(
     "Document type",
@@ -514,7 +535,24 @@ elif doc_type == "privacy_policy":
 elif doc_type == "cookie_policy":
     third_party_processors_text = processor_editor()
 
-elif doc_type == "dpa":
+elif doc_type == "dpa" and not use_template:
+    # PRE-D-40 INTAKE — controller side, Advisory path only.
+    #
+    # These fields name a company processing data ON BEHALF OF the client,
+    # which is the VENDOR side of Art. 28. D-40 made that obligation
+    # operational: it is discharged by holding the vendor's own DPA and
+    # recording it against the system (systems.dpa_status / dpa_signed_on /
+    # dpa_url), not by authoring one.
+    #
+    # The templated "dpa" is the other side entirely — the clauses the client
+    # OFFERS its customers, with Annex II built from activities where
+    # controller_role = 'processor'. Showing this form alongside it would ask
+    # a client for a vendor's name to produce a contract that never mentions
+    # one, and save_intake would store three fields the template never reads.
+    #
+    # Guarded rather than deleted: it is still the only DPA path for Advisory
+    # / external-company generation, which has no client_id and so no
+    # inventory to build Annex II from. Retiring it is a decision for S28.
     processor_name = st.text_input(
         "Processor name ✱", value=pf.get("processor_name",""),
         key=f"f_proc_name_{context_key}", placeholder="Company processing data on your behalf"
@@ -621,6 +659,33 @@ if doc_type in REGISTER_DOC_TYPES and _register_state is not None:
             + "\n- ".join(_register_state["activity_gaps"])
         )
 
+# S26A — the DPA's own gate.
+#
+# annex_iii_security is required=True because Clause 7.4(a) obliges the
+# processor to implement AT LEAST the measures Annex III specifies. An empty
+# Annex III leaves that obligation with nothing to bite on: the contract is
+# wrong, not merely incomplete.
+#
+# render_template would block this anyway, on the missing required field. It is
+# caught here instead so the message can name the activities and say where to
+# fix them — a first-time client meeting a bare "cannot generate" on a contract
+# has no way to work out what is being asked of them.
+_dpa_blocked = False
+if doc_type == "dpa" and use_template and _dpa_unmeasured:
+    _dpa_blocked = True
+    st.error(
+        "**These clauses cannot be generated yet.** Annex III has to set out "
+        "the security measures the processor implements, and these activities "
+        "carried out on a customer's behalf have none recorded:\n\n- "
+        + "\n- ".join(_dpa_unmeasured)
+    )
+    st.caption(
+        "Record them under *Systems, activities and controllers*. Clause "
+        "7.4(a) commits you to implementing at least what Annex III lists, so "
+        "an empty annex is a promise with nothing behind it rather than a "
+        "detail left for later."
+    )
+
 # ── Generate ──────────────────────────────────────────────────
 st.divider()
 generate = st.button(
@@ -628,7 +693,7 @@ generate = st.button(
     type="primary",
     use_container_width=True,
     key=f"btn_gen_{context_key}",
-    disabled=_register_blocked,
+    disabled=_register_blocked or _dpa_blocked,
 )
 
 # ══════════════════════════════════════════════════════════════
