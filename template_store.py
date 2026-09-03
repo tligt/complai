@@ -100,7 +100,10 @@ def _load_vendor_rows(client_id: str, language: str) -> list[dict[str, Any]]:
 
     systems = (
         sb.table("systems")
-        .select("id, name, vendor_legal_name, category, purpose")
+        .select("id, name, vendor_legal_name, category, purpose, "
+                # S26C: legacy purpose stays selected as the fallback for rows
+                # not yet revisited through the form.
+                "purpose_i18n, translation_status")
         .eq("client_id", client_id)
         .eq("sets_cookies", True)
         .order("name")
@@ -133,7 +136,10 @@ def _load_vendor_rows(client_id: str, language: str) -> list[dict[str, Any]]:
             # Platforms Ireland Limited", not "Meta Pixel" — but the trade name
             # is what a reader recognises, so fall back rather than blanking.
             "vendor_name": s.get("vendor_legal_name") or s.get("name"),
-            "purpose": s.get("purpose"),
+            # S26C part 2. A published cookie policy is the most exposed place
+            # client free text appears — no one has to ask for it to read it.
+            "purpose": _i18n(s, "purpose", language),
+            "unreviewed": _is_unreviewed(s, "purpose", language),
             "category_label": (
                 label_for("system_category", s["category"], language)
                 if s.get("category") else None
