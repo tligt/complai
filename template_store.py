@@ -485,7 +485,7 @@ FIELD_SPECS: dict[str, list[FieldSpec]] = {
     "cookie_policy": _COMMON_CLIENT_FIELDS + _JURISDICTION_FIELDS + _META_FIELDS,
     "ropa_controller": _COMMON_CLIENT_FIELDS + _ROPA_FIELDS,
     "ropa_processor": _COMMON_CLIENT_FIELDS + _ROPA_FIELDS,
-    # S26A adds dpa here.
+    # S26A adds "dpa" at the end of this file.
 }
 
 # Which block each document type expects. Used to build only the context a
@@ -746,6 +746,15 @@ def build_values(
         values["has_register_reference"] = bool(
             (block_context or {}).get("ropa_processor_caption"))
 
+    # --- Art. 28 processor clauses ----------------------------------------
+    # Runs AFTER the common block, because apply_dpa_values reads has_dpo and
+    # overwrites has_enterprise_number with its own flag-guard reasoning: in a
+    # signed contract a visible placeholder points the counterparty at a gap
+    # that may not be one.
+    if doc_type == "dpa":
+        from template_dpa import apply_dpa_values  # noqa: PLC0415
+        apply_dpa_values(values, client, block_context, language)
+
     return values, resolution.codes_applied
 
 
@@ -763,6 +772,14 @@ def build_block_context(
     """
     if doc_type == "cookie_policy":
         return {"vendors": _load_vendor_rows(client_id, language)}, None
+
+    if doc_type == "dpa":
+        # Reuses _load_inventory, but scopes every table to activities the
+        # client carries out AS PROCESSOR. See the scoping rule in
+        # template_dpa: naming a vendor that never touches this customer's
+        # data asserts a disclosure that never happened.
+        from template_dpa import build_dpa_block_context  # noqa: PLC0415
+        return build_dpa_block_context(client_id, language)
 
     if doc_type not in ("ropa_controller", "ropa_processor"):
         return {}, None
@@ -922,6 +939,33 @@ def group_summary(docs: Sequence[GeneratedDocument]) -> dict[str, Any]:
         "revision_split": len(revisions) > 1,
     }
 
-from template_dpa import DPA_FIELDS, DPA_BLOCKS  # noqa: E402
+# ---------------------------------------------------------------------------
+# S26A — DPA (Art. 28 processor clauses, Decision (EU) 2021/915)
+# ---------------------------------------------------------------------------
+# At the END of the file, not beside the FIELD_SPECS literal: template_dpa
+# imports from template_store at call time, so importing it before FIELD_SPECS
+# exists would be circular.
+#
+# DEFAULT_BLOCK_RENDERERS is registered HERE rather than in template_renderer
+# for the same reason in the other direction. template_dpa imports Block and
+# FieldSpec from template_renderer at module level, so template_renderer
+# importing template_dpa would close the cycle. This module already imports
+# both, and the dict is the same object, so mutating it here is visible to
+# every caller including generate() below.
+#
+# doc_type is "dpa", and it means the PROCESSOR-side agreement the client
+# offers its own customers — the only thing it can mean since D-40 made
+# gdpr_05 operational with doc_type None. The vendor side of Art. 28 is
+# discharged by holding the vendor's DPA and recording it against the system,
+# not by authoring one, so there is no second direction for this code to be
+# confused with. D-40 considered and rejected a second doc_type here: two
+# codes differing only in direction is the "rop"/"ropa" shape.
+from template_dpa import (  # noqa: E402
+    DPA_BLOCKS,
+    DPA_BLOCK_RENDERERS,
+    DPA_FIELDS,
+)
+
 FIELD_SPECS["dpa"] = DPA_FIELDS
 DOC_BLOCKS["dpa"] = DPA_BLOCKS
+DEFAULT_BLOCK_RENDERERS.update(DPA_BLOCK_RENDERERS)
