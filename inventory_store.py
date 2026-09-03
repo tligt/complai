@@ -63,6 +63,11 @@ SYSTEM_EDITABLE = (
     "dpa_status", "dpa_signed_on", "dpa_url",
     "criticality", "ai_role", "sets_cookies",
     "privacy_policy_url", "notes",
+    # S26C. systems.purpose is rendered into the Cookie Policy vendor table,
+    # which is published — the most exposed place client free text appears.
+    # Omitting these here would drop the write silently, which is exactly what
+    # this allowlist is for and exactly the wrong outcome.
+    "purpose_i18n", "translation_status",
 )
 
 ACTIVITY_EDITABLE = (
@@ -71,6 +76,14 @@ ACTIVITY_EDITABLE = (
     "special_categories", "art9_condition", "criminal_data",
     "retention_period", "retention_basis", "security_measures",
     "counterparty_register_note", "notes",
+    # S26C. The legacy name/purpose/retention_* above stay editable: D-48
+    # declined to backfill retention, so rows carry their old text until a
+    # human confirms the structure, and both forms have to keep working
+    # meanwhile.
+    "name_i18n", "purpose_i18n", "translation_status",
+    "retention_value", "retention_unit", "retention_basis_code",
+    "retention_archive_value", "retention_archive_unit",
+    "retention_archive_basis_code",
 )
 
 COUNTERPARTY_EDITABLE = (
@@ -340,6 +353,19 @@ def save_activity(
     """
     payload = {c: row.get(c) for c in ACTIVITY_EDITABLE}
     payload = {**payload, "user_id": user_id, "client_id": client_id}
+
+    # S26C. This comprehension puts EVERY editable column in the payload, None
+    # where the caller had nothing — which is fine for nullable columns and
+    # fatal for the three JSONB ones, since they are NOT NULL DEFAULT '{}'.
+    # Without this, every save from a form that does not yet know about the
+    # i18n fields fails on a null constraint rather than degrading.
+    #
+    # Coalesced rather than dropped: on an UPDATE, omitting the key leaves the
+    # stored value alone, and a caller that genuinely cleared a translation
+    # would have no way to say so.
+    for _jsonb in ("name_i18n", "purpose_i18n", "translation_status"):
+        if payload.get(_jsonb) is None:
+            payload[_jsonb] = {}
 
     errs = INV.validate_activity(payload, scope=client_id)
     if errs:

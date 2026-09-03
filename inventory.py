@@ -339,6 +339,30 @@ def seed_rows_for(catalogue_key: str, lang: str = "en") -> tuple[dict, list[dict
     def pick(row: dict, base: str) -> Any:
         return row.get(f"{base}_{suffix}") or row.get(f"{base}_en")
 
+    def every(row: dict, base: str) -> dict[str, str]:
+        """Every language the catalogue holds for this field.
+
+        S26C. pick() chose ONE language and that single string was what landed
+        in processing_activities, so a Belgian client seeding Microsoft 365 in
+        English permanently lost the French purpose the catalogue was already
+        carrying. The translations existed; the write threw them away.
+
+        No review state is recorded because none is needed: this text is
+        RECOSA-authored and reviewed, and absent from translation_status means
+        human (see the S26C migration). Only machine output has to declare
+        itself.
+
+        Languages the catalogue has no text for are simply absent, rather than
+        present and empty — _i18n() falls back on a missing key, but an empty
+        string would render as a blank cell in a filed register.
+        """
+        out = {}
+        for code in LANGUAGES:
+            val = row.get(f"{base}_{code}")
+            if val and str(val).strip():
+                out[code] = str(val).strip()
+        return out
+
     system_row = {
         "catalogue_key": entry["key"],
         "name": entry["name"],
@@ -361,8 +385,13 @@ def seed_rows_for(catalogue_key: str, lang: str = "en") -> tuple[dict, list[dict
     activity_rows = []
     for a in entry.get("activities", []):
         activity_rows.append({
+            # Legacy columns stay populated: validate_activity() reads name,
+            # and they remain the fallback for any language the catalogue does
+            # not cover (today NL and DE — S53).
             "name": pick(a, "name"),
             "purpose": pick(a, "purpose"),
+            "name_i18n": every(a, "name"),
+            "purpose_i18n": every(a, "purpose"),
             "legal_basis": a.get("legal_basis"),
             "data_subject_categories": list(a.get("data_subject_categories") or []),
             "data_categories": list(a.get("data_categories") or []),
