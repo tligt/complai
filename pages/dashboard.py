@@ -148,19 +148,42 @@ gap_date = str(last_gap.get("created_at", ""))[:10] if last_gap else None
 # SECTION 1 — Regulation Status
 # ═══════════════════════════════════════════════════════════════
 st.subheader(f"Compliance status — {company_name}")
-st.caption("Based on your last gap assessment and document repository.")
+st.caption(
+    "Based on your last gap assessment and the documents in force. "
+    "Documents waiting on a RECOSA template are not counted against you."
+)
 
 def reg_status(reg: str):
     required = REG_DOCS.get(reg, [])
     if not required:
         return "🔵", "Not yet assessed"
     if not doc_gap_status:
-        # No gap assessment — fall back to document presence
-        present = sum(1 for d in required if d in client_docs or d in docs_by_type)
-        coverage = present / len(required)
-        if coverage >= 0.8:
+        # No gap assessment — fall back to the register (S27).
+        #
+        # This used to count "is the doc_type present anywhere", which cannot
+        # tell a document the client OPERATES UNDER from one that was merely
+        # produced, and counted a language RECOSA has no template for against
+        # the client. register.coverage() answers both: only in-force documents
+        # count, and documents blocked solely on a missing RECOSA template are
+        # excluded from the denominator rather than scored as failures.
+        _sts = [
+            REG.document_status(
+                doc_type=d,
+                languages=doc_languages,
+                register_rows=register.get(d),
+                template_languages=(template_langs.get(d) if template_langs else None),
+            )
+            for d in required
+        ]
+        _cov = REG.coverage(_sts)
+        if not _cov["required"]:
+            # Every required document is waiting on a RECOSA template. Not the
+            # client's failure and not scored as one.
+            return "🔵", "Awaiting templates"
+        ratio = _cov["covered"] / _cov["required"]
+        if ratio >= 0.8:
             return "🟢", "On track"
-        elif coverage >= 0.4:
+        elif ratio >= 0.4:
             return "🟡", "In progress"
         else:
             return "🔴", "Action needed"

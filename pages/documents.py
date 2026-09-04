@@ -1317,6 +1317,16 @@ else:
         l.lower() for l in ((selected_client or {}).get("document_languages") or [])
     ]
 
+    # Which languages RECOSA actually HAS a template for, per doc_type. None
+    # when the lookup fails — and None is not empty: empty asserts we have no
+    # template, None says we did not check, and claiming our own gap on a
+    # failed query is worse than reporting nothing (D-60).
+    try:
+        from database import get_template_languages
+        _template_langs = get_template_languages()
+    except Exception:
+        _template_langs = None
+
     for doc_type_key, generations in by_type.items():
         label = DOCUMENT_TYPES.get(doc_type_key, doc_type_key)
         current_gid, current_rows = generations[0]
@@ -1334,13 +1344,32 @@ else:
         st.caption(meta)
 
         if missing:
-            # Derived, not stored: the client's document_languages minus the
-            # languages actually in this generation.
-            st.warning(
-                "Not available in "
-                + ", ".join(l.upper() for l in missing)
-                + " — no in-force template in that language yet."
-            )
+            # Two different findings, and this used to report both as the
+            # second (D-60).
+            #
+            # `missing` is the client's document_languages minus what THIS
+            # generation produced — which says nothing about whether a template
+            # exists. Reporting "no in-force template in that language yet" on
+            # the strength of it told a client we could not help them when in
+            # fact they simply had not generated it.
+            #
+            # _template_langs is the fact, read from document_template_versions.
+            _tl = _template_langs.get(doc_type_key) if _template_langs else None
+            _ours = [l for l in missing if _tl is not None and l not in _tl]
+            _theirs = [l for l in missing if l not in _ours]
+            if _theirs:
+                st.info(
+                    "Not generated in "
+                    + ", ".join(l.upper() for l in _theirs)
+                    + " — generate it above to add that language."
+                )
+            if _ours:
+                st.warning(
+                    "Not available in "
+                    + ", ".join(l.upper() for l in _ours)
+                    + " — no template in that language yet. Not outstanding "
+                    "on your side."
+                )
 
         for row in sorted(current_rows, key=lambda r: (r.get("language") or "")):
             _cur_reg = _reg_for(row)
