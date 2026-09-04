@@ -747,91 +747,26 @@ generate = st.button(
     disabled=_register_blocked or _dpa_blocked,
 )
 
-# ── Adoption (S27) ────────────────────────────────────────────────────────
+# ── Adoption (S27) — lives in the history section, not here ──────────────
 #
-# Generating is not adopting. A DPA nobody has signed is not in force, and the
-# register asserting otherwise from the moment of generation — which is what it
-# did before S27 — was simply false.
+# The adoption control was first placed directly under each generated
+# document, which is where a client would look for it. It could not work
+# there.
 #
-# ONE function, called from BOTH generation paths, and defined above them so it
-# is not inside either branch. The first attempt attached this to the LLM
-# branch only, so templated documents — cookie policy, both registers, the DPA
-# — silently had no way to be put in force. That is the `if use_template:`
-# failure recorded in the log this week: a change made in the branch that
-# happened to be in front of me rather than in the place that owns the
-# behaviour.
-def _adoption_panel(doc_type: str, language: str,
-                    client_id: str | None, user_id: str) -> None:
-    """Offer to put the just-generated draft of (doc_type, language) in force."""
-    if not client_id:
-        return
-
-    from datetime import date as _date
-    from database import (
-        get_latest_draft, adopt_client_document, get_current_client_documents,
-    )
-
-    draft = get_latest_draft(client_id, user_id, doc_type, language)
-    live = (get_current_client_documents(client_id, user_id, language)
-            or {}).get(doc_type)
-    live_here = live if (live or {}).get("language") == language else None
-
-    st.markdown(f"**Put the {language.upper()} version in force**")
-
-    if live_here:
-        st.caption(
-            f"Currently in force: v{live_here.get('version')}, effective from "
-            f"{live_here.get('effective_from') or 'unrecorded'}. Adopting this "
-            "one supersedes it — the old version is kept as the record of what "
-            "applied until now."
-        )
-    else:
-        st.caption(
-            f"Nothing is in force for this document in {language.upper()} yet. "
-            "Until you adopt one it counts as produced but not adopted."
-        )
-
-    if not draft:
-        st.caption(
-            "This version is already in force, or was not saved to the register."
-        )
-        return
-
-    c1, c2 = st.columns([2, 3])
-    with c1:
-        eff = st.date_input(
-            "In force from", value=_date.today(),
-            key=f"adopt_eff_{doc_type}_{language}",
-            help=(
-                "The date this version begins to apply — not the date you "
-                "generated it. Backdate it if it was already signed or "
-                "published."
-            ),
-        )
-    with c2:
-        note = st.text_input(
-            "What changed (optional)",
-            key=f"adopt_note_{doc_type}_{language}",
-            placeholder="e.g. Reviewed by counsel, sub-processor added",
-        )
-
-    if st.button("Put in force", key=f"btn_adopt_{doc_type}_{language}",
-                 type="primary"):
-        res = adopt_client_document(
-            draft["id"], user_id=user_id,
-            effective_from=eff, change_comment=note or None,
-        )
-        if res:
-            st.success(
-                f"In force as v{res.get('version')} ({language.upper()}) "
-                f"from {eff.isoformat()}."
-            )
-            st.rerun()
-        else:
-            st.warning(
-                "Could not put the document in force. Nothing has changed — "
-                "the previous version is still the one that counts."
-            )
+# Streamlit reruns the whole script on every interaction. The generation
+# blocks below are gated on `generate`, which is a button and is therefore
+# True for exactly one run. Clicking "Put in force" starts a NEW run in which
+# `generate` is False, so the branch never executes, the button is never
+# evaluated, and nothing happens — the panel simply disappears.
+#
+# A button nested inside a button-gated block cannot fire. Same family as the
+# note in pages/inventory.py about widgets inside st.form.
+#
+# So adoption belongs in the document history, which renders on every run. It
+# is also the better home: the history already lists every version with its
+# status, so putting the control there means the client adopts a version from
+# a list of versions rather than from whichever one they happened to generate
+# last.
 
 
 # ══════════════════════════════════════════════════════════════
@@ -894,11 +829,6 @@ if generate and use_template:
                 )
             with st.expander("Preview", expanded=False):
                 st.markdown(item["body"])
-
-            # Per language: the FR version can be in force at v4 while the EN
-            # one is still a draft at v3. A real state, and the reason the
-            # register is keyed on language.
-            _adoption_panel(doc_type, item["language"], client_id, user_id)
 
         st.caption(
             "Generated from a reviewed template. Files are saved to your "
@@ -1019,8 +949,6 @@ elif generate:
         "Review with a qualified legal professional before use."
     )
 
-    st.divider()
-    _adoption_panel(doc_type, language, client_id, user_id)
 
 # ── History ───────────────────────────────────────────────────
 #
@@ -1188,6 +1116,82 @@ def _render_language_row(doc, slot_key, label, company, reg=None):
 
     if st.session_state.get(open_key, False):
         _render_send_form(doc, slot_key, label, company)
+
+    # Adoption (S27). Rendered here rather than under the generated document,
+    # because this section runs on every rerun and the generation branch does
+    # not — see the note above the templated path.
+    #
+    # Toggled through session_state like the send form: the date and the note
+    # need to survive the rerun between opening the control and pressing the
+    # button.
+    if reg and reg.get("status") == "draft":
+        adopt_key = f"adopt_open_{reg['id']}"
+        if c0.button("Put in force", key=f"btn_adopt_open_{reg['id']}",
+                     help="Record this as the version your organisation operates under"):
+            st.session_state[adopt_key] = not st.session_state.get(adopt_key, False)
+            st.rerun()
+
+        if st.session_state.get(adopt_key, False):
+            from datetime import date as _date
+            from database import adopt_client_document, get_current_client_documents
+
+            _live = (get_current_client_documents(
+                reg["client_id"], reg["user_id"], reg["language"]) or {}
+            ).get(reg["document_type"])
+            _live_here = _live if (_live or {}).get("language") == reg["language"] else None
+
+            with st.container(border=True):
+                if _live_here:
+                    st.caption(
+                        f"This supersedes v{_live_here.get('version')} "
+                        f"({reg['language'].upper()}), in force since "
+                        f"{_live_here.get('effective_from') or 'an unrecorded date'}. "
+                        "That version is kept as the record of what applied "
+                        "until now."
+                    )
+                else:
+                    st.caption(
+                        f"Nothing is in force for this document in "
+                        f"{reg['language'].upper()} yet."
+                    )
+
+                a1, a2 = st.columns([1, 2])
+                with a1:
+                    _eff = st.date_input(
+                        "In force from", value=_date.today(),
+                        key=f"adopt_eff_{reg['id']}",
+                        help=(
+                            "The date this version begins to apply — not the "
+                            "date it was generated. Backdate it if it was "
+                            "already signed or published."
+                        ),
+                    )
+                with a2:
+                    _note = st.text_input(
+                        "What changed (optional)",
+                        key=f"adopt_note_{reg['id']}",
+                        placeholder="e.g. Reviewed by counsel, sub-processor added",
+                    )
+
+                if st.button("Confirm", key=f"btn_adopt_go_{reg['id']}",
+                             type="primary"):
+                    _res = adopt_client_document(
+                        reg["id"], user_id=reg["user_id"],
+                        effective_from=_eff, change_comment=_note or None,
+                    )
+                    if _res:
+                        st.session_state[adopt_key] = False
+                        st.success(
+                            f"In force as v{_res.get('version')} "
+                            f"({reg['language'].upper()}) from {_eff.isoformat()}."
+                        )
+                        st.rerun()
+                    else:
+                        st.warning(
+                            "Could not put the document in force. Nothing has "
+                            "changed — the previous version is still the one "
+                            "that counts."
+                        )
 
 
 st.divider()
