@@ -6,6 +6,7 @@ from auth import get_user_id
 from database import (
     load_clients, get_signed_url, upload_file,
     get_current_client_documents, register_client_document,
+    adopt_client_document, set_document_comment,
 )
 from gap_assessment import (
     OBLIGATIONS, PROFILE_QUESTIONS, DOCUMENT_TYPES, DOC_OBLIGATIONS,
@@ -233,6 +234,21 @@ with tab1:
             # Auto-save to repository
             st.divider()
             if client_id:
+                # S27: the register is keyed on language as well as doc_type.
+                # An uploaded document has no generation row to read it from,
+                # so it is asked for rather than assumed — a client whose
+                # documents are FR and NL uploading an English DPA is a real
+                # case, and silently filing it as French would misstate the
+                # register.
+                _langs = (selected_client or {}).get("document_languages") or ["en"]
+                _reg_lang = (
+                    st.selectbox(
+                        "Language of this document",
+                        options=_langs,
+                        format_func=lambda c: c.upper(),
+                        key=f"upload_lang_{doc_type_review}",
+                    ) if len(_langs) > 1 else _langs[0]
+                )
                 # Save automatically — no checkbox needed
                 save_key = f"saved_review_{doc_type_review}"
                 if not st.session_state.get(save_key):
@@ -245,17 +261,30 @@ with tab1:
                         "application/octet-stream"
                     )
                     if stored:
-                        comment = ""  # Will be updated below if user adds one
-                        register_client_document(
+                        # S27. An upload is different from a generation: the
+                        # client is handing over the document they actually
+                        # operate under, usually back from counsel. So it is
+                        # registered and adopted in one step — asking them to
+                        # confirm a document they just chose to upload would be
+                        # a step with no decision in it.
+                        #
+                        # effective_from defaults to today. The client can
+                        # correct it on the register: a DPA countersigned last
+                        # week applies from last week.
+                        _row_id = register_client_document(
                             user_id=user_id,
                             client_id=client_id,
                             document_type=doc_type_review,
                             file_path=path,
                             source="client_upload",
                             change_comment="",
+                            language=_reg_lang,
                         )
+                        if _row_id:
+                            adopt_client_document(_row_id, user_id=user_id)
                         st.session_state[save_key] = path
                         st.session_state[f"saved_path_{doc_type_review}"] = path
+                        st.session_state[f"saved_row_{doc_type_review}"] = _row_id
 
                 # Show saved status
                 st.success(
@@ -270,12 +299,17 @@ with tab1:
                     key="review_comment"
                 )
                 if comment and st.button("💾 Save comment", key="btn_save_comment"):
+                    # S27: keyed on the row id, not file_path. A path is not a
+                    # stable key — the same document can be re-uploaded to the
+                    # same path, and this update would then rewrite the comment
+                    # on a superseded version as well as the current one.
                     try:
-                        from database import get_supabase
-                        path = st.session_state.get(f"saved_path_{doc_type_review}")
-                        if path:
-                            get_supabase().table("client_documents")                                 .update({"change_comment": comment})                                 .eq("file_path", path)                                 .eq("user_id", user_id)                                 .execute()
+                        from database import set_document_comment
+                        _row_id = st.session_state.get(f"saved_row_{doc_type_review}")
+                        if _row_id and set_document_comment(_row_id, user_id, comment):
                             st.success("✅ Comment saved.")
+                        else:
+                            st.warning("Could not save the comment.")
                     except Exception as e:
                         st.warning(f"Could not save comment: {e}")
 
