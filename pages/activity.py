@@ -1,7 +1,41 @@
 import streamlit as st
-from datetime import datetime
+from datetime import datetime, timezone
 from auth import get_user_id
 from database import get_supabase, load_clients
+
+# Timestamps are stored in UTC. Streamlit runs server-side, so there is no
+# browser timezone to fall back on — the zone has to be chosen here.
+#
+# Brussels for everyone, for now. Correct for the current market and wrong the
+# moment there is a client outside it, so this becomes a per-client setting
+# rather than a constant when that happens. Named and labelled rather than
+# silently applied: an auditor comparing this log against an email header needs
+# to know which zone they are reading.
+DISPLAY_TZ_NAME = "Europe/Brussels"
+
+try:
+    from zoneinfo import ZoneInfo
+    DISPLAY_TZ = ZoneInfo(DISPLAY_TZ_NAME)
+    TZ_LABEL = "Brussels time"
+except Exception:
+    # No tzdata on the image. UTC, said out loud — a mislabelled timestamp in
+    # an audit log is worse than an honest one in the wrong zone.
+    DISPLAY_TZ = timezone.utc
+    TZ_LABEL = "UTC"
+
+
+def _local(raw: str) -> str:
+    """Render a stored timestamp in the display timezone."""
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return str(raw)
+    if dt.tzinfo is None:
+        # Written before the offset fix: naive, and meant to be UTC. Assumed so
+        # rather than dropped, which is the best available answer for rows
+        # whose intended offset was never recorded.
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(DISPLAY_TZ).strftime("%d %b %Y, %H:%M")
 
 # Keyed on event_type, with subtypes overriding where the distinction matters.
 # S27 writes everything under event_type "document", which had no entry here at
@@ -59,7 +93,7 @@ def _detail(row: dict) -> str:
 
 
 st.title("Activity Log")
-st.caption("A record of compliance actions taken on your account.")
+st.caption(f"A record of compliance actions taken on your account. All times in {TZ_LABEL}.")
 
 user_id = get_user_id()
 clients = load_clients(user_id)
@@ -89,9 +123,7 @@ else:
         st.info("No activity recorded yet.")
     else:
         for row in rows:
-            ts = datetime.fromisoformat(
-                row["created_at"].replace("Z", "+00:00")
-            ).strftime("%d %b %Y, %H:%M")
+            ts = _local(row["created_at"])
             icon = (
                 SUBTYPE_ICONS.get(row.get("event_subtype"))
                 or EVENT_ICONS.get(row["event_type"], "•")
