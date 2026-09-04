@@ -268,6 +268,7 @@ for doc_type, meta in relevant.items():
                     # are the ones a retention rule would otherwise delete
                     # during the proceeding that needs them.
                     held = bool(old.get("legal_hold"))
+                    _hold_form = f"hold_form_{old['id']}"
                     if ocols[1].button(
                         "Release hold" if held else "Hold",
                         key=f"hold_{old['id']}",
@@ -278,9 +279,41 @@ for doc_type, meta in relevant.items():
                             "investigation, audit or proceeding is live."
                         ),
                     ):
-                        set_legal_hold(old["id"], user_id, not held,
-                                       reason="Set from the compliance record")
+                        st.session_state[_hold_form] = not st.session_state.get(
+                            _hold_form, False)
                         st.rerun()
+
+                    if st.session_state.get(_hold_form, False):
+                        with st.container(border=True):
+                            # Optional on both sides. This control is used
+                            # during a live matter, and a required field there
+                            # is friction at the worst possible moment — but
+                            # the reason is recorded to the audit trail
+                            # whenever it is given, and on release it is the
+                            # thing an auditor most wants to see.
+                            _reason = st.text_input(
+                                "Reason (optional)",
+                                key=f"hold_reason_{old['id']}",
+                                placeholder=(
+                                    "e.g. matter closed, no proceedings"
+                                    if held else
+                                    "e.g. complaint received 4 Sept"
+                                ),
+                            )
+                            _hc1, _hc2 = st.columns(2)
+                            if _hc1.button(
+                                "Release hold" if held else "Place hold",
+                                key=f"hold_go_{old['id']}",
+                                type="primary", use_container_width=True,
+                            ):
+                                set_legal_hold(old["id"], user_id, not held,
+                                               reason=_reason or "")
+                                st.session_state[_hold_form] = False
+                                st.rerun()
+                            if _hc2.button("Cancel", key=f"hold_no_{old['id']}",
+                                           use_container_width=True):
+                                st.session_state[_hold_form] = False
+                                st.rerun()
 
                     if held:
                         ocols[2].caption(
