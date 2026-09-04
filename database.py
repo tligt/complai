@@ -297,6 +297,21 @@ def upload_file(bucket: str, path: str, file_bytes: bytes,
         return None
 
 
+def delete_file(bucket: str, path: str) -> bool:
+    """Remove one object from Supabase Storage.
+
+    Service role, like upload_file: storage policies are written for uploads
+    from the app, and a delete that silently no-ops leaves the file behind
+    while the caller believes it is gone.
+    """
+    try:
+        get_supabase_admin().storage.from_(bucket).remove([path])
+        return True
+    except Exception as e:
+        print(f"Could not delete {bucket}/{path}: {e}")
+        return False
+
+
 def get_signed_url(bucket: str, path: str, expires_in: int = 3600) -> str | None:
     """Get a temporary signed URL for a private file."""
     try:
@@ -756,6 +771,71 @@ def get_latest_draft(
         return rows[0] if rows else None
     except Exception:
         return None
+
+
+def delete_draft_document(document_row_id: str, user_id: str) -> bool:
+    """Delete an unadopted draft and its file. Refuses anything else.
+
+    A draft carries no version and nothing points at it, so removing one
+    leaves no gap in the published sequence and breaks no supersession chain.
+    That is the whole reason version numbers are assigned at adoption rather
+    than at generation.
+
+    THE STATUS GUARD IS HERE, NOT IN THE UI. An in_force or superseded row is
+    the accountability record — the answer to "what were we operating under in
+    March" — and the retention and legal-hold work in this sprint exists
+    precisely to stop those disappearing. pages/gap.py already writes to this
+    table outside the store layer, so a check that lives only in a page is a
+    check that can be walked around.
+
+    The storage object goes too. Deleting the row alone would orphan the file:
+    invisible in the product, still stored, and still the client's personal
+    data. The `documents` generation-log row is deliberately KEPT — that a
+    generation happened is true regardless of whether its output was kept.
+    """
+    try:
+        supabase = get_supabase()
+        row = (supabase.table("client_documents").select("*")
+               .eq("id", document_row_id).eq("user_id", user_id)
+               .execute().data or [None])[0]
+        if not row:
+            return False
+        if row.get("status") != "draft":
+            print(
+                f"Refusing to delete {document_row_id}: status is "
+                f"{row.get('status')!r}, not draft."
+            )
+            return False
+
+        if row.get("file_path"):
+            delete_file("compliance-files", row["file_path"])
+
+        supabase.table("client_documents").delete() \
+            .eq("id", document_row_id).eq("user_id", user_id).execute()
+
+        # A discarded draft is still something that happened, and the event
+        # costs nothing. It is also the only remaining trace once the row and
+        # the file are gone.
+        log_audit_event(
+            company_id=row["client_id"],
+            user_id=user_id,
+            event_type="document",
+            event_subtype="draft_deleted",
+            resource_id=document_row_id,
+            summary=(
+                f"{row['document_type']} draft ({row['language'].upper()}) "
+                "deleted before adoption"
+            ),
+            metadata={
+                "document_type": row["document_type"],
+                "language": row["language"],
+                "source": row.get("source"),
+            },
+        )
+        return True
+    except Exception as e:
+        print(f"Could not delete draft: {e}")
+        return False
 
 
 def set_document_comment(

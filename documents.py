@@ -747,6 +747,28 @@ generate = st.button(
     disabled=_register_blocked or _dpa_blocked,
 )
 
+# ── Adoption (S27) — lives in the history section, not here ──────────────
+#
+# The adoption control was first placed directly under each generated
+# document, which is where a client would look for it. It could not work
+# there.
+#
+# Streamlit reruns the whole script on every interaction. The generation
+# blocks below are gated on `generate`, which is a button and is therefore
+# True for exactly one run. Clicking "Put in force" starts a NEW run in which
+# `generate` is False, so the branch never executes, the button is never
+# evaluated, and nothing happens — the panel simply disappears.
+#
+# A button nested inside a button-gated block cannot fire. Same family as the
+# note in pages/inventory.py about widgets inside st.form.
+#
+# So adoption belongs in the document history, which renders on every run. It
+# is also the better home: the history already lists every version with its
+# status, so putting the control there means the client adopts a version from
+# a list of versions rather than from whichever one they happened to generate
+# last.
+
+
 # ══════════════════════════════════════════════════════════════
 # S25 — TEMPLATED PATH
 # ══════════════════════════════════════════════════════════════
@@ -927,93 +949,6 @@ elif generate:
         "Review with a qualified legal professional before use."
     )
 
-    # ── Adoption (S27) ────────────────────────────────────────────────────
-    #
-    # Generating is not adopting. A DPA nobody has signed is not in force, and
-    # the register asserting otherwise from the moment of generation — which is
-    # what it did before S27 — was simply false.
-    #
-    # This is deliberately a separate action rather than a checkbox on the
-    # generate form: the client is being asked when the document begins to
-    # apply, which is a fact only they have and often is not today. A policy
-    # approved on the 3rd and published on the 15th applies from the 15th.
-    if client_id:
-        # Local imports: this module's only datetime import sits further down,
-        # in the history section, and hoisting it would put a name in scope
-        # for 900 lines that two of them use.
-        from datetime import date as _date
-        from database import (
-            get_latest_draft, adopt_client_document,
-            get_current_client_documents,
-        )
-
-        _draft = get_latest_draft(client_id, user_id, doc_type, language)
-        _live = (get_current_client_documents(client_id, user_id, language)
-                 or {}).get(doc_type)
-        _live_here = _live if (_live or {}).get("language") == language else None
-
-        st.divider()
-        st.markdown("**Put this document in force**")
-
-        if _live_here:
-            st.caption(
-                f"Currently in force: v{_live_here.get('version')} "
-                f"({language.upper()}), effective from "
-                f"{_live_here.get('effective_from') or 'unrecorded'}. "
-                "Adopting this one supersedes it — the old version is kept as "
-                "the record of what applied until now."
-            )
-        else:
-            st.caption(
-                f"Nothing is in force for this document in "
-                f"{language.upper()} yet. Until you adopt one, it counts as "
-                "produced but not adopted."
-            )
-
-        if _draft:
-            _ac1, _ac2 = st.columns([2, 3])
-            with _ac1:
-                _eff = st.date_input(
-                    "In force from",
-                    value=_date.today(),
-                    key=f"adopt_eff_{doc_type}_{language}",
-                    help=(
-                        "The date this version begins to apply — not the date "
-                        "you generated it. Backdate it if it was already "
-                        "signed or published."
-                    ),
-                )
-            with _ac2:
-                _note = st.text_input(
-                    "What changed (optional)",
-                    key=f"adopt_note_{doc_type}_{language}",
-                    placeholder="e.g. Reviewed by counsel, sub-processor added",
-                )
-            if st.button(
-                "✅ Put in force", key=f"btn_adopt_{doc_type}_{language}",
-                type="primary",
-            ):
-                _res = adopt_client_document(
-                    _draft["id"], user_id=user_id,
-                    effective_from=_eff, change_comment=_note or None,
-                )
-                if _res:
-                    st.success(
-                        f"In force as v{_res.get('version')} "
-                        f"({language.upper()}) from {_eff.isoformat()}."
-                    )
-                    st.rerun()
-                else:
-                    st.warning(
-                        "Could not put the document in force. Nothing has "
-                        "changed — the previous version is still the one that "
-                        "counts."
-                    )
-        else:
-            st.caption(
-                "This document is already in force, or was not saved to the "
-                "register."
-            )
 
 # ── History ───────────────────────────────────────────────────
 #
@@ -1119,17 +1054,63 @@ def _render_send_form(doc, slot_key, label, company):
         st.error(f"Error: {e}")
 
 
-def _render_language_row(doc, slot_key, label, company):
-    """One language of a generation: links, outstanding badge, send button."""
+def _render_language_row(doc, slot_key, label, company, reg=None,
+                         successor=None):
+    """One language of a generation: status, links, outstanding badge, send.
+
+    S27: the history is built from the `documents` generation log, which has no
+    versions or statuses — those live in client_documents. Without the register
+    row this listed a date and a language and left the reader to work out which
+    of five files their organisation actually operates under, which is the
+    question the whole sprint exists to answer.
+
+    `reg` is the matching register row, or None where there is none: documents
+    generated before S27, or generated outside a client context. `successor`
+    is the register row that superseded it, where one exists.
+    """
     lang = (doc.get("language") or "").upper() or "—"
     outstanding = doc.get("outstanding_fields") or []
     n_out = len(outstanding) if isinstance(outstanding, list) else 0
 
     c0, c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1, 1])
+    # Version FIRST, then what happened to it.
+    #
+    # "Superseded v1" read as "superseded BY v1", which is the opposite of what
+    # it meant. The version a row IS and the version that replaced it are
+    # different facts and both matter to a reader working out what applied
+    # when, so both are stated.
     badge = f"**{lang}**"
+    if reg:
+        _status = reg.get("status")
+        _v = reg.get("version")
+        _vlabel = f"v{_v}" if _v else ""
+        if _status == "in_force":
+            badge += f" · **{_vlabel}** · :green[In force]"
+            if reg.get("effective_from"):
+                badge += f" from {reg['effective_from']}"
+        elif _status == "draft":
+            # The distinction the adoption step exists to make: produced, and
+            # not the thing the organisation operates under. No version — one
+            # is assigned at adoption, so that a discarded draft leaves no gap
+            # in the published sequence.
+            badge += " · :orange[Draft — not adopted]"
+        elif _status == "superseded":
+            badge += f" · **{_vlabel}** · :gray[superseded"
+            if successor and successor.get("version"):
+                badge += f" by v{successor['version']}"
+            if reg.get("superseded_on"):
+                badge += f" on {reg['superseded_on']}"
+            badge += "]"
+        elif _status == "archived":
+            badge += f" · **{_vlabel}** · :gray[archived"
+            if reg.get("superseded_on"):
+                badge += f" on {reg['superseded_on']}"
+            badge += " — no longer applicable]"
     if n_out:
         badge += f" · :orange[{n_out} to complete]"
     c0.markdown(badge)
+    if reg and reg.get("change_comment"):
+        c0.caption(reg["change_comment"])
 
     for col, path_key, flabel in [
         (c1, "file_path_xlsx", "XLSX"),
@@ -1153,11 +1134,159 @@ def _render_language_row(doc, slot_key, label, company):
     if st.session_state.get(open_key, False):
         _render_send_form(doc, slot_key, label, company)
 
+    # Adoption (S27). Rendered here rather than under the generated document,
+    # because this section runs on every rerun and the generation branch does
+    # not — see the note above the templated path.
+    #
+    # Toggled through session_state like the send form: the date and the note
+    # need to survive the rerun between opening the control and pressing the
+    # button.
+    if reg and reg.get("status") == "draft":
+        adopt_key = f"adopt_open_{reg['id']}"
+        _b1, _b2 = c0.columns(2)
+        if _b1.button("Put in force", key=f"btn_adopt_open_{reg['id']}",
+                      help="Record this as the version your organisation operates under"):
+            st.session_state[adopt_key] = not st.session_state.get(adopt_key, False)
+            st.session_state[f"del_open_{reg['id']}"] = False
+            st.rerun()
+
+        # Deleting a draft is safe: no version was assigned, so it leaves no
+        # gap in the published sequence, and nothing supersedes it. Only
+        # drafts — database.delete_draft_document refuses anything else, and
+        # the guard lives there rather than here.
+        del_key = f"del_open_{reg['id']}"
+        if _b2.button("Discard", key=f"btn_del_open_{reg['id']}",
+                      help="Delete this draft and its files"):
+            st.session_state[del_key] = not st.session_state.get(del_key, False)
+            st.session_state[adopt_key] = False
+            st.rerun()
+
+        if st.session_state.get(del_key, False):
+            with st.container(border=True):
+                st.caption(
+                    "Deleting this draft removes it and its files for good. "
+                    "Nothing else is affected — it was never in force, so no "
+                    "version number and no other version depends on it."
+                )
+                _d1, _d2 = st.columns(2)
+                if _d1.button("Delete draft", key=f"btn_del_go_{reg['id']}",
+                              type="primary"):
+                    from database import delete_draft_document
+                    if delete_draft_document(reg["id"], reg["user_id"]):
+                        st.session_state[del_key] = False
+                        st.rerun()
+                    else:
+                        st.warning(
+                            "Could not delete the draft. Nothing has changed."
+                        )
+                if _d2.button("Keep it", key=f"btn_del_no_{reg['id']}"):
+                    st.session_state[del_key] = False
+                    st.rerun()
+
+        if st.session_state.get(adopt_key, False):
+            from datetime import date as _date
+            from database import adopt_client_document, get_current_client_documents
+
+            _live = (get_current_client_documents(
+                reg["client_id"], reg["user_id"], reg["language"]) or {}
+            ).get(reg["document_type"])
+            _live_here = _live if (_live or {}).get("language") == reg["language"] else None
+
+            with st.container(border=True):
+                if _live_here:
+                    st.caption(
+                        f"This supersedes v{_live_here.get('version')} "
+                        f"({reg['language'].upper()}), in force since "
+                        f"{_live_here.get('effective_from') or 'an unrecorded date'}. "
+                        "That version is kept as the record of what applied "
+                        "until now."
+                    )
+                else:
+                    st.caption(
+                        f"Nothing is in force for this document in "
+                        f"{reg['language'].upper()} yet."
+                    )
+
+                a1, a2 = st.columns([1, 2])
+                with a1:
+                    _eff = st.date_input(
+                        "In force from", value=_date.today(),
+                        key=f"adopt_eff_{reg['id']}",
+                        help=(
+                            "The date this version begins to apply — not the "
+                            "date it was generated. Backdate it if it was "
+                            "already signed or published."
+                        ),
+                    )
+                with a2:
+                    _note = st.text_input(
+                        "What changed (optional)",
+                        key=f"adopt_note_{reg['id']}",
+                        placeholder="e.g. Reviewed by counsel, sub-processor added",
+                    )
+
+                if st.button("Confirm", key=f"btn_adopt_go_{reg['id']}",
+                             type="primary"):
+                    _res = adopt_client_document(
+                        reg["id"], user_id=reg["user_id"],
+                        effective_from=_eff, change_comment=_note or None,
+                    )
+                    if _res:
+                        st.session_state[adopt_key] = False
+                        st.success(
+                            f"In force as v{_res.get('version')} "
+                            f"({reg['language'].upper()}) from {_eff.isoformat()}."
+                        )
+                        st.rerun()
+                    else:
+                        st.warning(
+                            "Could not put the document in force. Nothing has "
+                            "changed — the previous version is still the one "
+                            "that counts."
+                        )
+
 
 st.divider()
 st.subheader("📚 Document history")
 
 history = load_document_files(user_id, client_id if mode == "existing_client" else None)
+
+# S27. Register rows keyed by the generation they came from, so each history
+# row can say whether it is in force, a draft, or superseded — and at what
+# version.
+#
+# Keyed on document_id where present, and falling back to the docx path for
+# rows written before S27 added that link. The fallback matters: without it
+# every document generated before today would show no status at all, which
+# reads as "not adopted" rather than "we did not record it".
+_reg_by_doc: dict[str, dict] = {}
+_reg_by_path: dict[str, dict] = {}
+_reg_by_id: dict[str, dict] = {}
+if client_id and mode == "existing_client":
+    try:
+        from database import get_supabase
+        for _r in (get_supabase().table("client_documents")
+                   .select("*").eq("client_id", client_id)
+                   .eq("user_id", user_id).execute().data or []):
+            _reg_by_id[_r["id"]] = _r
+            if _r.get("document_id"):
+                _reg_by_doc[_r["document_id"]] = _r
+            if _r.get("file_path"):
+                _reg_by_path[_r["file_path"]] = _r
+    except Exception:
+        # The history is still worth showing without statuses.
+        pass
+
+
+def _reg_for(doc: dict) -> dict | None:
+    return (_reg_by_doc.get(doc.get("id"))
+            or _reg_by_path.get(doc.get("file_path_docx") or ""))
+
+
+def _successor_of(reg: dict | None) -> dict | None:
+    """The register row that superseded this one, if any."""
+    return _reg_by_id.get((reg or {}).get("superseded_by") or "")
+
 
 if not history:
     st.caption("No documents generated yet.")
@@ -1208,7 +1337,9 @@ else:
             )
 
         for row in sorted(current_rows, key=lambda r: (r.get("language") or "")):
-            _render_language_row(row, f"cur_{row.get('id')}", label, company)
+            _cur_reg = _reg_for(row)
+            _render_language_row(row, f"cur_{row.get('id')}", label, company,
+                                 reg=_cur_reg, successor=_successor_of(_cur_reg))
 
         older = generations[1:]
         if older:
@@ -1221,7 +1352,10 @@ else:
                         + ("  ·  " + ", ".join(langs) if langs else "")
                     )
                     for row in sorted(rows, key=lambda r: (r.get("language") or "")):
-                        _render_language_row(row, f"old_{row.get('id')}", label, company)
+                        _old_reg = _reg_for(row)
+                        _render_language_row(
+                            row, f"old_{row.get('id')}", label, company,
+                            reg=_old_reg, successor=_successor_of(_old_reg))
                     st.divider()
 
         st.divider()
