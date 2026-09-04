@@ -891,11 +891,20 @@ def set_legal_hold(
 
     Without this, a retention rule deletes the evidence during the proceeding
     that needs it.
+
+    hold_set_on is stamped on set and CLEARED on release, so a hold set again
+    later ages from its own start rather than from the first one ever placed.
+    S57 reads it to ask, thirty days on, whether the hold is still necessary —
+    a hold that outlives its proceeding means retaining personal data past the
+    client's own retention period, which is an Art. 5(1)(e) problem rather than
+    an untidy one.
     """
+    from datetime import datetime as _dt
     try:
         get_supabase().table("client_documents").update({
             "legal_hold": on,
             "hold_reason": reason if on else None,
+            "hold_set_on": _dt.utcnow().isoformat() if on else None,
         }).eq("id", document_row_id).eq("user_id", user_id).execute()
         return True
     except Exception as e:
