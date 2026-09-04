@@ -516,6 +516,21 @@ def document_source_label(source: str | None) -> str:
     return DOCUMENT_SOURCES.get(source, source)
 
 
+def _doc_label(doc_type: str) -> str:
+    """Readable name for a doc_type, falling back to the code.
+
+    Audit summaries are read by clients and shown to auditors, and "dpa v2"
+    is an internal identifier. Imported lazily: database.py is imported by
+    obligations-adjacent modules and a module-level import risks a cycle for
+    what is a display concern.
+    """
+    try:
+        from obligations import DOCUMENT_TYPES  # noqa: PLC0415
+        return DOCUMENT_TYPES.get(doc_type, doc_type)
+    except Exception:
+        return doc_type
+
+
 # ── S27: register statuses ────────────────────────────────────────────────
 #
 # APPEND-ONLY, same rule as DOCUMENT_SOURCES above.
@@ -691,7 +706,7 @@ def adopt_client_document(
             event_subtype="adopted",
             resource_id=document_row_id,
             summary=(
-                f"{row['document_type']} v{next_version} "
+                f"{_doc_label(row['document_type'])} v{next_version} "
                 f"({row['language'].upper()}) in force from "
                 f"{effective.isoformat()}"
             ),
@@ -742,7 +757,7 @@ def archive_client_document(
             company_id=row["client_id"], user_id=user_id,
             event_type="document", event_subtype="archived",
             resource_id=document_row_id,
-            summary=(f"{row['document_type']} v{row.get('version')} "
+            summary=(f"{_doc_label(row['document_type'])} v{row.get('version')} "
                      f"({row['language'].upper()}) archived"),
             metadata={"reason": reason},
         )
@@ -850,8 +865,8 @@ def delete_draft_document(document_row_id: str, user_id: str) -> bool:
             event_subtype="draft_deleted",
             resource_id=document_row_id,
             summary=(
-                f"{row['document_type']} draft ({row['language'].upper()}) "
-                "deleted before adoption"
+                f"{_doc_label(row['document_type'])} draft "
+                f"({row['language'].upper()}) deleted before adoption"
             ),
             metadata={
                 "document_type": row["document_type"],
@@ -939,8 +954,14 @@ def set_legal_hold(
                 held_days = None
 
         _label = (
-            f"{row['document_type']} v{row.get('version') or '—'} "
+            f"{_doc_label(row['document_type'])} v{row.get('version') or '—'} "
             f"({(row.get('language') or '').upper()})"
+        )
+        # "after 0 day(s)" is true and reads like a bug.
+        _duration = (
+            "" if held_days is None
+            else " the same day" if held_days == 0
+            else f" after {held_days} day(s)"
         )
         log_audit_event(
             company_id=row["client_id"],
@@ -950,8 +971,7 @@ def set_legal_hold(
             resource_id=document_row_id,
             summary=(
                 f"Legal hold placed on {_label}" if on else
-                f"Legal hold released on {_label}"
-                + (f" after {held_days} day(s)" if held_days is not None else "")
+                f"Legal hold released on {_label}{_duration}"
             ),
             metadata={
                 "document_type": row["document_type"],
