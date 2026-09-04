@@ -399,34 +399,81 @@ def load_audit_files(email_domain: str | None = None,
 
 # ── Client document repository ────────────────────────────────
 
-def get_current_client_documents(client_id: str, user_id: str) -> dict:
-    """Get current version of each document type for a client."""
+def get_current_client_documents(
+    client_id: str, user_id: str, language: str | None = None,
+) -> dict:
+    """In-force document per doc_type for a client. Shape unchanged.
+
+    S27 added language to the register key, so a doc_type can now have several
+    in-force rows — one per language. This still returns one per doc_type,
+    because gap scoring and the dashboard both assume that shape and changing
+    it is a separate migration.
+
+    Which one: the requested language if present, else whichever came back
+    first. A gap assessment scores the CONTENT of a policy, and the French and
+    English versions of the same adopted policy say the same thing — so for
+    scoring purposes the choice is not material. For the per-language dashboard
+    rollup, use get_register_status() instead, which returns all of them.
+    """
     try:
-        supabase = get_supabase()
-        res = supabase.table("client_documents") \
-            .select("*") \
-            .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
-            .eq("is_current", True) \
-            .execute()
-        return {r["document_type"]: r for r in (res.data or [])}
+        rows = (get_supabase().table("client_documents").select("*")
+                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("status", "in_force").execute().data or [])
+        out: dict = {}
+        for r in rows:
+            dt = r["document_type"]
+            if dt not in out or (language and r.get("language") == language):
+                out[dt] = r
+        return out
     except Exception:
         return {}
 
 
-def get_client_document_history(client_id: str, user_id: str,
-                                 document_type: str) -> list[dict]:
-    """Get full version history for a specific document type."""
+def get_register_status(client_id: str, user_id: str) -> dict:
+    """Every register row grouped as {doc_type: {language: row}}.
+
+    The per-language view the dashboard rollup needs: "Privacy Policy — in
+    force (FR), outdated (EN), not available (NL)". Includes drafts, so a
+    generated-but-not-adopted document shows as present-and-not-adopted rather
+    than missing — the distinction that stops the S27 adoption step reading as
+    a score regression.
+    """
     try:
-        supabase = get_supabase()
-        res = supabase.table("client_documents") \
-            .select("*") \
-            .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
-            .eq("document_type", document_type) \
-            .order("version", desc=True) \
-            .execute()
-        return res.data or []
+        rows = (get_supabase().table("client_documents").select("*")
+                .eq("client_id", client_id).eq("user_id", user_id)
+                .in_("status", ["draft", "in_force"])
+                .order("uploaded_at", desc=True).execute().data or [])
+        out: dict = {}
+        for r in rows:
+            per_lang = out.setdefault(r["document_type"], {})
+            existing = per_lang.get(r["language"])
+            # in_force beats draft; otherwise the most recent draft wins.
+            if existing is None or (
+                existing["status"] == "draft" and r["status"] == "in_force"
+            ):
+                per_lang[r["language"]] = r
+        return out
+    except Exception:
+        return {}
+
+
+def get_client_document_history(
+    client_id: str, user_id: str, document_type: str,
+    language: str | None = None,
+) -> list[dict]:
+    """Full history for a doc_type, newest first.
+
+    Ordered by uploaded_at, not version: drafts carry no version number (S27),
+    and ordering by a NULL column drops them or scatters them depending on the
+    backend. The history view is also where a client sees their drafts.
+    """
+    try:
+        q = (get_supabase().table("client_documents").select("*")
+             .eq("client_id", client_id).eq("user_id", user_id)
+             .eq("document_type", document_type))
+        if language:
+            q = q.eq("language", language)
+        return q.order("uploaded_at", desc=True).execute().data or []
     except Exception:
         return []
 
@@ -454,6 +501,37 @@ def document_source_label(source: str | None) -> str:
     return DOCUMENT_SOURCES.get(source, source)
 
 
+# ── S27: register statuses ────────────────────────────────────────────────
+#
+# APPEND-ONLY, same rule as DOCUMENT_SOURCES above.
+#
+# 'withdrawn' was considered and rejected: an abandoned draft is deleted, and a
+# status that only ever applies to documents nobody used adds a state to every
+# query for no benefit.
+DOCUMENT_STATUSES = {
+    "draft":      "Draft — not yet adopted",
+    "in_force":   "In force",
+    "superseded": "Superseded",
+    "archived":   "Archived — no longer applicable",
+}
+
+# Retention of superseded versions, in years after they cease to apply.
+#
+# NOT A STATUTORY PERIOD. There is no GDPR rule stating how long a superseded
+# transparency notice must be kept; the requirement is Art. 5(2) accountability
+# — the client must be able to demonstrate what information it provided at the
+# time the processing took place. Five years is a risk-management working
+# figure, shown to the client with its reasoning rather than asserted as law
+# (D-50, D-51), and configurable per deployment.
+#
+# VERIFY BEFORE BETA: the Belgian DPA is reported to expect previous cookie
+# policy versions to be retained, dated and version-numbered. Confirm against
+# the primary source before this figure is presented to a client as guidance.
+SUPERSEDED_RETENTION_YEARS = int(
+    os.environ.get("SUPERSEDED_RETENTION_YEARS", "5")
+)
+
+
 def register_client_document(
     user_id: str,
     client_id: str,
@@ -461,37 +539,239 @@ def register_client_document(
     file_path: str,
     source: str = "client_upload",
     change_comment: str = "",
-) -> bool:
-    """Register a new document version. Marks previous version as not current."""
+    language: str = "en",
+    document_id: str | None = None,
+    template_version_id: str | None = None,
+    source_revision: int | None = None,
+) -> str | None:
+    """Record a document as a DRAFT. Returns the new row id, or None.
+
+    S27: this no longer adopts. Generating a document is not the same event as
+    beginning to operate under it — a DPA nobody has signed is not in force,
+    and the register asserting otherwise from the moment of generation was
+    simply false.
+
+    It also no longer assigns a version. Version numbers are public facts that
+    appear on the document, and three discarded drafts consuming v4, v5 and v6
+    leave a published sequence reading v3 -> v7 with no explanation for the
+    gap. Numbering happens in adopt_client_document().
+
+    Callers that want the old behaviour — generate and immediately operate
+    under it — call adopt_client_document() straight after. That is a decision
+    they now have to make explicitly, which is the point.
+    """
     try:
-        supabase = get_supabase()
-        res = supabase.table("client_documents") \
-            .select("version") \
-            .eq("client_id", client_id) \
-            .eq("document_type", document_type) \
-            .eq("is_current", True) \
-            .execute()
-        current_version = res.data[0]["version"] if res.data else 0
-        new_version = current_version + 1
-        if current_version > 0:
-            supabase.table("client_documents") \
-                .update({"is_current": False}) \
-                .eq("client_id", client_id) \
-                .eq("user_id", user_id) \
-                .eq("document_type", document_type) \
-                .execute()
-        supabase.table("client_documents").insert({
+        res = get_supabase().table("client_documents").insert({
             "user_id": user_id,
             "client_id": client_id,
             "document_type": document_type,
-            "version": new_version,
+            "language": language,
+            "status": "draft",
+            "version": None,
             "file_path": file_path,
             "source": source,
             "change_comment": change_comment,
-            "is_current": True,
+            "document_id": document_id,
+            "template_version_id": template_version_id,
+            "source_revision": source_revision,
         }).execute()
+        return (res.data or [{}])[0].get("id")
+    except Exception as e:
+        print(f"Could not register document draft: {e}")
+        return None
+
+
+def adopt_client_document(
+    document_row_id: str,
+    user_id: str,
+    effective_from: "date | None" = None,
+    published_at: "date | None" = None,
+    change_comment: str | None = None,
+) -> dict | None:
+    """Move a draft to in_force, superseding whatever it replaces.
+
+    Explicit supersede-then-insert, NEVER an upsert: the one-in-force rule is a
+    partial unique index, and partial indexes cannot serve as ON CONFLICT
+    arbiters (42P10).
+
+    Order matters. The predecessor is superseded FIRST, because the index
+    rejects two in_force rows for the same key — doing it the other way round
+    fails on every adoption after the first.
+
+    Not atomic. PostgREST has no transaction across calls, so a failure between
+    the two writes leaves a key with no in_force document: visible, wrong, and
+    fixable by re-adopting. The alternative is a Postgres function, which is
+    the right answer if this ever runs concurrently for one client — noted
+    rather than built, because today it does not.
+    """
+    from datetime import date as _date
+    try:
+        supabase = get_supabase()
+
+        row = (supabase.table("client_documents").select("*")
+               .eq("id", document_row_id).eq("user_id", user_id)
+               .execute().data or [None])[0]
+        if not row:
+            return None
+        if row["status"] != "draft":
+            # Already adopted, or superseded. Not an error worth raising — the
+            # client pressed a button twice — but not a second adoption either.
+            return row
+
+        effective = effective_from or _date.today()
+
+        # The predecessor, if any.
+        prev = (supabase.table("client_documents").select("id, version")
+                .eq("client_id", row["client_id"])
+                .eq("document_type", row["document_type"])
+                .eq("language", row["language"])
+                .eq("status", "in_force")
+                .execute().data or [None])[0]
+
+        if prev:
+            # superseded_on equals the successor's effective_from rather than
+            # being set independently: two dates set by hand produce gaps or
+            # overlaps in the timeline, and both are wrong when an auditor asks
+            # what applied in March.
+            retain_until = _date(
+                effective.year + SUPERSEDED_RETENTION_YEARS,
+                effective.month, effective.day,
+            )
+            supabase.table("client_documents").update({
+                "status": "superseded",
+                "superseded_on": effective.isoformat(),
+                "superseded_by": document_row_id,
+                "retain_until": retain_until.isoformat(),
+            }).eq("id", prev["id"]).execute()
+
+        # Dense sequence: the highest version ever issued for this key, not the
+        # count of rows, so a deleted draft cannot renumber anything.
+        highest = (supabase.table("client_documents").select("version")
+                   .eq("client_id", row["client_id"])
+                   .eq("document_type", row["document_type"])
+                   .eq("language", row["language"])
+                   .not_.is_("version", "null")
+                   .order("version", desc=True).limit(1)
+                   .execute().data or [{}])
+        next_version = (highest[0].get("version") or 0) + 1 if highest else 1
+
+        patch = {
+            "status": "in_force",
+            "version": next_version,
+            "adopted_at": datetime.utcnow().isoformat(),
+            "effective_from": effective.isoformat(),
+        }
+        if published_at:
+            patch["published_at"] = published_at.isoformat()
+        if change_comment is not None:
+            patch["change_comment"] = change_comment
+
+        updated = (supabase.table("client_documents").update(patch)
+                   .eq("id", document_row_id).execute().data or [None])[0]
+
+        log_audit_event(
+            company_id=row["client_id"],
+            user_id=user_id,
+            event_type="document",
+            event_subtype="adopted",
+            resource_id=document_row_id,
+            summary=(
+                f"{row['document_type']} v{next_version} "
+                f"({row['language'].upper()}) in force from "
+                f"{effective.isoformat()}"
+            ),
+            metadata={
+                "document_type": row["document_type"],
+                "language": row["language"],
+                "version": next_version,
+                "source": row.get("source"),
+                "source_revision": row.get("source_revision"),
+                "supersedes_version": (prev or {}).get("version"),
+            },
+        )
+        return updated
+    except Exception as e:
+        print(f"Could not adopt document: {e}")
+        return None
+
+
+def archive_client_document(
+    document_row_id: str, user_id: str, reason: str = "",
+) -> bool:
+    """Retire an in-force document that nothing replaces.
+
+    Distinct from supersession. A client who stops processing on another
+    controller's behalf retires their DPA: nothing takes its place, the
+    obligation simply ended. Without this the only way to express it is a
+    supersession chain pointing at nothing.
+    """
+    from datetime import date as _date
+    try:
+        supabase = get_supabase()
+        row = (supabase.table("client_documents").select("*")
+               .eq("id", document_row_id).eq("user_id", user_id)
+               .execute().data or [None])[0]
+        if not row or row["status"] != "in_force":
+            return False
+        today = _date.today()
+        supabase.table("client_documents").update({
+            "status": "archived",
+            "superseded_on": today.isoformat(),
+            "retain_until": _date(
+                today.year + SUPERSEDED_RETENTION_YEARS, today.month, today.day
+            ).isoformat(),
+            "change_comment": reason or row.get("change_comment") or "",
+        }).eq("id", document_row_id).execute()
+
+        log_audit_event(
+            company_id=row["client_id"], user_id=user_id,
+            event_type="document", event_subtype="archived",
+            resource_id=document_row_id,
+            summary=(f"{row['document_type']} v{row.get('version')} "
+                     f"({row['language'].upper()}) archived"),
+            metadata={"reason": reason},
+        )
         return True
-    except Exception:
+    except Exception as e:
+        print(f"Could not archive document: {e}")
+        return False
+
+
+def set_document_comment(
+    document_row_id: str, user_id: str, comment: str,
+) -> bool:
+    """Set the change note on one register row.
+
+    Keyed on the row id. pages/gap.py previously updated this by matching
+    file_path, which is not a stable key: re-uploading to the same path would
+    rewrite the note on the superseded version as well as the current one.
+    """
+    try:
+        get_supabase().table("client_documents") \
+            .update({"change_comment": comment}) \
+            .eq("id", document_row_id).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not save change comment: {e}")
+        return False
+
+
+def set_legal_hold(
+    document_row_id: str, user_id: str, on: bool, reason: str = "",
+) -> bool:
+    """Suspend deletion for a document relevant to a live matter.
+
+    Without this, a retention rule deletes the evidence during the proceeding
+    that needs it.
+    """
+    try:
+        get_supabase().table("client_documents").update({
+            "legal_hold": on,
+            "hold_reason": reason if on else None,
+        }).eq("id", document_row_id).eq("user_id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not set legal hold: {e}")
         return False
 
 
