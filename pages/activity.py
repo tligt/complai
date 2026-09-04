@@ -49,7 +49,7 @@ EVENT_ICONS = {
 }
 
 EVENT_LABELS = {
-    "document_generated": "Document generated",
+    "document_generated": "Generated",
     "gap_assessment_run": "Gap assessment",
     "audit_run":          "Website audit",
     "document":           "Document",
@@ -107,6 +107,23 @@ def _detail(row: dict) -> str:
     return " · ".join(parts)
 
 
+ACTION_IN_SUBTYPE = {"document"}
+
+
+def _action(row: dict) -> str:
+    """A readable name for what happened.
+
+    audit_log stores internal codes. A client reading their own compliance
+    history should not have to know that "document / hold_released" means a
+    legal hold was lifted.
+    """
+    etype = row.get("event_type", "")
+    sub = row.get("event_subtype")
+    if sub and etype in ACTION_IN_SUBTYPE:
+        return SUBTYPE_LABELS.get(sub, sub.replace("_", " ").capitalize())
+    return EVENT_LABELS.get(etype, str(etype).replace("_", " ").capitalize())
+
+
 st.title("Activity Log")
 st.caption(
     "A record of compliance actions taken on your account. "
@@ -143,22 +160,16 @@ if not rows:
     st.stop()
 
 
-def _action(row: dict) -> str:
-    """A readable name for what happened.
-
-    audit_log stores event_type and event_subtype, which are internal codes.
-    A client reading their own compliance history should not have to know that
-    "document / hold_released" means a legal hold was lifted.
-    """
-    sub = row.get("event_subtype")
-    if sub:
-        return SUBTYPE_LABELS.get(sub, sub.replace("_", " ").capitalize())
-    return EVENT_LABELS.get(
-        row.get("event_type", ""),
-        str(row.get("event_type", "")).replace("_", " ").capitalize(),
-    )
-
-
+# event_subtype carries two different things depending on event_type, and
+# reading it as one produced "Dpa" in the Action column.
+#
+#   event_type "document"           -> subtype is the ACTION  (adopted, hold_set)
+#   event_type "document_generated" -> subtype is the DOCUMENT (dpa, ropa_controller)
+#
+# The writers are in different modules — document_generator.py predates S27 —
+# and neither is wrong on its own. Fixing it in the data would mean rewriting
+# historical audit rows, which are immutable by design, so it is resolved here
+# at display time: only these event types put an action in the subtype.
 # ── Filters ───────────────────────────────────────────────────────────────
 # A register that only scrolls is one nobody checks a specific thing in. An
 # auditor arrives with a question — what happened to the DPA, who released
@@ -181,12 +192,16 @@ filtered = [
 
 table = [
     {
-        "": (
-            SUBTYPE_ICONS.get(r.get("event_subtype"))
-            or EVENT_ICONS.get(r.get("event_type", ""), "•")
-        ),
+        # Date first: this is an incremental log, and when something happened
+        # is the column a reader scans down. The icon rides with the action it
+        # illustrates rather than occupying a column of its own.
         "When": _local(r["created_at"]),
-        "Action": _action(r),
+        "Action": (
+            ((SUBTYPE_ICONS.get(r.get("event_subtype"))
+              if r.get("event_type") in ACTION_IN_SUBTYPE else None)
+             or EVENT_ICONS.get(r.get("event_type", ""), "•"))
+            + "  " + _action(r)
+        ),
         "What": r.get("summary", ""),
         # Reasons live in metadata, which is why a log rendering only the
         # summary showed that something happened and never why. For a legal
@@ -207,9 +222,8 @@ st.dataframe(
     hide_index=True,
     width="stretch",
     column_config={
-        "": st.column_config.TextColumn(width="small"),
         "When": st.column_config.TextColumn(width="small"),
-        "Action": st.column_config.TextColumn(width="small"),
+        "Action": st.column_config.TextColumn(width="medium"),
         "What": st.column_config.TextColumn(width="large"),
         "Details": st.column_config.TextColumn(width="medium"),
     },
