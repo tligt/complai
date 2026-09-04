@@ -121,7 +121,22 @@ def document_status(
         else:
             not_generated.append(lang)
 
-    if in_force and not (drafts or not_generated or not_available):
+    # A language RECOSA cannot produce is NOT held against the client, and the
+    # exclusion is PER LANGUAGE, not per document.
+    #
+    # The first version excluded only documents whose every language was
+    # unavailable. A client with NL and FR documents, a French DPA in force and
+    # no Dutch template scored `partial` — and `coverage()` counted partial as
+    # not covered, so a fully compliant client read 0/7. They had done
+    # everything available to them and the product told them they had done
+    # nothing.
+    #
+    # So the question is not "is every required language in force" but "is
+    # every language we can actually serve in force". The unavailable ones stay
+    # in the breakdown and in the note, because the gap is real and should be
+    # visible — it is just not theirs.
+    _blocking = drafts or not_generated
+    if in_force and not _blocking:
         state = IN_FORCE
     elif in_force:
         state = PARTIAL
@@ -194,15 +209,17 @@ def coverage(
 ) -> dict[str, int]:
     """Counts across a set of documents, EXCLUDING what the client cannot fix.
 
-    `required` deliberately omits documents whose only problem is a missing
-    RECOSA template. A client's compliance percentage must not fall because we
-    have not written a Dutch version — that is billing them for our backlog,
-    and it is the kind of thing a competitor would put in a comparison table.
+    `required` omits documents whose ONLY problem is a missing RECOSA template.
+    A client's compliance percentage must not fall because we have not written
+    a Dutch version — that is billing them for our backlog, and it is the kind
+    of thing a competitor would put in a comparison table.
 
-    `blocked_on_us` is reported separately so the gap stays visible rather than
-    being quietly dropped.
+    `blocked_on_us` counts documents held up entirely by us; `partly_blocked`
+    counts those in force in every language we can serve but still missing one
+    we cannot. The second is the case that produced a 0% score for a client who
+    had done everything available to them.
     """
-    required = covered = blocked = 0
+    required = covered = blocked = partly = 0
     for st_ in statuses:
         if st_["state"] == NOT_AVAILABLE:
             blocked += 1
@@ -210,10 +227,13 @@ def coverage(
         required += 1
         if st_["state"] == IN_FORCE:
             covered += 1
+            if st_["not_available"]:
+                partly += 1
     return {
         "required": required,
         "covered": covered,
         "blocked_on_us": blocked,
+        "partly_blocked": partly,
         "percent": round(100 * covered / required) if required else 0,
     }
 
