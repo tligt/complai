@@ -1,5 +1,5 @@
 """
-pages/register.py — S27. The auditor-facing compliance documentation page.
+pages/compliance_record.py — S27. The auditor-facing compliance record.
 
 DIFFERENT AUDIENCE FROM EVERY OTHER PAGE.
 -----------------------------------------
@@ -27,6 +27,15 @@ says while reading it.
 Rendering only. Every judgement — what state a document is in, whose gap it is,
 which version superseded which — comes from register.py, which has no Streamlit
 in it (D-61).
+
+WHY THIS FILE IS NOT CALLED register.py
+---------------------------------------
+It was, and it could not import the module it depends on. Streamlit puts a
+page's own directory on sys.path, so `import register` inside pages/register.py
+resolved to the page itself. Silent until runtime, and the traceback points at
+the import line rather than at the collision.
+
+A module in pages/ must not share a name with a root module it imports.
 """
 
 import streamlit as st
