@@ -752,6 +752,33 @@ def archive_client_document(
         return False
 
 
+def get_template_languages() -> dict[str, set]:
+    """{doc_type: {languages}} for which an in-force template exists.
+
+    Lets the product tell its own gap apart from the client's. "Not available
+    in NL" and "you have not adopted the NL version" look identical on a
+    dashboard and are opposite findings: one is RECOSA's work, the other is
+    the client's. Showing the second when the first is true blames a client
+    for a template that was never written.
+
+    documents.py currently infers this by subtracting generated languages from
+    the client's list, which is a guess. This is the fact.
+    """
+    try:
+        rows = (get_supabase().table("document_template_versions")
+                .select("language, status, document_templates(doc_type)")
+                .eq("status", "in_force").execute().data or [])
+        out: dict[str, set] = {}
+        for r in rows:
+            dt = ((r.get("document_templates") or {}) or {}).get("doc_type")
+            if dt and r.get("language"):
+                out.setdefault(dt, set()).add(r["language"].lower())
+        return out
+    except Exception as e:
+        print(f"Could not read template languages: {e}")
+        return {}
+
+
 def get_latest_draft(
     client_id: str, user_id: str, document_type: str, language: str,
 ) -> dict | None:
