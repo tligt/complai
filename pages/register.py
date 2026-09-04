@@ -1,247 +1,288 @@
 """
-register.py — S27. What the document register MEANS, as pure functions.
+pages/register.py — S27. The auditor-facing compliance documentation page.
 
-NO STREAMLIT. NO SUPABASE. NO I/O.
+DIFFERENT AUDIENCE FROM EVERY OTHER PAGE.
+-----------------------------------------
+The rest of the app is for a client doing daily work. This is for the person
+they hand things to: their auditor, their counsel, a supervisory authority, or
+a customer's procurement team.
 
-Everything here takes plain data and returns plain data. The caller fetches the
-rows and decides how to paint the answer; this module decides what the answer
-is.
+That audience asks one question — **what were you operating under, and when** —
+so the default view answers it: one row per document and language, showing the
+version in force, the date it took effect, and where it came from. Everything
+else is behind an expander.
 
-WHY
----
-Two reasons, and the second is the one that matters day to day.
+WHAT IS DELIBERATELY NOT HERE
+-----------------------------
+Drafts, by default. A draft is the client's working state: produced, not
+adopted, not what the organisation operates under. Listing it beside in-force
+documents invites a reader to count it as coverage, which is the false
+assurance the adoption step exists to remove. There is a toggle, because a
+draft is still evidence that something is in progress.
 
-Portability: the logic that decides whether a client is covered should not be
-entangled with the framework that draws the screen. Moving off Streamlit later
-should be a rendering job, not a re-derivation of compliance rules.
+Generation. This page reports; it does not produce. A reader who can generate
+documents from the compliance record is a reader who can change what the record
+says while reading it.
 
-Testability: `document_status()` can be exercised against a dozen awkward cases
-in a second. The same logic written as branches inside a page can only be
-tested by clicking, which in practice means it is not tested at all — and it
-decides what a client is told about their own compliance.
-
-THE DISTINCTION THIS MODULE EXISTS TO DRAW
-------------------------------------------
-"No Dutch privacy policy" is two different findings:
-
-  NOT_GENERATED  the template exists; the client has not produced it.
-                 Their action, and it counts against them.
-
-  NOT_AVAILABLE  RECOSA has no template in that language yet.
-                 Our action. The client cannot fix it, so it must not
-                 count against them and must not be shown as their failure.
-
-They look identical on a dashboard and are opposites. Scoring a client down
-because a template was never written is a bill for our own backlog.
+Rendering only. Every judgement — what state a document is in, whose gap it is,
+which version superseded which — comes from register.py, which has no Streamlit
+in it (D-61).
 """
 
-from __future__ import annotations
+import streamlit as st
 
-from typing import Any, Iterable, Mapping
+import register as REG
+from auth import get_user_id
+from database import (
+    get_supabase,
+    get_register_status,
+    get_template_languages,
+    get_client_document_history,
+    get_signed_url,
+    document_source_label,
+    set_legal_hold,
+    DOCUMENT_STATUSES,
+)
+from obligations import DOC_CATALOG, REGULATION_LABELS
 
+st.title("🗄️ Compliance record")
+st.caption(
+    "What your organisation operates under, and since when. This is the view "
+    "to share with an auditor."
+)
 
-# ── States, worst first ───────────────────────────────────────────────────
-# Ordered deliberately: reduce() over a document's languages takes the worst,
-# and "worst" has to mean something stable.
+user_id = get_user_id()
+if not user_id:
+    st.error("Please log in to view the compliance record.")
+    st.stop()
 
-IN_FORCE      = "in_force"       # every required language is adopted
-PARTIAL       = "partial"        # adopted in some languages, not all
-DRAFT         = "draft"          # produced, never adopted
-NOT_GENERATED = "not_generated"  # template exists, client has not produced it
-NOT_AVAILABLE = "not_available"  # no template in that language — RECOSA's gap
-ARCHIVED      = "archived"       # retired, nothing replaced it
+try:
+    client = (get_supabase().table("clients").select("*")
+              .eq("user_id", user_id).single().execute().data) or {}
+except Exception:
+    client = {}
 
-STATE_LABELS = {
-    IN_FORCE:      "In force",
-    PARTIAL:       "In force in some languages",
-    DRAFT:         "Draft — not adopted",
-    NOT_GENERATED: "Not generated",
-    NOT_AVAILABLE: "Not available yet",
-    ARCHIVED:      "Archived",
+if not client:
+    st.warning("Please complete your company profile first.")
+    st.stop()
+
+client_id     = client.get("id")
+company_name  = client.get("company_name", "Your company")
+regulations   = client.get("regulations") or ["GDPR"]
+doc_languages = [l.lower() for l in (client.get("document_languages") or ["en"])]
+
+register       = get_register_status(client_id, user_id) if client_id else {}
+template_langs = get_template_languages()
+
+show_drafts = st.toggle(
+    "Include drafts",
+    value=False,
+    help=(
+        "Drafts are produced but not adopted — your organisation is not "
+        "operating under them. Off by default so this page answers only what "
+        "applies."
+    ),
+)
+
+# ── Summary ───────────────────────────────────────────────────────────────
+relevant = {
+    k: v for k, v in DOC_CATALOG.items()
+    if v["regulations"] and any(r in regulations for r in v["regulations"])
 }
 
-# Whether a state is the CLIENT's to fix. NOT_AVAILABLE is not: no action of
-# theirs changes it. Anything that consumes these states for scoring should
-# read this rather than re-deciding, because the decision is easy to get
-# backwards and expensive when it is.
-CLIENT_ACTIONABLE = {
-    IN_FORCE:      False,
-    PARTIAL:       True,
-    DRAFT:         True,
-    NOT_GENERATED: True,
-    NOT_AVAILABLE: False,
-    ARCHIVED:      True,
-}
-
-
-def document_status(
-    doc_type: str,
-    languages: Iterable[str],
-    register_rows: Mapping[str, Mapping[str, Any]] | None,
-    template_languages: Iterable[str] | None,
-) -> dict[str, Any]:
-    """Where one document stands across every language it is needed in.
-
-    Args:
-        doc_type: the document's code, echoed back for convenience.
-        languages: the languages this client's documents are produced in.
-        register_rows: {language: register row} for this doc_type, or None.
-            Rows are whatever the store returns; only `status`, `version`,
-            `effective_from` and `superseded_on` are read.
-        template_languages: languages RECOSA has an in-force template for, or
-            None when unknown. **None is not the same as empty.** Empty means
-            "we have no template", None means "we did not check" — and
-            reporting our own gap on the strength of a failed lookup would
-            tell a client we cannot help them when in fact we do not know.
-
-    Returns a dict with `state`, the per-language breakdown, and
-    `client_actionable`.
-    """
-    langs = [str(l).lower() for l in (languages or []) if l]
-    rows = {str(k).lower(): v for k, v in (register_rows or {}).items()}
-    tmpl = (
-        None if template_languages is None
-        else {str(l).lower() for l in template_languages}
+statuses = {
+    dt: REG.document_status(
+        doc_type=dt,
+        languages=doc_languages,
+        register_rows=register.get(dt),
+        template_languages=(template_langs.get(dt) if template_langs else None),
     )
+    for dt in relevant
+}
 
-    in_force, drafts, not_generated, not_available, archived = [], [], [], [], []
+cov = REG.coverage(statuses.values())
 
-    for lang in langs:
-        row = rows.get(lang) or {}
-        status = row.get("status")
-        if status == "in_force":
-            in_force.append(lang)
-        elif status == "draft":
-            drafts.append(lang)
-        elif status == "archived":
-            archived.append(lang)
-        elif tmpl is not None and lang not in tmpl:
-            # No template. Ours, and only assertable because tmpl is not None.
-            not_available.append(lang)
-        else:
-            not_generated.append(lang)
+c1, c2, c3 = st.columns(3)
+c1.metric("Documents in force", f"{cov['covered']} / {cov['required']}")
+c2.metric("Coverage", f"{cov['percent']}%")
+if cov["blocked_on_us"]:
+    # Counted separately and never against the client (D-59): a coverage figure
+    # that falls because RECOSA has not written a template yet is billing the
+    # client for our backlog.
+    c3.metric("Awaiting a RECOSA template", cov["blocked_on_us"])
 
-    if in_force and not (drafts or not_generated or not_available):
-        state = IN_FORCE
-    elif in_force:
-        state = PARTIAL
-    elif drafts:
-        # Produced and not adopted is NOT the same as nothing, and is
-        # deliberately not treated as covered: the client is not operating
-        # under it, and calling it done restores the false assurance the
-        # adoption step was introduced to remove.
-        state = DRAFT
-    elif not_generated:
-        # Something the client can act on outranks something they cannot. A
-        # dashboard that leads with our gap buries their next action.
-        state = NOT_GENERATED
-    elif not_available:
-        state = NOT_AVAILABLE
-    elif archived:
-        state = ARCHIVED
-    else:
-        state = NOT_GENERATED
+st.caption(
+    f"{company_name} · document languages "
+    + ", ".join(l.upper() for l in doc_languages)
+    + " · regulations "
+    + ", ".join(REGULATION_LABELS.get(r, r) for r in regulations)
+)
 
-    return {
-        "doc_type": doc_type,
-        "state": state,
-        "label": STATE_LABELS[state],
-        "client_actionable": CLIENT_ACTIONABLE[state],
-        "in_force": in_force,
-        "drafts": drafts,
-        "not_generated": not_generated,
-        "not_available": not_available,
-        "archived": archived,
-        "versions": {
-            l: (rows.get(l) or {}).get("version")
-            for l in in_force
-        },
-    }
+st.divider()
 
+# ── One section per document ──────────────────────────────────────────────
+for doc_type, meta in relevant.items():
+    status = statuses[doc_type]
+    rows_by_lang = register.get(doc_type, {})
 
-def status_note(status: dict[str, Any], multilingual: bool = True) -> str:
-    """One line naming the gaps and whose they are. '' when there are none.
+    if status["state"] == REG.NOT_GENERATED and not status["in_force"]:
+        # Nothing to report but the absence. Said once, plainly, rather than
+        # given a section of its own — an auditor reading a page of empty
+        # headings learns less than one reading a list of what is missing.
+        continue
 
-    Single-language clients get nothing: naming the language when there is
-    only one is noise, and the state label already says everything.
-    """
-    if not multilingual:
-        return ""
-    parts = []
-    if status["in_force"] and (status["drafts"] or status["not_generated"]
-                               or status["not_available"]):
-        parts.append("in force in " + _langs(status["in_force"]))
-    if status["drafts"]:
-        parts.append("generated but not in force in " + _langs(status["drafts"]))
-    if status["not_generated"]:
-        parts.append("not generated in " + _langs(status["not_generated"]))
-    if status["not_available"]:
-        # Said plainly, and owned. A client reading "not available in NL" with
-        # no explanation reasonably assumes it is something they failed to do.
-        parts.append(
-            "not available in " + _langs(status["not_available"])
-            + " — no template yet, on us"
-        )
-    return " · ".join(parts)
+    st.markdown(f"### {meta['label']}")
+    note = REG.status_note(status, multilingual=len(doc_languages) > 1)
+    if note:
+        st.caption(note.capitalize())
 
-
-def _langs(codes: list[str]) -> str:
-    return ", ".join(c.upper() for c in codes)
-
-
-def coverage(
-    statuses: Iterable[dict[str, Any]],
-) -> dict[str, int]:
-    """Counts across a set of documents, EXCLUDING what the client cannot fix.
-
-    `required` deliberately omits documents whose only problem is a missing
-    RECOSA template. A client's compliance percentage must not fall because we
-    have not written a Dutch version — that is billing them for our backlog,
-    and it is the kind of thing a competitor would put in a comparison table.
-
-    `blocked_on_us` is reported separately so the gap stays visible rather than
-    being quietly dropped.
-    """
-    required = covered = blocked = 0
-    for st_ in statuses:
-        if st_["state"] == NOT_AVAILABLE:
-            blocked += 1
+    for lang in doc_languages:
+        row = (rows_by_lang or {}).get(lang)
+        if not row:
             continue
-        required += 1
-        if st_["state"] == IN_FORCE:
-            covered += 1
-    return {
-        "required": required,
-        "covered": covered,
-        "blocked_on_us": blocked,
-        "percent": round(100 * covered / required) if required else 0,
-    }
+        if row.get("status") == "draft" and not show_drafts:
+            continue
 
+        history = get_client_document_history(client_id, user_id, doc_type,
+                                              language=lang)
+        chain = REG.supersession_chain(history)
+        current = next((c for c in chain if c["id"] == row["id"]), row)
 
-def supersession_chain(rows: Iterable[Mapping[str, Any]]) -> list[dict]:
-    """Register rows for one (doc_type, language), newest first, chained.
+        head = f"**{lang.upper()}**"
+        if current.get("version"):
+            head += f" · **v{current['version']}**"
+        if current.get("status") == "in_force":
+            head += f" · :green[In force] from {current.get('effective_from') or '—'}"
+        elif current.get("status") == "draft":
+            head += " · :orange[Draft — not adopted]"
+        else:
+            head += f" · :gray[{DOCUMENT_STATUSES.get(current.get('status'), '')}]"
 
-    Each entry gains `supersedes` and `superseded_by_version`, resolved by
-    following the id links rather than assuming version n was replaced by
-    version n+1. Once a client can backdate an effective date, and once a
-    version can be archived rather than superseded, that assumption breaks —
-    and the chain is the thing an auditor reads to establish what applied when.
-    """
-    by_id = {r["id"]: r for r in rows if r.get("id")}
-    out = []
-    for r in sorted(
-        by_id.values(),
-        key=lambda x: (x.get("version") or 0, x.get("uploaded_at") or ""),
-        reverse=True,
-    ):
-        successor = by_id.get(r.get("superseded_by") or "")
-        predecessor = next(
-            (p for p in by_id.values() if p.get("superseded_by") == r["id"]),
-            None,
-        )
-        out.append({
-            **r,
-            "superseded_by_version": (successor or {}).get("version"),
-            "supersedes": (predecessor or {}).get("version"),
-        })
-    return out
+        st.markdown(head)
+
+        # Provenance. The register holds documents RECOSA produced AND
+        # documents the client uploaded, and an auditor needs to know which is
+        # which: an uploaded revision is one RECOSA cannot score, cannot check
+        # for a removed clause, and cannot propagate a regulatory update into.
+        src = current.get("source") or ""
+        st.caption(document_source_label(src))
+        if src in ("client_upload", "client_modified", "client_supplied"):
+            st.caption(
+                ":gray[Supplied or reworked by the client. RECOSA holds this "
+                "document but does not vouch for its contents, and regulatory "
+                "updates are not applied to it.]"
+            )
+        elif current.get("source_revision"):
+            st.caption(
+                f":gray[Produced from a reviewed template, source revision "
+                f"{current['source_revision']}.]"
+            )
+
+        if current.get("change_comment"):
+            st.caption(f"“{current['change_comment']}”")
+
+        # Retention and hold. Shown on in-force rows too, because the question
+        # "how long will you keep the old ones" is one an auditor asks about
+        # the practice, not about a particular superseded file.
+        if current.get("legal_hold"):
+            st.warning(
+                "🔒 Legal hold — retained regardless of age"
+                + (f": {current['hold_reason']}" if current.get("hold_reason") else "")
+            )
+
+        fpath = current.get("file_path")
+        url = get_signed_url("compliance-files", fpath, expires_in=300) if fpath else None
+        if url:
+            st.link_button("Download", url)
+
+        # ── The chain ──────────────────────────────────────────────────────
+        previous = [c for c in chain
+                    if c["id"] != current["id"]
+                    and c.get("status") in ("superseded", "archived")]
+        if previous:
+            with st.expander(f"What applied before ({len(previous)})"):
+                st.caption(
+                    "Retained as the record of what your organisation "
+                    "operated under at the time. A complaint about processing "
+                    "in a past year is answered by the version that applied "
+                    "then, not the current one."
+                )
+                for old in previous:
+                    line = f"**v{old.get('version')}**"
+                    if old.get("effective_from"):
+                        line += f" · {old['effective_from']}"
+                    if old.get("superseded_on"):
+                        line += f" → {old['superseded_on']}"
+                    if old.get("superseded_by_version"):
+                        line += f" · superseded by v{old['superseded_by_version']}"
+                    elif old.get("status") == "archived":
+                        line += " · archived, not replaced"
+                    st.markdown(line)
+
+                    if old.get("change_comment"):
+                        st.caption(f"“{old['change_comment']}”")
+                    if old.get("retain_until"):
+                        st.caption(f":gray[Retained until {old['retain_until']}]")
+
+                    ocols = st.columns([1, 1, 3])
+                    ourl = get_signed_url("compliance-files",
+                                          old.get("file_path") or "",
+                                          expires_in=300) if old.get("file_path") else None
+                    if ourl:
+                        ocols[0].link_button("Download", ourl,
+                                             use_container_width=True)
+
+                    # Legal hold belongs on superseded versions above all: they
+                    # are the ones a retention rule would otherwise delete
+                    # during the proceeding that needs them.
+                    held = bool(old.get("legal_hold"))
+                    if ocols[1].button(
+                        "Release hold" if held else "Hold",
+                        key=f"hold_{old['id']}",
+                        use_container_width=True,
+                        help=(
+                            "Suspend deletion while a complaint, investigation "
+                            "or proceeding is live."
+                        ),
+                    ):
+                        set_legal_hold(old["id"], user_id, not held,
+                                       reason="Set from the compliance record")
+                        st.rerun()
+                    if held:
+                        ocols[2].caption("🔒 On hold — will not be deleted")
+
+        st.write("")
+
+    st.divider()
+
+# ── What is missing ───────────────────────────────────────────────────────
+missing = {dt: s for dt, s in statuses.items()
+           if s["state"] in (REG.NOT_GENERATED, REG.NOT_AVAILABLE)
+           and not s["in_force"]}
+
+if missing:
+    st.subheader("Not yet in force")
+    st.caption(
+        "Shown so this page is a complete answer rather than a favourable one. "
+        "A record that lists only what exists tells an auditor nothing about "
+        "what does not."
+    )
+    for dt, s in missing.items():
+        label = DOC_CATALOG[dt]["label"]
+        if s["state"] == REG.NOT_AVAILABLE:
+            # Ours. Said as ours — a reader who assumes otherwise concludes the
+            # client ignored an obligation they had no way to discharge here.
+            st.markdown(
+                f"- **{label}** — no RECOSA template in "
+                + ", ".join(l.upper() for l in s["not_available"])
+                + " yet. Not outstanding on your side."
+            )
+        else:
+            st.markdown(f"- **{label}** — not generated")
+
+st.divider()
+st.caption(
+    "Generated from the RECOSA document register. Versions are numbered when "
+    "they are put in force, so the sequence has no gaps. Superseded versions "
+    "are retained as the record of what applied at the time."
+)
