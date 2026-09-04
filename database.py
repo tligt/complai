@@ -737,6 +737,27 @@ def archive_client_document(
         return False
 
 
+def get_latest_draft(
+    client_id: str, user_id: str, document_type: str, language: str,
+) -> dict | None:
+    """The most recent unadopted draft for one key, or None.
+
+    Generation writes a draft and returns nothing to the page, so the adoption
+    control has to find it. Newest first: a client who regenerates twice before
+    adopting means the second one.
+    """
+    try:
+        rows = (get_supabase().table("client_documents").select("*")
+                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("document_type", document_type)
+                .eq("language", language).eq("status", "draft")
+                .order("uploaded_at", desc=True).limit(1)
+                .execute().data or [])
+        return rows[0] if rows else None
+    except Exception:
+        return None
+
+
 def set_document_comment(
     document_row_id: str, user_id: str, comment: str,
 ) -> bool:
