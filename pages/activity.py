@@ -45,7 +45,12 @@ def _detail(row: dict) -> str:
     if md.get("hold_reason_at_release"):
         parts.append(f"placed for: {md['hold_reason_at_release']}")
     if md.get("held_days") is not None:
-        parts.append(f"held {md['held_days']} day(s)")
+        # Matches the summary wording: "held 0 day(s)" is accurate and reads
+        # like a defect.
+        parts.append(
+            "held the same day" if md["held_days"] == 0
+            else f"held {md['held_days']} day(s)"
+        )
     if md.get("supersedes_version"):
         parts.append(f"supersedes v{md['supersedes_version']}")
     if md.get("source_revision"):
