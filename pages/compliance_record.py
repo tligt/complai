@@ -226,6 +226,13 @@ for doc_type, meta in relevant.items():
                     "in a past year is answered by the version that applied "
                     "then, not the current one."
                 )
+                st.caption(
+                    "**Hold** keeps a version past its retention date, for as "
+                    "long as a complaint, investigation, audit or proceeding "
+                    "makes it relevant. Retention periods run on a clock; a "
+                    "hold stops that clock, so evidence is not deleted during "
+                    "the proceeding that needs it."
+                )
                 for old in previous:
                     line = f"**v{old.get('version')}**"
                     if old.get("effective_from"):
@@ -243,6 +250,12 @@ for doc_type, meta in relevant.items():
                     if old.get("retain_until"):
                         st.caption(f":gray[Retained until {old['retain_until']}]")
 
+                    # What the hold does, and what releasing it costs. Stated
+                    # at the control rather than in a help tooltip: a client
+                    # about to release a hold on a document whose retention has
+                    # already run out is one click from losing it, and a
+                    # tooltip is not where that belongs.
+                    effect = REG.hold_release_effect(old.get("retain_until"))
                     ocols = st.columns([1, 1, 3])
                     ourl = get_signed_url("compliance-files",
                                           old.get("file_path") or "",
@@ -260,15 +273,26 @@ for doc_type, meta in relevant.items():
                         key=f"hold_{old['id']}",
                         use_container_width=True,
                         help=(
-                            "Suspend deletion while a complaint, investigation "
-                            "or proceeding is live."
+                            "A hold keeps this version regardless of its "
+                            "retention date, for as long as a complaint, "
+                            "investigation, audit or proceeding is live."
                         ),
                     ):
                         set_legal_hold(old["id"], user_id, not held,
                                        reason="Set from the compliance record")
                         st.rerun()
+
                     if held:
-                        ocols[2].caption("🔒 On hold — will not be deleted")
+                        ocols[2].caption(
+                            "🔒 On hold — kept regardless of its retention date"
+                        )
+                        # The consequence of releasing, sized to the risk.
+                        if effect["state"] == REG.HOLD_RELEASE_EXPIRED:
+                            st.error(effect["message"])
+                        elif effect["state"] == REG.HOLD_RELEASE_NEAR:
+                            st.warning(effect["message"])
+                        else:
+                            st.caption(effect["message"])
 
         st.write("")
 
