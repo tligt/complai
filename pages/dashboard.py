@@ -1,11 +1,13 @@
 import streamlit as st
+import register as REG
 from database import (
     get_supabase,
     get_supabase_admin,
     count_unread_alerts,
     load_document_files,
     load_audit_files,
-    get_current_client_documents,
+    get_current_client_documents, get_register_status,
+    get_template_languages,
 )
 from auth import get_user_id
 from obligations import (
@@ -42,6 +44,11 @@ company_name = client.get("company_name", "Your company")
 client_id    = client.get("id")
 regulations  = client.get("regulations") or ["GDPR"]
 
+# S27. The languages this client's documents are produced in. Every one of them
+# needs its own in-force version — a French policy does not discharge an
+# obligation towards Dutch-speaking data subjects.
+doc_languages = [l.lower() for l in (client.get("document_languages") or ["en"])]
+
 # Obligation → document mapping, the document catalogue and the
 # regulation→documents map are all DERIVED from obligations.py. They used to
 # be hand-maintained here and disagreed with gap_assessment.py — including
@@ -62,8 +69,17 @@ except Exception:
 
 try:
     client_docs = get_current_client_documents(client_id, user_id) if client_id else {}
+    # S27. The per-language view: {doc_type: {language: row}}, including
+    # drafts. client_docs above collapses to one row per doc_type, which is
+    # what the gap scoring wants; this is what the client needs to see, because
+    # "in force in FR, still a draft in EN, not available in NL" is three
+    # different problems with three different fixes.
+    register = get_register_status(client_id, user_id) if client_id else {}
+    template_langs = get_template_languages()
 except Exception:
     client_docs = {}
+    register = {}
+    template_langs = {}
 
 try:
     unread_alerts = count_unread_alerts(user_id)
@@ -201,8 +217,41 @@ for doc_type, meta in relevant_docs.items():
         )
         st.markdown(f"**{meta['label']}**  {reg_tags}")
 
+        # S27: the verdict comes from register.document_status(), which has no
+        # Streamlit in it. This page only chooses a colour.
+        _status = REG.document_status(
+            doc_type=doc_type,
+            languages=doc_languages,
+            register_rows=register.get(doc_type),
+            # None, not empty, when the lookup failed: empty means "we have no
+            # template", None means "we did not check", and reporting our own
+            # gap on a failed lookup tells a client we cannot help them when we
+            # do not know that.
+            template_languages=template_langs.get(doc_type)
+                if template_langs else None,
+        )
+        _note = REG.status_note(_status, multilingual=len(doc_languages) > 1)
+        if _note:
+            st.caption(_note.capitalize())
+
     with col_status:
-        if gap_info:
+        # Register state outranks the older in_repo / in_history flags: those
+        # cannot tell a document the client OPERATES UNDER from one that was
+        # merely produced.
+        _st8 = _status["state"]
+        if _st8 == REG.IN_FORCE:
+            st.success("✅ In force")
+        elif _st8 == REG.PARTIAL:
+            st.warning("🟡 " + REG.status_note(_status).split(" · ")[0].capitalize())
+        elif _st8 == REG.DRAFT:
+            st.warning("🟠 Draft — not adopted")
+        elif _st8 == REG.NOT_AVAILABLE:
+            # Ours, not theirs. Blue rather than red, because red on a row the
+            # client cannot act on reads as an accusation.
+            st.info("🕓 Not available yet")
+        elif _st8 == REG.ARCHIVED:
+            st.info("📁 Archived")
+        elif gap_info:
             # Show gap assessment result — most informative
             gs = gap_info["status"]
             if gs == "compliant":
@@ -211,7 +260,7 @@ for doc_type, meta in relevant_docs.items():
                 st.warning("🟡 Partial")
             else:
                 st.error("❌ Not compliant")
-        elif in_repo or in_history:
+        elif in_repo or in_history:  # pre-S27 rows with no register entry
             # Document exists but no gap assessment
             source = (client_docs.get(doc_type) or {}).get("source", "")
             if source == "complai_generated":
@@ -219,7 +268,9 @@ for doc_type, meta in relevant_docs.items():
             else:
                 st.info("ℹ️ In repository")
         else:
-            st.error("➕ Missing")
+            # NOT_GENERATED: the template exists, the client has not produced
+            # it. Distinct from "not available", which is ours.
+            st.error("➕ Not generated")
 
     with col_action:
         if not in_repo and not in_history:
