@@ -238,6 +238,94 @@ def coverage(
     }
 
 
+# ── Legal hold ────────────────────────────────────────────────────────────
+# A hold suspends deletion for a version relevant to a live complaint,
+# investigation, audit or proceeding. Without it, a retention rule running on
+# schedule deletes the evidence during the exact proceeding that needs it.
+#
+# NOTE: nothing deletes anything yet. retain_until is recorded and legal_hold
+# is stored, but no sweep reads either — that belongs with S33. Hence the
+# wording below is "eligible for deletion" rather than "deleted": it is true
+# today and still true once the sweep exists.
+
+HOLD_RELEASE_SAFE     = "safe"       # retention has time left
+HOLD_RELEASE_NEAR     = "near"       # a month or less remaining
+HOLD_RELEASE_EXPIRED  = "expired"    # retention already passed
+
+# A month. Short enough that "close" means something, long enough to retrieve a
+# copy before it goes.
+HOLD_WARNING_DAYS = 30
+
+
+def hold_release_effect(
+    retain_until: "str | Any | None", today: "Any | None" = None,
+) -> dict[str, Any]:
+    """What happens if the hold on this version is released.
+
+    Returns `state`, `days_left` and a `message` the caller renders as-is.
+
+    `retain_until` may be a date, an ISO string, or None. None means no
+    retention date was ever set, which is treated as safe: releasing a hold
+    must never destroy something on the strength of a missing value.
+    """
+    from datetime import date, datetime
+
+    today = today or date.today()
+    parsed = None
+    if isinstance(retain_until, str) and retain_until.strip():
+        try:
+            parsed = datetime.fromisoformat(retain_until[:10]).date()
+        except ValueError:
+            parsed = None
+    elif hasattr(retain_until, "year"):
+        parsed = retain_until
+
+    if parsed is None:
+        return {
+            "state": HOLD_RELEASE_SAFE,
+            "days_left": None,
+            "message": (
+                "Releasing the hold returns this version to normal retention. "
+                "No retention date is recorded for it, so nothing changes "
+                "immediately."
+            ),
+        }
+
+    days = (parsed - today).days
+
+    if days <= 0:
+        return {
+            "state": HOLD_RELEASE_EXPIRED,
+            "days_left": days,
+            "message": (
+                f"**Its retention period ended on {parsed.isoformat()}.** The "
+                "hold is the only thing keeping it. Releasing it makes this "
+                "version eligible for deletion — download a copy first if you "
+                "need one."
+            ),
+        }
+
+    if days <= HOLD_WARNING_DAYS:
+        return {
+            "state": HOLD_RELEASE_NEAR,
+            "days_left": days,
+            "message": (
+                f"Its retention period ends on {parsed.isoformat()}, in "
+                f"{days} day(s). Releasing the hold returns it to normal "
+                "retention, and it becomes eligible for deletion soon after."
+            ),
+        }
+
+    return {
+        "state": HOLD_RELEASE_SAFE,
+        "days_left": days,
+        "message": (
+            f"Releasing the hold returns this version to normal retention. It "
+            f"is kept until {parsed.isoformat()} regardless."
+        ),
+    }
+
+
 def supersession_chain(rows: Iterable[Mapping[str, Any]]) -> list[dict]:
     """Register rows for one (doc_type, language), newest first, chained.
 
