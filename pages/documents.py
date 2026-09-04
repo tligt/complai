@@ -1054,7 +1054,8 @@ def _render_send_form(doc, slot_key, label, company):
         st.error(f"Error: {e}")
 
 
-def _render_language_row(doc, slot_key, label, company, reg=None):
+def _render_language_row(doc, slot_key, label, company, reg=None,
+                         successor=None):
     """One language of a generation: status, links, outstanding badge, send.
 
     S27: the history is built from the `documents` generation log, which has no
@@ -1064,31 +1065,47 @@ def _render_language_row(doc, slot_key, label, company, reg=None):
     question the whole sprint exists to answer.
 
     `reg` is the matching register row, or None where there is none: documents
-    generated before S27, or generated outside a client context.
+    generated before S27, or generated outside a client context. `successor`
+    is the register row that superseded it, where one exists.
     """
     lang = (doc.get("language") or "").upper() or "—"
     outstanding = doc.get("outstanding_fields") or []
     n_out = len(outstanding) if isinstance(outstanding, list) else 0
 
     c0, c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1, 1])
+    # Version FIRST, then what happened to it.
+    #
+    # "Superseded v1" read as "superseded BY v1", which is the opposite of what
+    # it meant. The version a row IS and the version that replaced it are
+    # different facts and both matter to a reader working out what applied
+    # when, so both are stated.
     badge = f"**{lang}**"
     if reg:
         _status = reg.get("status")
         _v = reg.get("version")
+        _vlabel = f"v{_v}" if _v else ""
         if _status == "in_force":
-            badge += f" · :green[**In force** v{_v}]"
+            badge += f" · **{_vlabel}** · :green[In force]"
             if reg.get("effective_from"):
-                badge += f" · from {reg['effective_from']}"
+                badge += f" from {reg['effective_from']}"
         elif _status == "draft":
             # The distinction the adoption step exists to make: produced, and
-            # not the thing the organisation operates under.
+            # not the thing the organisation operates under. No version — one
+            # is assigned at adoption, so that a discarded draft leaves no gap
+            # in the published sequence.
             badge += " · :orange[Draft — not adopted]"
         elif _status == "superseded":
-            badge += f" · :gray[Superseded v{_v}]"
+            badge += f" · **{_vlabel}** · :gray[superseded"
+            if successor and successor.get("version"):
+                badge += f" by v{successor['version']}"
             if reg.get("superseded_on"):
-                badge += f" · until {reg['superseded_on']}"
+                badge += f" on {reg['superseded_on']}"
+            badge += "]"
         elif _status == "archived":
-            badge += f" · :gray[Archived v{_v}]"
+            badge += f" · **{_vlabel}** · :gray[archived"
+            if reg.get("superseded_on"):
+                badge += f" on {reg['superseded_on']}"
+            badge += " — no longer applicable]"
     if n_out:
         badge += f" · :orange[{n_out} to complete]"
     c0.markdown(badge)
@@ -1126,10 +1143,51 @@ def _render_language_row(doc, slot_key, label, company, reg=None):
     # button.
     if reg and reg.get("status") == "draft":
         adopt_key = f"adopt_open_{reg['id']}"
-        if c0.button("Put in force", key=f"btn_adopt_open_{reg['id']}",
-                     help="Record this as the version your organisation operates under"):
+        # Laid out with st.columns at container level, NOT c0.columns. c0 is
+        # already a column and is the narrowest of six; nesting inside it left
+        # no room for a second button, so "Discard" was rendered somewhere the
+        # reader could not see it.
+        _b1, _b2, _b3 = st.columns([1, 1, 4])
+        if _b1.button("Put in force", key=f"btn_adopt_open_{reg['id']}",
+                      use_container_width=True,
+                      help="Record this as the version your organisation operates under"):
             st.session_state[adopt_key] = not st.session_state.get(adopt_key, False)
+            st.session_state[f"del_open_{reg['id']}"] = False
             st.rerun()
+
+        # Deleting a draft is safe: no version was assigned, so it leaves no
+        # gap in the published sequence, and nothing supersedes it. Only
+        # drafts — database.delete_draft_document refuses anything else, and
+        # the guard lives there rather than here.
+        del_key = f"del_open_{reg['id']}"
+        if _b2.button("Discard", key=f"btn_del_open_{reg['id']}",
+                      use_container_width=True,
+                      help="Delete this draft and its files"):
+            st.session_state[del_key] = not st.session_state.get(del_key, False)
+            st.session_state[adopt_key] = False
+            st.rerun()
+
+        if st.session_state.get(del_key, False):
+            with st.container(border=True):
+                st.caption(
+                    "Deleting this draft removes it and its files for good. "
+                    "Nothing else is affected — it was never in force, so no "
+                    "version number and no other version depends on it."
+                )
+                _d1, _d2 = st.columns(2)
+                if _d1.button("Delete draft", key=f"btn_del_go_{reg['id']}",
+                              type="primary"):
+                    from database import delete_draft_document
+                    if delete_draft_document(reg["id"], reg["user_id"]):
+                        st.session_state[del_key] = False
+                        st.rerun()
+                    else:
+                        st.warning(
+                            "Could not delete the draft. Nothing has changed."
+                        )
+                if _d2.button("Keep it", key=f"btn_del_no_{reg['id']}"):
+                    st.session_state[del_key] = False
+                    st.rerun()
 
         if st.session_state.get(adopt_key, False):
             from datetime import date as _date
@@ -1209,12 +1267,14 @@ history = load_document_files(user_id, client_id if mode == "existing_client" el
 # reads as "not adopted" rather than "we did not record it".
 _reg_by_doc: dict[str, dict] = {}
 _reg_by_path: dict[str, dict] = {}
+_reg_by_id: dict[str, dict] = {}
 if client_id and mode == "existing_client":
     try:
         from database import get_supabase
         for _r in (get_supabase().table("client_documents")
                    .select("*").eq("client_id", client_id)
                    .eq("user_id", user_id).execute().data or []):
+            _reg_by_id[_r["id"]] = _r
             if _r.get("document_id"):
                 _reg_by_doc[_r["document_id"]] = _r
             if _r.get("file_path"):
@@ -1227,6 +1287,11 @@ if client_id and mode == "existing_client":
 def _reg_for(doc: dict) -> dict | None:
     return (_reg_by_doc.get(doc.get("id"))
             or _reg_by_path.get(doc.get("file_path_docx") or ""))
+
+
+def _successor_of(reg: dict | None) -> dict | None:
+    """The register row that superseded this one, if any."""
+    return _reg_by_id.get((reg or {}).get("superseded_by") or "")
 
 
 if not history:
@@ -1278,8 +1343,9 @@ else:
             )
 
         for row in sorted(current_rows, key=lambda r: (r.get("language") or "")):
+            _cur_reg = _reg_for(row)
             _render_language_row(row, f"cur_{row.get('id')}", label, company,
-                                 reg=_reg_for(row))
+                                 reg=_cur_reg, successor=_successor_of(_cur_reg))
 
         older = generations[1:]
         if older:
@@ -1292,8 +1358,10 @@ else:
                         + ("  ·  " + ", ".join(langs) if langs else "")
                     )
                     for row in sorted(rows, key=lambda r: (r.get("language") or "")):
-                        _render_language_row(row, f"old_{row.get('id')}", label,
-                                             company, reg=_reg_for(row))
+                        _old_reg = _reg_for(row)
+                        _render_language_row(
+                            row, f"old_{row.get('id')}", label, company,
+                            reg=_old_reg, successor=_successor_of(_old_reg))
                     st.divider()
 
         st.divider()
