@@ -120,6 +120,16 @@ if cov["blocked_on_us"]:
     # client for our backlog.
     c3.metric("Awaiting a RECOSA template", cov["blocked_on_us"])
 
+if cov["partly_blocked"]:
+    # In force in every language RECOSA can serve, still short one it cannot.
+    # Said out loud so the figure above is not mistaken for a claim that every
+    # language is covered.
+    st.caption(
+        f":gray[{cov['partly_blocked']} document(s) counted as in force are "
+        "still missing a language RECOSA has no template for yet. Those are "
+        "listed below and are not outstanding on your side.]"
+    )
+
 st.caption(
     f"{company_name} · document languages "
     + ", ".join(l.upper() for l in doc_languages)
