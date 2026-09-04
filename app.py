@@ -191,6 +191,12 @@ alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
 activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
 record    = st.Page("pages/register.py",  title="Compliance Record", icon="🗄️")
 
+# NOTE: declaring a Page does nothing on its own — it has to appear in the
+# st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
+# missing from the dict fails silently: no error, no warning, just an absent
+# link. One missing from PAGE_CONTEXT falls through to "other" and mis-routes
+# any support ticket raised on it.
+
 # Support carries an unread badge. st.navigation has no badge slot, so the
 # count goes in the title — without it, a support inbox nobody is prompted
 # to check is the main way replies go unread.
@@ -204,7 +210,10 @@ support   = st.Page(
 pg = st.navigation({
     "":           [chat],
     "Compliance": [dashboard, gap],
-    "Tools":      [inventory, documents, audit],
+    # S27. `record` is read-only and sits next to the pages that write what it
+    # reports: Documents produces, Systems supplies the data, this reports what
+    # the organisation actually operates under.
+    "Tools":      [inventory, documents, record, audit],
     "Account":    [activity, support],
     "Updates":    [alerts],
 })
@@ -238,6 +247,7 @@ PAGE_CONTEXT = {
     "inventory": "inventory",
     "documents": "document_generation",
     "audit":     "website_audit",
+    "register":  "compliance_record",
     "alerts":    "compliance_pulse",
     "activity":  "account",
     "support":   "account",
