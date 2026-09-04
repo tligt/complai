@@ -204,10 +204,12 @@ for doc_type, meta in relevant.items():
         # "how long will you keep the old ones" is one an auditor asks about
         # the practice, not about a particular superseded file.
         if current.get("legal_hold"):
-            st.warning(
-                "🔒 Legal hold — retained regardless of age"
-                + (f": {current['hold_reason']}" if current.get("hold_reason") else "")
-            )
+            _msg = "🔒 Legal hold — retained regardless of age"
+            if current.get("hold_reason"):
+                _msg += f": {current['hold_reason']}"
+            if current.get("hold_set_on"):
+                _msg += f" (since {str(current['hold_set_on'])[:10]})"
+            st.warning(_msg)
 
         fpath = current.get("file_path")
         url = get_signed_url("compliance-files", fpath, expires_in=300) if fpath else None
@@ -316,9 +318,16 @@ for doc_type, meta in relevant.items():
                                 st.rerun()
 
                     if held:
-                        ocols[2].caption(
-                            "🔒 On hold — kept regardless of its retention date"
-                        )
+                        _hl = "🔒 On hold — kept regardless of its retention date"
+                        if old.get("hold_reason"):
+                            # Why it is held is the whole point of the flag. A
+                            # lock icon with no reason tells a reader that
+                            # something is being retained and nothing about
+                            # whether it still should be.
+                            _hl += f" · {old['hold_reason']}"
+                        if old.get("hold_set_on"):
+                            _hl += f" · since {str(old['hold_set_on'])[:10]}"
+                        ocols[2].caption(_hl)
                         # The consequence of releasing, sized to the risk.
                         if effect["state"] == REG.HOLD_RELEASE_EXPIRED:
                             st.error(effect["message"])
