@@ -1,6 +1,13 @@
 import os
 import uuid
 from datetime import datetime, timezone
+
+# utcnow() returns a NAIVE datetime that claims to be UTC without saying so.
+# Written to a timestamptz column with no offset, Postgres interprets it as the
+# connection's timezone — so a 17:04 UTC event was stored, and displayed, as
+# 17:04 local when Brussels was on 19:04. now(timezone.utc) carries the offset
+# and is unambiguous. Rows written before this fix cannot be reliably
+# corrected: the offset they were meant to carry was never recorded.
 from supabase import create_client, Client
 
 # Lazy Streamlit import — only available in Streamlit UI context.
@@ -688,7 +695,7 @@ def adopt_client_document(
         patch = {
             "status": "in_force",
             "version": next_version,
-            "adopted_at": datetime.utcnow().isoformat(),
+            "adopted_at": datetime.now(timezone.utc).isoformat(),
             "effective_from": effective.isoformat(),
         }
         if published_at:
@@ -914,7 +921,7 @@ def set_legal_hold(
     client's own retention period, which is an Art. 5(1)(e) problem rather than
     an untidy one.
     """
-    from datetime import datetime as _dt
+    from datetime import datetime as _dt, timezone as _tz
     try:
         supabase = get_supabase()
 
@@ -934,7 +941,7 @@ def set_legal_hold(
         supabase.table("client_documents").update({
             "legal_hold": on,
             "hold_reason": reason if on else None,
-            "hold_set_on": _dt.utcnow().isoformat() if on else None,
+            "hold_set_on": _dt.now(_tz).isoformat() if on else None,
         }).eq("id", document_row_id).eq("user_id", user_id).execute()
 
         # A hold is a statement about live litigation or an investigation, and
@@ -1079,7 +1086,7 @@ def approve_regulatory_update(
             .update({
                 "status": "approved",
                 "approved_by": approved_by,
-                "approved_at": datetime.utcnow().isoformat(),
+                "approved_at": datetime.now(timezone.utc).isoformat(),
                 "severity": severity,
                 "send_email": send_email,
             }) \
@@ -1159,7 +1166,7 @@ def mark_alert_read(alert_id: str, user_id: str) -> bool:
     try:
         supabase = get_supabase()
         supabase.table("client_alerts") \
-            .update({"read_at": datetime.utcnow().isoformat()}) \
+            .update({"read_at": datetime.now(timezone.utc).isoformat()}) \
             .eq("id", alert_id) \
             .eq("user_id", user_id) \
             .execute()
@@ -1302,7 +1309,7 @@ def ingest_alert_to_qdrant(update: dict) -> dict:
     url       = update.get("url") or ""
     source    = update.get("source") or ""
     title     = update.get("title") or "Regulatory Update"
-    detected  = update.get("detected_at") or datetime.utcnow().isoformat()
+    detected  = update.get("detected_at") or datetime.now(timezone.utc).isoformat()
     regulations = update.get("regulations") or []
     countries   = update.get("countries") or ["EU"]
     regulation  = regulations[0] if regulations else "general"
@@ -1371,7 +1378,7 @@ def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
         supabase.table("regulatory_updates") \
             .update({
                 "kb_ingested": True,
-                "kb_ingested_at": datetime.utcnow().isoformat(),
+                "kb_ingested_at": datetime.now(timezone.utc).isoformat(),
                 "kb_chunks_count": chunks_count,
             }) \
             .eq("id", update_id) \
