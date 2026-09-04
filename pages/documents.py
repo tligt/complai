@@ -1126,17 +1126,46 @@ def _render_send_form(doc, slot_key, label, company):
         st.error(f"Error: {e}")
 
 
-def _render_language_row(doc, slot_key, label, company):
-    """One language of a generation: links, outstanding badge, send button."""
+def _render_language_row(doc, slot_key, label, company, reg=None):
+    """One language of a generation: status, links, outstanding badge, send.
+
+    S27: the history is built from the `documents` generation log, which has no
+    versions or statuses — those live in client_documents. Without the register
+    row this listed a date and a language and left the reader to work out which
+    of five files their organisation actually operates under, which is the
+    question the whole sprint exists to answer.
+
+    `reg` is the matching register row, or None where there is none: documents
+    generated before S27, or generated outside a client context.
+    """
     lang = (doc.get("language") or "").upper() or "—"
     outstanding = doc.get("outstanding_fields") or []
     n_out = len(outstanding) if isinstance(outstanding, list) else 0
 
     c0, c1, c2, c3, c4, c5 = st.columns([2, 1, 1, 1, 1, 1])
     badge = f"**{lang}**"
+    if reg:
+        _status = reg.get("status")
+        _v = reg.get("version")
+        if _status == "in_force":
+            badge += f" · :green[**In force** v{_v}]"
+            if reg.get("effective_from"):
+                badge += f" · from {reg['effective_from']}"
+        elif _status == "draft":
+            # The distinction the adoption step exists to make: produced, and
+            # not the thing the organisation operates under.
+            badge += " · :orange[Draft — not adopted]"
+        elif _status == "superseded":
+            badge += f" · :gray[Superseded v{_v}]"
+            if reg.get("superseded_on"):
+                badge += f" · until {reg['superseded_on']}"
+        elif _status == "archived":
+            badge += f" · :gray[Archived v{_v}]"
     if n_out:
         badge += f" · :orange[{n_out} to complete]"
     c0.markdown(badge)
+    if reg and reg.get("change_comment"):
+        c0.caption(reg["change_comment"])
 
     for col, path_key, flabel in [
         (c1, "file_path_xlsx", "XLSX"),
@@ -1165,6 +1194,36 @@ st.divider()
 st.subheader("📚 Document history")
 
 history = load_document_files(user_id, client_id if mode == "existing_client" else None)
+
+# S27. Register rows keyed by the generation they came from, so each history
+# row can say whether it is in force, a draft, or superseded — and at what
+# version.
+#
+# Keyed on document_id where present, and falling back to the docx path for
+# rows written before S27 added that link. The fallback matters: without it
+# every document generated before today would show no status at all, which
+# reads as "not adopted" rather than "we did not record it".
+_reg_by_doc: dict[str, dict] = {}
+_reg_by_path: dict[str, dict] = {}
+if client_id and mode == "existing_client":
+    try:
+        from database import get_supabase
+        for _r in (get_supabase().table("client_documents")
+                   .select("*").eq("client_id", client_id)
+                   .eq("user_id", user_id).execute().data or []):
+            if _r.get("document_id"):
+                _reg_by_doc[_r["document_id"]] = _r
+            if _r.get("file_path"):
+                _reg_by_path[_r["file_path"]] = _r
+    except Exception:
+        # The history is still worth showing without statuses.
+        pass
+
+
+def _reg_for(doc: dict) -> dict | None:
+    return (_reg_by_doc.get(doc.get("id"))
+            or _reg_by_path.get(doc.get("file_path_docx") or ""))
+
 
 if not history:
     st.caption("No documents generated yet.")
@@ -1215,7 +1274,8 @@ else:
             )
 
         for row in sorted(current_rows, key=lambda r: (r.get("language") or "")):
-            _render_language_row(row, f"cur_{row.get('id')}", label, company)
+            _render_language_row(row, f"cur_{row.get('id')}", label, company,
+                                 reg=_reg_for(row))
 
         older = generations[1:]
         if older:
@@ -1228,7 +1288,8 @@ else:
                         + ("  ·  " + ", ".join(langs) if langs else "")
                     )
                     for row in sorted(rows, key=lambda r: (r.get("language") or "")):
-                        _render_language_row(row, f"old_{row.get('id')}", label, company)
+                        _render_language_row(row, f"old_{row.get('id')}", label,
+                                             company, reg=_reg_for(row))
                     st.divider()
 
         st.divider()
