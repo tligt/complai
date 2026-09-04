@@ -901,11 +901,73 @@ def set_legal_hold(
     """
     from datetime import datetime as _dt
     try:
-        get_supabase().table("client_documents").update({
+        supabase = get_supabase()
+
+        # Read first: the audit event needs what the row looked like BEFORE the
+        # change, and hold_set_on is cleared on release — so the duration it
+        # was held for exists only in this moment. Without capturing it here, a
+        # document that spent two years under hold becomes indistinguishable
+        # from one that never was.
+        row = (supabase.table("client_documents")
+               .select("client_id, document_type, language, version, "
+                       "hold_set_on, hold_reason")
+               .eq("id", document_row_id).eq("user_id", user_id)
+               .execute().data or [None])[0]
+        if not row:
+            return False
+
+        supabase.table("client_documents").update({
             "legal_hold": on,
             "hold_reason": reason if on else None,
             "hold_set_on": _dt.utcnow().isoformat() if on else None,
         }).eq("id", document_row_id).eq("user_id", user_id).execute()
+
+        # A hold is a statement about live litigation or an investigation, and
+        # RELEASING one is what allows the document to be deleted. If that
+        # decision is ever questioned, the absence of a record is the problem:
+        # nobody can show who decided, when, or on what basis.
+        #
+        # Adoption, archiving and draft deletion already write events. This was
+        # the gap, and it is the one where the trail matters most.
+        held_days = None
+        if not on and row.get("hold_set_on"):
+            try:
+                started = _dt.fromisoformat(
+                    str(row["hold_set_on"]).replace("Z", "+00:00"))
+                held_days = (_dt.now(started.tzinfo) - started).days
+            except (ValueError, TypeError):
+                held_days = None
+
+        _label = (
+            f"{row['document_type']} v{row.get('version') or '—'} "
+            f"({(row.get('language') or '').upper()})"
+        )
+        log_audit_event(
+            company_id=row["client_id"],
+            user_id=user_id,
+            event_type="document",
+            event_subtype="hold_set" if on else "hold_released",
+            resource_id=document_row_id,
+            summary=(
+                f"Legal hold placed on {_label}" if on else
+                f"Legal hold released on {_label}"
+                + (f" after {held_days} day(s)" if held_days is not None else "")
+            ),
+            metadata={
+                "document_type": row["document_type"],
+                "language": row.get("language"),
+                "version": row.get("version"),
+                # Optional on both sides — friction on a control used during a
+                # live matter is friction at the worst possible moment — but
+                # recorded whenever given, and the reason the hold was
+                # originally placed is carried into the release event so the
+                # two are readable together.
+                "reason": reason or None,
+                "hold_reason_at_release": row.get("hold_reason") if not on else None,
+                "held_days": held_days,
+                "hold_set_on": row.get("hold_set_on"),
+            },
+        )
         return True
     except Exception as e:
         print(f"Could not set legal hold: {e}")
