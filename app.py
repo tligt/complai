@@ -190,7 +190,6 @@ audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
 alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
 activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
 record    = st.Page("pages/compliance_record.py", title="Compliance Record", icon="🗄️")
-diag = st.Page("pages/diag_retrieval.py", title="Retrieval diag", icon="🔬")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -252,7 +251,6 @@ PAGE_CONTEXT = {
     "compliance_record": "compliance_record",
     "alerts":    "compliance_pulse",
     "activity":  "account",
-    "support":   "account",
 }
 
 # The default page is served at the root, so its url_path is empty.
