@@ -475,9 +475,22 @@ with tab_activities:
 
     existing = None
     if mode == "Edit an existing one":
+        # The default comes from a SEPARATE key, not from the widget's own.
+        #
+        # Streamlit refuses to assign to session_state[k] when k is a widget
+        # key instantiated in the same run, which is why the save handler
+        # originally popped this key rather than setting it. Setting it raises
+        # StreamlitAPIException on the next run.
+        #
+        # So the save handler writes inv_act_keep, and this reads it as an
+        # index. The widget key stays untouched and Streamlit stays happy.
+        _ids = [a["id"] for a in activities]
+        _keep = st.session_state.pop("inv_act_keep", None)
+        _idx = _ids.index(_keep) if _keep in _ids else 0
         selected = st.selectbox(
             "Which activity",
-            options=[a["id"] for a in activities],
+            options=_ids,
+            index=_idx,
             format_func=_activity_label,
             key="inv_act_select",
         )
@@ -920,7 +933,9 @@ with tab_activities:
                 st.session_state.pop("inv_act_select", None)
                 st.session_state.pop("inv_act_mode", None)
             else:
-                st.session_state["inv_act_select"] = new_id or aid
+                # inv_act_keep, NOT inv_act_select — see the selectbox above.
+                st.session_state.pop("inv_act_select", None)
+                st.session_state["inv_act_keep"] = new_id or aid
             st.rerun()
 
     if deleted and aid:
