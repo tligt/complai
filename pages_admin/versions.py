@@ -30,7 +30,3 @@ for p in PKGS:
 st.code("\n".join(lines), language="text")
 st.caption("Copy into requirements.txt, then delete this page and its "
            "st.Page entry in admin_app.py.")
-
-if st.button("Create Qdrant payload indexes"):
-    from rag import ensure_payload_indexes
-    st.write(ensure_payload_indexes())
