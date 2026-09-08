@@ -968,6 +968,22 @@ with tab_activities:
                 # inv_act_keep, NOT inv_act_select — see the selectbox above.
                 st.session_state.pop("inv_act_select", None)
                 st.session_state["inv_act_keep"] = new_id or aid
+
+            # Drop the per-language widget keys so they re-initialise.
+            #
+            # Streamlit IGNORES the value= argument once a widget key exists in
+            # session state. The language boxes rendered empty on first load,
+            # registering their keys with empty values, and after the save the
+            # freshly drafted text was passed as value= and discarded — the
+            # boxes stayed blank while the database held all three languages.
+            #
+            # Self-perpetuating, and destructive: on the NEXT save an empty box
+            # took the clear-on-empty branch, deleting the translation, which
+            # the drafting then regenerated. Every save destroyed and rebuilt
+            # the same text, which is why it never left draft status.
+            for _l in doc_langs:
+                for _f in ("name", "purpose"):
+                    st.session_state.pop(f"inv_act_{_f}_{_l}_{aid or 'new'}", None)
             st.rerun()
 
     if deleted and aid:
