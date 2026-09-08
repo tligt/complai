@@ -75,6 +75,7 @@ if not user_id:
 # would have broken the RoPA (S26) and the register (S27) in turn.
 
 _client = st.session_state.get("selected_client") or {}
+_profile = st.session_state.get("profile") or {}
 client_id = _client.get("id")
 
 if not client_id:
@@ -100,9 +101,20 @@ if not client_id:
 # Language for labels. This is UI chrome, so it should follow the user once a
 # user language column exists. Until then the first document language is the
 # closest available signal.
+# The language of the INTERFACE — this table, these labels, these captions.
+#
+# Not the client's first document language, which is what this read before and
+# is a different question entirely: "produce this policy in EN and DE" says
+# nothing about what the person configuring it reads. The effect was an English
+# interface rendering activity names in Dutch, because document_languages[0]
+# happened to be nl.
+#
+# Falls back to 'en', a defined default rather than one borrowed from another
+# question. No selector yet — S32B, when a profile page exists.
 lang = (
     st.session_state.get("ui_language")
-    or (_client.get("document_languages") or ["en"])[0]
+    or (_profile or {}).get("ui_language")
+    or "en"
 )
 if lang not in INV.LANGUAGES:
     # label_for and note_for coerce internally, but options_for builds
@@ -896,8 +908,19 @@ with tab_activities:
                 st.error(e)
         else:
             st.success("Saved.")
-            st.session_state.pop("inv_act_select", None)
-            st.session_state.pop("inv_act_mode", None)
+            # Clearing the selection makes sense after CREATING an activity —
+            # staying on a form that has become someone else's row is odd. It
+            # makes no sense after editing one, which is exactly when you want
+            # to see the result: the table updates, the translation drafts
+            # appear, and the form goes blank underneath them.
+            #
+            # So an edit keeps its selection and lands back on the row it just
+            # saved, with the drafted translations visible for review.
+            if aid is None:
+                st.session_state.pop("inv_act_select", None)
+                st.session_state.pop("inv_act_mode", None)
+            else:
+                st.session_state["inv_act_select"] = new_id or aid
             st.rerun()
 
     if deleted and aid:
