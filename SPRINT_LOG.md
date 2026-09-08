@@ -279,6 +279,8 @@ S33.
 | S30 | DPIA | Tier 3. Target the EDPB model template |
 | S31 | Regulation-aware chunk allocation | **See sequencing note below** |
 | S32 | Admin user management | |
+| **S32A** | **Migration to European infrastructure** | **D-67. Precedes the gate. Self-hosted Supabase + containerised app** |
+| **S32B** | **UI/navigation rework** | **D-69. In Streamlit, not a rewrite** |
 | **S33** | **GDPR deletion + session hardening** | **BETA GATE** |
 | S34 | Regulatory update → impact re-scoring | Reads S27 `source_revision` |
 | S35 | Multi-user for Professional | Seeds `workspace_members` |
@@ -319,8 +321,7 @@ the chunk mix. An afternoon's check turns a guess into an answer.
   translations (S26C), S57 heartbeat findings. A client cannot see everything
   outstanding in one place and an auditor cannot see that a gap was found on
   one date and closed on another. **Three sprints already depend on it.**
-- UI/navigation redesign — before or alongside S33. The sidebar is now ten
-  items across five groups.
+- ~~UI/navigation redesign~~ — now **S32B** (D-69).
 - Pinning the remaining `requirements.txt` packages — before beta onboarding.
 
 **Post-S48 backlog:** DB schema import tool; NIS2 vendor risk register (extend
@@ -985,6 +986,160 @@ reasonable meaning for a shared field, and neither could see the other. Worth
 watching for wherever a `*_subtype` or `*_kind` column exists.
 ---
 
+### D-66 — "Zero US cloud exposure" is not true today. Fix the copy this week.
+
+recosa.eu claims **zero US cloud exposure**. It does not hold:
+
+| Layer | Provider | Jurisdiction |
+|---|---|---|
+| Application | Streamlit Community Cloud | Snowflake, US |
+| Database, auth, storage | Supabase | Delaware corporation, **and Frankfurt runs on AWS** — two layers |
+| Monitoring cron | GitHub Actions | Microsoft, US |
+| Vector store | Qdrant Cloud `eu-central-1` | EU region, but AWS |
+| LLM | Mistral | French — clean |
+
+Supabase Frankfurt gives **data residency**, which is what most buyers mean
+when they ask. It does not give **sovereignty**: the CLOUD Act reaches US
+providers over data they control regardless of where it sits. Data residency
+tells you where the bits are; sovereignty tells you which legal system can
+compel access.
+
+**This is the most urgent item in this log**, ahead of the outage that surfaced
+it. An outage is embarrassing. A marketing claim a prospect's counsel can
+disprove in one search is a different order of problem — and RECOSA's buyers
+are compliance people who check exactly this. It also sits badly with what
+RECOSA sells, which is helping clients avoid unsupportable compliance
+statements.
+
+**Adopted, immediately:** change the copy to a claim that is true and
+verifiable — EU data residency, data in Frankfurt — and keep it until the
+infrastructure supports the stronger one. An afternoon on the Framer site.
+
+*Rejected:* leaving the claim up until the migration lands. The migration will
+not complete before beta on any honest estimate, and every week the claim
+stands is a week a prospect might act on it.
+
+*Note:* this is a known pattern, not an unusual failure — a B2B SaaS picks
+Supabase for the developer experience, grows to enterprise customers, and finds
+that Frankfurt-on-AWS fails a Schrems II analysis.
+
+### D-67 — Move to European infrastructure BEFORE beta, not after
+
+Two outages in two months, neither caused by RECOSA, both taking the client app
+and the admin back-office down together — the Starlette break and the
+8 Sept apt failure. That alone would argue for moving. D-66 decides it.
+
+*Rejected:* migrating after beta. Every client onboarded on the current
+infrastructure is a client whose data has been processed there, and a later
+migration is a migration with live clients on it — with a cutover, a support
+burden, and a conversation about why their data moved.
+
+**Consequence for the roadmap:** this precedes S33 (the beta gate). It is not
+optional work that fits if there is time.
+
+**Candidates** consistent with the positioning: Scaleway, OVHcloud, Hetzner,
+Clever Cloud. `packages.txt` disappears as a failure mode — LibreOffice becomes
+an image layer RECOSA controls rather than an apt call against Debian mirrors
+inside someone else's container.
+
+### D-68 — Self-host Supabase; do not replace it
+
+Supabase is open-source and the whole stack self-hosts on EU infrastructure
+with full feature parity — **the same `supabase-js` client keeps working.**
+Auth, RLS, storage and PostgREST stay exactly as built. What changes is who
+operates the servers.
+
+*Rejected — Nhost.* Incorporated in Sweden, which fixes the corporate-HQ half,
+but its managed cloud runs on AWS `eu-central-1`, so the jurisdiction problem
+remains. It also swaps PostgREST for Hasura GraphQL, which would mean
+rewriting every database call in RECOSA. Worse outcome, far more work.
+
+*Rejected — Appwrite Cloud.* Frankfurt region, but US/Israeli company. Same
+questions, and a different data model.
+
+*Rejected — Aiven.* Genuinely European and does managed Postgres, but it is a
+database service, not a Supabase replacement: no auth, no storage, no
+RLS-over-REST. Would mean building three subsystems RECOSA already has.
+
+*Rejected — rewriting the data layer.* Auth, storage, RLS and PostgREST at
+once. Not a pre-beta undertaking, and probably never worth it.
+
+**Consequence:** the app migration and the database migration are one piece of
+work on one host, not two projects. That is what makes D-67 achievable before
+beta.
+
+### D-69 — The UI is reworked in Streamlit, not rewritten
+
+The interface needs real work, and self-hosting invites the question of why not
+rebuild the front end properly while moving.
+
+**Not before beta.** A rewrite is months and puts the beta date into next year.
+Self-hosted Streamlit plus a serious UI pass is weeks.
+
+**D-61 is the hedge that makes a later move cheap.** Every compliance verdict
+now lives in pure modules with no Streamlit in them — `register.py`,
+`obligations.py`, `template_store.py`. A future front end is a rendering job,
+not a re-derivation of the rules. That discipline was adopted for testability;
+it also happens to be the exit route.
+
+Recorded so the question is not reopened at a bad moment.
+
+---
+
+### D-70 — Document generation filters retrieval by regulation. S31 stays at 31.
+
+Measured 8 Sept 2026, nine queries across four regulations, seven clean.
+
+`retrieve()` filtered on language, country and doc_type but **not on
+parent_regulation**, so all six regulations competed on semantic similarity
+alone. Collection mix: EU AI Act 38.9%, GDPR 27.3%, NIS2 15.4%, EAA 8.2%,
+Consumer Rights 7.4%, ePrivacy 2.8%.
+
+Both failures were NIS2, and neither is a ranking bug:
+
+| Query | Returned | Why |
+|---|---|---|
+| "What are the incident reporting deadlines?" | 3/3 EU AI Act | Art. 73 AI Act is serious-incident reporting, and the AI Act is 39% of the collection |
+| "Do I have to tell anyone if we get hacked?" | 3/3 GDPR | Art. 33 breach notification is a defensible answer to that question as asked |
+
+The third NIS2 query, using NIS2's own vocabulary ("supply chain security
+measures for essential entities"), returned 3/3. **NIS2 wins when the language
+is distinctive and loses when the concept is shared across three regulations.**
+Not a volume problem.
+
+**The two callers need opposite behaviour.**
+
+*Chat* — the ambiguity is real and should be preserved. A client asking about
+being hacked may genuinely need the GDPR answer, and returning it is correct.
+
+*Document generation* — there is no ambiguity to resolve. When S29 generates a
+NIS2 breach procedure, the regulation is known before the query is sent.
+Retrieval was never told, so it guessed, and on the shared concepts it guessed
+wrong.
+
+**Adopted:** a `regulations` parameter on `retrieve()` and
+`retrieve_from_qdrant()`, defaulting to `None`. Chat is unchanged. Document
+generation passes the regulation it is generating for. **Filtered, not
+re-ranked** — a NIS2 document must not be able to cite the AI Act at all,
+however well the chunk scores. Supplementary guidance is filtered too, since
+EDPB and ENISA material carries the regulation it interprets and a NIS2
+document pulling EDPB guidance on GDPR is the same error one layer down.
+
+Roughly twenty lines, plus `ensure_payload_indexes()` — `PayloadSchemaType`
+was imported and never used, so `parent_regulation` may have had no index and
+every filtered query would have scanned.
+
+**S31 is NOT brought forward.** Regulation-aware *allocation* — splitting
+`top_k` across regulations by relevance — addresses ranking quality in the
+genuinely ambiguous chat case. Different problem, less urgent, and not what
+gated S28, S29 and S30.
+
+*Rejected:* moving S31 ahead of S28 on the raw 7/9 count. The count measured
+the wrong thing. Two sprints of work were avoided by reading why the failures
+happened rather than how many there were.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.
@@ -1109,6 +1264,28 @@ see the other. Watch for it wherever a `*_subtype` or `*_kind` column exists.
 loss.** Retiring rather than deleting protects the data. It does not protect the
 person looking at the screen, and was never meant to.
 
+**`packages.txt` makes availability depend on Debian mirror health inside
+someone else's base image.**
+
+8 Sept 2026: both apps down. `apt-get` failed on an expired
+`bullseye-security` release file in Streamlit Cloud's container — nothing to do
+with RECOSA's code, unfixable from the repo, and unaffected by rebooting.
+Platform-wide; other apps reported the identical error the same morning.
+
+`packages.txt` contains one line, `libreoffice`, and it is genuinely needed:
+`document_generator.py` shells out to `soffice` for both PDF and ODT
+conversion. So it cannot simply be deleted.
+
+Two consequences to act on:
+
+1. **PDF/ODT conversion has no fallback.** `convert_docx_to_pdf` raises
+   `RuntimeError` when `soffice` is absent. A system-package failure therefore
+   takes out document delivery rather than one output format. DOCX and XLSX are
+   pure Python and would survive — the code should let them.
+2. **Second infrastructure outage of this class**, after the Starlette break.
+   Both took both apps down at once, and neither was caused by RECOSA. See the
+   hosting question below.
+
 **A ✅ in a handover is a claim about what was believed, not about what is on
 disk.** Two of four ✅ items in the S26A handover were carried from intent
 rather than from the file. Verify against the file — including handovers
@@ -1142,7 +1319,7 @@ selector. The multi-client selector is Advisory-only (S44).
 
 | Question | Blocks | Notes |
 |---|---|---|
-| Does S31 come before S28? | S28 | S28–S30 all produce LLM inserts. Run a NIS2, an AI Act and a GDPR query through `retrieve()` and look at the chunk mix. |
+| ~~Does S31 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. |
 | Task register — which number? | S55, S57, S26C | Three sprints depend on it. Currently unnumbered. |
 | Systems grid purpose granularity | S56 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
@@ -1155,7 +1332,17 @@ selector. The multi-client selector is Advisory-only (S44).
 | Art. 9(2) coverage | S55 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
+| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S32A.** |
+| Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |
+| PDF/ODT fallback | S33 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
 | Beta date | — | Six sprints to the S33 gate. The lever if it slips is moving S30 (DPIA) post-beta. |
+
+### The hosting question — resolved 8 Sept 2026
+
+See D-66 to D-69 in section 4. Summary: move to European infrastructure before
+beta, self-host Supabase rather than replace it, rework the UI in Streamlit
+rather than rewrite the front end, and correct the marketing copy this week
+regardless.
 
 **Resolved since the last revision:** language scope (FR/EN now, NL as S53, with
 templates authored language-parallel so NL is translation not re-derivation);
