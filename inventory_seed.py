@@ -42,6 +42,116 @@ from __future__ import annotations
 
 VOCABULARIES: dict[str, list[tuple]] = {
 
+    # ── Data source (S28) ────────────────────────────────────────────────
+    # WHERE the personal data came from. Art. 13 applies where the data subject
+    # provided it; Art. 14 applies where they did not, and requires the source
+    # to be disclosed — including whether it was publicly accessible
+    # (Art. 14(2)(f)).
+    #
+    # Almost every SME has at least one Art. 14 activity and does not know it:
+    # an employee's emergency contact, the accounts contact at a customer, a
+    # referred prospect. A privacy policy generated without this field asserts
+    # Art. 13 for all of them, which is a false statement in a published
+    # document.
+    #
+    # metadata.art14 marks the codes that trigger the Art. 14 disclosure.
+    # 'data_subject' is the only one that does not, and it is deliberately
+    # first: it is the common case and the one a client should not have to
+    # hunt for.
+    "data_source": [
+        ("data_subject",
+         "From the person themselves",
+         "Auprès de la personne elle-même",
+         "They gave it to us — a form, an email, an account, a contract. No "
+         "further disclosure is needed for this source.",
+         {"art14": False},
+         "Elle nous l'a fournie : un formulaire, un courriel, un compte, un "
+         "contrat. Aucune information supplémentaire n'est requise pour cette "
+         "source."),
+
+        ("client_controller",
+         "From a controller we process for",
+         "D'un responsable du traitement pour lequel nous agissons",
+         "Data received from a customer whose processor we are. Their privacy "
+         "notice covers the people concerned, not ours.",
+         {"art14": True},
+         "Données reçues d'un client dont nous sommes le sous-traitant. C'est "
+         "sa politique de confidentialité qui couvre les personnes "
+         "concernées, pas la nôtre."),
+
+        ("employer_or_colleague",
+         "From their employer or a colleague",
+         "De leur employeur ou d'un collègue",
+         "Emergency contacts, referees, and the staff of a customer or "
+         "supplier. The person often does not know you hold their details.",
+         {"art14": True},
+         "Personnes à contacter en cas d'urgence, références, et le personnel "
+         "d'un client ou d'un fournisseur. La personne ignore souvent que vous "
+         "détenez ses coordonnées."),
+
+        ("public_register",
+         "From a public register",
+         "D'un registre public",
+         "A companies register, a professional roll, a public authority list.",
+         {"art14": True, "public": True},
+         "Registre des sociétés, ordre professionnel, liste d'une autorité "
+         "publique."),
+
+        ("publicly_available",
+         "From a publicly available source",
+         "D'une source accessible au public",
+         "A website, a public professional profile, published material. "
+         "Art. 14(2)(f) asks specifically whether the source was public, so "
+         "this is stated in the policy.",
+         {"art14": True, "public": True},
+         "Site web, profil professionnel public, publications. L'article "
+         "14(2)(f) demande expressément si la source était publique : la "
+         "politique le précise donc."),
+
+        ("third_party_referral",
+         "Passed on by someone else",
+         "Transmise par un tiers",
+         "An existing contact gave us their details.",
+         {"art14": True},
+         "Un contact existant nous a communiqué ses coordonnées."),
+
+        ("data_broker",
+         "Bought or licensed from a data provider",
+         "Achetée ou sous licence auprès d'un fournisseur de données",
+         "A purchased list. Name the provider in the activity notes — "
+         "Art. 14(2)(f) expects the source to be identifiable.",
+         {"art14": True},
+         "Liste achetée. Indiquez le fournisseur dans les notes de "
+         "l'activité : l'article 14(2)(f) attend une source identifiable."),
+
+        ("credit_reference",
+         "From a credit or background checking agency",
+         "D'un organisme de renseignement de crédit ou de vérification",
+         "Credit reference, solvency or background checks.",
+         {"art14": True},
+         "Renseignement de crédit, vérification de solvabilité ou "
+         "d'antécédents."),
+
+        ("another_group_entity",
+         "From another company in our group",
+         "D'une autre société de notre groupe",
+         "Received from a parent, subsidiary or sister company. Being in the "
+         "same group is not a legal basis on its own.",
+         {"art14": True},
+         "Reçue d'une société mère, filiale ou sœur. L'appartenance au même "
+         "groupe ne constitue pas en soi une base légale."),
+
+        ("other",
+         "Other — describe in the notes",
+         "Autre — à préciser dans les notes",
+         "Use only when nothing above fits. The source still has to be stated "
+         "in the privacy policy, so describe it.",
+         {"art14": True, "requires_text": True},
+         "À n'utiliser que si aucune option ci-dessus ne convient. La source "
+         "doit tout de même figurer dans la politique de confidentialité : "
+         "décrivez-la."),
+    ],
+
     # ── Retention basis (S26C) ────────────────────────────────────────────
     # Art. 30(1)(f) asks for the envisaged erasure time limits. The PERIOD is
     # the client's number, in retention_value; this vocabulary is the REASON.
