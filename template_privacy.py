@@ -48,6 +48,29 @@ from template_renderer import Block, FieldSpec
 # in build_values(); only what is specific to this document is declared here.
 
 PRIVACY_FIELDS = [
+    # Identity. Declared per doc_type, not inherited: build_values() populates
+    # these for every document, but check_bodies() validates each template
+    # against its OWN FieldSpec list — so a body may only reference what its
+    # doc_type declares. Each document also decides for itself what is
+    # required, and the answers differ.
+    FieldSpec("legal_name", "Legal name of the company", required=True),
+    FieldSpec("registered_address", "Registered address", required=True),
+    FieldSpec("enterprise_number", "Company registration number"),
+    FieldSpec("legal_form", "Legal form"),
+    FieldSpec("has_legal_form", "Legal form recorded", flag=True),
+    FieldSpec("has_enterprise_number", "Registration number recorded", flag=True),
+
+    # required=True. Art. 13(1)(a)-(b) requires contact details, and a notice
+    # telling someone they may exercise their rights without saying where to
+    # write does not discharge it. The DPA takes the same view for a different
+    # reason; the registers do not, because a supervisory authority already
+    # knows how to reach the controller.
+    FieldSpec("contact_email", "Contact for privacy matters", required=True),
+
+    FieldSpec("dpo_name", "Data Protection Officer name"),
+    FieldSpec("dpo_email", "Data Protection Officer email"),
+    FieldSpec("has_dpo_section", "DPO appointed", flag=True),
+
     # Flags. Every section this document can omit is omitted on a fact, never
     # on a guess: a policy that describes transfers a client does not make is
     # as wrong as one that hides transfers they do.
