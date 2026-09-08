@@ -252,6 +252,7 @@ PAGE_CONTEXT = {
     "alerts":    "compliance_pulse",
     "activity":  "account",
     "support":   "account",
+        "Tools":      [inventory, documents, record, audit, diag],
 }
 
 # The default page is served at the root, so its url_path is empty.
