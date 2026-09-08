@@ -78,6 +78,7 @@ PRIVACY_FIELDS = [
     FieldSpec("has_art14", "Holds data not obtained from the data subject", flag=True),
     FieldSpec("has_public_source", "Some data came from a public source", flag=True),
     FieldSpec("has_recipients", "Shares data with named recipients", flag=True),
+    FieldSpec("has_non_processor", "Some recipient is not a processor", flag=True),
     FieldSpec("has_transfers", "Transfers data outside the EEA", flag=True),
     FieldSpec("has_special_categories", "Processes Art. 9 data", flag=True),
 
@@ -215,17 +216,35 @@ def build_privacy_block_context(
     cp_by_id = {c["id"]: c for c in inv["counterparties"]}
     sys_by_id = {s["id"]: s for s in inv["systems"]}
 
+    # The role comes from the JOIN, not from the system (S24): a vendor can be
+    # a processor for one activity and a joint controller for another, and the
+    # difference is exactly what section 4 asserts about them.
+    #
+    # Where a vendor holds more than one role across activities, the strongest
+    # is kept — joint controller outranks processor. Describing a joint
+    # controller as acting only on our instructions is the misstatement; the
+    # reverse is merely incomplete.
+    _RANK = {"joint_controller": 3, "controller": 2, "processor": 1}
+
     recipients: dict[str, dict[str, Any]] = {}
+
+    def _note(key: str, row: Mapping[str, Any], role: str | None) -> None:
+        cur = recipients.get(key)
+        if cur is None:
+            recipients[key] = {**row, "_role": role}
+        elif _RANK.get(role or "", 0) > _RANK.get(cur.get("_role") or "", 0):
+            cur["_role"] = role
+
     for l in inv["cp_links"]:
         if l.get("activity_id") in act_ids:
             cp = cp_by_id.get(l.get("counterparty_id"))
             if cp:
-                recipients[cp["id"]] = cp
+                _note(cp["id"], cp, l.get("role"))
     for l in inv["links"]:
         if l.get("activity_id") in act_ids:
             sysrow = sys_by_id.get(l.get("system_id"))
             if sysrow:
-                recipients.setdefault(f"sys:{sysrow['id']}", sysrow)
+                _note(f"sys:{sysrow['id']}", sysrow, l.get("role"))
 
     return {
         "privacy_activities": acts,
@@ -235,6 +254,14 @@ def build_privacy_block_context(
             r for r in recipients.values()
             if (r.get("processing_country") or "EU") not in ("EU", "EEA", "")
         ],
+        # Whether any recipient is something other than a processor. Section 4
+        # says they act on our instructions and may not use the data for their
+        # own purposes — true of a processor, false of a joint controller, and
+        # a false statement about a named company in a published notice.
+        "privacy_has_non_processor": any(
+            (r.get("_role") or "processor") != "processor"
+            for r in recipients.values()
+        ),
         "_i18n": _i18n,
     }, None
 
@@ -245,7 +272,7 @@ _H = {
     "en": {
         "purpose": "What we do", "basis": "Why we are allowed to",
         "data": "What we hold", "retention": "How long",
-        "recipient": "Who", "role": "What they do for us",
+        "recipient": "Who", "role": "What they do for us", "capacity": "In what capacity",
         "country": "Where", "safeguard": "Safeguard",
         "unassigned": "Other processing",
         "from_others": "We received this from someone other than you",
@@ -255,7 +282,7 @@ _H = {
     "fr": {
         "purpose": "Ce que nous faisons", "basis": "Ce qui nous y autorise",
         "data": "Ce que nous détenons", "retention": "Durée",
-        "recipient": "Qui", "role": "Ce qu'ils font pour nous",
+        "recipient": "Qui", "role": "Ce qu'ils font pour nous", "capacity": "À quel titre",
         "country": "Où", "safeguard": "Garantie",
         "unassigned": "Autres traitements",
         "from_others": "Nous avons reçu ces données d'une autre personne que vous",
@@ -373,17 +400,19 @@ def _cell(v: Any) -> str:
 def render_privacy_recipients(context: Mapping[str, Any], language: str) -> Block:
     from inventory import label_for  # noqa: PLC0415
 
+    # No country column. Section 5 is about where data goes and carries the
+    # safeguard with it; repeating the country here says less, twice.
     block = Block(
         name="privacy_recipients",
         headers=[_t(language, "recipient"), _t(language, "role"),
-                 _t(language, "country")],
+                 _t(language, "capacity")],
     )
     for r in context.get("privacy_recipient_rows") or []:
         block.rows.append([
             r.get("legal_name") or r.get("vendor_legal_name") or r.get("name") or "",
             label_for("system_category", r.get("category") or "", language)
             if r.get("category") else "",
-            r.get("processing_country") or r.get("country") or "EU",
+            label_for("system_role", r.get("_role") or "processor", language),
         ])
     return block
 
@@ -428,6 +457,7 @@ def apply_privacy_values(
     values.update(rights_in_play(acts))
     values["has_role_sections"] = bool(ctx.get("privacy_groups"))
     values["has_recipients"] = bool(ctx.get("privacy_recipient_rows"))
+    values["has_non_processor"] = bool(ctx.get("privacy_has_non_processor"))
     values["has_transfers"] = bool(ctx.get("privacy_transfer_rows"))
     values["has_special_categories"] = any(
         a.get("special_categories") for a in acts

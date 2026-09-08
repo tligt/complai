@@ -128,10 +128,20 @@ allows it, and we apply additional restrictions to who can see it.
 {{#if:has_recipients}}
 ## 4. Who else sees it
 
-We use the organisations below to run parts of our business. They act on our
-instructions and may not use your data for their own purposes.
+We use the organisations below to run parts of our business. The last column
+says in what capacity each one acts.
 
 {{#block:privacy_recipients}}
+
+Where an organisation acts as our **processor**, it handles your data on our
+instructions only and may not use it for its own purposes.
+
+{{#if:has_non_processor}}
+Where one is shown as a **joint controller**, it decides some of what happens
+to your data alongside us. It has its own privacy notice and its own
+responsibilities towards you, and you can exercise your rights against either
+of us.
+{{/if:has_non_processor}}
 
 We also share information where the law requires it — with tax and social
 security authorities, and with a court or a regulator where we are obliged to.
@@ -280,10 +290,21 @@ davantage les personnes qui peuvent y accéder.
 ## 4. Qui d'autre y a accès
 
 Nous faisons appel aux organisations ci-dessous pour faire fonctionner une
-partie de notre activité. Elles agissent sur nos instructions et ne peuvent pas
-utiliser vos données à leurs propres fins.
+partie de notre activité. La dernière colonne indique à quel titre chacune
+intervient.
 
 {{#block:privacy_recipients}}
+
+Lorsqu'une organisation agit en qualité de **sous-traitant**, elle traite vos
+données uniquement sur nos instructions et ne peut pas les utiliser à ses
+propres fins.
+
+{{#if:has_non_processor}}
+Lorsqu'elle est indiquée comme **responsable conjoint du traitement**, elle
+détermine avec nous une partie de ce qui advient de vos données. Elle dispose
+de sa propre politique de confidentialité et de ses propres responsabilités à
+votre égard, et vous pouvez exercer vos droits auprès de l'une ou de l'autre.
+{{/if:has_non_processor}}
 
 Nous communiquons également des informations lorsque la loi l'exige — aux
 administrations fiscales et de sécurité sociale, ainsi qu'à une juridiction ou
