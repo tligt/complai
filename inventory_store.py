@@ -84,6 +84,8 @@ ACTIVITY_EDITABLE = (
     "retention_value", "retention_unit", "retention_basis_code",
     "retention_archive_value", "retention_archive_unit",
     "retention_archive_basis_code",
+  # S28. Where the data came from — Art. 13 vs Art. 14.
+    "data_source_codes",
 )
 
 COUNTERPARTY_EDITABLE = (
