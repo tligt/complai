@@ -367,6 +367,7 @@ with tab_activities:
     basis_codes, basis_labels = INV.options_for("legal_basis", lang, client_id)
     role_codes, role_labels = INV.options_for("controller_role", lang, client_id)
     sysrole_codes, sysrole_labels = INV.options_for("system_role", lang, client_id)
+    src_codes, src_labels = INV.options_for("data_source", lang, client_id)
     subj_codes, subj_labels = INV.options_for("data_subject_category", lang, client_id)
     data_codes, data_labels = INV.options_for("data_category", lang, client_id)
     spec_codes, spec_labels = INV.options_for("special_category", lang, client_id)
@@ -597,6 +598,45 @@ with tab_activities:
             format_func=lambda c: data_labels.get(c, c),
         )
 
+        # S28. Where the data came from.
+        #
+        # Art. 13 covers data the person gave you. Art. 14 covers data you hold
+        # about someone who never handed it over, and requires you to say WHERE
+        # IT CAME FROM — including whether the source was publicly accessible.
+        #
+        # Almost every SME has at least one Art. 14 activity and does not know
+        # it: an employee's emergency contact, the accounts contact at a
+        # customer, a referred prospect. Without this field the privacy policy
+        # asserts Art. 13 for all of them, which is a false statement in a
+        # published document.
+        #
+        # Multiselect, not a dropdown: an HR record carries data from the
+        # employee AND from their referees, and both have to be disclosed.
+        sources = st.multiselect(
+            "Where this data came from", options=src_codes,
+            default=[c for c in (a.get("data_source_codes") or []) if c in src_codes],
+            format_func=lambda c: src_labels.get(c, c),
+            help=(
+                "Leave blank only if you do not know yet. Blank is not read as "
+                "'from the person themselves' — the privacy policy will not "
+                "speak for an activity whose source is unrecorded."
+            ),
+        )
+        if sources:
+            # The note explains what each source means for the policy. Shown
+            # for the selected codes only: ten notes at once is a wall.
+            for _c in sources:
+                _n = INV.note_for("data_source", _c, lang, client_id)
+                if _n:
+                    st.caption(f"**{src_labels.get(_c, _c)}** — {_n}")
+        elif aid is not None:
+            # Only on an existing activity. A brand-new form has every field
+            # blank and does not need telling.
+            st.caption(
+                ":orange[Not recorded.] Your privacy policy cannot describe "
+                "this activity's source until it is."
+            )
+
         specials = st.multiselect(
             "Special categories (Art. 9)", options=spec_codes,
             default=[c for c in (a.get("special_categories") or []) if c in spec_codes],
@@ -812,6 +852,7 @@ with tab_activities:
             "name": name, "purpose": purpose, "legal_basis": basis,
             "legitimate_interest_note": li_note, "controller_role": ctrl,
             "data_subject_categories": subjects, "data_categories": categories,
+            "data_source_codes": sources,
             "special_categories": specials, "art9_condition": art9,
             "criminal_data": criminal, "security_measures": measures,
             "counterparty_register_note": register_note, "notes": notes,
