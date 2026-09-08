@@ -200,7 +200,7 @@ you within that first month and explain why.
 If you are unhappy with how we have handled your data, tell us first — it is
 usually the quickest way to put something right.
 
-You can also complain to {{supervisory_authority}}{{#if:has_supervisory_authority_url}} ({{supervisory_authority_url}}){{/if:has_supervisory_authority_url}}, and you can do so
+You can also complain to {{authority_name}}{{#if:has_authority_url}} ({{authority_url}}){{/if:has_authority_url}}, and you can do so
 without contacting us first.
 
 ## 8. Changes to this policy
@@ -361,7 +361,7 @@ dites-le-nous d'abord : c'est généralement le moyen le plus rapide de corriger
 une situation.
 
 Vous pouvez également introduire une réclamation auprès de
-{{supervisory_authority}}{{#if:has_supervisory_authority_url}} ({{supervisory_authority_url}}){{/if:has_supervisory_authority_url}}, sans avoir à nous contacter au préalable.
+{{authority_name}}{{#if:has_authority_url}} ({{authority_url}}){{/if:has_authority_url}}, sans avoir à nous contacter au préalable.
 
 ## 8. Modifications de la présente politique
 

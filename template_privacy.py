@@ -90,11 +90,20 @@ PRIVACY_FIELDS = [
 
     FieldSpec("policy_effective_date", "Effective from"),
     FieldSpec("has_policy_effective_date", "Effective date known", flag=True),
-    # required=True: a notice that cannot tell the reader where to complain
-    # fails Art. 13(2)(d). Not a placeholder case.
-    FieldSpec("supervisory_authority", "Supervisory authority", required=True),
-    FieldSpec("supervisory_authority_url", "Supervisory authority website"),
-    FieldSpec("has_supervisory_authority_url", "Authority website known", flag=True),
+
+    # authority_name / authority_url, NOT supervisory_authority(_url).
+    #
+    # build_values() already resolves these from the client's establishment
+    # through the jurisdictions table, and the Cookie Policy uses them. A second
+    # pair of field names for the same fact would be two sources for one
+    # answer — and the first symptom was this document refusing to generate
+    # because nothing populated the names it had invented.
+    #
+    # required=True: Art. 13(2)(d) requires the right to lodge a complaint, and
+    # a notice that cannot say with whom does not discharge it.
+    FieldSpec("authority_name", "Supervisory authority", required=True),
+    FieldSpec("authority_url", "Supervisory authority website"),
+    FieldSpec("has_authority_url", "Authority website known", flag=True),
 ]
 
 PRIVACY_BLOCKS = ("privacy_role_sections", "privacy_recipients", "privacy_transfers")
@@ -437,6 +446,4 @@ def apply_privacy_values(
     # given renders as a placeholder inside a sentence about where to complain,
     # which reads worse than the sentence without it.
     values["has_policy_effective_date"] = bool(values.get("policy_effective_date"))
-    values["has_supervisory_authority_url"] = bool(
-        values.get("supervisory_authority_url")
-    )
+    values["has_authority_url"] = bool(values.get("authority_url"))
