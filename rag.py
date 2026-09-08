@@ -252,13 +252,77 @@ def get_knowledge_base_summary() -> list[dict]:
     return sorted(sources.values(), key=lambda x: (x["doc_type"], x["country"], x["source"]))
 
 
+def ensure_payload_indexes() -> dict[str, str]:
+    """Create the payload indexes retrieval filters on. Idempotent.
+
+    Qdrant will filter on an unindexed payload field, but by scanning rather
+    than by index — fine on a few thousand chunks and not fine later. The
+    collection was built by the Colab rebuild script, which may or may not have
+    created these.
+
+    Run once from a shell or an admin page. Safe to re-run: an existing index
+    raises, and that is reported rather than treated as a failure.
+    """
+    client = get_qdrant_client()
+    fields = {
+        "parent_regulation": PayloadSchemaType.KEYWORD,
+        "doc_type":          PayloadSchemaType.KEYWORD,
+        "language":          PayloadSchemaType.KEYWORD,
+        "country":           PayloadSchemaType.KEYWORD,
+        "status":            PayloadSchemaType.KEYWORD,
+    }
+    out = {}
+    for field, schema in fields.items():
+        try:
+            client.create_payload_index(
+                collection_name=COLLECTION_NAME,
+                field_name=field,
+                field_schema=schema,
+            )
+            out[field] = "created"
+        except Exception as e:
+            out[field] = f"already present or failed: {type(e).__name__}"
+    return out
+
+
 def retrieve_from_qdrant(
     query: str,
     top_k: int = 3,
     language: str = "en",
     country: str = "EU",
     doc_type: str | None = None,
+    regulations: list[str] | None = None,
 ) -> list[Chunk]:
+    """Retrieve chunks, optionally restricted to named regulations.
+
+    `regulations` is a list of `parent_regulation` values — "NIS2", "GDPR",
+    "EU_AI_ACT", "EPRIVACY", "CONSUMER_RIGHTS", "EAA". None means every
+    regulation competes on semantic similarity, which is the right behaviour
+    for chat and the wrong one for document generation.
+
+    WHY THIS EXISTS (measured 8 Sept 2026)
+    --------------------------------------
+    Nine diagnostic queries, seven clean. Both failures were NIS2 questions
+    phrased the way a client would ask them:
+
+      "What are the incident reporting deadlines?"  -> 3/3 EU AI Act chunks
+      "Do I have to tell anyone if we get hacked?"  -> 3/3 GDPR chunks
+
+    Neither is a ranking bug. The AI Act has serious-incident reporting under
+    Art. 73 and holds 38.9% of the collection; Art. 33 GDPR breach notification
+    is a defensible answer to the second question as asked. The third NIS2
+    query, using NIS2's own vocabulary ("essential entities"), returned 3/3.
+    NIS2 wins when the language is distinctive and loses when the concept is
+    shared across three regulations.
+
+    In CHAT that ambiguity is real and should be preserved — a client asking
+    about being hacked may well need the GDPR answer.
+
+    In DOCUMENT GENERATION there is no ambiguity to resolve. When S29 generates
+    a NIS2 breach procedure, the regulation is known before the query is sent.
+    Retrieval was never told, so it guessed, and on the shared concepts it
+    guessed wrong. That is what this parameter fixes.
+    """
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
 
@@ -272,6 +336,12 @@ def retrieve_from_qdrant(
     ]
     if doc_type:
         must_conditions.append(FieldCondition(key="doc_type", match=MatchValue(value=doc_type)))
+    if regulations:
+        # Filtered, not re-ranked. A document generated for NIS2 must not be
+        # able to cite the AI Act at all, however well the chunk scores.
+        must_conditions.append(
+            FieldCondition(key="parent_regulation", match={"any": list(regulations)})
+        )
 
     results = client.query_points(
         collection_name=COLLECTION_NAME,
@@ -303,19 +373,29 @@ def retrieve(
     top_k: int = 6,
     language: str = "en",
     country: str = "EU",
+    regulations: list[str] | None = None,
 ) -> list[Chunk]:
     """
     Retrieve relevant chunks from Qdrant + in-memory company documents.
     Splits top_k evenly between core regulations and supplementary guidance.
-    All 6 regulations (GDPR, NIS2, EU_AI_ACT, EPRIVACY, CONSUMER_RIGHTS, EAA)
-    are retrieved automatically based on semantic relevance.
+
+    `regulations` restricts both halves to the named `parent_regulation`
+    values. Default None keeps the existing behaviour — all six compete on
+    semantic relevance — which is correct for chat and wrong for document
+    generation. See retrieve_from_qdrant for the measurement behind this.
+
+    Supplementary guidance is filtered too. EDPB and ENISA material is tagged
+    with the regulation it interprets, so a NIS2 document pulling EDPB guidance
+    on GDPR is the same error one layer down.
     """
     half = max(top_k // 2, 3)
     core_chunks = retrieve_from_qdrant(
-        query, top_k=half, language=language, country=country, doc_type="core"
+        query, top_k=half, language=language, country=country, doc_type="core",
+        regulations=regulations,
     )
     supplementary_chunks = retrieve_from_qdrant(
-        query, top_k=half, language=language, country=country, doc_type="supplementary"
+        query, top_k=half, language=language, country=country,
+        doc_type="supplementary", regulations=regulations,
     )
 
     company_chunks = []
