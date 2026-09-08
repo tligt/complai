@@ -34,6 +34,24 @@ about someone else. The registers are written for a supervisory authority and
 say "the organisation"; this is written for the person and says "you".
 
 ---------------------------------------------------------------------------
+CONDITIONALS DO NOT NEST
+---------------------------------------------------------------------------
+template_renderer states it as a deliberate constraint: nesting is where
+template languages become programming languages, and these bodies are reviewed
+by lawyers, not developers.
+
+The first version of this file nested twice — has_non_processor inside
+has_recipients, has_public_source inside has_art14. The non-greedy match ends
+the OUTER conditional at the INNER closing tag, so the leftover markers survive
+into the document. The generator warned; without that warning a published
+privacy policy would have carried template syntax in it.
+
+Both are now flat, with the flags computed to imply their parent:
+has_non_processor is only ever set when recipients exist, has_public_source
+only when has_art14 is set. The condition moved from the template to the code,
+which is where it can be tested.
+
+---------------------------------------------------------------------------
 FOR COUNSEL
 ---------------------------------------------------------------------------
 1. RIGHTS ARE CONDITIONAL. Sections 6.1 to 6.3 render only where the legal
@@ -113,9 +131,12 @@ none takes place; it means none has yet been documented here.
 
 {{#if:has_art14}}
 Some of what we hold did not come from you. Where that is the case we have said
-so under the relevant entry above, and named where it came from.{{#if:has_public_source}} Where the
-information was already publicly available, we have said that too.{{/if:has_public_source}}
+so under the relevant entry above, and named where it came from.
 {{/if:has_art14}}
+
+{{#if:has_public_source}}
+Where the information was already publicly available, we have said that too.
+{{/if:has_public_source}}
 
 {{#if:has_special_categories}}
 ### Sensitive information
@@ -136,16 +157,16 @@ says in what capacity each one acts.
 Where an organisation acts as our **processor**, it handles your data on our
 instructions only and may not use it for its own purposes.
 
-{{#if:has_non_processor}}
-Where one is shown as a **joint controller**, it decides some of what happens
-to your data alongside us. It has its own privacy notice and its own
-responsibilities towards you, and you can exercise your rights against either
-of us.
-{{/if:has_non_processor}}
-
 We also share information where the law requires it — with tax and social
 security authorities, and with a court or a regulator where we are obliged to.
 {{/if:has_recipients}}
+
+{{#if:has_non_processor}}
+Where an organisation above is shown as a **joint controller**, it decides some
+of what happens to your data alongside us. It has its own privacy notice and
+its own responsibilities towards you, and you can exercise your rights against
+either of us.
+{{/if:has_non_processor}}
 
 {{#if:has_transfers}}
 ## 5. Sending data outside the EEA
@@ -273,9 +294,13 @@ Cela ne signifie pas qu'aucun n'a lieu, mais qu'aucun n'y est encore documenté.
 {{#if:has_art14}}
 Certaines des données que nous détenons ne proviennent pas de vous. Le cas
 échéant, nous l'avons indiqué sous l'entrée concernée ci-dessus, en précisant
-leur provenance.{{#if:has_public_source}} Lorsque l'information était déjà accessible au public, nous
-l'avons également signalé.{{/if:has_public_source}}
+leur provenance.
 {{/if:has_art14}}
+
+{{#if:has_public_source}}
+Lorsque l'information était déjà accessible au public, nous l'avons également
+signalé.
+{{/if:has_public_source}}
 
 {{#if:has_special_categories}}
 ### Données sensibles
@@ -299,17 +324,18 @@ Lorsqu'une organisation agit en qualité de **sous-traitant**, elle traite vos
 données uniquement sur nos instructions et ne peut pas les utiliser à ses
 propres fins.
 
-{{#if:has_non_processor}}
-Lorsqu'elle est indiquée comme **responsable conjoint du traitement**, elle
-détermine avec nous une partie de ce qui advient de vos données. Elle dispose
-de sa propre politique de confidentialité et de ses propres responsabilités à
-votre égard, et vous pouvez exercer vos droits auprès de l'une ou de l'autre.
-{{/if:has_non_processor}}
-
 Nous communiquons également des informations lorsque la loi l'exige — aux
 administrations fiscales et de sécurité sociale, ainsi qu'à une juridiction ou
 à une autorité de contrôle lorsque nous y sommes tenus.
 {{/if:has_recipients}}
+
+{{#if:has_non_processor}}
+Lorsqu'une organisation ci-dessus est indiquée comme **responsable conjoint du
+traitement**, elle détermine avec nous une partie de ce qui advient de vos
+données. Elle dispose de sa propre politique de confidentialité et de ses
+propres responsabilités à votre égard, et vous pouvez exercer vos droits auprès
+de l'une ou de l'autre.
+{{/if:has_non_processor}}
 
 {{#if:has_transfers}}
 ## 5. Transferts hors de l'EEE
