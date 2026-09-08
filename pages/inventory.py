@@ -814,11 +814,29 @@ with tab_activities:
         # their own order. Not a configured master: if they typed French and
         # left Dutch blank, French is the source for this save and the reverse
         # next time.
-        _source = next(
-            (l for l in doc_langs
-             if (_i18n["name"].get(l) or "").strip()
-             or (_i18n["purpose"].get(l) or "").strip()),
-            None,
+        # The source may be a language this client does not produce documents
+        # in.
+        #
+        # The S26C backfill wrote the legacy text as name_i18n["en"], so an
+        # activity created before languages were tracked HAS an English source
+        # sitting in the blob. An earlier version required the source to be one
+        # of doc_langs, so a client whose documents are NL and FR opened an
+        # activity with both columns empty, saved, and got nothing drafted —
+        # while a perfectly good English source sat one key away. They then
+        # typed both translations by hand, which is the work this was built to
+        # remove.
+        #
+        # Preference: a document language they have filled in (their own words
+        # beat anything stored), then English, then whatever else is present.
+        def _has(l: str) -> bool:
+            return bool((_i18n["name"].get(l) or "").strip()
+                        or (_i18n["purpose"].get(l) or "").strip())
+
+        _source = (
+            next((l for l in doc_langs if _has(l)), None)
+            or ("en" if _has("en") else None)
+            or next((l for l in ({**_i18n["name"], **_i18n["purpose"]})
+                     if _has(l)), None)
         )
         _todo = [
             l for l in doc_langs
