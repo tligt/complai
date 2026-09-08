@@ -856,11 +856,38 @@ def delete_draft_document(document_row_id: str, user_id: str) -> bool:
             )
             return False
 
-        if row.get("file_path"):
-            delete_file("compliance-files", row["file_path"])
+        # EVERY format, not just the DOCX.
+        #
+        # client_documents.file_path is the docx. A generation writes up to
+        # four objects — docx, pdf, odt, xlsx — and deleting one left three
+        # behind: invisible in the product, still in storage, still the
+        # client's personal data. That is the failure this delete exists to
+        # prevent, one layer out from where it was being prevented.
+        paths = {row.get("file_path")}
+        if row.get("document_id"):
+            gen = (supabase.table("documents")
+                   .select("file_path_docx, file_path_pdf, file_path_odt, "
+                           "file_path_xlsx")
+                   .eq("id", row["document_id"]).execute().data or [{}])[0]
+            paths |= {v for v in gen.values() if v}
+        for _p in {x for x in paths if x}:
+            delete_file("compliance-files", _p)
 
         supabase.table("client_documents").delete() \
             .eq("id", document_row_id).eq("user_id", user_id).execute()
+
+        # The generation row SURVIVES — that a generation happened is true
+        # whether or not its output was kept — but it is marked, so the history
+        # can say "file discarded" instead of offering download links to
+        # objects that are gone. Without this the page renders buttons and a
+        # 404, which reads as a storage failure rather than as the client's own
+        # deliberate act.
+        if row.get("document_id"):
+            supabase.table("documents").update({
+                "file_path_docx": None, "file_path_pdf": None,
+                "file_path_odt": None, "file_path_xlsx": None,
+                "files_discarded_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", row["document_id"]).execute()
 
         # A discarded draft is still something that happened, and the event
         # costs nothing. It is also the only remaining trace once the row and
