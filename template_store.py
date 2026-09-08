@@ -193,7 +193,10 @@ def _load_inventory(client_id: str) -> dict[str, Any]:
             "name_i18n, purpose_i18n, translation_status, "
             "retention_value, retention_unit, retention_basis_code, "
             "retention_archive_value, retention_archive_unit, "
-            "retention_archive_basis_code",
+            "retention_archive_basis_code, "
+            # S28. Without this the Art. 14 source disclosure can never render,
+            # and the policy silently asserts Art. 13 for everything.
+            "data_source_codes",
         ),
         "systems": _fetch(
             "systems",
@@ -937,6 +940,14 @@ def build_values(
         from template_dpa import apply_dpa_values  # noqa: PLC0415
         apply_dpa_values(values, client, block_context, language)
 
+    # --- Art. 13/14 information notice ------------------------------------
+    # After the common block: apply_privacy_values reads policy_effective_date
+    # and supervisory_authority_url to set their flags, and both are populated
+    # there.
+    if doc_type == "privacy_policy":
+        from template_privacy import apply_privacy_values  # noqa: PLC0415
+        apply_privacy_values(values, client, block_context, language)
+
     return values, resolution.codes_applied
 
 
@@ -954,6 +965,10 @@ def build_block_context(
     """
     if doc_type == "cookie_policy":
         return {"vendors": _load_vendor_rows(client_id, language)}, None
+
+    if doc_type == "privacy_policy":
+        from template_privacy import build_privacy_block_context  # noqa: PLC0415
+        return build_privacy_block_context(client_id, language)
 
     if doc_type == "dpa":
         # Reuses _load_inventory, but scopes every table to activities the
@@ -1151,3 +1166,24 @@ from template_dpa import (  # noqa: E402
 FIELD_SPECS["dpa"] = DPA_FIELDS
 DOC_BLOCKS["dpa"] = DPA_BLOCKS
 DEFAULT_BLOCK_RENDERERS.update(DPA_BLOCK_RENDERERS)
+
+
+# ---------------------------------------------------------------------------
+# S28 — Privacy Policy (Art. 13 and 14)
+# ---------------------------------------------------------------------------
+# Same placement and the same reason as the DPA above: template_privacy imports
+# Block and FieldSpec from template_renderer at module level, so registering
+# its renderers there would close the import cycle.
+#
+# Tier 1. No LLM, and no `regulations` argument to retrieve() because nothing
+# here retrieves — every prescribed Art. 13/14 item is structured data after
+# S26, S26C and S28.
+from template_privacy import (  # noqa: E402
+    PRIVACY_BLOCKS,
+    PRIVACY_BLOCK_RENDERERS,
+    PRIVACY_FIELDS,
+)
+
+FIELD_SPECS["privacy_policy"] = PRIVACY_FIELDS
+DOC_BLOCKS["privacy_policy"] = PRIVACY_BLOCKS
+DEFAULT_BLOCK_RENDERERS.update(PRIVACY_BLOCK_RENDERERS)
