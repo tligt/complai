@@ -456,11 +456,15 @@ with tab_activities:
 
     def _activity_label(activity_id: str) -> str:
         row = by_id[activity_id]
+        # Resolved for the INTERFACE language, like the summary table. Reading
+        # row["name"] directly showed whichever language happened to be in the
+        # legacy column.
+        _n = _i18n_get(row, "name", lang) or row.get("name") or "—"
         if _name_counts.get(row["name"], 0) < 2:
-            return row["name"]
+            return _n
         n = len(STORE.systems_for_activity(links, activity_id))
         basis = basis_labels.get(row.get("legal_basis"), row.get("legal_basis") or "no basis")
-        return f"{row['name']} — {basis}, {n} system{'' if n == 1 else 's'}"
+        return f"{_n} — {basis}, {n} system{'' if n == 1 else 's'}"
 
     if activities:
         mode = st.radio(
@@ -825,9 +829,18 @@ with tab_activities:
                 before = (_i18n.get(field, {}) or {}).get(l) or ""
                 if (value or "").strip():
                     _i18n[field][l] = value.strip()
-                    if value.strip() != before.strip() or \
-                            (_st.get(field, {}) or {}).get(l) != "machine_unreviewed":
-                        _st.setdefault(field, {})[l] = "human"
+                    # ANY text in the box at submit is the client's, whether
+                    # they changed it or not.
+                    #
+                    # The earlier condition only promoted to human when the
+                    # value CHANGED, so re-saving an untouched draft left it a
+                    # draft — while the caption above it said "edit or re-save
+                    # to confirm". Saving three times changed nothing.
+                    #
+                    # The drafting below runs AFTER this loop and marks what it
+                    # fills as machine_unreviewed, so a fresh draft is not
+                    # confirmed by the save that created it.
+                    _st.setdefault(field, {})[l] = "human"
                 elif before:
                     # Cleared deliberately: drop the text AND the status,
                     # rather than leaving a flag pointing at nothing.
@@ -888,8 +901,27 @@ with tab_activities:
         # validate_activity reads `name`, and template_store._i18n() falls back
         # to the legacy columns for any language the blob does not cover. Kept
         # in step with the source language rather than left to drift.
-        name = _i18n["name"].get(_source or lang) or a.get("name") or ""
-        purpose = _i18n["purpose"].get(_source or lang) or a.get("purpose") or ""
+        # The legacy columns are a FALLBACK, not a copy of whichever language
+        # was typed first.
+        #
+        # This previously wrote _i18n[_source], and _source is the first
+        # document language with content — so a client who filled NL and left
+        # EN empty had their legacy `name` overwritten with Dutch. Anything
+        # still reading that column then showed Dutch: the activity dropdown
+        # does exactly that.
+        #
+        # Preference: English, then the existing legacy value, then whatever
+        # is present. English because that is what the S26C backfill assumed
+        # and what every unmigrated row already holds.
+        _blob_n, _blob_p = _i18n["name"], _i18n["purpose"]
+        name = (
+            _blob_n.get("en") or a.get("name")
+            or next((v for v in _blob_n.values() if v), "")
+        )
+        purpose = (
+            _blob_p.get("en") or a.get("purpose")
+            or next((v for v in _blob_p.values() if v), "")
+        )
 
         row = {
             "name": name, "purpose": purpose, "legal_basis": basis,
