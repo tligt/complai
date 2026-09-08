@@ -17,7 +17,7 @@ from document_generator import (
 # prompt path reachable for one sprint (D-11) so a regression can be compared
 # against it rather than reconstructed from memory.
 #
-#   TEMPLATE_DOC_TYPES="cookie_policy,ropa_controller,ropa_processor,dpa,privacy_policy"
+#   TEMPLATE_DOC_TYPES="cookie_policy,ropa_controller,ropa_processor"
 #                                        default — all Tier 1 templated
 #   TEMPLATE_DOC_TYPES=""                everything back on the LLM path
 #
@@ -31,7 +31,7 @@ from document_generator import (
 TEMPLATE_DOC_TYPES = {
     t.strip() for t in os.environ.get(
         "TEMPLATE_DOC_TYPES",
-        "cookie_policy,ropa_controller,ropa_processor,dpa,privacy_policy",
+        "cookie_policy,ropa_controller,ropa_processor,dpa",
     ).split(",")
     if t.strip()
 }
@@ -546,16 +546,6 @@ if use_template:
             "them under *Systems, activities and controllers*."
         )
 
-    elif doc_type == "privacy_policy":
-        st.caption(
-            "This notice is built from the processing you decide the purposes "
-            "and means of, grouped by who the data is about. Work you carry "
-            "out on a customer's instructions is covered by their notice, not "
-            "yours, and does not appear. Which rights it describes depends on "
-            "the legal bases you have recorded. Edit any of it under *Systems, "
-            "activities and controllers*."
-        )
-
     elif doc_type == "dpa":
         # No preview list. The two annexes are scoped differently from each
         # other — Annex II by activity, Schedule 1 by the systems attached to
@@ -580,18 +570,7 @@ if use_template:
             "activities and controllers*."
         )
 
-elif doc_type == "privacy_policy" and not use_template:
-    # PRE-S28 INTAKE — LLM path only.
-    #
-    # Three editors asking the client to retype their activities, processors
-    # and retention periods as prose. The templated privacy policy reads all
-    # three from the S24/S26 inventory, so showing this alongside it would ask
-    # for data RECOSA already holds and store fields the template never reads.
-    #
-    # Guarded rather than deleted: this is still the only privacy policy path
-    # for Advisory / external-company generation, which has no client_id and
-    # therefore no inventory. Retiring it is a decision for when that path is
-    # reviewed.
+elif doc_type == "privacy_policy":
     processing_activities_text = activity_editor()
     st.divider()
     third_party_processors_text = processor_editor()
@@ -1129,6 +1108,13 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
             badge += " — no longer applicable]"
     if n_out:
         badge += f" · :orange[{n_out} to complete]"
+    # The draft was discarded and its files deleted. The generation row stays —
+    # that a generation happened is true regardless — but offering download
+    # buttons for objects that are gone produces a 404 that reads as a storage
+    # failure rather than as the client's own deliberate act.
+    discarded = bool(doc.get("files_discarded_at"))
+    if discarded:
+        badge += " · :gray[Files discarded]"
     c0.markdown(badge)
     if reg and reg.get("change_comment"):
         c0.caption(reg["change_comment"])
@@ -1147,8 +1133,11 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
             col.caption("—")
 
     open_key = f"send_open_{slot_key}"
-    if c5.button("✉", key=f"btn_send_{slot_key}", use_container_width=True,
-                 help="Send by email"):
+    if discarded:
+        # Nothing to attach.
+        c5.caption("—")
+    elif c5.button("✉", key=f"btn_send_{slot_key}", use_container_width=True,
+                   help="Send by email"):
         st.session_state[open_key] = not st.session_state.get(open_key, False)
         st.rerun()
 
