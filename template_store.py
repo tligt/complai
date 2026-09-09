@@ -902,6 +902,17 @@ def build_values(
     )
     values["authority_url"] = auth.get("supervisory_authority_url")
 
+    # S29A. The NIS2 recipient, resolved the same way and from the same row.
+    # A different body under a different regime — GDPR Art. 33 goes to the
+    # supervisory authority, NIS2 Art. 23 to the CSIRT — and the breach
+    # procedure names both because an incident can engage both.
+    values["csirt_name"] = (
+        auth.get(f"csirt_{language}")
+        or auth.get("csirt_en")
+        or auth.get("csirt_short")
+    )
+    values["csirt_url"] = auth.get("csirt_url")
+
     values["has_vendors"] = len(vendors) > 0
 
     # --- Art. 30 register fields ------------------------------------------
@@ -948,6 +959,15 @@ def build_values(
         from template_privacy import apply_privacy_values  # noqa: PLC0415
         apply_privacy_values(values, client, block_context, language)
 
+    # --- NIS2 pack --------------------------------------------------------
+    # Tier 2. The drafted inserts are read from `clients` here like any other
+    # merge field — the LLM ran at authoring time, under review, and nothing
+    # generates prose during rendering (D-01).
+    if doc_type in ("incident_response_plan", "breach_notification_procedure",
+                    "business_continuity_plan"):
+        from template_nis2 import apply_nis2_values  # noqa: PLC0415
+        apply_nis2_values(values, client, block_context, language)
+
     return values, resolution.codes_applied
 
 
@@ -969,6 +989,15 @@ def build_block_context(
     if doc_type == "privacy_policy":
         from template_privacy import build_privacy_block_context  # noqa: PLC0415
         return build_privacy_block_context(client_id, language)
+
+    if doc_type in ("incident_response_plan", "breach_notification_procedure",
+                    "business_continuity_plan"):
+        # One context for all three. They read the same systems from different
+        # angles — in scope, ordered by urgency, recovery objectives — and
+        # loading the inventory three times to answer three questions about
+        # the same rows would be three chances to disagree.
+        from template_nis2 import build_nis2_block_context  # noqa: PLC0415
+        return build_nis2_block_context(client_id, language)
 
     if doc_type == "dpa":
         # Reuses _load_inventory, but scopes every table to activities the
@@ -1187,3 +1216,35 @@ from template_privacy import (  # noqa: E402
 FIELD_SPECS["privacy_policy"] = PRIVACY_FIELDS
 DOC_BLOCKS["privacy_policy"] = PRIVACY_BLOCKS
 DEFAULT_BLOCK_RENDERERS.update(PRIVACY_BLOCK_RENDERERS)
+
+
+# ---------------------------------------------------------------------------
+# S29A — NIS2 pack
+# ---------------------------------------------------------------------------
+# Three doc_types replacing the single `incident_response`, which carried FIVE
+# obligations across two regulations: gdpr_06, and nis2_01 through nis2_04. A
+# risk assessment is not an incident response plan and a BCP is neither — so a
+# client who uploaded one scored as having all of them.
+#
+# Same placement and the same import-cycle reason as the DPA and the privacy
+# policy above.
+from template_nis2 import (  # noqa: E402
+    BCP_BLOCKS,
+    BCP_FIELDS,
+    BREACH_BLOCKS,
+    BREACH_FIELDS,
+    IR_BLOCKS,
+    IR_FIELDS,
+    NIS2_BLOCK_RENDERERS,
+)
+
+FIELD_SPECS["incident_response_plan"] = IR_FIELDS
+DOC_BLOCKS["incident_response_plan"] = IR_BLOCKS
+
+FIELD_SPECS["breach_notification_procedure"] = BREACH_FIELDS
+DOC_BLOCKS["breach_notification_procedure"] = BREACH_BLOCKS
+
+FIELD_SPECS["business_continuity_plan"] = BCP_FIELDS
+DOC_BLOCKS["business_continuity_plan"] = BCP_BLOCKS
+
+DEFAULT_BLOCK_RENDERERS.update(NIS2_BLOCK_RENDERERS)
