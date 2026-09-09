@@ -323,6 +323,27 @@ with tab_systems:
             "dpa_signed_on": st.column_config.DateColumn("DPA signed"),
             "dpa_url": st.column_config.LinkColumn("DPA link"),
             "criticality": st.column_config.SelectboxColumn("Criticality", options=crit_codes),
+            # S29A. Minutes, as a number — "4 hours", "240 minutes" and "half a
+            # day" are the same figure, and a continuity plan that orders
+            # systems by urgency cannot sort prose.
+            #
+            # NULL means not decided. 0 is a real and demanding answer: an RPO
+            # of zero says no data loss is acceptable.
+            "rto_minutes": st.column_config.NumberColumn(
+                "RTO (min)", min_value=0, step=15, width="small",
+                help="Recovery time objective — how long this may be down. "
+                     "Blank if not decided; 0 if it may not go down at all.",
+            ),
+            "rpo_minutes": st.column_config.NumberColumn(
+                "RPO (min)", min_value=0, step=15, width="small",
+                help="Recovery point objective — how much data may be lost. "
+                     "Blank if not decided; 0 for none.",
+            ),
+            "recovery_note": st.column_config.TextColumn(
+                "How it is recovered", width="large",
+                help="Where the backup is, who restores it, anything a person "
+                     "following the continuity plan would need.",
+            ),
             "ai_role": st.column_config.SelectboxColumn("AI role", options=ai_codes),
             "sets_cookies": st.column_config.CheckboxColumn("Sets cookies"),
             "privacy_policy_url": st.column_config.LinkColumn("Privacy policy"),
@@ -333,7 +354,8 @@ with tab_systems:
     st.caption(
         "Codes such as `scc` or `not_required` are shown raw in this table; "
         "their full meaning appears wherever they are used in a document. "
-        "Scroll the table sideways to reach *Sets cookies*, *AI role* and *Notes*."
+        "Scroll the table sideways to reach *Sets cookies*, *AI role*, the "
+        "recovery objectives and *Notes*."
     )
 
     if st.button("Save changes", type="primary", key="inv_systems_save"):
