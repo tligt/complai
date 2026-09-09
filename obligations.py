@@ -54,7 +54,18 @@ DOCUMENT_TYPES = {
     "dpa":               "Data Processing Agreement",
     "ropa_controller":   "Record of Processing Activities — Controller",
     "ropa_processor":    "Record of Processing Activities — Processor",
-    "incident_response": "Incident Response Plan",
+    # RETIRED (S29A). It carried FIVE obligations across two regulations —
+    # gdpr_06 and nis2_01..04 — so a client who uploaded an incident response
+    # plan scored as having a business continuity plan. The "rop"/"ropa" shape,
+    # resolved the way S26 resolved that one: retire the ambiguous code for
+    # specific ones.
+    #
+    # Kept in the dict per the append-only rule, so any historical row still
+    # renders a label rather than a bare code.
+    "incident_response": "Incident Response Plan (retired)",
+    "incident_response_plan": "Incident Response Plan",
+    "breach_notification_procedure": "Incident and Breach Notification Procedure",
+    "business_continuity_plan": "Business Continuity Plan",
     "ai_transparency":   "AI System Transparency Notice",
 }
 
@@ -154,7 +165,7 @@ OBLIGATIONS = [
      "priority": "high", "kind": "document",
      "title": "Data breach notification procedure in place",
      "description": "A documented procedure for detecting, reporting and investigating breaches within 72 hours.",
-     "doc_type": "incident_response", "profile_question": None, "review_in": [],
+     "doc_type": "breach_notification_procedure", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_07", "regulation": "GDPR", "article": "Art. 15-22",
@@ -273,31 +284,31 @@ OBLIGATIONS = [
 
     # ── NIS2 ─────────────────────────────────────────────────────
     {"id": "nis2_01", "regulation": "NIS2", "article": "Art. 21",
-     "priority": "high", "kind": "document",
+     "priority": "high", "kind": "operational",
      "title": "Cybersecurity risk assessment conducted",
      "description": "Formal risk assessment identifying threats, vulnerabilities and impact on systems.",
-     "doc_type": "incident_response", "profile_question": None, "review_in": [],
+     "doc_type": None, "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "nis2_02", "regulation": "NIS2", "article": "Art. 21",
      "priority": "high", "kind": "document",
      "title": "Incident response plan documented",
      "description": "Documented incident response plan covering detection, containment, recovery and review.",
-     "doc_type": "incident_response", "profile_question": None, "review_in": [],
+     "doc_type": "incident_response_plan", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "nis2_03", "regulation": "NIS2", "article": "Art. 23",
      "priority": "high", "kind": "document",
      "title": "Incident reporting procedure (24h/72h)",
      "description": "Procedure for reporting significant incidents within 24h (early warning) and 72h (full notification).",
-     "doc_type": "incident_response", "profile_question": None, "review_in": [],
+     "doc_type": "breach_notification_procedure", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "nis2_04", "regulation": "NIS2", "article": "Art. 21",
      "priority": "high", "kind": "document",
      "title": "Business continuity plan in place",
      "description": "Business continuity plan covering backup, disaster recovery and crisis management.",
-     "doc_type": "incident_response", "profile_question": None, "review_in": [],
+     "doc_type": "business_continuity_plan", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "nis2_05", "regulation": "NIS2", "article": "Art. 21",
