@@ -91,6 +91,16 @@ links; it does not hold a second copy.
 - `response_kind` — from the six above, resolved per obligation, not per row
 - `status` — `not_started` / `in_progress` / `done` / `not_applicable`
 - `statement_i18n` JSONB, `evidence_path`, `acknowledged_by`, `acknowledged_at`
+  — **JSONB from the first row, written in English only for now.** Statements
+  are internal today, so translating them is hard to justify; but S52's annual
+  compliance report renders them and an InfoSec insert probably would, so they
+  WILL reach a document.
+
+  The expensive part of adding languages later is not the column, it is ending
+  up with text whose language nobody recorded. That is what S26C hit: the
+  backfill had to *assume* English, and the form still says "recorded before
+  languages were tracked, and its language is unknown". Costing nothing now
+  means every statement carries its language from the start.
 - `reviewed_at`, `review_due` — seeded from the obligation's existing
   `review_in`, populated for 8 of 54 today
 - `not_applicable_reason` — **required when status is `not_applicable`.** An
@@ -104,11 +114,23 @@ is that it shows a gap was found on one date and closed on another.
 
 ## What this changes elsewhere
 
-**The dashboard score.** Today it counts documents. With this it can reflect
-actual coverage across all applicable obligations, which is a different and
-much lower number. Honest, and a visible drop — the same care as D-59 applies:
-`not_applicable` and anything blocked on RECOSA must not count against the
-client.
+**The dashboard score — DEFERRED, with a condition.**
+
+Today it counts documents. This register could reflect coverage across all
+applicable obligations, which is a different and much lower number.
+
+Deferred to a later sprint. But the risk is not that the old score stays wrong
+for another sprint: it is that **the register would publish its own coverage
+figure while the dashboard publishes a different one, in the same product.**
+Two numbers contradicting each other is worse than one honest low number.
+
+So the register ships with **status per obligation and counts by state, and no
+headline percentage.** Both move together in one sprint, with the explanation
+in the same release — a client watching their score fall deserves to be told
+why at the moment it happens.
+
+When it does move, D-59 applies unchanged: `not_applicable` and anything
+blocked on RECOSA must not count against the client.
 
 **The task register is part of this sprint.** See below.
 
@@ -194,11 +216,12 @@ remember.
 
 ---
 
-## Open — needs a decision
+## Resolved
 
-1. **Does the dashboard score move in this sprint or a later one?** It will
-   drop visibly, and it should — but a client watching it fall deserves the
-   explanation shipped alongside.
-2. **Per-language statements, or English only for now?** S26C's pattern exists
-   and works, but statements are internal rather than published, and the case
-   for translating them is weaker than for a privacy policy.
+**Dashboard score:** deferred, and the register publishes no headline
+percentage until both move together. See above.
+
+**Statement language:** `statement_i18n` JSONB from the start, English only in
+this sprint. Not the interface language — English, fixed, so every statement is
+comparable and the language is known rather than inferred from whoever happened
+to be logged in.
