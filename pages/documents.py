@@ -31,7 +31,13 @@ from document_generator import (
 TEMPLATE_DOC_TYPES = {
     t.strip() for t in os.environ.get(
         "TEMPLATE_DOC_TYPES",
-        "cookie_policy,ropa_controller,ropa_processor,dpa",
+        # privacy_policy was lost from this default once, when an edit was
+        # applied to a stale copy of this file and committed. The symptom is
+        # silent: the document still generates, through the LLM path, and
+        # looks broadly right.
+        "cookie_policy,ropa_controller,ropa_processor,dpa,privacy_policy,"
+        "incident_response_plan,breach_notification_procedure,"
+        "business_continuity_plan",
     ).split(",")
     if t.strip()
 }
@@ -122,7 +128,12 @@ if mode == "existing_client" and client_id:
         _register_state = None
         _dpa_unmeasured = []
 
-_offered = list(DOCUMENT_TYPES.keys())
+# Retired types still resolve to a label so historical rows render, but must
+# never be OFFERED — otherwise a client picks a document nothing requires,
+# because it is on the menu (S29A retired `incident_response`).
+from obligations import RETIRED_DOC_TYPES  # noqa: E402
+
+_offered = [d for d in DOCUMENT_TYPES if d not in RETIRED_DOC_TYPES]
 if _register_state is not None and not _register_state["processor_activities"]:
     # No processing carried out for another controller means no Art. 30(2)
     # record to keep. An empty processor register is a document nobody needs,
@@ -558,6 +569,24 @@ if use_template:
             "the security measures recorded against them. Nothing you do "
             "purely as controller appears. Edit any of it under *Systems, "
             "activities and controllers*."
+        )
+
+    elif doc_type == "privacy_policy":
+        st.caption(
+            "This notice is built from the processing you decide the purposes "
+            "and means of, grouped by who the data is about. Work you carry "
+            "out on a customer's instructions is covered by their notice, not "
+            "yours, and does not appear. Which rights it describes depends on "
+            "the legal bases you have recorded."
+        )
+
+    elif doc_type in ("incident_response_plan", "breach_notification_procedure",
+                      "business_continuity_plan"):
+        st.caption(
+            "Built from your systems and the wording you have written under "
+            "*Incident and continuity wording*. Recovery objectives come from "
+            "the systems inventory — a continuity plan without them says "
+            "service will be restored without saying how fast."
         )
 
     else:
