@@ -117,11 +117,23 @@ def obligations_due(
     return out
 
 
-def translations_awaiting_review(
+def translations_outstanding(
     activities: Iterable[Mapping[str, Any]],
     doc_languages: Iterable[str],
 ) -> list[dict[str, Any]]:
-    """Machine-drafted text nobody has confirmed, in a language documents use.
+    """Text that is missing, or drafted and unconfirmed, in a document language.
+
+    TWO findings, not one, and the first version only reported the second.
+
+    An activity with NO French text produces nothing from a check that reads
+    translation_status, because it has no status to read — it is an absence,
+    not a draft. So a task list built on status alone said "nothing
+    outstanding" to a client whose French policy was rendering English.
+
+    **The missing one is the worse of the two.** An unconfirmed draft still
+    renders in the right language; a missing translation falls back to another
+    language, so the document silently carries text the reader cannot read.
+    That is the defect S26C exists to fix.
 
     Only for languages this client's documents are produced in. An unreviewed
     German draft on a client who produces nothing in German is not work — it is
@@ -131,12 +143,29 @@ def translations_awaiting_review(
     out = []
     for a in activities:
         status = a.get("translation_status") or {}
-        if not isinstance(status, Mapping):
-            continue
+        status = status if isinstance(status, Mapping) else {}
         name = (a.get("name_i18n") or {}).get("en") or a.get("name") or a["id"]
+
         for field in ("name", "purpose"):
+            blob = a.get(f"{field}_i18n") or {}
+            blob = blob if isinstance(blob, Mapping) else {}
             for lang in langs:
-                if (status.get(field) or {}).get(lang) == "machine_unreviewed":
+                text = (blob.get(lang) or "").strip()
+
+                if not text:
+                    out.append(_finding(
+                        "translation", f"activity:{a['id']}:{field}:{lang}:missing",
+                        f"Add the {lang.upper()} {field} for “{name}”",
+                        # DUE, not OPEN. Documents produced in that language
+                        # are already wrong, whereas an unconfirmed draft is
+                        # merely unverified.
+                        DUE,
+                        f"Documents produced in {lang.upper()} fall back to "
+                        "another language for this. Open the activity and save "
+                        "it — the translation is drafted automatically.",
+                        link="inventory",
+                    ))
+                elif (status.get(field) or {}).get(lang) == "machine_unreviewed":
                     out.append(_finding(
                         "translation", f"activity:{a['id']}:{field}:{lang}",
                         f"Confirm the {lang.upper()} {field} for “{name}”",
@@ -146,6 +175,11 @@ def translations_awaiting_review(
                         link="inventory",
                     ))
     return out
+
+
+# Kept: the register imports by name and renaming a producer silently drops
+# whatever still calls the old one.
+translations_awaiting_review = translations_outstanding
 
 
 def documents_outstanding(
@@ -222,7 +256,7 @@ def _slug(text: str) -> str:
 
 PRODUCERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "obligation":  obligations_due,
-    "translation": translations_awaiting_review,
+    "translation": translations_outstanding,
     "document":    documents_outstanding,
     "readiness":   inventory_gaps,
 }
