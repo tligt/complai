@@ -331,13 +331,15 @@ with tab_systems:
             # of zero says no data loss is acceptable.
             "rto_minutes": st.column_config.NumberColumn(
                 "RTO (min)", min_value=0, step=15, width="small",
-                help="Recovery time objective — how long this may be down. "
-                     "Blank if not decided; 0 if it may not go down at all.",
+                help="How long this system may be UNAVAILABLE before it has to "
+                     "be back. 240 = four hours. Blank if not decided; 0 if it "
+                     "may not go down at all.",
             ),
             "rpo_minutes": st.column_config.NumberColumn(
                 "RPO (min)", min_value=0, step=15, width="small",
-                help="Recovery point objective — how much data may be lost. "
-                     "Blank if not decided; 0 for none.",
+                help="How much WORK may be lost, measured as time — if the "
+                     "last backup was an hour ago, you lose an hour. 60 = one "
+                     "hour of entries. Blank if not decided; 0 for none.",
             ),
             "recovery_note": st.column_config.TextColumn(
                 "How it is recovered", width="large",
@@ -351,6 +353,13 @@ with tab_systems:
         },
     )
 
+    st.caption(
+        "**RTO** is how long a system may be down. **RPO** is how much work may "
+        "be lost — a backup taken hourly means an RPO of 60 minutes. Both in "
+        "minutes: 240 is four hours, 480 a working day. A system can have a "
+        "fast RTO and a poor RPO — back within ten minutes, but on yesterday's "
+        "data."
+    )
     st.caption(
         "Codes such as `scc` or `not_required` are shown raw in this table; "
         "their full meaning appears wherever they are used in a document. "
