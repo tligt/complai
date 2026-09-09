@@ -190,6 +190,7 @@ audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
 alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
 activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
 record    = st.Page("pages/compliance_record.py", title="Compliance Record", icon="🗄️")
+oblig     = st.Page("pages/obligations.py", title="Obligations", icon="✅")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -209,7 +210,7 @@ support   = st.Page(
 
 pg = st.navigation({
     "":           [chat],
-    "Compliance": [dashboard, gap],
+    "Compliance": [dashboard, oblig, gap],
     # S27. `record` is read-only and sits next to the pages that write what it
     # reports: Documents produces, Systems supplies the data, this reports what
     # the organisation actually operates under.
@@ -247,6 +248,7 @@ PAGE_CONTEXT = {
     "inventory": "inventory",
     "documents": "document_generation",
     "audit":     "website_audit",
+    "obligations": "obligations",
     "compliance_record": "compliance_record",
     "alerts":    "compliance_pulse",
     "activity":  "account",
