@@ -68,6 +68,10 @@ SYSTEM_EDITABLE = (
     # Omitting these here would drop the write silently, which is exactly what
     # this allowlist is for and exactly the wrong outcome.
     "purpose_i18n", "translation_status",
+    # S29A. Recovery objectives for the continuity plan. Minutes as integers —
+    # a BCP that orders systems by urgency cannot sort prose, and "4 hours",
+    # "240 minutes" and "half a day" are the same figure.
+    "rto_minutes", "rpo_minutes", "recovery_note",
 )
 
 ACTIVITY_EDITABLE = (
