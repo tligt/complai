@@ -275,7 +275,8 @@ S33.
 |---|---|---|
 | ~~S28~~ | ~~Privacy Policy~~ | **Delivered 8 Sept. Tier 1, no LLM (D-71). AI Transparency Notice moved to S28A.** |
 | S28A | AI deployer pack: AUP + Human Oversight + **AI Transparency Notice** | Notice moved here from S28 — Art. 50 attaches to systems, and S51 has the inventory |
-| S29 | NIS2 pack: InfoSec + BCP + Data Breach | Tier 2, Art. 21(2) |
+| S29 | **Obligation register + task register** | All 54 obligations get a home. 38 have none today |
+| S29A | NIS2 pack: incident response + breach procedure + BCP | Tier 2, first real LLM inserts. No InfoSec policy — see scope |
 | S30 | DPIA | Tier 3. Target the EDPB model template |
 | S31 | Regulation-aware chunk allocation | **See sequencing note below** |
 | S32 | Admin user management | |
@@ -315,7 +316,7 @@ running a NIS2, an AI Act and a GDPR query through `retrieve()` and looking at
 the chunk mix. An afternoon's check turns a guess into an answer.
 
 **Unnumbered, still to be slotted:**
-- **Task register** — audit infrastructure, not a nicety. Unresolved work is
+- ~~**Task register**~~ — now part of **S29**. Retained here for context: Unresolved work is
   currently surfaced where it is found and nowhere else: `readiness()` gaps,
   outstanding `[[ TO COMPLETE ]]` placeholders, S55 findings, unreviewed
   translations (S26C), S57 heartbeat findings. A client cannot see everything
@@ -2160,6 +2161,51 @@ inventory form says so where a source is missing.
 Rendered per activity, as a line under the table and only where it applies. A
 column that is empty for four rows in five teaches the reader to ignore it.
 
+### D-75 — Interface language and document languages are different questions
+
+`pages/inventory.py` read:
+
+```
+lang = session_state["ui_language"] or client["document_languages"][0]
+```
+
+Nothing ever set `ui_language`, so it fell through to the first DOCUMENT
+language — and a client whose documents are produced in NL and FR saw their
+activity table rendered in Dutch while every label around it was English. The
+comment in that file admitted the compromise: the first document language was
+"the closest available signal" until a user language column existed.
+
+- **UI language** — what the person reading the screen prefers. One value, per
+  user, a profile setting.
+- **Document languages** — which languages this client's documents are produced
+  in. A list, per client, driven by who the documents are for. *"I want this
+  policy in EN and DE" says nothing about what language the person configuring
+  it reads.*
+
+`profiles.ui_language`, CHECK-constrained, **defaulting to `en` rather than to
+anything derived** — a default borrowed from a different question is how this
+went wrong the first time. No selector until S32B provides a profile page, so
+it is English for everyone today, which is correct.
+
+*Related defect, same root:* the save handler wrote the legacy `name` column
+from `_i18n[_source]`, where `_source` is the first document language with
+content. A client who filled NL and left EN empty had their legacy column
+overwritten with Dutch, and the activity dropdown — which read that column
+directly — showed Dutch. The legacy columns are a FALLBACK, not a copy of
+whichever language was typed first: they now prefer English, then their
+existing value.
+
+### D-76 — Re-saving confirms a draft translation
+
+The caption says "edit or re-save to confirm". Re-saving did nothing: the
+promotion to `human` was conditional on the value having CHANGED, so an
+untouched draft stayed a draft however many times it was saved.
+
+Any text in a box at submit is the client's, whether they edited it or not.
+The drafting runs after that loop and marks what IT fills as
+`machine_unreviewed`, so a fresh draft is not confirmed by the save that
+created it — but the next one confirms it, which is what was promised.
+
 ### D-74 — Recipients are described by the capacity they act in
 
 The first version told the reader that every named recipient "acts on our
@@ -2340,6 +2386,68 @@ Two consequences to act on:
 2. **Second infrastructure outage of this class**, after the Starlette break.
    Both took both apps down at once, and neither was caused by RECOSA. See the
    hosting question below.
+
+### Streamlit session state — three failures in one hour, 8 Sept
+
+All three surfaced while entering data through the S26C inventory form. Each
+looked like a different bug and all three are the same mechanism.
+
+**`value=` is IGNORED once a widget key exists in session state.**
+The per-language name and purpose boxes rendered empty on first load,
+registering their keys with empty values. After a save the freshly drafted
+translations were passed as `value=` and silently discarded — the boxes stayed
+blank while the database held all three languages, correct and complete.
+
+Self-perpetuating and destructive: on the NEXT save an empty box took the
+clear-on-empty branch, deleting the translation, which the drafting then
+regenerated. **Every save destroyed and rebuilt the same text**, which is why
+it never left `machine_unreviewed` no matter how many times it was saved.
+
+Fix: drop the per-language widget keys in the save handler so they
+re-initialise. Any widget whose `value=` is expected to change after a rerun
+needs its key cleared, or it will not.
+
+**You cannot assign to `session_state[k]` when `k` is a widget key
+instantiated in the same run.** It raises `StreamlitAPIException`. The save
+handler now writes `inv_act_keep`, which the selectbox reads as an `index=`,
+leaving the widget's own key untouched.
+
+**A button nested inside a button-gated block can never fire** — recorded
+earlier with S27, same root cause: the branch is True for exactly one run.
+
+*The pattern:* Streamlit's session state takes precedence over the arguments a
+widget is called with, in both directions. Anything that needs to change
+programmatically after a rerun has to go through a key the widget does not own.
+
+### Chesterton's fence — twice in one session
+
+**The selector `pop()` was a workaround, not sloppiness.** The activity form
+cleared `inv_act_select` after every save. It looked gratuitous and was
+removed; it existed because assigning to that key raises. The removal produced
+the exception the `pop()` had been avoiding.
+
+**The nesting constraint was documented at the top of the file it governs.**
+`template_renderer.py` states that conditionals do not nest and why. S28 nested
+twice anyway.
+
+Both are the same error: existing code doing something that looks needlessly
+indirect, where the indirection is load-bearing. **When code is oddly shaped,
+find out why before straightening it.**
+
+### Note on attribution
+
+Five bugs in the inventory form in one hour, four of them introduced in this
+session. The form has accumulated per-language columns, two-phase structured
+retention, a source multiselect and translation-on-save, all on a layout built
+for a flat activity record.
+
+Each fix worked. The reason they kept coming is that the page now does
+considerably more than it was designed to. **That is the argument for S32B**,
+and it is a better one than "the interface needs polish".
+
+Also worth recording: two of the three friction points reported by the user
+were real bugs and only one was framework behaviour. Reaching for "that is
+just Streamlit" was the wrong instinct twice.
 
 **Conditionals do not nest, and `template_renderer.py` says so at the top of
 the file.**
