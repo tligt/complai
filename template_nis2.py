@@ -130,16 +130,27 @@ INSERTS: dict[str, dict[str, str]] = {
 # check_bodies rule 6 rejects a required field no body references, because it
 # would block generation and change nothing. Declaring the same identity block
 # for every document type is convenient and wrong.
+# Only what EVERY one of the three uses. Contact details and the DPO are added
+# per document, because the continuity plan uses neither — it defers to the
+# incident response plan for both, and declaring contact_email as required
+# there would block generation on a field no body references (check_bodies
+# rule 6).
+#
+# Declaring one identity block for every doc_type is convenient and wrong. It
+# was wrong twice in this sprint before the rule caught it.
 _IDENTITY = [
     FieldSpec("legal_name", "Legal name of the company", required=True),
     FieldSpec("legal_form", "Legal form"),
     FieldSpec("has_legal_form", "Legal form recorded", flag=True),
+    FieldSpec("policy_effective_date", "Effective from"),
+    FieldSpec("has_policy_effective_date", "Effective date known", flag=True),
+]
+
+_CONTACT = [
     FieldSpec("contact_email", "Contact for incidents", required=True),
     FieldSpec("dpo_name", "Data Protection Officer name"),
     FieldSpec("dpo_email", "Data Protection Officer email"),
     FieldSpec("has_dpo_section", "DPO appointed", flag=True),
-    FieldSpec("policy_effective_date", "Effective from"),
-    FieldSpec("has_policy_effective_date", "Effective date known", flag=True),
 ]
 
 _ENTITY = [
@@ -147,14 +158,14 @@ _ENTITY = [
     FieldSpec("has_nis2_class", "Classification recorded", flag=True),
 ]
 
-IR_FIELDS = _IDENTITY + _ENTITY + [
+IR_FIELDS = _IDENTITY + _CONTACT + _ENTITY + [
     FieldSpec("nis2_detection_text", "How incidents are detected", required=True),
     FieldSpec("nis2_containment_text", "Containment and recovery", required=True),
     FieldSpec("nis2_roles_text", "Who does what", required=True),
     FieldSpec("has_critical_systems", "At least one system recorded", flag=True),
 ]
 
-BREACH_FIELDS = _IDENTITY + _ENTITY + [
+BREACH_FIELDS = _IDENTITY + _CONTACT + _ENTITY + [
     FieldSpec("authority_name", "Supervisory authority", required=True),
     FieldSpec("authority_url", "Supervisory authority website"),
     FieldSpec("has_authority_url", "Authority website known", flag=True),
