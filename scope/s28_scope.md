@@ -124,19 +124,52 @@ rules are checks and not prose — the same pattern that caught three Microsoft
 
 ---
 
-## Open — needs a decision before building
+## Resolved
 
-**1. Purpose grouping.** A client with fifteen activities produces fifteen
-rows, which is a register rather than a policy. Group by legal basis? By data
-subject category? Or list all and accept the length? *Leaning: group by data
-subject category — "if you are a customer / an employee / a supplier contact",
-which is how a reader arrives at the document.*
+**1. Purpose grouping — by data subject category.**
+"If you are a customer / an employee / a supplier contact" is how a reader
+arrives at the document.
 
-**2. Does section 3 name sources per activity or as a flat list?** Per activity
-is precise and verbose; a flat list is readable and slightly less informative.
-Art. 14(2)(f) says "from which source the personal data originate", which
-suggests per activity. *Leaning: per activity, inside the section 2 block.*
+An employee who is also a customer reads both sections, and that is correct:
+they are subject to two distinct sets of processing with different purposes,
+bases and retention. Transparency is per processing, not per person, and any
+attempt to merge them into one "you" would over-claim or under-claim.
 
-**3. Publication.** The Cookie Policy has the same question and S27 records
-`published_at`. Does this sprint do anything with it, or is publication still
-the client's job elsewhere?
+The risk is duplication making the document unusable, so **role sections carry
+only what varies** — purposes, legal bases, data categories, retention, source.
+Everything universal is stated once outside them: rights, complaints,
+transfers, security, changes. Each role section is then a short table rather
+than a repeated policy.
+
+*Accepted cost:* an activity covering both employees and customers appears in
+both sections. A few duplicated lines beats a cross-reference telling a reader
+to look somewhere else.
+
+**2. Sources per activity, rendered only where they are not the data subject.**
+
+`data_source_codes` sits on `processing_activities`, so it renders in the same
+block row as purpose and legal basis — no extra query, no join.
+
+Not a column, though. For most activities the answer is "you gave it to us",
+which is noise, and Art. 14 only bites where the data did *not* come from the
+data subject. So it renders as a line under the row, only where true:
+
+> **Emergency contacts** — to reach someone if you are taken ill at work.
+> Legal basis: legitimate interests. Kept for the duration of employment.
+> *We received these details from our employee, not from you.*
+
+**3. `published_at` is asked for on adoption.**
+
+A DPA is signed and filed; a policy has to be *visible* to do its job. Art. 12
+requires the information to be provided to data subjects, so an unpublished
+privacy policy discharges nothing. Adopted on the 3rd, live on the 15th, means
+the public saw the previous version for twelve days.
+
+One date input on the adoption control, for published document types only.
+Honest and unverified.
+
+*Rejected:* deleting the column. The date is real and worth holding.
+*Rejected:* verifying it in this sprint. **The drift check — crawl the client's
+site, compare what is live against the in-force version, flag divergence —
+belongs to S57**, alongside the other checks that become true through time
+passing rather than through an action. Added to S57's rule list.
