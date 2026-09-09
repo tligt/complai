@@ -100,7 +100,7 @@ verdicts = OR.evaluate(
 _reg_rows = [r for per_lang in register.values() for r in per_lang.values()]
 findings = T.collect(
     T.obligations_due(verdicts, responses, OBLIGATION_BY_ID),
-    T.translations_awaiting_review(activities, doc_languages),
+    T.translations_outstanding(activities, doc_languages),
     T.documents_outstanding(_reg_rows, DOCUMENT_TYPES),
     T.inventory_gaps(readiness),
 )
