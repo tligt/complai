@@ -69,6 +69,23 @@ DOCUMENT_TYPES = {
     "ai_transparency":   "AI System Transparency Notice",
 }
 
+
+# Doc types that still resolve to a label but must never be OFFERED.
+#
+# Append-only means a code is never deleted — a historical row carrying it must
+# still render something other than a bare string. It does not mean the code
+# stays on the menu.
+#
+# Without this, `_offered = DOCUMENT_TYPES.keys()` in pages/documents.py keeps
+# putting a retired document in the generate dropdown forever, and a client
+# picks it because it is there.
+RETIRED_DOC_TYPES = {
+    # S29A. Carried five obligations across two regulations; split into
+    # incident_response_plan, breach_notification_procedure and
+    # business_continuity_plan. Nothing was ever generated as it.
+    "incident_response",
+}
+
 # Retired, never deleted. Client rows in `documents` and `gap_assessments`
 # hold doc_type as plain text, so a removed key leaves those rows unlabelable —
 # the same reasoning as the append-only vocabulary rule.
