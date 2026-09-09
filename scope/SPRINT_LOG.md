@@ -275,7 +275,7 @@ S33.
 |---|---|---|
 | ~~S28~~ | ~~Privacy Policy~~ | **Delivered 8 Sept. Tier 1, no LLM (D-71). AI Transparency Notice moved to S28A.** |
 | S28A | AI deployer pack: AUP + Human Oversight + **AI Transparency Notice** | Notice moved here from S28 — Art. 50 attaches to systems, and S51 has the inventory |
-| S29 | **Obligation register + task register** | All 54 obligations get a home. 38 have none today |
+| ~~S29~~ | ~~Obligation register + task register~~ | **Delivered 8 Sept.** D-77 to D-79. 7 derivations, 5 response kinds, derived-state task register |
 | S29A | NIS2 pack: incident response + breach procedure + BCP | Tier 2, first real LLM inserts. No InfoSec policy — see scope |
 | S30 | DPIA | Tier 3. Target the EDPB model template |
 | S31 | Regulation-aware chunk allocation | **See sequencing note below** |
@@ -2241,6 +2241,105 @@ be a placeholder in different clothing.
 
 ---
 
+### D-77 — Obligation verdicts have a precedence order
+
+Two evaluators already existed: a profile questionnaire (21 obligations) and
+LLM analysis of a document (16). That left most of the catalogue unevaluated,
+and one obligation — `gdpr_04`, "DPO appointed if required" — where RECOSA
+asked the client a question it could answer from the client record it already
+held.
+
+S29 does not add a third parallel verdict. It adds the missing one and imposes
+an order on all of them:
+
+| | source | why it outranks the next |
+|---|---|---|
+| 1 | `derived` | RECOSA computed it from the inventory |
+| 2 | `document` | the register says a document is in force |
+| 3 | `analysed` | a model read the document and judged it |
+| 4 | `declared` | the client answered a question |
+| 5 | `none` | nothing recorded |
+
+**Each level is harder to be wrong about than the one below.** A DPA recorded
+against every processor system is a fact; a client answering "yes, we have
+DPAs" is a claim.
+
+Where a derivation exists, **the profile question should be retired** rather
+than both being kept. Two answers to one question is the divergence pattern,
+and the point of a source of truth is that there is one.
+
+*A derivation says what the inventory RECORDS, never what is true.* "Every
+processor system has a DPA recorded" is a statement about the register — and
+it is the statement an auditor wants, because they can check the register
+against reality themselves. Every derived verdict therefore carries the
+evidence it was computed from.
+
+Two derivations are deliberately conservative. `gdpr_17` never returns
+compliant: RECOSA cannot see whether an Art. 26 arrangement exists, and saying
+so would assert a document nobody has seen. `gdpr_20` reports coverage and
+states outright that whether measures are *appropriate* under Art. 32 is a
+judgement it does not make.
+
+### D-78 — The task register derives its state and stores only its history
+
+A task register can hold rows or compute them. Neither alone works.
+
+**Stored rows drift.** A task whose underlying gap was fixed elsewhere — the
+translation confirmed, the document adopted, the retention structured — sits
+there claiming to be open until something reconciles it. Reconciliation is
+where these systems rot.
+
+**Derived rows cannot remember.** Who is working on it, that it was dismissed
+and why, that it was found in March and closed in April. That last one is the
+entire audit value.
+
+So the open list is **derived from its producers on every read**, and only the
+history is stored. A task is open because a producer still reports it, not
+because a row says so. When the producer stops, `reconcile()` writes the
+closure — *the producer stopping IS the closure* — and that event survives the
+task, which was never stored.
+
+`finding_key` is the stable identity of a finding, producer plus subject:
+`translation:activity:<uuid>:purpose:fr`. Without it a finding that disappears
+and returns cannot be told from a new one, and the history degenerates into
+unrelated events. It must contain nothing that changes while the finding is the
+same thing — not a name, not a date, not a count.
+
+*Consequence:* a dismissal holds only while the finding is **continuously**
+reported. If it disappears and comes back, the dismissal does not carry over —
+the situation changed, and a decision about the old finding should not silently
+apply to the new one.
+
+*Weakness, recorded rather than hidden:* `readiness()` returns prose, so
+`inventory_gaps` builds its key from the message text. Reword a message and the
+old finding closes and a new one opens. First thing to replace if `readiness()`
+ever returns structured findings.
+
+### D-79 — Not every obligation is answered the same way
+
+Five kinds, resolved per obligation in `response_kind()` — a classification,
+not a rendering decision, so it is testable rather than living in the page.
+
+`derived` (7) · `document` (16) · `acknowledge` (3) · `tracked` (0, awaiting
+S50) · `statement` (28).
+
+Forcing one shape on all 54 is what makes compliance tools feel like paperwork:
+an obligation RECOSA can answer, one that needs a document, and one that needs
+a person to confirm they did something are three different questions, and
+asking them the same way makes two of them wrong.
+
+An acknowledgement is **a name and a date, or nothing** — enforced by a CHECK,
+because an unattributed tick is not evidence of anything. `not_applicable`
+requires a reason for the same reason, and both live in the database rather
+than the page, since the page is not the only thing that writes there.
+
+**No `infosec_policy`.** Seven of the ten Art. 21(2) areas are already
+operational obligations, so the document would be assertions over data RECOSA
+does not hold. It becomes worth writing once this register holds a statement
+against each of those seven.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.
@@ -2448,6 +2547,47 @@ and it is a better one than "the interface needs polish".
 Also worth recording: two of the three friction points reported by the user
 were real bugs and only one was framework behaviour. Reaching for "that is
 just Streamlit" was the wrong instinct twice.
+
+**An absent value has no status to read, so a check built on status cannot see
+it.** Third instance this session.
+
+1. **D-60** — `template_languages=None` means "not checked", not "none exist".
+2. **`data_source_codes` empty** means "not recorded", never "from the data
+   subject". A privacy policy must not assert Art. 13 on a blank field.
+3. **The task register was blind to missing translations.** The producer read
+   `translation_status`, which only exists for text that HAS been drafted. An
+   activity with no French text at all produced no finding — so the task list
+   said "nothing outstanding" to a client whose French policy was rendering
+   English.
+
+The third is the worst of the three because it was **reassuring**: an empty
+task list is read as good news. And the missing translation is the more serious
+of the two findings — an unconfirmed draft still renders in the right language,
+whereas a missing one falls back and the document silently carries text the
+reader cannot read.
+
+**Where absence is meaningful, check for the absence, not for a marker of it.**
+
+**A wrong obligation id fails silently.** Every set and dict keyed by
+obligation id — derivations, acknowledgements, tracked — classifies an unknown
+id as the default and reports nothing. `ai_04` was written where `ai_01` was
+meant and the only symptom was an obligation getting the wrong control.
+`obligation_register.check_ids()` returns ids named in the module that are not
+in the catalogue; empty is the pass.
+
+**The EEA test is a country list, not `country != "EU"`.**
+
+The inventory stores real country codes. A test of `!= "EU"` treated `BE` as a
+third country and would have told a Belgian client their Belgian payroll
+provider was an international transfer — **a Chapter V finding, in a published
+privacy policy, about processing that never leaves the country.** It had not
+surfaced only because the seeded systems were recorded as `EU`.
+
+One definition in `obligation_register._EEA`, imported by `template_privacy`.
+The UK is deliberately outside: adequacy makes a Chapter V transfer easy to
+justify, not something other than a transfer. An unrecorded country counts as
+inside — absence of a country is an inventory gap that `readiness()` already
+reports, not evidence of a transfer.
 
 **Conditionals do not nest, and `template_renderer.py` says so at the top of
 the file.**
