@@ -62,6 +62,31 @@ client_id = client["id"]
 doc_langs = [l.lower() for l in (client.get("document_languages") or ["en"])]
 
 
+def _unplaced(key: str) -> tuple[str, str] | None:
+    """Text in a language OUTSIDE this client's document languages.
+
+    Returns (language, text) or None.
+
+    The English written before the languages were sorted out does not appear in
+    any column when the client's documents are NL and FR — so the page looked
+    empty while the documents were still rendering that English as a fallback.
+
+    Same treatment as the activity form: surfaced with a warning rather than
+    hidden, and rather than being pinned into a column it might not belong in.
+    English is text that happens to be there, not a privileged source.
+    """
+    blob = client.get(INSERTS[key]["column"]) or {}
+    if not isinstance(blob, dict):
+        return None
+    if any((blob.get(l) or "").strip() for l in doc_langs):
+        return None
+    for lang, text in blob.items():
+        if (text or "").strip():
+            return lang, text.strip()
+    legacy = (client.get(key) or "").strip()
+    return ("en", legacy) if legacy else None
+
+
 def _text(key: str, lang: str) -> str:
     """Stored text for one language. No cross-language fallback (D-56).
 
@@ -75,6 +100,8 @@ def _text(key: str, lang: str) -> str:
     return (client.get(key) or "").strip() if lang == "en" else ""
 
 
+# Counted against the DOCUMENT languages only. Text sitting in a language the
+# client does not produce documents in is a fallback, not a completed section.
 _filled = sum(
     1 for k in INSERTS
     if all(_text(k, l) for l in doc_langs)
@@ -107,8 +134,22 @@ for key, spec in INSERTS.items():
     if pending_review:
         header += f"  ·  {len(pending_review)} to confirm"
 
+    orphan = _unplaced(key)
+    if orphan:
+        header += "  ·  :orange[text in another language]"
+
     with st.expander(header, expanded=not done):
         st.caption(spec["prompt"])
+
+        if orphan:
+            _lang, _txt = orphan
+            st.warning(
+                f"**Written in {_lang.upper()}**, which is not one of your "
+                f"document languages:\n\n*{_txt}*\n\nYour documents fall back "
+                "to it, so this text is what currently appears in them. Copy "
+                "it into the right column below — or write something new — and "
+                "it stops being a fallback."
+            )
 
         # One column per document language, same shape as the activity form
         # (D-56): no privileged source, and no box pre-filled from a language
