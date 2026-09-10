@@ -8,6 +8,7 @@ from database import (
     get_current_client_documents, register_client_document,
     adopt_client_document, set_document_comment,
 )
+from obligations import DOC_CATALOG, RETIRED_DOC_TYPES
 from gap_assessment import (
     OBLIGATIONS, PROFILE_QUESTIONS, DOCUMENT_TYPES, DOC_OBLIGATIONS,
     extract_text_from_upload, run_document_review, run_gap_assessment,
@@ -66,8 +67,10 @@ with tab1:
     col1, col2 = st.columns(2)
     doc_type_review = col1.selectbox(
         "Document type",
-        options=list(DOCUMENT_TYPES.keys()),
-        format_func=lambda x: DOCUMENT_TYPES[x],
+        # Retired types still resolve to a label so historical rows render,
+        # but must not be offered (S29A). Same filter as pages/documents.py.
+        options=[d for d in DOCUMENT_TYPES if d not in RETIRED_DOC_TYPES],
+        format_func=lambda x: DOCUMENT_TYPES.get(x, x),
         key="review_doc_type"
     )
 
@@ -330,16 +333,29 @@ with tab2:
 
     # Document repository status
     st.markdown("**Your document repository:**")
+    # Derived from the catalogue, not hardcoded.
+    #
+    # This list still contained "ropa" — retired in S26 — and
+    # "incident_response", retired in S29A. `ropa` is not in DOCUMENT_TYPES at
+    # all, so the page raised KeyError the moment anyone opened it. It had been
+    # wrong since S26 and only surfaced when someone looked.
+    #
+    # A hardcoded list of doc types is a second place the catalogue lives, and
+    # it goes stale silently every time a type is added or retired. Ordered by
+    # the catalogue's own sort order so new documents appear without this being
+    # touched again.
     doc_types_ordered = [
-        "privacy_policy","cookie_policy","dpa",
-        "ropa","incident_response","ai_transparency"
+        d for d in DOC_CATALOG
+        if d not in RETIRED_DOC_TYPES
     ]
 
     uploaded_texts = {}
     n_provided = 0
 
     for doc_type in doc_types_ordered:
-        label = DOCUMENT_TYPES[doc_type]
+        # .get, not [] — a doc_type present in the catalogue but missing a
+        # label should degrade to its code rather than take the page down.
+        label = DOCUMENT_TYPES.get(doc_type, doc_type)
         current = current_docs.get(doc_type)
 
         col_s, col_i, col_u = st.columns([1,4,2])
