@@ -253,6 +253,14 @@ if _open:
         else:
             st.success(verdict["detail"])
 
+        # Art. 35(2): "where a data protection officer has been designated,
+        # the controller shall seek his or her advice". No DPO, no obligation —
+        # and asking a client without one to answer it invites a meaningless
+        # answer in a document an authority may read.
+        _has_dpo = bool((client.get("dpo_name") or "").strip()
+                        or (client.get("dpo_email") or "").strip())
+
+    if is_dpia and _has_dpo:
         st.markdown("**Art. 35(2) — the DPO's advice**")
         with st.form(f"dpo_{a['id']}"):
             _opts = [None, True, False]
@@ -263,23 +271,49 @@ if _open:
                 format_func=lambda v: {None: "Not answered", True: "Yes",
                                        False: "No"}[v],
             )
-            advice = st.text_area("Their advice",
-                                  value=a.get("dpo_advice") or "", height=80)
+            advice = st.text_area(
+                "Their advice", value=a.get("dpo_advice") or "", height=80,
+                help="What they said about THIS assessment — whether the "
+                     "measures are adequate, and whether they disagreed. A "
+                     "recorded disagreement that was overruled is exactly what "
+                     "an authority looks for.",
+            )
             if st.form_submit_button("Save"):
-                RS.set_dpo_advice(a["id"], user_id, consulted, advice)
-                st.rerun()
-    else:
+                # The result was ignored, so a failed save looked identical to
+                # a successful one: the page just reloaded.
+                if RS.set_dpo_advice(a["id"], user_id, consulted, advice):
+                    st.success("Saved.")
+                    st.rerun()
+                else:
+                    st.error("Could not save.")
+
+    if not is_dpia:
         verdict = RA.nis2_unaccepted(items)
         (st.warning if verdict["unaccepted"] else st.success)(verdict["detail"])
 
-    if a["status"] == "draft" and st.button("Mark complete", type="primary"):
-        RS.complete_assessment(
-            a["id"], user_id, client_id,
-            consultation_required=(
-                RA.consultation_needed(items)["required"] if is_dpia else False
-            ),
-        )
-        st.rerun()
+    if a["status"] == "draft":
+        _unassessed = [it for it in items if it.get("residual_severity") is None]
+        st.markdown("---")
+        if _unassessed:
+            # Warned, not blocked — same reasoning as Art. 36. An incomplete
+            # assessment is still a document someone may need to produce, and
+            # refusing to finish it is the wrong instinct. Completing it
+            # silently is worse than the empty-assessment problem, because it
+            # looks finished.
+            st.warning(
+                f"**{len(_unassessed)} risk(s) have not been assessed after "
+                "measures.** Marking this complete records a conclusion the "
+                "register cannot support — whether the residual risk is "
+                "acceptable is the question this document exists to answer."
+            )
+        if st.button("Mark complete", type="primary"):
+            RS.complete_assessment(
+                a["id"], user_id, client_id,
+                consultation_required=bool(
+                    RA.consultation_needed(items)["required"]
+                ) if is_dpia else False,
+            )
+            st.rerun()
 
 else:
     # ── The list ──────────────────────────────────────────────────────────
