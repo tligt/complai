@@ -236,7 +236,10 @@ if _open:
     st.divider()
     if is_dpia:
         verdict = RA.consultation_needed(items)
-        if verdict["required"]:
+        # required is None for an empty assessment — neither required nor not.
+        if verdict["required"] is None:
+            st.info(verdict["detail"])
+        elif verdict["required"]:
             # The point of the whole document. Most templates bury it.
             st.error(
                 "**Prior consultation is required.** "
