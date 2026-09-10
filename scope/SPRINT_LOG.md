@@ -277,7 +277,7 @@ S33.
 | S28A | AI deployer pack: AUP + Human Oversight + **AI Transparency Notice** | Notice moved here from S28 — Art. 50 attaches to systems, and S51 has the inventory |
 | ~~S29~~ | ~~Obligation register + task register~~ | **Delivered 8 Sept.** D-77 to D-79. 7 derivations, 5 response kinds, derived-state task register |
 | ~~S29A~~ | ~~NIS2 pack~~ | **Delivered 9 Sept.** D-80 to D-83. Three doc types, five drafted inserts, RTO/RPO |
-| S30 | DPIA | Tier 3. Target the EDPB model template |
+| ~~S30~~ | ~~DPIA + NIS2 risk assessment~~ | **Delivered 10 Sept.** D-84 to D-89. Two catalogues (35 risks), shared engine, Art. 36 derived |
 | S31 | Regulation-aware chunk allocation | **See sequencing note below** |
 | S32 | Admin user management | |
 | **S32A** | **Migration to European infrastructure** | **D-67. Precedes the gate. Self-hosted Supabase + containerised app** |
@@ -2513,6 +2513,79 @@ a person decides.
 
 ---
 
+### D-86 — Client-authored text is per-language from its FIRST migration
+
+S26C made activity name and purpose per-language. S29A shipped the five Tier 2
+inserts as single-language `TEXT` one sprint later, and a generated French
+incident response plan carried four English paragraphs under French headings.
+
+Worse than the original defect, not better: a mistranslated activity name is
+awkward, a containment procedure in the wrong language is read at 2am by
+someone acting on it.
+
+Corrected to JSONB keyed by language, with `insert_translation_status` for
+provenance and drafting per language — the same pattern, applied a sprint late.
+
+**The rule, as a check rather than a memory:** any column holding text a client
+writes, which reaches a generated document, is `*_i18n JSONB` from the
+migration that creates it. Not TEXT-now-JSONB-later. The expensive part is
+never the column — it is ending up with text whose language nobody recorded,
+which is what both S26C and this had to unpick.
+
+Three instances now: activity name and purpose, `systems.purpose`, and the
+NIS2 inserts.
+
+---
+
+### D-87 — `gdpr_10` and `nis2_01` become document obligations
+
+Both were `operational` because no document existed to point at. One does now,
+so the `kind` changes. The id and article do not, so no client data is
+orphaned.
+
+**Consequence, and it is visible:** a client with no DPIA now shows a document
+gap where they previously showed an operational one, and the count of document
+obligations moves from 15 to 17. More honest, and the number will drop.
+
+The general rule this makes explicit: `kind: operational` sometimes means "this
+is an act, not an artefact" (`nis2_11`, registration with an authority) and
+sometimes means "we have nothing to produce for it yet". The second is a
+temporary state, and the catalogue should not leave the two looking alike —
+when a document arrives, the obligation is repointed.
+
+### D-88 — Likelihood and severity are a pair, never a score
+
+A four-level scale on each, kept separate and rendered as "Maximum / Limited"
+rather than multiplied.
+
+Likelihood × severity produces a number that looks objective and is not. A 1×4
+and a 4×1 share a product and are opposite situations — rare and catastrophic
+against constant and trivial — and they demand entirely different responses. A
+score hides which one you have.
+
+Four levels rather than three or five: three collapses everything to "medium",
+five invites false precision about the difference between 2 and 3.
+
+*Also:* an item with no residual assessment counts as UNRESOLVED, never as
+acceptable. A risk nobody finished assessing is not a risk that was found
+acceptable, and the Art. 36 conclusion says it cannot be drawn until they are.
+
+### D-89 — `materiality` is about template CHANGES, not about obligation
+
+Misread during S30 and worth recording because the name invites it.
+
+`minor` / `recommended` / `required` describe **how much a change to this
+template matters** to clients already holding a copy. They do not describe
+whether the document is obligatory — a DPIA is required only where the Art. 35
+triggers fire, and that is decided by the trigger rules, never by a field on
+the template.
+
+The seed rejected an invented `conditional` value, which is the constraint
+working. The comment in `template_seed_dpia.py` now says what the field means,
+because the next author will read the name and assume the same thing.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.
@@ -2664,6 +2737,54 @@ Two consequences to act on:
 All three surfaced while entering data through the S26C inventory form. Each
 looked like a different bug and all three are the same mechanism.
 
+**Adding a column means updating the write allowlist AND the read select.
+Neither fails loudly.**
+
+Three instances, all with the same symptom — a field the client filled in
+renders empty, and nothing errors:
+
+1. `data_source_codes` missing from `_load_inventory`'s activity select, so the
+   Art. 14 disclosure could never render.
+2. The S26C retention columns, same select.
+3. `rto_minutes` / `rpo_minutes` / `recovery_note` missing from the systems
+   select, so a continuity plan printed "non défini" for every system while the
+   values sat in the database.
+
+`load_activities` and `load_systems` use `select("*")` and are unaffected;
+`_load_inventory` names its columns for size. **Both places, every time:**
+`SYSTEM_EDITABLE` / `ACTIVITY_EDITABLE` for the write, `_load_inventory` for
+the read.
+
+**Two flags cannot express three states.** Twice in one sprint.
+
+1. The DPO section had `has_dpo_advice` and `dpo_not_consulted`. A designated
+   DPO whose advice had not been recorded either way matched neither, so the
+   section **vanished entirely** — which reads as "Art. 35(2) does not apply
+   here", the one thing it does not mean.
+2. The BCP had `has_recovery_objectives` and `has_unset_objectives`, which
+   could both be true — see below.
+
+Where a fact has three states, count them before writing the flags. The
+disappearing case is the dangerous one: a contradiction is visible, an absence
+is not.
+
+**A newline inside a DOCX table cell is collapsed.**
+
+`"\n".join([controls, measures])` rendered as "Nothing Nothing" — two answers
+to two different questions, run together into what reads like a stutter. Label
+and separate explicitly inside a cell; the converter will not do it.
+
+**Flags that can both be true will both render.**
+
+The BCP declared `has_recovery_objectives` and `has_unset_objectives`
+independently. With no objectives set anywhere, both fired: "some systems show
+no objective" immediately followed by "no objectives have been set for any
+system", contradicting each other in consecutive paragraphs.
+
+Conditionals do not nest (see below), so a template cannot express "this one
+unless that one" — which means **mutual exclusivity has to be computed in the
+code**. `has_some_unset` now requires both some set and some unset.
+
 **CHECKLIST ITEM, not an explanation.** This has now happened **four times**:
 the inventory translation boxes, the activity selector, the S27 adoption
 control, and the S29A wording page — the last of them built three hours after
@@ -2773,6 +2894,20 @@ The UK is deliberately outside: adequacy makes a Chapter V transfer easy to
 justify, not something other than a transfer. An unrecorded country counts as
 inside — absence of a country is an inventory gap that `readiness()` already
 reports, not evidence of a transfer.
+
+**Fourth nesting occurrence, and the fix that finally works is composition.**
+
+S30 nested `{{#if:has_authority_url}}` inside `{{#if:needs_consultation}}` —
+the same mistake as S28, in a codebase where it is documented at the top of the
+file it governs.
+
+What changed this time: instead of flattening the instance, `authority_line` is
+**composed in code** — "Name (url)" or "Name" — so the template needs one merge
+field and no conditional at all. There is nothing left to nest.
+
+*Removing the opportunity beats remembering the rule.* Four occurrences of the
+same error suggests the rule is not the problem. The same trick applies
+wherever a name-plus-optional-URL pattern appears.
 
 **Conditionals do not nest, and `template_renderer.py` says so at the top of
 the file.**
