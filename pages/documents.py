@@ -37,7 +37,7 @@ TEMPLATE_DOC_TYPES = {
         # looks broadly right.
         "cookie_policy,ropa_controller,ropa_processor,dpa,privacy_policy,"
         "incident_response_plan,breach_notification_procedure,"
-        "business_continuity_plan",
+        "business_continuity_plan,dpia,nis2_risk_assessment",
     ).split(",")
     if t.strip()
 }
@@ -578,6 +578,14 @@ if use_template:
             "out on a customer's instructions is covered by their notice, not "
             "yours, and does not appear. Which rights it describes depends on "
             "the legal bases you have recorded."
+        )
+
+    elif doc_type in ("dpia", "nis2_risk_assessment"):
+        st.caption(
+            "Built from a risk assessment you have already worked through "
+            "under *Risk assessments* — the risks, what reduces them, and "
+            "what remains. The conclusion is computed from that register, not "
+            "written here."
         )
 
     elif doc_type in ("incident_response_plan", "breach_notification_procedure",
