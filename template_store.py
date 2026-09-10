@@ -973,6 +973,13 @@ def build_values(
         from template_nis2 import apply_nis2_values  # noqa: PLC0415
         apply_nis2_values(values, client, block_context, language)
 
+    # --- Risk assessments -------------------------------------------------
+    # After the common block: apply_dpia_values composes authority_line from
+    # authority_name and authority_url, both populated there.
+    if doc_type in ("dpia", "nis2_risk_assessment"):
+        from template_dpia import apply_dpia_values  # noqa: PLC0415
+        apply_dpia_values(values, client, block_context, language)
+
     return values, resolution.codes_applied
 
 
@@ -981,7 +988,7 @@ def build_values(
 # ---------------------------------------------------------------------------
 
 def build_block_context(
-    doc_type: str, client_id: str, language: str
+    doc_type: str, client_id: str, language: str, **kwargs: Any
 ) -> tuple[dict[str, Any], str | None]:
     """The block data one document type needs, and the inventory's last change.
 
@@ -994,6 +1001,17 @@ def build_block_context(
     if doc_type == "privacy_policy":
         from template_privacy import build_privacy_block_context  # noqa: PLC0415
         return build_privacy_block_context(client_id, language)
+
+    if doc_type in ("dpia", "nis2_risk_assessment"):
+        # Needs an assessment to render. Which one is passed through
+        # session state by the documents page; without it the most recent is
+        # used and the caller is told which — a document about "all of your
+        # assessments" answers no question.
+        from template_dpia import build_dpia_block_context  # noqa: PLC0415
+        return build_dpia_block_context(
+            client_id, language,
+            assessment_id=kwargs.get("assessment_id"),
+        )
 
     if doc_type in ("incident_response_plan", "breach_notification_procedure",
                     "business_continuity_plan"):
@@ -1253,3 +1271,28 @@ FIELD_SPECS["business_continuity_plan"] = BCP_FIELDS
 DOC_BLOCKS["business_continuity_plan"] = BCP_BLOCKS
 
 DEFAULT_BLOCK_RENDERERS.update(NIS2_BLOCK_RENDERERS)
+
+
+# ---------------------------------------------------------------------------
+# S30 — DPIA and NIS2 risk assessment
+# ---------------------------------------------------------------------------
+# Tier 3. The first documents produced from a JUDGEMENT rather than from a
+# description: what is in them is what the client decided, risk by risk.
+#
+# Both share the register renderer and differ in what it measures and what an
+# unacceptable residual risk leads to (D-85).
+from template_dpia import (  # noqa: E402
+    DPIA_BLOCKS,
+    DPIA_BLOCK_RENDERERS,
+    DPIA_FIELDS,
+    NIS2RA_BLOCKS,
+    NIS2RA_FIELDS,
+)
+
+FIELD_SPECS["dpia"] = DPIA_FIELDS
+DOC_BLOCKS["dpia"] = DPIA_BLOCKS
+
+FIELD_SPECS["nis2_risk_assessment"] = NIS2RA_FIELDS
+DOC_BLOCKS["nis2_risk_assessment"] = NIS2RA_BLOCKS
+
+DEFAULT_BLOCK_RENDERERS.update(DPIA_BLOCK_RENDERERS)
