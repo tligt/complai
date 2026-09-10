@@ -2500,6 +2500,13 @@ being vague about which harm it measures. That is how a DPIA ends up reading
 like an IT risk register — the commonest way DPIAs are done badly, and the
 thing an authority spots first.
 
+**A high residual risk does not block generation.** A DPIA recording an
+unacceptable residual risk is exactly the document Art. 36 expects to exist;
+refusing to produce it would withhold the artefact the law asks for at the
+moment it matters most. Instead the document states the consultation
+requirement near the top, the generation screen repeats it, and it becomes a
+task in the S29 register — which is what stops it being a warning nobody read.
+
 *Also rejected:* a risk scoring model. Likelihood times severity produces a
 number that looks objective and is not. The register keeps both dimensions and
 a person decides.

@@ -178,11 +178,20 @@ be attributed one at a time as they are checked rather than all at once.
 
 Flagged for counsel alongside the templates.
 
----
+**A high residual risk does NOT block the document.** Resolved.
 
-## Open — needs a decision
+A DPIA recording an unacceptable residual risk is a valid and important DPIA —
+it is exactly the document Art. 36 expects to exist. Refusing to generate it
+would mean RECOSA withholding the artefact the law asks for, at the moment it
+matters most.
 
-1. **Does an unmitigated high residual risk BLOCK the document?** A DPIA
-   recording an unacceptable risk is a valid and important DPIA — it is what
-   triggers Art. 36. But generating it silently, with no prompt, would let a
-   client file it and start processing.
+So it generates, and three things happen instead:
+
+1. The document states it plainly, near the top rather than buried: processing
+   must not begin until the supervisory authority has been consulted.
+2. The generation screen says the same before the client downloads anything.
+3. It becomes a **task** in the S29 register, via a new producer — so it is
+   still visible tomorrow, when the client has closed the tab and forgotten.
+
+The third is what stops this being a warning nobody read. A blocking gate would
+have been easier to build and would have solved a different problem.
