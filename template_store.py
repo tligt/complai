@@ -201,7 +201,12 @@ def _load_inventory(client_id: str) -> dict[str, Any]:
         "systems": _fetch(
             "systems",
             "id, name, vendor_legal_name, category, processing_country, "
-            "transfer_mechanism, updated_at",
+            "transfer_mechanism, updated_at, "
+            # S29A. Without these the continuity plan renders "not set" for
+            # every system while the values sit in the database — the third
+            # time a named-column select has silently dropped a new field
+            # (data_source_codes, then the retention columns, now this).
+            "rto_minutes, rpo_minutes, recovery_note, criticality",
         ),
         "links": _fetch("activity_systems", "activity_id, system_id, role"),
         "counterparties": _fetch(

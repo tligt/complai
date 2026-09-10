@@ -187,7 +187,11 @@ BCP_FIELDS = _IDENTITY + _ENTITY + [
     FieldSpec("nis2_continuity_text", "How the business keeps running", required=True),
     FieldSpec("nis2_testing_text", "How the plan is tested", required=True),
     FieldSpec("has_recovery_objectives", "Recovery objectives recorded", flag=True),
-    FieldSpec("has_unset_objectives", "Some systems have no objectives", flag=True),
+    # SOME, not ANY. has_unset_objectives was true whenever a single system
+    # lacked objectives — including when NONE had them — so the "some systems"
+    # paragraph and the "no system has any" paragraph both rendered, saying
+    # different things about the same fact in consecutive sentences.
+    FieldSpec("has_some_unset", "Some but not all systems lack objectives", flag=True),
 ]
 
 IR_BLOCKS = ("nis2_systems",)
@@ -450,7 +454,12 @@ def apply_nis2_values(
 
     values["has_critical_systems"] = bool(ctx.get("nis2_systems"))
     values["has_recovery_objectives"] = bool(ctx.get("nis2_has_objectives"))
-    values["has_unset_objectives"] = bool(ctx.get("nis2_unset"))
+    # Only where SOME are set and some are not. Where none are set, the
+    # has_recovery_objectives branch says so more plainly, and both rendering
+    # together contradicted each other.
+    values["has_some_unset"] = bool(
+        ctx.get("nis2_unset") and ctx.get("nis2_has_objectives")
+    )
 
     # Both regimes bite where the client processes personal data at all — which
     # is any client with a RoPA. Said explicitly in the document because the

@@ -84,14 +84,14 @@ minutes, running on yesterday's data.
 
 {{#block:nis2_recovery}}
 
-{{#if:has_unset_objectives}}
+{{#if:has_some_unset}}
 ### Systems without objectives
 
 Some systems above show no recovery objective. That does not mean they do not
 matter — it means nobody has yet decided how long we could manage without
 them. Until that decision is made, this plan does not commit to anything for
 those systems.
-{{/if:has_unset_objectives}}
+{{/if:has_some_unset}}
 
 {{#ifnot:has_recovery_objectives}}
 **No recovery objectives have been set for any system.** This plan describes
@@ -153,14 +153,14 @@ importante : rétabli en quelques minutes, mais sur les données de la veille.
 
 {{#block:nis2_recovery}}
 
-{{#if:has_unset_objectives}}
+{{#if:has_some_unset}}
 ### Systèmes sans objectifs
 
 Certains systèmes ci-dessus n'affichent aucun objectif de rétablissement. Cela
 ne signifie pas qu'ils sont sans importance : personne n'a encore déterminé
 combien de temps nous pourrions nous en passer. Tant que cette décision n'est
 pas prise, le présent plan ne comporte aucun engagement pour ces systèmes.
-{{/if:has_unset_objectives}}
+{{/if:has_some_unset}}
 
 {{#ifnot:has_recovery_objectives}}
 **Aucun objectif de rétablissement n'a été défini pour aucun système.** Ce plan
