@@ -91,10 +91,22 @@ for key, spec in INSERTS.items():
             d1, d2 = st.columns(2)
             if d1.button("Use this", key=f"use_{key}", type="primary"):
                 st.session_state[f"text_{key}"] = pending
+                # Drop the WIDGET key so the text area re-initialises.
+                #
+                # Streamlit ignores value= once a widget key exists in session
+                # state. Setting text_{key} and rerunning changed nothing: the
+                # box kept its old empty value and the save wrote that.
+                #
+                # Fourth instance of this in one week — the inventory
+                # translation boxes, the activity selector, the adoption
+                # control, and now this. Anything whose value= must change
+                # after a rerun needs its key cleared, or it will not.
+                st.session_state.pop(f"ta_{key}", None)
                 st.session_state.pop(draft_key, None)
                 st.rerun()
             if d2.button("Discard", key=f"drop_{key}"):
                 st.session_state.pop(draft_key, None)
+                st.session_state.pop(f"text_{key}", None)
                 st.rerun()
             st.caption(
                 "Read it before using it. It is a starting point written from "
@@ -151,6 +163,7 @@ for key, spec in INSERTS.items():
                                   "was_empty": not current.strip()},
                     )
                 st.session_state.pop(f"text_{key}", None)
+                st.session_state.pop(f"ta_{key}", None)
                 st.success("Saved.")
                 st.rerun()
             except Exception as e:
