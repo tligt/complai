@@ -55,8 +55,35 @@ if not client:
 
 client_id = client["id"]
 
-_filled = sum(1 for k in INSERTS if (client.get(k) or "").strip())
-st.progress(_filled / len(INSERTS), text=f"{_filled} of {len(INSERTS)} written")
+# The languages this client's DOCUMENTS are produced in — not the interface
+# language (D-75). A section written only in English produced English
+# paragraphs under French headings in a plan meant to be read during an
+# incident.
+doc_langs = [l.lower() for l in (client.get("document_languages") or ["en"])]
+
+
+def _text(key: str, lang: str) -> str:
+    """Stored text for one language. No cross-language fallback (D-56).
+
+    Falls back to the legacy TEXT column only for English, which is what the
+    S30 backfill assumed. Showing English in a French box would invite the
+    client to "correct" it and overwrite the English.
+    """
+    blob = client.get(INSERTS[key]["column"]) or {}
+    if isinstance(blob, dict) and (blob.get(lang) or "").strip():
+        return blob[lang].strip()
+    return (client.get(key) or "").strip() if lang == "en" else ""
+
+
+_filled = sum(
+    1 for k in INSERTS
+    if all(_text(k, l) for l in doc_langs)
+)
+st.progress(
+    _filled / len(INSERTS),
+    text=f"{_filled} of {len(INSERTS)} complete in "
+         + ", ".join(l.upper() for l in doc_langs),
+)
 
 if _filled < len(INSERTS):
     st.info(
@@ -69,108 +96,126 @@ if _filled < len(INSERTS):
 st.divider()
 
 for key, spec in INSERTS.items():
-    current = client.get(key) or ""
-    done = bool(current.strip())
+    done = all(_text(key, l) for l in doc_langs)
+    status = client.get("insert_translation_status") or {}
+    pending_review = [
+        l for l in doc_langs
+        if (status.get(key) or {}).get(l) == "machine_unreviewed"
+    ]
 
-    with st.expander(
-        f"{'✅' if done else '⚪'}  {spec['label']}",
-        expanded=not done,
-    ):
+    header = f"{'✅' if done else '⚪'}  {spec['label']}"
+    if pending_review:
+        header += f"  ·  {len(pending_review)} to confirm"
+
+    with st.expander(header, expanded=not done):
         st.caption(spec["prompt"])
 
-        draft_key = f"draft_{key}"
-        # A drafted suggestion lives in session state until saved. Writing it
-        # straight to the client record would make a machine's first attempt
-        # the client's own statement without anyone reading it — which is what
-        # the review step exists to prevent.
-        pending = st.session_state.get(draft_key)
+        # One column per document language, same shape as the activity form
+        # (D-56): no privileged source, and no box pre-filled from a language
+        # it is not.
+        cols = st.columns(len(doc_langs))
+        entered: dict[str, str] = {}
 
-        if pending:
-            st.markdown("**Suggested draft**")
-            st.info(pending)
-            d1, d2 = st.columns(2)
-            if d1.button("Use this", key=f"use_{key}", type="primary"):
-                st.session_state[f"text_{key}"] = pending
-                # Drop the WIDGET key so the text area re-initialises.
-                #
-                # Streamlit ignores value= once a widget key exists in session
-                # state. Setting text_{key} and rerunning changed nothing: the
-                # box kept its old empty value and the save wrote that.
-                #
-                # Fourth instance of this in one week — the inventory
-                # translation boxes, the activity selector, the adoption
-                # control, and now this. Anything whose value= must change
-                # after a rerun needs its key cleared, or it will not.
-                st.session_state.pop(f"ta_{key}", None)
-                st.session_state.pop(draft_key, None)
-                st.rerun()
-            if d2.button("Discard", key=f"drop_{key}"):
-                st.session_state.pop(draft_key, None)
-                st.session_state.pop(f"text_{key}", None)
-                st.rerun()
+        for col, lang in zip(cols, doc_langs):
+            with col:
+                st.markdown(f"**{lang.upper()}**")
+
+                if (status.get(key) or {}).get(lang) == "machine_unreviewed":
+                    st.caption(":orange[Draft — edit or re-save to confirm]")
+
+                draft_key = f"draft_{key}_{lang}"
+                pending = st.session_state.get(draft_key)
+                if pending:
+                    st.info(pending)
+                    if st.button("Use this", key=f"use_{key}_{lang}",
+                                 type="primary", use_container_width=True):
+                        st.session_state[f"ta_{key}_{lang}"] = pending
+                        st.session_state.pop(draft_key, None)
+                        st.rerun()
+                    if st.button("Discard", key=f"drop_{key}_{lang}",
+                                 use_container_width=True):
+                        st.session_state.pop(draft_key, None)
+                        st.rerun()
+
+                entered[lang] = st.text_area(
+                    f"Text ({lang.upper()})",
+                    value=st.session_state.get(f"ta_{key}_{lang}",
+                                               _text(key, lang)),
+                    key=f"ta_{key}_{lang}",
+                    height=150,
+                    label_visibility="collapsed",
+                )
+
+                if st.button("Draft it for me", key=f"gen_{key}_{lang}",
+                             use_container_width=True, disabled=bool(pending)):
+                    with st.spinner(f"Drafting in {lang.upper()}…"):
+                        out = draft_inserts.draft(
+                            key, client, language=lang,
+                            user_id=user_id, client_id=client_id,
+                        )
+                    if out:
+                        st.session_state[draft_key] = out
+                        st.rerun()
+                    else:
+                        st.warning("Could not draft this one. Write it yourself.")
+
+        # A word floor, not a character one: "We have no monitoring in place"
+        # is six words and legitimate, while a 60-character floor flagged it.
+        short = [
+            l for l, t in entered.items()
+            if t.strip() and len(t.split()) < 6
+        ]
+        if short:
             st.caption(
-                "Read it before using it. It is a starting point written from "
-                "the regulation and what RECOSA knows about you — it may "
-                "describe something you do not actually do, and it becomes "
-                "your statement once you save it."
+                ":orange[Very short in "
+                + ", ".join(l.upper() for l in short)
+                + ". If that is genuinely all there is to say, say so in a "
+                "sentence — this goes into a document someone reads during an "
+                "incident.]"
             )
 
-        text = st.text_area(
-            "What you do",
-            value=st.session_state.get(f"text_{key}", current),
-            key=f"ta_{key}",
-            height=140,
-            label_visibility="collapsed",
-        )
+        if st.button("Save", key=f"save_{key}", type="primary"):
+            blob = dict(client.get(spec["column"]) or {})
+            new_status = {k: dict(v) for k, v in status.items()}
+            changed = False
 
-        c1, c2, c3 = st.columns([1, 1, 3])
+            for lang, text in entered.items():
+                before = (blob.get(lang) or "").strip()
+                if text.strip():
+                    blob[lang] = text.strip()
+                    # Anything in a box at submit is theirs, edited or not —
+                    # which is what makes re-saving a draft confirm it (D-76).
+                    new_status.setdefault(key, {})[lang] = "human"
+                elif before:
+                    blob.pop(lang, None)
+                    new_status.get(key, {}).pop(lang, None)
+                changed = changed or text.strip() != before
 
-        if c1.button("Draft it for me", key=f"gen_{key}",
-                     use_container_width=True,
-                     disabled=bool(pending)):
-            with st.spinner("Reading the regulation and drafting…"):
-                out = draft_inserts.draft(
-                    key, client, language="en",
-                    user_id=user_id, client_id=client_id,
-                )
-            if out:
-                st.session_state[draft_key] = out
-                st.rerun()
-            else:
-                st.warning(
-                    "Could not draft this one. Write it in your own words — "
-                    "two or three sentences is enough."
-                )
-
-        if c2.button("Save", key=f"save_{key}", type="primary",
-                     use_container_width=True):
             try:
-                get_supabase().table("clients").update(
-                    {key: text.strip() or None}
-                ).eq("id", client_id).execute()
+                get_supabase().table("clients").update({
+                    spec["column"]: blob,
+                    # Legacy column kept in step as the fallback, preferring
+                    # English (D-75's related defect: writing whichever
+                    # language was typed first overwrote it).
+                    key: blob.get("en") or next(iter(blob.values()), None),
+                    "insert_translation_status": new_status,
+                }).eq("id", client_id).execute()
 
-                # Audited: this text ends up in a document that may be shown to
-                # an authority, and who wrote it and when is part of the
-                # record. Only on change — a trail that logs every page save is
-                # one nobody reads.
-                if text.strip() != current.strip():
+                if changed:
                     log_audit_event(
                         company_id=client_id, user_id=user_id,
                         event_type="document", event_subtype="wording_changed",
                         resource_id=key,
                         summary=f"{spec['label']} updated",
                         metadata={"insert": key,
-                                  "was_empty": not current.strip()},
+                                  "languages": sorted(blob)},
                     )
-                st.session_state.pop(f"text_{key}", None)
-                st.session_state.pop(f"ta_{key}", None)
+                for lang in doc_langs:
+                    st.session_state.pop(f"ta_{key}_{lang}", None)
                 st.success("Saved.")
                 st.rerun()
             except Exception as e:
                 st.error(f"Could not save: {e}")
-
-        if done and not pending:
-            c3.caption("Appears in your incident and continuity documents.")
 
 st.divider()
 st.caption(
