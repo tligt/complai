@@ -316,10 +316,21 @@ else:
             format_func=lambda i: next(
                 (x.get("name") or i for x in activities if x["id"] == i), i),
         )
-        if st.form_submit_button("Start", type="primary",
-                                 disabled=not title.strip()):
-            new_id = RS.create_assessment(
-                user_id, client_id, reg, title.strip(), activity_ids=picked)
-            if new_id:
-                st.session_state["risk_open"] = new_id
-                st.rerun()
+        # Validated on SUBMIT, not through disabled=.
+        #
+        # Widgets inside st.form do not trigger a rerun, so `disabled` is
+        # evaluated when the form first renders — when `title` is empty — and
+        # never re-evaluated. The button stayed dead however much was typed.
+        # Same constraint as the note in pages/inventory.py about the system
+        # multiselect sitting outside its form.
+        if st.form_submit_button("Start", type="primary"):
+            if not title.strip():
+                st.error("Give it a name — what is this assessment about?")
+            else:
+                new_id = RS.create_assessment(
+                    user_id, client_id, reg, title.strip(), activity_ids=picked)
+                if new_id:
+                    st.session_state["risk_open"] = new_id
+                    st.rerun()
+                else:
+                    st.error("Could not start the assessment.")
