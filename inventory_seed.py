@@ -42,6 +42,371 @@ from __future__ import annotations
 
 VOCABULARIES: dict[str, list[tuple]] = {
 
+    # ── DPIA risk catalogue (S30) ────────────────────────────────────────
+    # Risks to the RIGHTS AND FREEDOMS OF NATURAL PERSONS (Art. 35(1)).
+    #
+    # NOT risks to the business, and not risks to systems — those are the NIS2
+    # catalogue below. A DPIA that reads like an IT risk register is the
+    # commonest way a DPIA is done badly, and an authority spots it first
+    # (D-85).
+    #
+    # The test for every entry: does the harm land on a PERSON? "Our database
+    # goes down" is a NIS2 risk. "People cannot get their data deleted because
+    # our database is down" is a DPIA risk.
+    #
+    # metadata.axis follows the CNIL PIA structure — illegitimate access,
+    # unwanted modification, disappearance — which is also how the document
+    # groups them.
+    #
+    # metadata.source / source_ref are EMPTY and deliberate (D-84). These are
+    # RECOSA-authored. Attributing them to the CNIL knowledge base or an EDPB
+    # guideline is the stronger statement and was deferred on sourcing effort;
+    # filling these two fields per row is what makes that swap cheap, one row
+    # at a time as each is checked.
+    "dpia_risk": [
+        ("internal_over_access",
+         "Staff can see data they do not need",
+         "Le personnel peut consulter des données dont il n'a pas besoin",
+         "Access granted broadly and never narrowed. The harm is to the person "
+         "whose data is seen by someone with no reason to see it.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Des accès accordés largement et jamais restreints. Le préjudice est "
+         "subi par la personne dont les données sont consultées sans motif."),
+
+        ("external_breach",
+         "An outsider gains access to personal data",
+         "Un tiers accède aux données à caractère personnel",
+         "Through a compromised account, an exposed system, or a stolen "
+         "device. Consider what the data would let someone do to the person.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Via un compte compromis, un système exposé ou un appareil volé. "
+         "Considérez ce que ces données permettraient de faire à la personne."),
+
+        ("misdirected_disclosure",
+         "Data sent to the wrong person",
+         "Données transmises à la mauvaise personne",
+         "An email to the wrong address, a document shared with the wrong "
+         "group. Ordinary, frequent, and the source of a large share of "
+         "reported breaches.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Un courriel à la mauvaise adresse, un document partagé avec le "
+         "mauvais groupe. Banal, fréquent, et à l'origine d'une grande part "
+         "des violations signalées."),
+
+        ("processor_secondary_use",
+         "A supplier uses the data for their own purposes",
+         "Un fournisseur utilise les données à ses propres fins",
+         "Contrary to instructions — for their own product improvement, "
+         "analytics or training. The person consented to your processing, not "
+         "theirs.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Contrairement aux instructions : amélioration de son produit, "
+         "analyse, entraînement de modèles. La personne a consenti à VOTRE "
+         "traitement, pas au sien."),
+
+        ("special_category_exposure",
+         "Sensitive data is exposed",
+         "Des données sensibles sont exposées",
+         "Health, beliefs, union membership, sexual orientation, biometrics. "
+         "The consequences for the person are more serious and often "
+         "irreversible.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Santé, convictions, appartenance syndicale, orientation sexuelle, "
+         "données biométriques. Les conséquences pour la personne sont plus "
+         "graves et souvent irréversibles."),
+
+        ("identity_theft",
+         "Exposed identifiers enable impersonation",
+         "Des identifiants exposés permettent l'usurpation d'identité",
+         "National numbers, bank details, copies of ID documents. The harm "
+         "continues long after the incident is closed.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Numéros nationaux, coordonnées bancaires, copies de pièces "
+         "d'identité. Le préjudice perdure bien après la clôture de "
+         "l'incident."),
+
+        ("re_identification",
+         "Supposedly anonymous data identifies people",
+         "Des données réputées anonymes permettent d'identifier des personnes",
+         "Combined with other data, or too detailed to be anonymous in the "
+         "first place. Pseudonymised is not anonymous.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Recoupées avec d'autres données, ou trop détaillées pour être "
+         "anonymes. La pseudonymisation n'est pas l'anonymisation."),
+
+        ("employee_monitoring",
+         "Monitoring goes beyond what staff expect",
+         "La surveillance dépasse ce que le personnel peut attendre",
+         "Activity logs, location, message content. An employment "
+         "relationship makes objection harder, which raises the risk rather "
+         "than lowering it.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Journaux d'activité, localisation, contenu des messages. La relation "
+         "de travail rend l'opposition plus difficile, ce qui accroît le "
+         "risque au lieu de le réduire."),
+
+        ("inaccurate_decision",
+         "A decision is made on data that is wrong",
+         "Une décision est prise sur des données inexactes",
+         "Refusal, charge, or classification based on an error nobody "
+         "corrected. The person carries the consequence.",
+         {"axis": "modification", "source": "", "source_ref": ""},
+         "Refus, facturation ou classement fondés sur une erreur que personne "
+         "n'a corrigée. C'est la personne qui en supporte les conséquences."),
+
+        ("profiling_harm",
+         "Profiling produces an unfair outcome",
+         "Le profilage produit un résultat inéquitable",
+         "Inferences about someone that they cannot see, contest, or correct.",
+         {"axis": "modification", "source": "", "source_ref": ""},
+         "Des déductions sur une personne qu'elle ne peut ni consulter, ni "
+         "contester, ni corriger."),
+
+        ("discrimination",
+         "Processing disadvantages a group",
+         "Le traitement désavantage un groupe",
+         "Directly, or through a proxy for a protected characteristic — a "
+         "postcode standing in for ethnicity, a career gap for parenthood.",
+         {"axis": "modification", "source": "", "source_ref": ""},
+         "Directement ou via un indicateur indirect d'une caractéristique "
+         "protégée : un code postal pour l'origine, une interruption de "
+         "carrière pour la parentalité."),
+
+        ("automated_decision",
+         "A decision is taken with no human involvement",
+         "Une décision est prise sans intervention humaine",
+         "Where it has legal or similarly significant effects, Art. 22 "
+         "restricts it and requires a route to human review.",
+         {"axis": "modification", "source": "", "source_ref": ""},
+         "Lorsqu'elle produit des effets juridiques ou similaires, l'article "
+         "22 l'encadre et impose une voie de réexamen humain."),
+
+        ("purpose_creep",
+         "Data collected for one thing is used for another",
+         "Des données collectées pour une finalité servent à une autre",
+         "Usually gradually and with good intentions. The person agreed to the "
+         "first purpose.",
+         {"axis": "modification", "source": "", "source_ref": ""},
+         "Généralement de façon progressive et bien intentionnée. La personne "
+         "avait accepté la première finalité."),
+
+        ("excessive_retention",
+         "Data is kept long after it is needed",
+         "Les données sont conservées bien au-delà du nécessaire",
+         "Because nothing deletes it. Every year retained is another year it "
+         "can be breached, subpoenaed or misused.",
+         {"axis": "disappearance", "source": "", "source_ref": ""},
+         "Parce que rien ne les supprime. Chaque année de conservation "
+         "supplémentaire est une année de plus d'exposition."),
+
+        ("rights_unfulfillable",
+         "People cannot exercise their rights",
+         "Les personnes ne peuvent pas exercer leurs droits",
+         "Because the data cannot be found, extracted or deleted. A right that "
+         "cannot be exercised in practice is not one.",
+         {"axis": "disappearance", "source": "", "source_ref": ""},
+         "Parce que les données sont introuvables, inextractibles ou "
+         "ineffaçables. Un droit qu'on ne peut exercer en pratique n'en est "
+         "pas un."),
+
+        ("data_loss_harms_person",
+         "Losing the data harms the person",
+         "La perte des données porte préjudice à la personne",
+         "Not the business inconvenience — the person's. Lost medical records, "
+         "an unprovable entitlement, a claim that cannot be substantiated.",
+         {"axis": "disappearance", "source": "", "source_ref": ""},
+         "Pas la gêne pour l'entreprise, mais le préjudice pour la personne : "
+         "dossier médical perdu, droit devenu indémontrable, réclamation qui "
+         "ne peut plus être étayée."),
+
+        ("transfer_without_protection",
+         "Data goes somewhere with weaker protection",
+         "Les données sont transférées vers un cadre moins protecteur",
+         "Outside the EEA without a Chapter V safeguard, or where the "
+         "safeguard does not survive local law.",
+         {"axis": "access", "source": "", "source_ref": ""},
+         "Hors EEE sans garantie au titre du chapitre V, ou lorsque la "
+         "garantie ne résiste pas au droit local."),
+
+        ("other_dpia",
+         "Other — describe it",
+         "Autre — à décrire",
+         "Use only when nothing above fits. Say what could happen and to whom.",
+         {"axis": "", "requires_text": True, "source": "", "source_ref": ""},
+         "À n'utiliser que si rien ci-dessus ne convient. Précisez ce qui "
+         "pourrait arriver, et à qui."),
+    ],
+
+    # ── NIS2 risk catalogue (S30) ────────────────────────────────────────
+    # Risks to NETWORK AND INFORMATION SYSTEMS (Art. 21(2)(a)).
+    #
+    # A different axis from the DPIA catalogue above, not a different wording
+    # of it (D-85). A cloud outage is serious here and barely registers there;
+    # intrusive but lawful profiling is the reverse.
+    #
+    # The test: does the harm land on a SYSTEM or a SERVICE? If it lands on a
+    # person, it belongs in dpia_risk. Several situations belong in both, and
+    # are entered twice with different consequences — which is the point of
+    # keeping the catalogues apart.
+    #
+    # metadata.source / source_ref empty, same as dpia_risk (D-84). ENISA's
+    # threat taxonomy is the intended attribution for this one.
+    "nis2_risk": [
+        ("ransomware",
+         "Ransomware encrypts systems or data",
+         "Un rançongiciel chiffre des systèmes ou des données",
+         "The common case, and the one that tests whether backups actually "
+         "restore. Consider how long you would be down, not whether you would "
+         "pay.",
+         {"category": "malicious", "source": "", "source_ref": ""},
+         "Le cas le plus fréquent, et celui qui met à l'épreuve la "
+         "restauration réelle des sauvegardes. Évaluez la durée "
+         "d'indisponibilité, pas la question de payer."),
+
+        ("supply_chain",
+         "A supplier's compromise reaches you",
+         "La compromission d'un fournisseur vous atteint",
+         "Through their access to your systems, or through software they "
+         "supply. Art. 21(2)(d) makes this your problem, not only theirs.",
+         {"category": "malicious", "source": "", "source_ref": ""},
+         "Via son accès à vos systèmes ou via un logiciel qu'il fournit. "
+         "L'article 21(2)(d) en fait votre problème, pas seulement le sien."),
+
+        ("phishing_credentials",
+         "Credentials are stolen through phishing",
+         "Des identifiants sont dérobés par hameçonnage",
+         "The most common way in. Multi-factor authentication is the control "
+         "that turns this from a breach into an alert.",
+         {"category": "malicious", "source": "", "source_ref": ""},
+         "La voie d'entrée la plus courante. L'authentification multifacteur "
+         "transforme une compromission en simple alerte."),
+
+        ("unpatched_vulnerability",
+         "A known vulnerability is not patched",
+         "Une vulnérabilité connue n'est pas corrigée",
+         "Usually because nobody is responsible for noticing. The window "
+         "between disclosure and exploitation is measured in days.",
+         {"category": "malicious", "source": "", "source_ref": ""},
+         "Le plus souvent parce que personne n'est chargé de le remarquer. Le "
+         "délai entre publication et exploitation se compte en jours."),
+
+        ("data_exfiltration",
+         "Data is copied out before anyone notices",
+         "Des données sont exfiltrées avant que quiconque le remarque",
+         "Often the first stage of an attack rather than the last. Detection "
+         "matters more than prevention here.",
+         {"category": "malicious", "source": "", "source_ref": ""},
+         "Souvent la première étape d'une attaque plutôt que la dernière. La "
+         "détection y compte plus que la prévention."),
+
+        ("denial_of_service",
+         "A service is overwhelmed and unavailable",
+         "Un service est saturé et devient indisponible",
+         "Deliberate or incidental. The question is how long you can operate "
+         "without it.",
+         {"category": "malicious", "source": "", "source_ref": ""},
+         "De façon délibérée ou fortuite. La question est de savoir combien de "
+         "temps vous pouvez fonctionner sans lui."),
+
+        ("insider_misuse",
+         "Someone with legitimate access misuses it",
+         "Une personne disposant d'un accès légitime en abuse",
+         "Deliberately or through carelessness. Controls designed against "
+         "outsiders do not see this.",
+         {"category": "human", "source": "", "source_ref": ""},
+         "Délibérément ou par négligence. Les contrôles conçus contre "
+         "l'extérieur ne le détectent pas."),
+
+        ("stale_access",
+         "A leaver's access is never revoked",
+         "Les accès d'un partant ne sont jamais révoqués",
+         "Ordinary, unglamorous, and one of the most common findings in any "
+         "audit. Includes contractors and suppliers.",
+         {"category": "human", "source": "", "source_ref": ""},
+         "Banal, sans éclat, et l'un des constats les plus fréquents en "
+         "audit. Vaut aussi pour les prestataires et fournisseurs."),
+
+        ("lost_device",
+         "A device is lost or stolen",
+         "Un appareil est perdu ou volé",
+         "Whether it matters depends entirely on whether it was encrypted.",
+         {"category": "human", "source": "", "source_ref": ""},
+         "La gravité dépend entièrement du chiffrement de l'appareil."),
+
+        ("misconfiguration",
+         "A system is configured to be more open than intended",
+         "Un système est configuré plus ouvertement que prévu",
+         "A public storage bucket, a default password, a permission granted "
+         "for a migration and never removed.",
+         {"category": "human", "source": "", "source_ref": ""},
+         "Un espace de stockage public, un mot de passe par défaut, une "
+         "permission accordée pour une migration et jamais retirée."),
+
+        ("key_person",
+         "Only one person knows how something works",
+         "Une seule personne sait comment quelque chose fonctionne",
+         "Not a security risk until they are unreachable during an incident, "
+         "at which point it is the only one that matters.",
+         {"category": "human", "source": "", "source_ref": ""},
+         "Ce n'est pas un risque de sécurité jusqu'au moment où cette personne "
+         "est injoignable pendant un incident — et c'est alors le seul qui "
+         "compte."),
+
+        ("shadow_it",
+         "Staff use tools nobody approved",
+         "Le personnel utilise des outils non approuvés",
+         "Usually to do their job faster. The data is real and the inventory "
+         "does not know about it.",
+         {"category": "human", "source": "", "source_ref": ""},
+         "Généralement pour travailler plus vite. Les données sont réelles et "
+         "l'inventaire les ignore."),
+
+        ("backup_failure",
+         "The backup does not restore",
+         "La sauvegarde ne se restaure pas",
+         "Incomplete, corrupted, encrypted alongside the original, or simply "
+         "never tested. Discovered at the worst possible moment.",
+         {"category": "availability", "source": "", "source_ref": ""},
+         "Incomplète, corrompue, chiffrée en même temps que l'original, ou "
+         "jamais testée. On le découvre au pire moment."),
+
+        ("provider_outage",
+         "A provider you depend on goes down",
+         "Un fournisseur dont vous dépendez tombe en panne",
+         "Nothing you can fix, and their recovery time becomes yours. Worth "
+         "checking what they actually commit to.",
+         {"category": "availability", "source": "", "source_ref": ""},
+         "Rien que vous puissiez corriger : son délai de rétablissement "
+         "devient le vôtre. Vérifiez ses engagements réels."),
+
+        ("end_of_life_software",
+         "Software no longer receives security updates",
+         "Un logiciel ne reçoit plus de correctifs de sécurité",
+         "The vulnerability count only rises from the end-of-support date "
+         "onward, and no patch is coming.",
+         {"category": "availability", "source": "", "source_ref": ""},
+         "Le nombre de vulnérabilités ne fait qu'augmenter après la fin du "
+         "support, et aucun correctif n'arrivera."),
+
+        ("physical_incident",
+         "Fire, flood or power loss affects premises",
+         "Incendie, dégât des eaux ou coupure affecte les locaux",
+         "Less relevant where everything is hosted, and not irrelevant — "
+         "consider what is only on someone's desk.",
+         {"category": "availability", "source": "", "source_ref": ""},
+         "Moins pertinent lorsque tout est hébergé, mais pas hors sujet : "
+         "considérez ce qui n'existe que sur un poste de travail."),
+
+        ("other_nis2",
+         "Other — describe it",
+         "Autre — à décrire",
+         "Use only when nothing above fits. Say what could fail and what "
+         "stops working.",
+         {"category": "", "requires_text": True, "source": "", "source_ref": ""},
+         "À n'utiliser que si rien ci-dessus ne convient. Précisez ce qui "
+         "pourrait tomber en panne et ce qui cesserait de fonctionner."),
+    ],
+
     # ── Data source (S28) ────────────────────────────────────────────────
     # WHERE the personal data came from. Art. 13 applies where the data subject
     # provided it; Art. 14 applies where they did not, and requires the source
