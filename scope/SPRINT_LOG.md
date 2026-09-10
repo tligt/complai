@@ -276,7 +276,7 @@ S33.
 | ~~S28~~ | ~~Privacy Policy~~ | **Delivered 8 Sept. Tier 1, no LLM (D-71). AI Transparency Notice moved to S28A.** |
 | S28A | AI deployer pack: AUP + Human Oversight + **AI Transparency Notice** | Notice moved here from S28 — Art. 50 attaches to systems, and S51 has the inventory |
 | ~~S29~~ | ~~Obligation register + task register~~ | **Delivered 8 Sept.** D-77 to D-79. 7 derivations, 5 response kinds, derived-state task register |
-| S29A | NIS2 pack: incident response + breach procedure + BCP | Tier 2, first real LLM inserts. No InfoSec policy — see scope |
+| ~~S29A~~ | ~~NIS2 pack~~ | **Delivered 9 Sept.** D-80 to D-83. Three doc types, five drafted inserts, RTO/RPO |
 | S30 | DPIA | Tier 3. Target the EDPB model template |
 | S31 | Regulation-aware chunk allocation | **See sequencing note below** |
 | S32 | Admin user management | |
@@ -2340,6 +2340,116 @@ against each of those seven.
 
 ---
 
+### D-80 — `incident_response` split into three doc types
+
+It carried **five obligations across two regulations**: `gdpr_06` (breach
+notification procedure), and `nis2_01` to `nis2_04` (risk assessment, incident
+response plan, Art. 23 reporting, business continuity).
+
+A risk assessment is not an incident response plan and a BCP is neither. The
+live consequence was a scoring defect of a shape already in this log: a client
+who uploaded an incident response plan **scored as having a business
+continuity plan**, because both resolved to the same `doc_type`. The
+`"rop"`/`"ropa"` shape, resolved the way S26 resolved that one.
+
+| new doc_type | obligations |
+|---|---|
+| `incident_response_plan` | nis2_02 |
+| `breach_notification_procedure` | gdpr_06, nis2_03 |
+| `business_continuity_plan` | nis2_04 |
+
+Free to do because **nothing had ever been generated as `incident_response`** —
+no client row carried the code. It stops being free the first time one does.
+
+`incident_response` is **retired, not deleted**: it stays in `DOCUMENT_TYPES`
+so a historical row renders a label rather than a bare code, and a new
+`RETIRED_DOC_TYPES` set keeps it off the generate menu. Append-only means a
+code is never deleted; it does not mean the code stays on the menu.
+
+**`nis2_01` became operational.** A risk assessment is an assessment — threats,
+likelihood, impact, treatment decisions — none of which is in the data model
+and none of which is prose RECOSA can supply. Closer to S30's DPIA than to
+this sprint; the S29 register holds the client's own.
+
+**No `infosec_policy`.** Seven of the ten Art. 21(2) areas are already
+operational obligations, so the document would be assertions over data RECOSA
+does not hold — a table of contents with "we do access control" underneath. It
+becomes worth writing once the S29 register holds a statement against each of
+those seven.
+
+### D-81 — Tier 2 inserts are drafted at authoring time, not at render time
+
+Each insert is a column on `clients`, drafted by an LLM once, edited by the
+client, then merged like any other field.
+
+**D-43/D-44 extended.** RECOSA supplies a defensible starting point, the client
+owns the answer, it is not scored. The only new thing is that the starting
+point is drafted rather than hand-authored.
+
+*Rejected — generating prose at render time.* Every regeneration would produce
+different text; nothing would be reviewable before it landed in a document; and
+a lawyer reviewing a template would be reviewing a shape rather than a
+document. **That is the whole of template-first (D-01), and Tier 2 is not a
+reason to abandon it — it is a reason to move the LLM one step earlier, to
+where a human still sees the output.**
+
+Consequence: `retrieve(regulations=["NIS2"])` runs when DRAFTING. First real
+use of the D-70 filter, and the reason it exists.
+
+The drafting prompt forbids inventing capability. A draft that gives a
+five-person company a 24/7 security operations centre is worse than a blank
+field: the client may not notice, and it becomes a false statement in their own
+document. Where something is probably not in place, saying so plainly is the
+useful output.
+
+The page stages the draft separately and requires *Use this* before it reaches
+the text box. Writing a model's first attempt straight into the client record
+would make it their own statement without anyone reading it.
+
+### D-82 — Recovery objectives are minutes on `systems`
+
+RTO (how long it may be down) and RPO (how much work may be lost) as integer
+minutes, on `systems` rather than on activities: continuity is a property of
+the thing that fails. An activity does not go down; the payroll system does.
+
+Minutes because a continuity plan orders systems by urgency and **cannot sort
+prose** — "4 hours", "240 minutes" and "half a day" are one number. Rendered in
+the largest whole unit, with singular and plural per language, because "480
+minutes" is a figure nobody pictures.
+
+**Zero is meaningful and different from NULL.** An RPO of 0 says no data loss
+is acceptable — a demanding requirement, not an unanswered question.
+
+The BCP **lists systems with no objectives**, showing "not set", rather than
+omitting them. Dropping them would make the plan look complete while saying
+nothing about the systems nobody has thought about, which are the ones most
+likely to fail badly. Flagged for counsel: an organisation may prefer that not
+to appear in a document an authority might read, and the alternative is a plan
+implying coverage it does not have.
+
+### D-83 — The CSIRT is a jurisdiction fact, not a client field
+
+The breach procedure names two recipients under two regimes: the supervisory
+authority (GDPR Art. 33) and the CSIRT or competent authority (NIS2 Art. 23).
+
+`csirt_*` sits in the `jurisdiction` vocabulary metadata alongside
+`supervisory_authority_*`, same field shape, resolved the same way. Per country
+because every Belgian client reports to the same CSIRT — a client column would
+mean each of them typing it slightly differently.
+
+A jurisdiction with no CSIRT recorded means the breach procedure will not
+generate: `csirt_name` is required, and a procedure that cannot say who to
+report to does not discharge Art. 23. **Failing at generation is better than
+emitting a placeholder.**
+
+**VERIFY BEFORE BETA.** CCB/CERT.be for Belgium and ANSSI for France are
+recorded as correct to the best of available information and have NOT been
+confirmed against the authorities' own published guidance. A wrong reporting
+address in a procedure read during an incident is a serious failure. Same
+standard as D-42 and D-51.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.
@@ -2490,6 +2600,18 @@ Two consequences to act on:
 
 All three surfaced while entering data through the S26C inventory form. Each
 looked like a different bug and all three are the same mechanism.
+
+**CHECKLIST ITEM, not an explanation.** This has now happened **four times**:
+the inventory translation boxes, the activity selector, the S27 adoption
+control, and the S29A wording page — the last of them built three hours after
+this entry was written.
+
+*Every `st.text_input`, `st.text_area` or `st.selectbox` that carries a `key`
+AND whose value is ever set programmatically must have that key popped from
+session state before the rerun.* Grep for `st.session_state[` near a widget
+key; if the widget's own key is being assigned, it is already wrong.
+
+Knowing the mechanism is not sufficient. The rule has to be checkable.
 
 **`value=` is IGNORED once a widget key exists in session state.**
 The per-language name and purpose boxes rendered empty on first load,
