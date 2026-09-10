@@ -210,6 +210,22 @@ def consultation_needed(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     acceptable. A risk nobody has finished assessing is not a risk that was
     found acceptable.
     """
+    items = list(items)
+    if not items:
+        # An empty assessment is not a passed one.
+        #
+        # "No residual risk reaches the threshold" is true of zero risks and
+        # reads as a green light. Absence rendering as a positive result — the
+        # same shape as a task list saying "nothing outstanding" because it was
+        # looking at the wrong field.
+        return {
+            "required": None,
+            "high_items": [],
+            "unresolved": [],
+            "detail": "No risks have been recorded yet, so whether prior "
+                      "consultation is needed cannot be answered.",
+        }
+
     high, unresolved = [], []
     for it in items:
         sev = it.get("residual_severity")
@@ -249,6 +265,14 @@ def nis2_unaccepted(items: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
     Sharing the DPIA's threshold would have been easy and would have implied a
     consequence that does not exist.
     """
+    items = list(items)
+    if not items:
+        return {
+            "high_items": [],
+            "unaccepted": [],
+            "detail": "No risks have been recorded yet.",
+        }
+
     high, unaccepted = [], []
     for it in items:
         sev = it.get("residual_severity")
