@@ -264,7 +264,14 @@ DOC = TemplateDoc(
     sprint="S30",
     bodies={"en": BODY_EN, "fr": BODY_FR},
     blocks={"dpia_processing", "dpia_risks"},
-    materiality="conditional",
+    # materiality is about how much a CHANGE to this template matters —
+    # minor / recommended / required — not about whether the document is
+    # obligatory. "conditional" was neither a permitted value nor the right
+    # idea: whether a DPIA is needed is decided by the Art. 35 triggers, not
+    # by a template field.
+    #
+    # required: when this text changes, every client holding one needs to know.
+    materiality="required",
     source_revision=1,
     version_no=1,
     change_note=(
