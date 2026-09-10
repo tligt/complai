@@ -66,6 +66,8 @@ DOCUMENT_TYPES = {
     "incident_response_plan": "Incident Response Plan",
     "breach_notification_procedure": "Incident and Breach Notification Procedure",
     "business_continuity_plan": "Business Continuity Plan",
+    "dpia": "Data Protection Impact Assessment",
+    "nis2_risk_assessment": "Cybersecurity Risk Assessment",
     "ai_transparency":   "AI System Transparency Notice",
 }
 
@@ -207,10 +209,10 @@ OBLIGATIONS = [
      "applies_from": None, "statutory": True},
 
     {"id": "gdpr_10", "regulation": "GDPR", "article": "Art. 35",
-     "priority": "medium", "kind": "operational",
+     "priority": "medium", "kind": "document",
      "title": "DPIA conducted for high-risk processing",
      "description": "Data Protection Impact Assessment for high-risk processing activities.",
-     "doc_type": None, "profile_question": None, "review_in": [],
+     "doc_type": "dpia", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     # OPERATIONAL, not a document (D-40, S26A). Same defect as gdpr_05.
@@ -301,10 +303,10 @@ OBLIGATIONS = [
 
     # ── NIS2 ─────────────────────────────────────────────────────
     {"id": "nis2_01", "regulation": "NIS2", "article": "Art. 21",
-     "priority": "high", "kind": "operational",
+     "priority": "high", "kind": "document",
      "title": "Cybersecurity risk assessment conducted",
      "description": "Formal risk assessment identifying threats, vulnerabilities and impact on systems.",
-     "doc_type": None, "profile_question": None, "review_in": [],
+     "doc_type": "nis2_risk_assessment", "profile_question": None, "review_in": [],
      "applies_from": None, "statutory": True},
 
     {"id": "nis2_02", "regulation": "NIS2", "article": "Art. 21",
