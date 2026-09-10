@@ -67,6 +67,7 @@ from template_renderer import Block, FieldSpec
 
 INSERTS: dict[str, dict[str, str]] = {
     "nis2_detection_text": {
+        "column": "nis2_detection_i18n",
         "label": "How incidents are detected",
         "prompt": (
             "In two or three sentences, describe how this organisation would "
@@ -77,6 +78,7 @@ INSERTS: dict[str, dict[str, str]] = {
         "query": "NIS2 incident detection and monitoring obligations",
     },
     "nis2_containment_text": {
+        "column": "nis2_containment_i18n",
         "label": "Containment and recovery steps",
         "prompt": (
             "In three or four sentences, describe the immediate steps this "
@@ -87,6 +89,7 @@ INSERTS: dict[str, dict[str, str]] = {
         "query": "NIS2 incident handling containment recovery measures",
     },
     "nis2_roles_text": {
+        "column": "nis2_roles_i18n",
         "label": "Who does what during an incident",
         "prompt": (
             "In two or three sentences, describe who leads an incident, who "
@@ -97,6 +100,7 @@ INSERTS: dict[str, dict[str, str]] = {
         "query": "NIS2 incident response governance management body",
     },
     "nis2_continuity_text": {
+        "column": "nis2_continuity_i18n",
         "label": "How the business keeps running",
         "prompt": (
             "In three or four sentences, describe how this organisation "
@@ -106,6 +110,7 @@ INSERTS: dict[str, dict[str, str]] = {
         "query": "NIS2 business continuity crisis management backup",
     },
     "nis2_testing_text": {
+        "column": "nis2_testing_i18n",
         "label": "How the plan is tested",
         "prompt": (
             "In two sentences, describe how and how often this organisation "
@@ -421,8 +426,20 @@ def apply_nis2_values(
     """Flags and inserts. Every omitted section is omitted on a fact."""
     ctx = block_context or {}
 
-    for key in INSERTS:
-        values[key] = client.get(key) or ""
+    # Per language, falling back to English then to the legacy TEXT column.
+    #
+    # These shipped as single-language TEXT and produced English paragraphs
+    # under French headings — the S26C defect one sprint later, and worse,
+    # because a mistranslated containment procedure is acted on at 2am.
+    for key, spec in INSERTS.items():
+        blob = client.get(spec["column"]) or {}
+        text = ""
+        if isinstance(blob, Mapping):
+            for lang in (language, "en"):
+                if (blob.get(lang) or "").strip():
+                    text = blob[lang].strip()
+                    break
+        values[key] = text or (client.get(key) or "")
 
     cls = client.get("nis2_entity_class")
     values["has_nis2_class"] = bool(cls)

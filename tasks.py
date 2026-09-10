@@ -182,6 +182,96 @@ def translations_outstanding(
 translations_awaiting_review = translations_outstanding
 
 
+# Below this many WORDS, a section is a fragment rather than an answer.
+#
+# Words, not characters. A 60-character floor flagged "We have no formal
+# testing programme in place at this time" — 57 characters, and exactly the
+# honest answer the drafting prompt asks for — alongside "By looking" at ten.
+# The two are indistinguishable by length and obvious by word count: 11 against
+# 2.
+#
+# A HEURISTIC, not a rule, and it warns rather than blocks. The finding says a
+# section LOOKS too short; it never asserts that it is wrong. Six words is low
+# enough that a real sentence clears it and a fragment does not.
+INSERT_MIN_WORDS = 6
+
+
+def wording_missing(
+    client: Mapping[str, Any],
+    inserts: Mapping[str, Mapping[str, Any]],
+    doc_languages: Iterable[str],
+) -> list[dict[str, Any]]:
+    """Insert sections with no text, or drafted and unconfirmed.
+
+    DUE rather than OPEN in both cases. A missing one stops the document being
+    produced at all — these are declared required. An unreviewed one is ranked
+    alongside it deliberately: this is a paragraph someone acts on during an
+    incident, not a label in a register.
+    """
+    langs = [l for l in doc_languages if l]
+    status = client.get("insert_translation_status") or {}
+    status = status if isinstance(status, Mapping) else {}
+    out = []
+    for key, spec in inserts.items():
+        blob = client.get(spec.get("column") or "") or {}
+        blob = blob if isinstance(blob, Mapping) else {}
+        for lang in langs:
+            if not (blob.get(lang) or "").strip():
+                out.append(_finding(
+                    "wording", f"missing:{key}:{lang}",
+                    f"Write “{spec['label']}” in {lang.upper()}",
+                    DUE,
+                    "Documents needing this section will not generate until "
+                    "it exists.",
+                    link="wording",
+                ))
+            elif (status.get(key) or {}).get(lang) == "machine_unreviewed":
+                out.append(_finding(
+                    "wording", f"review:{key}:{lang}",
+                    f"Confirm the {lang.upper()} “{spec['label']}”",
+                    DUE,
+                    "Drafted automatically. It appears in your incident and "
+                    "continuity documents until you confirm it.",
+                    link="wording",
+                ))
+    return out
+
+
+def wording_too_short(
+    client: Mapping[str, Any],
+    inserts: Mapping[str, Mapping[str, Any]],
+    doc_languages: Iterable[str],
+) -> list[dict[str, Any]]:
+    """Sections present but implausibly short.
+
+    Separate from wording_missing: an empty section is unwritten, a two-word
+    one has been answered badly, and telling a client "you have not written
+    this" when they have is how a task list loses credibility.
+
+    Surfaced here rather than only at save time. A warning on the form is seen
+    once, by someone who has decided to type "By looking" and move on; a
+    finding is still there tomorrow.
+    """
+    langs = [l for l in doc_languages if l]
+    out = []
+    for key, spec in inserts.items():
+        blob = client.get(spec.get("column") or "") or {}
+        blob = blob if isinstance(blob, Mapping) else {}
+        for lang in langs:
+            text = (blob.get(lang) or "").strip()
+            if text and len(text.split()) < INSERT_MIN_WORDS:
+                out.append(_finding(
+                    "wording", f"short:{key}:{lang}",
+                    f"“{spec['label']}” is very short in {lang.upper()}",
+                    OPEN,
+                    f"“{text}” — this goes into a document someone reads "
+                    "during an incident. If that is genuinely all there is to "
+                    "say, say so in a sentence.",
+                    link="wording",
+                ))
+    return out
+
+
 def documents_outstanding(
     register_rows: Iterable[Mapping[str, Any]],
     doc_labels: Mapping[str, str],
@@ -259,6 +349,7 @@ PRODUCERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "translation": translations_outstanding,
     "document":    documents_outstanding,
     "readiness":   inventory_gaps,
+    "wording":     wording_missing,
 }
 
 
