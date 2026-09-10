@@ -103,10 +103,16 @@ def draft(
 
     context = _context(spec["query"], language)
 
+    _LANG = {"en": "English", "fr": "French", "nl": "Dutch", "de": "German"}
+    target = _LANG.get(language, "English")
+
     system = (
-        "You draft short, factual paragraphs for a small company's internal "
-        "security documentation. Write in the first person plural — 'we do X' "
-        "— because the client will publish this as their own statement.\n\n"
+        f"You draft short, factual paragraphs in {target} for a small "
+        "company's internal security documentation. Write in the first person "
+        "plural — 'we do X' — because the client will publish this as their "
+        "own statement.\n\n"
+        f"Write in {target} only. The retrieved regulation text below may be "
+        "in another language; use it for accuracy, not for wording.\n\n"
         "Rules:\n"
         "- Say what the organisation DOES. Never give advice, never write "
         "'should' or 'must', never explain the regulation.\n"
