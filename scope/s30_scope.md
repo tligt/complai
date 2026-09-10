@@ -147,16 +147,42 @@ the document says whether it was sought.
 
 ---
 
+## Resolved
+
+**Both regulations in one sprint.** DPIA and NIS2 risk assessment together.
+The engine serves both either way, and splitting them would mean building the
+register twice in spirit — once now and once when `nis2_01` came round.
+
+**Risk catalogues: RECOSA-authored, structured so a source can be cited
+later.**
+
+*Preferred but deferred:* deriving them from the CNIL PIA knowledge base, or
+from ENISA's threat taxonomy for the NIS2 side. That IS the stronger statement
+— "these are the risks CNIL identifies" carries weight that "these are the
+risks our tool suggests" does not, and it is the same reasoning as D-51, where
+reference notes stayed generic because a cited note is RECOSA asserting what
+national law requires.
+
+*Why deferred:* sourcing 40-odd entries against a current published version,
+and checking each one still says what it said, is most of a sprint on its own.
+The catalogues would stall the work rather than be part of it.
+
+**What that costs, stated plainly:** the entries are unattributed. A client who
+asks where the list comes from gets "RECOSA wrote it", which is honest and
+weaker than the alternative.
+
+**What makes the swap cheap later:** every entry carries an optional `source`
+and `source_ref` in its metadata, empty for now. Adding attribution is then
+filling two fields per row rather than restructuring a vocabulary, and rows can
+be attributed one at a time as they are checked rather than all at once.
+
+Flagged for counsel alongside the templates.
+
+---
+
 ## Open — needs a decision
 
-1. **Does S30 cover the NIS2 risk assessment too, or only the DPIA?** The
-   engine serves both, but two catalogues and two documents in one sprint is
-   large. Doing the DPIA alone leaves `nis2_01` unaddressed for longer, but
-   the engine is built either way.
-2. **Who authors the risk catalogues?** Roughly 15–25 entries each, and they
-   are the substance of the sprint. RECOSA-authored and reviewed, or drawn
-   from a published source such as the CNIL PIA knowledge base?
-3. **Does an unmitigated high residual risk BLOCK the document?** A DPIA
+1. **Does an unmitigated high residual risk BLOCK the document?** A DPIA
    recording an unacceptable risk is a valid and important DPIA — it is what
    triggers Art. 36. But generating it silently, with no prompt, would let a
    client file it and start processing.

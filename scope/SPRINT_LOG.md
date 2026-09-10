@@ -2450,6 +2450,62 @@ standard as D-42 and D-51.
 
 ---
 
+### D-84 — Risk catalogues are RECOSA-authored, with attribution deferred
+
+The DPIA and NIS2 risk assessments offer a pick-list rather than a blank box:
+15–25 typical risks per regulation, which the client selects from and adds to.
+
+*Preferred but deferred:* deriving them from the CNIL PIA knowledge base and
+ENISA's threat taxonomy. That is the stronger statement — "these are the risks
+CNIL identifies" carries weight that "these are the risks our tool suggests"
+does not — and it is D-51's reasoning applied to a catalogue rather than to a
+note.
+
+*Why deferred:* sourcing 40-odd entries against a current published version and
+verifying each still says what it said is most of a sprint. The catalogues
+would stall S30 rather than be part of it.
+
+**The cost, stated:** the entries are unattributed. A client asking where the
+list comes from gets "RECOSA wrote it".
+
+**What keeps the swap cheap:** every entry carries an optional `source` and
+`source_ref` in metadata, empty for now, so attribution is filling two fields
+per row rather than restructuring a vocabulary — and rows can be attributed one
+at a time as they are checked.
+
+Flagged for counsel with the templates.
+
+### D-85 — One assessment engine, two catalogues, two acceptance rules
+
+`nis2_01` became operational in S29A because a risk assessment is an
+assessment, not a template. A DPIA is the same shape, and building both
+separately would be the divergence pattern.
+
+**Shared:** the register and the workflow. Identify a risk, state likelihood
+and severity, record controls, decide whether the residual risk is acceptable,
+record who decided and when.
+
+**Not shared — what a risk IS, and what makes it acceptable:**
+
+| | DPIA (Art. 35) | NIS2 (Art. 21(2)(a)) |
+|---|---|---|
+| risk to | rights and freedoms of natural persons | network and information systems |
+| if unacceptable | **Art. 36 prior consultation before processing begins** | a management decision |
+
+A cloud outage is a serious NIS2 risk and barely a DPIA risk; intrusive but
+lawful profiling is the reverse.
+
+**The failure to guard against** is a generic "risk" object serving both by
+being vague about which harm it measures. That is how a DPIA ends up reading
+like an IT risk register — the commonest way DPIAs are done badly, and the
+thing an authority spots first.
+
+*Also rejected:* a risk scoring model. Likelihood times severity produces a
+number that looks objective and is not. The register keeps both dimensions and
+a person decides.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.
