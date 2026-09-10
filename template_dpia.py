@@ -74,6 +74,11 @@ DPIA_FIELDS = _IDENTITY + _ASSESSMENT + [
     FieldSpec("dpo_advice", "The DPO's advice"),
     FieldSpec("has_dpo_advice", "DPO advice recorded", flag=True),
     FieldSpec("dpo_not_consulted", "DPO advice explicitly not sought", flag=True),
+    # THREE states, three flags. A designated DPO whose advice has not been
+    # recorded either way is not the same as one who was not consulted, and it
+    # is not the same as no DPO at all — but with only two flags the section
+    # vanished entirely, which reads as "Art. 35(2) does not apply here".
+    FieldSpec("dpo_unanswered", "DPO designated, advice not recorded", flag=True),
 
     FieldSpec("has_processing_table", "Processing described", flag=True),
 ]
@@ -148,9 +153,21 @@ def render_dpia_risks(context: Mapping[str, Any], language: str) -> Block:
             if it.get("residual_severity") is not None
             else _t(language, "unassessed")
         )
-        measures = "\n".join(filter(None, [
-            it.get("existing_controls"), it.get("additional_measures"),
-        ])) or _t(language, "none")
+        # Labelled and separated, not newline-joined.
+        #
+        # "\n".join produced "Nothing Nothing" — the DOCX converter collapses a
+        # newline inside a table cell, so two answers ran together into
+        # something that reads like a stutter. They are also different
+        # questions: what already reduces the risk, and what will be done about
+        # it. A reader cannot tell which is which from a joined string.
+        _now = (it.get("existing_controls") or "").strip()
+        _plan = (it.get("additional_measures") or "").strip()
+        parts = []
+        if _now:
+            parts.append(f"{_t(language, 'controls')}: {_now}")
+        if _plan:
+            parts.append(f"{_t(language, 'measures')}: {_plan}")
+        measures = " · ".join(parts) or _t(language, "none")
 
         row = [what, before, measures, after]
         if is_nis2:
@@ -309,6 +326,10 @@ def apply_dpia_values(
         a.get("dpo_consulted") and (a.get("dpo_advice") or "").strip()
     )
     values["dpo_not_consulted"] = a.get("dpo_consulted") is False
+    values["dpo_unanswered"] = (
+        bool((client.get("dpo_name") or "").strip())
+        and a.get("dpo_consulted") is None
+    )
 
     values["has_policy_effective_date"] = bool(values.get("policy_effective_date"))
 

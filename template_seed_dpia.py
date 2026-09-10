@@ -64,9 +64,9 @@ BODY_EN = """\
 
 **{{legal_name}}**{{#if:has_legal_form}}, {{legal_form}}{{/if:has_legal_form}}
 
-## {{assessment_title}}
+**{{assessment_title}}**
 
-{{#if:has_policy_effective_date}}**Assessed {{policy_effective_date}}.**{{/if:has_policy_effective_date}}
+{{#if:has_policy_effective_date}}Assessed {{policy_effective_date}}.{{/if:has_policy_effective_date}}
 
 ## 1. Why this assessment was carried out
 
@@ -154,6 +154,14 @@ officer where one has been designated.
 A data protection officer is designated, and their advice was not sought for
 this assessment. Article 35(2) requires it.
 {{/if:dpo_not_consulted}}
+
+{{#if:dpo_unanswered}}
+## 7. The Data Protection Officer's advice
+
+A data protection officer is designated. Whether their advice was sought for
+this assessment has not been recorded — Article 35(2) requires it to be sought,
+and this document cannot say whether it was.
+{{/if:dpo_unanswered}}
 """
 
 BODY_FR = """\
@@ -161,9 +169,9 @@ BODY_FR = """\
 
 **{{legal_name}}**{{#if:has_legal_form}}, {{legal_form}}{{/if:has_legal_form}}
 
-## {{assessment_title}}
+**{{assessment_title}}**
 
-{{#if:has_policy_effective_date}}**Analyse réalisée le {{policy_effective_date}}.**{{/if:has_policy_effective_date}}
+{{#if:has_policy_effective_date}}Analyse réalisée le {{policy_effective_date}}.{{/if:has_policy_effective_date}}
 
 ## 1. Pourquoi cette analyse a été réalisée
 
@@ -253,6 +261,14 @@ délégué à la protection des données lorsqu'il en a désigné un.
 Un délégué à la protection des données est désigné et son avis n'a pas été
 sollicité pour la présente analyse. L'article 35(2) l'exige.
 {{/if:dpo_not_consulted}}
+
+{{#if:dpo_unanswered}}
+## 7. Avis du délégué à la protection des données
+
+Un délégué à la protection des données est désigné. Il n'a pas été consigné si
+son avis a été sollicité pour la présente analyse — l'article 35(2) impose de
+le solliciter, et le présent document ne peut dire si cela a été fait.
+{{/if:dpo_unanswered}}
 """
 
 
