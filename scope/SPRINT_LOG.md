@@ -24,7 +24,7 @@ reversed by accident six months later. Three rules keep it useful:
    sprint; recording the plan produces a document that disagrees with the code.
 2. **Record the decision and the rejected alternative.** "We use Postgres for
    reference data" is worth little. "We use Postgres rather than a Python
-   constant *because* the S41 scanner needs to query it" is what stops a future
+   constant *because* the S43 scanner needs to query it" is what stops a future
    reader undoing it.
 3. **Decisions live in section 4, not in the sprint entries.** Sprints are
    chronological and get stale; decisions are current until superseded.
@@ -58,7 +58,7 @@ covering GDPR, NIS2, ePrivacy and the EU AI Act. It delivers AI-powered Q&A
 grounded in regulatory text, document generation, gap assessment, website
 auditing, and regulatory monitoring.
 
-Solo-founded, bootstrapped, pre-beta. The beta gate is **S32** (GDPR data
+Solo-founded, bootstrapped, pre-beta. The beta gate is **S33** (GDPR data
 deletion + session security hardening).
 
 **Positioning:** the intersection of three regulations converging on SMEs at
@@ -197,7 +197,7 @@ were added. This is the origin of decision **D-06**.
 **S22 — Feedback and support ticketing.**
 `answer_feedback`, `message_threads`, `messages`, `support_tickets`. A generic
 `message_threads` table was chosen over purpose-built ticket threading so the
-S46 document workflow comments can reuse it. Content-free Brevo reply
+S48 document workflow comments can reuse it. Content-free Brevo reply
 notification, throttled to the 0→1 unread transition. Deep-link `?ticket=`
 capture at the top of `app.py`.
 
@@ -219,7 +219,7 @@ will not match historical numbers, and scores move upward.
 **S24 — Vendor and system inventory.**
 Seven tables. Reference: `reference_values` (92 vocabulary terms across 14
 types), `vendor_catalogue` (20 vendors), `vendor_catalogue_activities` (26
-suggested activities), `vendor_domain_patterns` (empty until S41),
+suggested activities), `vendor_domain_patterns` (empty until S43),
 `catalogue_principles`. Client data: `systems`, `processing_activities`,
 `activity_systems`.
 
@@ -267,49 +267,78 @@ page. Closed 4 Sept 2026.
 Numbering has changed four times. **This is authoritative; older notes are
 not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
-S33.
+S34.
 
 **Delivered:** S1–S24, S25, S26, S26A, S26C, S27.
 
 | # | Sprint | Notes |
 |---|---|---|
-| ~~S28~~ | ~~Privacy Policy~~ | **Delivered 8 Sept. Tier 1, no LLM (D-71). AI Transparency Notice moved to S28A.** |
-| S28A | AI deployer pack: AUP + Human Oversight + **AI Transparency Notice** | Notice moved here from S28 — Art. 50 attaches to systems, and S51 has the inventory |
-| ~~S29~~ | ~~Obligation register + task register~~ | **Delivered 8 Sept.** D-77 to D-79. 7 derivations, 5 response kinds, derived-state task register |
-| ~~S29A~~ | ~~NIS2 pack~~ | **Delivered 9 Sept.** D-80 to D-83. Three doc types, five drafted inserts, RTO/RPO |
-| ~~S30~~ | ~~DPIA + NIS2 risk assessment~~ | **Delivered 10 Sept.** D-84 to D-89. Two catalogues (35 risks), shared engine, Art. 36 derived |
-| S31 | Regulation-aware chunk allocation | **See sequencing note below** |
-| S32 | Admin user management | |
-| **S32A** | **Migration to European infrastructure** | **D-67. Precedes the gate. Self-hosted Supabase + containerised app** |
-| **S32B** | **UI/navigation rework** | **D-69. In Streamlit, not a rewrite** |
-| **S33** | **GDPR deletion + session hardening** | **BETA GATE** |
-| S34 | Regulatory update → impact re-scoring | Reads S27 `source_revision` |
-| S35 | Multi-user for Professional | Seeds `workspace_members` |
-| S36 | Audit rate-limiting | |
-| S37 | Audit report email delivery | |
-| S38 | Domain verification | |
-| S39 | Scheduled recurring audits | Depends on S38 |
-| S40 | Freemium single-page scanner | Two-stage funnel — see S40 note |
-| S41 | Stripe + credits + annual billing | Meters shipped in S27 |
-| S42 | Onboarding redesign | Auto-detection layer only |
-| S43 | Document branding | Theme only |
-| S44 | Breach notification workflow | |
-| S45 | Advisory multi-client workspace | |
-| S46 | Enterprise multi-seat/multi-division | |
-| S47 | Enterprise routing + in-app messaging | |
-| S48 | Buffer/LinkedIn integration | |
-| S49 | Monitoring source management | Low priority. Merge with S54 |
-| S50 | Skills matrix and training register | High value-to-cost |
-| S51 | AI Act three-layer inventory | Use case / system / model |
-| S52 | Annual compliance report | |
-| S53 | Dutch language support | Cost grows with every template shipped |
-| S54 | Competitive monitoring | Merge with S49 |
-| S55 | RoPA consistency checks | Depends on S26C |
-| S56 | Cookie Policy purpose granularity | |
-| S57 | Compliance heartbeat — scheduled checks | Needs `hold_set_on` (shipped) |
+| ~~S28~~ | ~~Privacy Policy~~ | **Delivered 8 Sept.** Tier 1, no LLM (D-71) |
+| ~~S29~~ | ~~Obligation register + task register~~ | **Delivered 8 Sept.** D-77 to D-79 |
+| ~~S29A~~ | ~~NIS2 pack~~ | **Delivered 9 Sept.** D-80 to D-83 |
+| ~~S30~~ | ~~DPIA + NIS2 risk assessment~~ | **Delivered 10 Sept.** D-84 to D-89 |
 
-**Sequencing note on S31.** S28, S29 and S30 all produce documents with LLM
-inserts. If those inserts retrieve context, S31 gates the quality of three
+### Before the beta gate
+
+| # | Sprint | Notes |
+|---|---|---|
+| **S31** | **Migration to European infrastructure** | D-67/D-68. Self-hosted Supabase + containerised app. **Cheapest now — no clients yet** |
+| **S32** | **UI/navigation rework** | D-69. In Streamlit, not a rewrite |
+| S33 | Admin user management | |
+| **S34** | **GDPR deletion + session hardening** | **BETA GATE** |
+
+### After beta
+
+| # | Sprint | Notes |
+|---|---|---|
+| S35 | Regulation-aware chunk allocation | Chat ranking quality. Measure before building — see the note below |
+| S36 | Regulatory update → impact re-scoring | Reads S27 `source_revision` |
+| S37 | Multi-user for Professional | Seeds `workspace_members` |
+| S38 | Audit rate-limiting | |
+| S39 | Audit report email delivery | |
+| S40 | Domain verification | |
+| S41 | Scheduled recurring audits | Depends on S40 |
+| S42 | Freemium single-page scanner | Two-stage funnel |
+| S43 | Stripe + credits + annual billing | Meters shipped in S27 |
+| S44 | Onboarding redesign | Auto-detection layer only |
+| S45 | Document branding | Theme only |
+| S46 | Breach notification workflow | Follows the S29A procedure |
+| S47 | Advisory multi-client workspace | |
+| S48 | Enterprise multi-seat/multi-division | |
+| S49 | Enterprise routing + in-app messaging | |
+| S50 | Buffer/LinkedIn integration | |
+| S51 | Monitoring sources + competitive monitoring | Merged — both touch the same admin pages |
+| S52 | Skills matrix and training register | High value-to-cost. Feeds the S29 register |
+| S53 | AI Act three-layer inventory | Use case / system / model |
+| S54 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | **Moved** — needs S53's inventory to describe |
+| S55 | Annual compliance report | Renders S29 statements |
+| S56 | Dutch language support | Cost grows with every template shipped |
+| S57 | RoPA consistency checks | Depends on S26C |
+| S58 | Cookie Policy purpose granularity | |
+| S59 | Compliance heartbeat — scheduled checks | `hold_set_on` shipped |
+
+### Renumbering, 10 September 2026
+
+Five letter-suffixed sprints and two reorderings had left the numbers telling a
+different story from the priorities. **Delivered sprints keep their numbers** —
+they appear in commit messages, template `sprint` fields and change notes that
+cannot be rewritten, so S26A, S26C, S28, S29, S29A and S30 are unchanged.
+
+Everything unshipped was renumbered from S31. Relative order was preserved
+except for three deliberate changes:
+
+| was | now | why |
+|---|---|---|
+| S32A | S31 | Infrastructure was buried behind a letter suffix; it precedes the gate |
+| S31 | S35 | Chunk allocation is chat ranking quality, not a blocker (D-70) |
+| S28A | S54 | The AI deployer pack needs the AI Act inventory to describe |
+| S49 + S54 | S51 | Merged — both touch the same admin pages, and two sprints editing one page in sequence is how one silently reverts the other |
+
+*136 references were updated across this file. Anything written before this
+date — an issue, a commit message, a note elsewhere — uses the old numbering.*
+
+**Sequencing note on S35.** S28, S29 and S30 all produce documents with LLM
+inserts. If those inserts retrieve context, S35 gates the quality of three
 sprints that ship before it — and templates authored against a retrieval layer
 already suspected of being wrong get reviewed twice. Settle it before S28 by
 running a NIS2, an AI Act and a GDPR query through `retrieve()` and looking at
@@ -318,14 +347,14 @@ the chunk mix. An afternoon's check turns a guess into an answer.
 **Unnumbered, still to be slotted:**
 - ~~**Task register**~~ — now part of **S29**. Retained here for context: Unresolved work is
   currently surfaced where it is found and nowhere else: `readiness()` gaps,
-  outstanding `[[ TO COMPLETE ]]` placeholders, S55 findings, unreviewed
-  translations (S26C), S57 heartbeat findings. A client cannot see everything
+  outstanding `[[ TO COMPLETE ]]` placeholders, S57 findings, unreviewed
+  translations (S26C), S59 heartbeat findings. A client cannot see everything
   outstanding in one place and an auditor cannot see that a gap was found on
   one date and closed on another. **Three sprints already depend on it.**
-- ~~UI/navigation redesign~~ — now **S32B** (D-69).
+- ~~UI/navigation redesign~~ — now **S32** (D-69).
 - Pinning the remaining `requirements.txt` packages — before beta onboarding.
 
-**Post-S48 backlog:** DB schema import tool; NIS2 vendor risk register (extend
+**Post-S50 backlog:** DB schema import tool; NIS2 vendor risk register (extend
 to third-party AI tools); compliance calendar; public compliance badge; RECOSA
 trust page; SSO/SAML; document diffing; register export as a document.
 
@@ -417,7 +446,7 @@ Every register row carries, at **adoption** and not merely at generation:
 - `origin`: `generated` | `generated_then_revised` | `external`
 - `language`
 
-`source_revision` is the S34 hook: when a template's source revision bumps
+`source_revision` is the S36 hook: when a template's source revision bumps
 because the underlying law changed, the register is what identifies every
 client still on the old one.
 
@@ -450,11 +479,11 @@ rule for that document only, at the client's instruction.
 - Output is explicitly marked as a machine reading of a document RECOSA did not
   produce, and is advisory — the same posture as `machine_unreviewed`
   translations in S26C.
-- **Metered from day one.** Billing is S41, but the counter is S27: an
+- **Metered from day one.** Billing is S43, but the counter is S27: an
   `analysis_runs` record per invocation with client, document version, tokens
   and outcome. Retrofitting usage tracking after a feature ships is how you end
   up guessing at historical volumes when pricing it.
-- Tier-gated at the switch level in S27, with the tier itself defined in S41.
+- Tier-gated at the switch level in S27, with the tier itself defined in S43.
 
 ---
 
@@ -472,7 +501,7 @@ Two consequences:
 - **`doc_type` needs values for them.** Append-only convention applies: add
   codes, never allow null. At minimum an `external_other` with a client-supplied
   label; better, codes for the documents RECOSA does not yet generate but
-  expects to see (DPIA before S30, training records before S50).
+  expects to see (DPIA before S30, training records before S52).
 
 ---
 
@@ -510,7 +539,7 @@ Requirements that follow:
   expect retained previous versions, dated and version-numbered, together with
   evidence of how the consent mechanism evolved. That last item is not a
   document — it is configuration history, and RECOSA does not hold it today.
-  **Open: does S27 store cookie-banner configuration history, or is that S56?**
+  **Open: does S27 store cookie-banner configuration history, or is that S58?**
 - **VERIFY BEFORE SHIPPING.** The Belgian DPA guidance above and the five-year
   figure come from a working note, not from a checked primary source. Both are
   reasonable; neither should become a product default that tells a client what
@@ -531,7 +560,7 @@ they should be told that rather than reassured by the row that remains.
   scope-creep risk in this sprint.
 - Parsing uploaded documents by default. Only the on-request analysis above.
 - Scoring external documents.
-- The billing and tier definitions themselves (S41). S27 implements the switch
+- The billing and tier definitions themselves (S43). S27 implements the switch
   and the counter.
 - Cookie-banner configuration history, pending the open question above.
 
@@ -544,7 +573,7 @@ Per-document, per-language status surfaced as a client-facing summary:
 
 **One thing to decide before building:** the moment a client sets NL as a
 document language, every document reports "not available in NL", because the
-templates do not exist until S53. Honest, and the point of the feature — but
+templates do not exist until S56. Honest, and the point of the feature — but
 alarming on day one and not actionable by the client. Options: show gaps only
 for languages RECOSA can currently produce; or show them all and say plainly
 which are RECOSA's gap rather than the client's. **The second is more honest
@@ -554,10 +583,10 @@ and needs wording care.**
 
 ---
 
-### S41 — Billing — SCOPE ADDITIONS (from S27)
+### S43 — Billing — SCOPE ADDITIONS (from S27)
 
-S41 defines tiers, prices and enforcement. S27 ships the switches and the
-counters, so that when S41 arrives the usage history already exists rather than
+S43 defines tiers, prices and enforcement. S27 ships the switches and the
+counters, so that when S43 arrives the usage history already exists rather than
 being guessed at retrospectively.
 
 **Implement the meter with the feature, not with the billing.** A feature that
@@ -565,7 +594,7 @@ ships unmetered means pricing it later against invented volumes.
 
 ---
 
-#### Metered in S27, priced in S41
+#### Metered in S27, priced in S43
 
 **Uploaded-document analysis.** The "Analyse changes" button in S27 parses a
 document the client uploaded and summarises what a human altered. It is an LLM
@@ -575,7 +604,7 @@ feature in the product, and unlike translation it has no cheap fallback.
 - `analysis_runs`: client, document version, tokens in/out, outcome, timestamp.
 - Token usage logged through `database.log_token_usage` with a distinct
   feature name, alongside `chat` and `translate` (S26C).
-- S27 implements the tier check as a switch; S41 decides where it sits.
+- S27 implements the tier check as a switch; S43 decides where it sits.
 - Candidate shape: unavailable on Starter, N runs per month on Professional,
   unmetered on Advisory. Not decided here.
 
@@ -588,7 +617,7 @@ small and predictable.
 - The split matters for the pricing rule below.
 
 **Translation.** Already logged as feature `translate` from S26C. No further
-work; noted so S41 sees it.
+work; noted so S43 sees it.
 
 ---
 
@@ -624,7 +653,7 @@ whole client base is not a line item worth defending.
 
 #### Consequence for tier design
 
-Any feature gate proposed in S41 should be checked against one question: **does
+Any feature gate proposed in S43 should be checked against one question: **does
 withholding this make the client less compliant, or only less comfortable?**
 
 Withholding convenience, automation, speed, analysis, seats and multi-client
@@ -633,7 +662,7 @@ they have already adopted, or the ability to produce a document an obligation
 requires is selling compliance back to them — and it undermines the positioning
 that RECOSA produces compliance documents where competitors only manage them.
 
-Worth recording as a decision when S41 is scoped.
+Worth recording as a decision when S43 is scoped.
 
 ---
 
@@ -651,7 +680,7 @@ sector). Reference data at the end.
 template rather than inventing a structure: an auditor recognising the shape of
 the document is worth more than a better-organised original.
 
-**S40 — freemium scanner — two-stage funnel.** Adequacy runs a public
+**S42 — freemium scanner — two-stage funnel.** Adequacy runs a public
 10-question NIS2 self-assessment (ungated, no email wall) feeding a 32-question
 in-product maturity questionnaire that scores and populates the action plan.
 DPO Europe gates a 4-step AI Act checklist behind a form and emails a PDF.
@@ -664,17 +693,17 @@ for thinness.
 Europe sells a "vendor and external AI tools compliance checklist" as a
 deliverable. The same register serves NIS2 Art. 21 supply-chain security and
 AI Act deployer duties over third-party AI. Builds on the S24 criticality field
-plus S51.
+plus S53.
 
-#### S26B — renumbered to S55
+#### S26B — renumbered to S57
 
 Registered mid-session as a sub-sprint, then renumbered. The letter suffix
 means work running adjacent in time to its parent — S26A ran immediately after
-S26, before anything else. Consistency checks run after the S33 beta gate, so a
+S26, before anything else. Consistency checks run after the S34 beta gate, so a
 suffix would have read as a scheduling error rather than a subject grouping.
 See section 6.
 
-#### S28A — AI deployer document pack
+#### S54 — AI deployer document pack
 
 **Priority:** immediately after S28. **Tier:** 1 to low 2.
 
@@ -690,9 +719,9 @@ needs. S28 covers the transparency notice; these are the next two.
 Neither competitor generates these: Adequacy has no document library, and DPO
 Europe charges €9,900 for a manual pack containing them.
 
-#### S50 — Skills matrix and training register
+#### S52 — Skills matrix and training register
 
-**Priority:** high value-to-cost. Pre-beta if S33 allows. **Cost:** low —
+**Priority:** high value-to-cost. Pre-beta if S34 allows. **Cost:** low —
 two tables, one form, two documents, no engine.
 
 Informational only; RECOSA does not deliver training. It produces the evidence
@@ -718,7 +747,7 @@ Both competitors have shipped a training module — Adequacy's "Plan de
 formation RGPD" is marked NEW, DPO Europe sells AI literacy training as a line
 item. Two independent signals that training-and-evidence is a real surface.
 
-#### S51 — AI Act system inventory (three-layer)
+#### S53 — AI Act system inventory (three-layer)
 
 **Priority:** post-beta, ahead of CRA.
 
@@ -746,18 +775,18 @@ Flattening produces wrong classifications the moment a client uses one vendor
 model for two purposes with different risk profiles. Arrived at independently
 by both competitors, and not the obvious model.
 
-#### S52 — Annual compliance report ("Bilan")
+#### S55 — Annual compliance report ("Bilan")
 
-**Priority:** post-beta, near S38. **Depends on:** S27, S21.
+**Priority:** post-beta, near S40. **Depends on:** S27, S21.
 
 Period-bounded, board-facing: obligations in force during the period, documents
-adopted or superseded, incidents, training completed (S50), open actions,
-regulatory changes affecting the client (S34). Rendered through the existing
+adopted or superseded, incidents, training completed (S52), open actions,
+regulatory changes affecting the client (S36). Rendered through the existing
 template engine plus `document_xlsx.py`, stamped and registered like any other
 document. S27 gives the auditor a register; this gives management a narrative,
 and management-level accountability is an explicit NIS2 duty.
 
-#### S53 — Dutch (NL) language support
+#### S56 — Dutch (NL) language support
 
 **Priority:** post-beta, but it constrains work starting now.
 
@@ -770,19 +799,19 @@ Scope: NL interface labels; NL reference-data labels across every seeded table;
 NL siblings for every Tier 1 and Tier 2 template; GBA/APD naming and language
 routing.
 
-**Constrains present work.** Every template authored before S53 needs an NL
+**Constrains present work.** Every template authored before S56 needs an NL
 sibling, so the sprint's cost grows with every document shipped. Keep templates
 language-parallel — same block IDs, merge fields and materiality — so NL is
-translation, not re-derivation. Estimate against the S27–S32 template output
+translation, not re-derivation. Estimate against the S27–S33 template output
 before committing to a date, and consider pulling NL forward for Tier 1 only.
 
 Note: `reference_values` already carries `label_nl` / `label_de` / `note_nl` /
 `note_de`, and `inventory.py`'s `LANGUAGES` already declares four. Only the
 seeder is behind.
 
-#### S54 — Competitive monitoring
+#### S51 — Competitive monitoring
 
-**Priority:** low, alongside S49. Not beta-blocking.
+**Priority:** low, alongside S51. Not beta-blocking.
 
 Regulatory and marketing monitoring exist; competitive does not.
 
@@ -796,7 +825,7 @@ ComplyOne and Kalipso, sources TBC. Admin back-office only; no client-facing
 output; no email unless a pricing page changes. Nothing behind a login, and no
 competitor content in RECOSA output.
 
-**Merge with S49.** Adding a third monitoring type to the current duplicate
+**Merge with S51.** Adding a third monitoring type to the current duplicate
 `pages_admin/` modules makes the tangle worse. One monitoring-consolidation
 sprint.
 
@@ -812,7 +841,7 @@ cannot see everything outstanding in one place, and an auditor cannot see that
 a gap was found on one date and closed on another.
 
 S26C writes into it rather than inventing a translation-specific mechanism, and
-S55 is given the same instruction. Until it exists, translation review has
+S57 is given the same instruction. Until it exists, translation review has
 nowhere to land beyond a column in the activity summary.
 
 S27 adds two more producers: documents whose template source revision has moved
@@ -820,16 +849,16 @@ on, and uploaded revisions that need a client-written change note.
 
 ---
 
-### S55 and S56 — post-beta sprints
+### S57 and S58 — post-beta sprints
 
 Both were briefly registered as sub-sprints of S26 and renumbered. The letter
 suffix means work running adjacent in time to its parent (S26A ran immediately
-after S26, before anything else). These run after the S33 beta gate, so a
+after S26, before anything else). These run after the S34 beta gate, so a
 suffix would have read as a scheduling error rather than a subject grouping.
 
 ---
 
-### S55 — RoPA consistency checks
+### S57 — RoPA consistency checks
 
 **Priority:** post-beta. Small.
 **Depends on:** S26 (RoPA schema), **S26C** (structured retention and the
@@ -897,13 +926,13 @@ violations at the moment of authoring rather than at audit.
 
 The task register (unnumbered, see the session log). Until it exists, findings
 surface only where they are computed, and an auditor cannot see that a gap was
-found on one date and closed on another. S55 should write into it rather than
+found on one date and closed on another. S57 should write into it rather than
 inventing a second mechanism — the same instruction given to S26C for
 translation review.
 
 ---
 
-### S56 — Cookie Policy purpose granularity
+### S58 — Cookie Policy purpose granularity
 
 **Priority:** post-beta, with a caveat below.
 **Depends on:** S26C (the i18n pattern this extends).
@@ -934,7 +963,7 @@ Two problems were conflated during S26C and should not be again:
 2. **Granularity** — the entity is wrong. Not solved, and not solvable by
    translating a field that describes the wrong thing.
 
-Same shape as D-49 (retention has two phases, not one period) and S51 (one
+Same shape as D-49 (retention has two phases, not one period) and S53 (one
 model, many systems, many use cases), arrived at from a third direction. **When
 a field cannot hold two true answers, the entity is usually wrong.**
 
@@ -955,7 +984,7 @@ the task is confirmation rather than authoring. A repeating child table is not
 a scalar, and `st.data_editor` has no place to review a per-language draft —
 the same constraint that put activities on list-plus-detail in the first place.
 
-S56 therefore probably needs a detail form for systems, which is a UX change
+S58 therefore probably needs a detail form for systems, which is a UX change
 beyond the schema work. Scope that before building, not during.
 
 #### Caveat on deferring past beta
@@ -979,12 +1008,12 @@ It is Google specifically that breaks the model.
 
 ---
 
-### S57 — Compliance heartbeat (scheduled checks)
+### S59 — Compliance heartbeat (scheduled checks)
 
 **Priority:** post-beta, but see the beta caveat.
 **Depends on:** S27 (register, retention, legal hold), S21 (audit trail).
-**Related:** S33 (retention sweep — different job, same schedule), S50 (training
-expiry), S55 (RoPA consistency checks), the task register (unnumbered).
+**Related:** S34 (retention sweep — different job, same schedule), S52 (training
+expiry), S57 (RoPA consistency checks), the task register (unnumbered).
 
 ---
 
@@ -1045,16 +1074,16 @@ cheap once it exists.
   *(Added 8 Sept from the S28 scope lock.)*
 - **Retention dates approaching.** A superseded version reaching `retain_until`
   within 30 days, so the client can archive a copy before it goes. Pairs with
-  the S33 sweep — this warns, that deletes.
+  the S34 sweep — this warns, that deletes.
 - **Documents not reviewed in a year.** In force, never superseded, never
   looked at. Not a breach, but a register nobody has revisited is usually a
   register that has drifted from the business.
 - **Drafts never adopted.** Generated months ago and never put in force. Either
   the client meant to and forgot, or they abandoned it and it should be
   discarded. Both are worth a nudge.
-- **Training expiring** (S50) — AI Act Art. 4 literacy, NIS2 Art. 20(2)
+- **Training expiring** (S52) — AI Act Art. 4 literacy, NIS2 Art. 20(2)
   management training.
-- **Consistency findings** (S55) that have sat unresolved.
+- **Consistency findings** (S57) that have sat unresolved.
 - **Unreviewed machine translations** (S26C `machine_unreviewed`) still
   rendering into documents.
 - **Inventory not touched since a system was added.** A new vendor with no
@@ -1080,7 +1109,7 @@ auditor that a gap was found on one date and closed on another — and no way fo
 a client who deleted the email to find out what it was about.
 
 **Nothing acts automatically.** The heartbeat warns; it never releases a hold,
-never deletes, never adopts. S33's retention sweep is the only scheduled job
+never deletes, never adopts. S34's retention sweep is the only scheduled job
 that removes anything, and it is deliberately a separate one.
 
 **Idempotent and quiet.** A rule that fires every night on the same unchanged
@@ -1096,7 +1125,7 @@ beta with no timestamp cannot be aged later — the information is simply not
 there. Add the column with S27 or immediately after, even though nothing reads
 it yet.
 
-Same reasoning as metering the analysis feature in S27 before S41 prices it:
+Same reasoning as metering the analysis feature in S27 before S43 prices it:
 the data has to start accumulating before the feature that consumes it exists,
 because it cannot be reconstructed afterwards.
 
@@ -1108,7 +1137,7 @@ because it cannot be reconstructed afterwards.
 Applies since 2 February 2025 to Providers and Deployers alike and requires
 evidence of completion. The most universally applicable AI Act duty in the
 target market and among the cheapest to satisfy. If absent, add with
-`applies_from = 2025-02-02` and link the evidence artifact to S50.
+`applies_from = 2025-02-02` and link the evidence artifact to S52.
 
 **Is there an `applies_from` row for 2 December 2026?** DPO Europe's timeline
 states additional prohibited AI practices introduced by the AI Omnibus begin to
@@ -1121,7 +1150,7 @@ source.**
 Provider/Deployer/Importer/Distributor per system and per legal entity. If the
 current applicability logic holds a single role on the client record,
 obligations are wrong for any client that both builds and uses AI — which is
-most of them. Possible live modelling bug, not merely an S51 dependency.
+most of them. Possible live modelling bug, not merely an S53 dependency.
 
 **`chat.py`'s system prompt contradicts the obligations catalogue.** It tells
 clients Annex III high-risk applies from 2 August 2026. The Digital Omnibus
@@ -1169,9 +1198,9 @@ warns about. `inventory_seed.py` already emits the vocabularies; emitting the
 `label_nl`, `label_de`, `note_nl`, `note_de`. The `note_fr` gap was closed this
 session — every note in the table had been NULL since creation, so
 `note_for(..., lang="fr")` silently returned English for every code. NL and DE
-remain unwritten. S53.
+remain unwritten. S56.
 
-**Systems grid purpose.** Resolved: absorbed into S56, which addresses the
+**Systems grid purpose.** Resolved: absorbed into S58, which addresses the
 underlying modelling problem rather than only the language one. See S26C "Not
 shipped" for why translation alone would not have fixed it.
 
@@ -1190,7 +1219,7 @@ where report data is kept until the final decision, which is why
 
 **CNIL named recruitment a 2026 enforcement priority** the day after
 publishing, with checks on automated decision-making, candidate information and
-retention periods. Direct hit on the target market; an argument for S54 to
+retention periods. Direct hit on the target market; an argument for S51 to
 track CNIL référentiels specifically.
 
 **Belgian retention periods genuinely diverge.** CDE art. III.86: accounting
@@ -1254,7 +1283,7 @@ universities.
 
 *Read: enterprise and public sector, sold through demos, with attached services
 and AFNOR DPO training. PME is listed but nothing suggests they win there. The
-risk is downmarket movement, which S54 should catch.*
+risk is downmarket movement, which S51 should catch.*
 
 #### Positioning consequences
 
@@ -1347,10 +1376,10 @@ partial.
 Vocabularies and the vendor catalogue live in Postgres tables, not Python
 constants. Three roadmap items force it:
 
-- The S41 scanner resolves domains to vendors **by query**, against a table
+- The S43 scanner resolves domains to vendors **by query**, against a table
   growing to hundreds of rows.
 - Labels need per-language translation; codes do not.
-- S45 Enterprise taxonomies are per-workspace **by definition**, which a module
+- S47 Enterprise taxonomies are per-workspace **by definition**, which a module
   constant cannot express.
 
 Authoring still happens in Python: `inventory_seed.py` holds the content, emits
@@ -1393,7 +1422,7 @@ Client-facing principles as of S24:
    contradiction.
 6. **Deleting a system keeps its activities.** Swapping payroll providers must
    not erase the payroll RoPA row.
-7. **Cookies recorded at vendor level** until the S41 scanner supplies names
+7. **Cookies recorded at vendor level** until the S43 scanner supplies names
    and durations.
 
 ### D-05 — EU sovereignty and the Brevo boundary
@@ -1401,7 +1430,7 @@ Client-facing principles as of S24:
 No CLOUD Act exposure anywhere. Brevo is limited to **content-free** nudge
 notifications: compliance content — document bodies, ticket subjects,
 categories, severities, regulation names — must never leave RECOSA by email.
-Internal workflow messaging stays in-app (see S46).
+Internal workflow messaging stays in-app (see S48).
 
 ### D-06 — RLS covers every operation, always
 *Learned from three S21 incidents.*
@@ -1438,10 +1467,10 @@ and which versions are now out of date because the law moved. None of that is
 answerable from a folder of files.
 
 This inserted the document register as **S27** and moved every sprint below it
-by one, putting the beta gate at S33.
+by one, putting the beta gate at S34.
 
 It also accepts a premise: **generated documents will never fully match a
-client's design wishes.** That is what makes S43 theme-only — logo, primary
+client's design wishes.** That is what makes S45 theme-only — logo, primary
 colour, footer, font — rather than an attempt at full layout control.
 
 ### D-10 — Templates carry semantics, not presentation
@@ -1453,7 +1482,7 @@ intact: a lawyer reviews one template, not one per client.
 
 Two consequences acted on in S25 at no cost: a `theme` parameter threaded
 through the renderer and every block renderer from the first line, unused until
-S43; and a nullable `brand_profile_version` alongside `template_version_id`,
+S45; and a nullable `brand_profile_version` alongside `template_version_id`,
 because a regenerated document differs on two independent axes and without both
 "why does this look different from what we filed?" has no answer in the data.
 
@@ -1676,7 +1705,7 @@ The
 catalogue is RECOSA-authored with a fixed language set, so `name_en`/`name_fr`
 is right there. Client data is per-client with a growing set, and suffix
 columns would mean `ALTER TABLE` per language forever — the trap flagged for
-S53. *Rejected:* suffix columns for consistency. Consistency of mechanism is
+S56. *Rejected:* suffix columns for consistency. Consistency of mechanism is
 worth less than not migrating the table every time a language is added.
 
 ### D-48 — retention is not backfilled
@@ -1879,7 +1908,7 @@ is the problem — nobody can show who decided, when, or on what basis, and
 spoliation arguments turn on exactly that.
 
 Worse, and self-inflicted: `hold_set_on` is cleared on release so the next hold
-ages from its own start (S57). That meant releasing a hold erased the fact it
+ages from its own start (S59). That meant releasing a hold erased the fact it
 had ever existed — a document held for two years became indistinguishable from
 one never held. `set_legal_hold` now reads the row BEFORE updating, so the
 duration survives into the event.
@@ -1986,7 +2015,7 @@ infrastructure is a client whose data has been processed there, and a later
 migration is a migration with live clients on it — with a cutover, a support
 burden, and a conversation about why their data moved.
 
-**Consequence for the roadmap:** this precedes S33 (the beta gate). It is not
+**Consequence for the roadmap:** this precedes S34 (the beta gate). It is not
 optional work that fits if there is time.
 
 **Candidates** consistent with the positioning: Scaleway, OVHcloud, Hetzner,
@@ -2038,7 +2067,7 @@ Recorded so the question is not reopened at a bad moment.
 
 ---
 
-### D-70 — Document generation filters retrieval by regulation. S31 stays at 31.
+### D-70 — Document generation filters retrieval by regulation. S35 stays at 31.
 
 Measured 8 Sept 2026, nine queries across four regulations, seven clean.
 
@@ -2081,12 +2110,12 @@ Roughly twenty lines, plus `ensure_payload_indexes()` — `PayloadSchemaType`
 was imported and never used, so `parent_regulation` may have had no index and
 every filtered query would have scanned.
 
-**S31 is NOT brought forward.** Regulation-aware *allocation* — splitting
+**S35 is NOT brought forward.** Regulation-aware *allocation* — splitting
 `top_k` across regulations by relevance — addresses ranking quality in the
 genuinely ambiguous chat case. Different problem, less urgent, and not what
 gated S28, S29 and S30.
 
-*Rejected:* moving S31 ahead of S28 on the raw 7/9 count. The count measured
+*Rejected:* moving S35 ahead of S28 on the raw 7/9 count. The count measured
 the wrong thing. Two sprints of work were avoided by reading why the failures
 happened rather than how many there were.
 
@@ -2184,7 +2213,7 @@ comment in that file admitted the compromise: the first document language was
 
 `profiles.ui_language`, CHECK-constrained, **defaulting to `en` rather than to
 anything derived** — a default borrowed from a different question is how this
-went wrong the first time. No selector until S32B provides a profile page, so
+went wrong the first time. No selector until S32 provides a profile page, so
 it is English for everyone today, which is correct.
 
 *Related defect, same root:* the save handler wrote the legacy `name` column
@@ -2234,7 +2263,7 @@ for embedded third-party tags. Higher stakes here than in a register.
 - **Art. 13(2)(e)** — whether providing the data is statutory or contractual,
   and the consequences of not providing it. No field exists.
 - **Art. 13(2)(f) / Art. 22** — automated decision-making. No field. Deferred
-  with S51.
+  with S53.
 
 Both are flagged in the template's FOR COUNSEL block. Inventing a field would
 be a placeholder in different clothing.
@@ -2321,7 +2350,7 @@ Five kinds, resolved per obligation in `response_kind()` — a classification,
 not a rendering decision, so it is testable rather than living in the page.
 
 `derived` (7) · `document` (16) · `acknowledge` (3) · `tracked` (0, awaiting
-S50) · `statement` (28).
+S52) · `statement` (28).
 
 Forcing one shape on all 54 is what makes compliance tools feel like paperwork:
 an obligation RECOSA can answer, one that needs a document, and one that needs
@@ -2847,7 +2876,7 @@ retention, a source multiselect and translation-on-save, all on a layout built
 for a flat activity record.
 
 Each fix worked. The reason they kept coming is that the page now does
-considerably more than it was designed to. **That is the argument for S32B**,
+considerably more than it was designed to. **That is the argument for S32**,
 and it is a better one than "the interface needs polish".
 
 Also worth recording: two of the three friction points reported by the user
@@ -2938,7 +2967,7 @@ written by Claude.
 
 ## 6. Commercial model
 
-*Effective when S40 ships.*
+*Effective when S42 ships.*
 
 | Plan | Monthly | Credits | Annual | Top-up |
 |---|---|---|---|---|
@@ -2954,7 +2983,7 @@ monthly→annual any time with proration; downgrade only at period end.
 7-day free trial → 7-day read-only extension → data deletion at day 14.
 
 **For Starter and Professional the user *is* the company** — no client
-selector. The multi-client selector is Advisory-only (S44).
+selector. The multi-client selector is Advisory-only (S46).
 
 ---
 
@@ -2962,23 +2991,23 @@ selector. The multi-client selector is Advisory-only (S44).
 
 | Question | Blocks | Notes |
 |---|---|---|
-| ~~Does S31 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. |
-| Task register — which number? | S55, S57, S26C | Three sprints depend on it. Currently unnumbered. |
-| Systems grid purpose granularity | S56 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
+| ~~Does S35 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. |
+| Task register — which number? | S57, S59, S26C | Three sprints depend on it. Currently unnumbered. |
+| Systems grid purpose granularity | S58 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
 | Belgian DPA cookie guidance + 5-year figure | S27 | Recorded from a working note, not a checked primary source. **Verify before it becomes a client-facing default.** |
-| Rolling retention start dates | S55 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
-| AI Act role: per client or per system? | S51 | Both competitors resolve per system and per legal entity. Possible live modelling bug. |
-| Art. 4 AI literacy in the catalogue? | S50 | In force since 2 Feb 2025, binds Providers *and* Deployers. |
+| Rolling retention start dates | S57 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
+| AI Act role: per client or per system? | S53 | Both competitors resolve per system and per legal entity. Possible live modelling bug. |
+| Art. 4 AI literacy in the catalogue? | S52 | In force since 2 Feb 2025, binds Providers *and* Deployers. |
 | `applies_from` for 2 Dec 2026? | — | Additional prohibited practices per the AI Omnibus. **Verify against the OJ, not a competitor's marketing page.** |
 | `chat.py` says Annex III applies from 2 Aug 2026 | — | Contradicts `obligations.py`. Client-visible wrong answer about a date now past. |
-| Art. 9(2) coverage | S55 | Both seeded paths use `employment_social_security`; the other nine untested. |
+| Art. 9(2) coverage | S57 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
-| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S32A.** |
+| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S31.** |
 | Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |
-| PDF/ODT fallback | S33 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
-| Beta date | — | Six sprints to the S33 gate. The lever if it slips is moving S30 (DPIA) post-beta. |
+| PDF/ODT fallback | S34 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
+| Beta date | — | Six sprints to the S34 gate. The lever if it slips is moving S30 (DPIA) post-beta. |
 
 ### The hosting question — resolved 8 Sept 2026
 
@@ -2987,7 +3016,7 @@ beta, self-host Supabase rather than replace it, rework the UI in Streamlit
 rather than rewrite the front end, and correct the marketing copy this week
 regardless.
 
-**Resolved since the last revision:** language scope (FR/EN now, NL as S53, with
+**Resolved since the last revision:** language scope (FR/EN now, NL as S56, with
 templates authored language-parallel so NL is translation not re-derivation);
 `selected_client` language key (`pages/inventory.py` reads `document_languages`,
 and S26C derives `doc_langs` from it).
