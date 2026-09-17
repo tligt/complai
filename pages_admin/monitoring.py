@@ -352,8 +352,10 @@ with tab_reg:
                         st.warning(f"⚡ Action required: {u.get('action_description', '')}")
                     if u.get("status") == "url_flagged":
                         st.error(f"⚠️ URL issue: {u.get('url_check_reason', 'unknown reason')}")
-                    if u.get("url"):
+                    if (u.get("url") or "").startswith(("http://", "https://")):
                         st.markdown(f"[🔗 Source]({u['url']})")
+                    elif u.get("url"):
+                        st.caption(f"⚠️ Non-URL source value (not clickable): {u['url']}")
                     detected = u.get("detected_at", "")[:10] if u.get("detected_at") else "—"
                     st.caption(f"Detected: {detected}")
 
@@ -682,8 +684,10 @@ with tab_mkt:
                     st.caption(f"Language: {lang}")
                     if u.get("status") == "url_flagged":
                         st.error(f"⚠️ URL issue: {u.get('url_check_reason', 'unknown reason')}")
-                    if u.get("url"):
+                    if (u.get("url") or "").startswith(("http://", "https://")):
                         st.markdown(f"[🔗 Source]({u['url']})")
+                    elif u.get("url"):
+                        st.caption(f"⚠️ Non-URL source value (not clickable): {u['url']}")
                     created = u.get("created_at", "")[:10] if u.get("created_at") else "—"
                     st.caption(f"Detected: {created}")
 

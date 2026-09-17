@@ -217,6 +217,13 @@ def _normalise_items(raw: list) -> list[dict]:
             continue
         if url in ("", "N/A", "unknown", "https://example.com"):
             url = ""
+        # Reject anything that isn't an actual absolute link — e.g. an
+        # internal citation token the search agent sometimes returns
+        # instead of a real URL (observed: "news-afp-20260915-5e6feb42").
+        # Saving that as-is renders as a same-origin relative link in the
+        # BO, which just navigates back into the admin app itself.
+        elif not url.startswith(("http://", "https://")):
+            url = ""
         results.append({
             "title":         title,
             "url":           url,
