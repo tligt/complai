@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -280,15 +280,25 @@ S34.
 | ~~S32~~ | ~~UI/navigation rework~~ | **Delivered 18 Sept.** D-69, D-95 |
 | ~~S33~~ | ~~Admin user management~~ | **Delivered 18 Sept.** D-90 to D-94 |
 | ~~S34~~ | ~~Chat retrieval quality~~ | **Delivered 18 Sept.** Parts 1–2 shipped, Part 3 not needed. D-96 |
+| ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
-**S32, S33 and S34 shipped ahead of S31.** The table's order is planning
-intent, not a dependency graph. None of the three depended on the
+**S32, S33, S34 and S47 shipped ahead of S31.** The table's order is
+planning intent, not a dependency graph. None of the four depended on the
 infrastructure migration — S32 needed no hosting change to ship, S33
 needed a place to assign the new `subscription_tier` field by hand well
-before support could wait on a migration, and S34 is pure retrieval logic
-against the existing Qdrant collection. Per the renumbering rule below
-(*delivered sprints keep their numbers*), all three keep their numbers.
-S31 is now the only thing left before the gate.
+before support could wait on a migration, S34 is pure retrieval logic
+against the existing Qdrant collection, and S47 was a bug fix forced by
+the first multi-client account ever to exist, not scheduled work. Per the
+renumbering rule below (*delivered sprints keep their numbers*), all four
+keep their numbers. S31 is now the only thing left before the gate.
+
+**S47 in particular jumped its own queue** — it was scoped post-beta (see
+its own scope lock in 3b for why that stays the documented position going
+forward) but shipped the same day it was found, because it was reported as
+a live error rather than discovered by review. The scope lock's position
+call is left as written; this is the one sprint in this log delivered
+before its own stated position, and it is recorded that way rather than
+quietly reordered.
 
 ### Before the beta gate
 
@@ -312,7 +322,6 @@ S31 is now the only thing left before the gate.
 | S44 | Onboarding redesign | Auto-detection layer only |
 | S45 | Document branding | Theme only |
 | S46 | Breach notification workflow | Follows the S29A procedure |
-| S47 | Advisory multi-client workspace | Scope-locked 18 Sept — 8 pages affected, see 3b |
 | S48 | Enterprise multi-seat/multi-division | |
 | S49 | Enterprise routing + in-app messaging | |
 | S50 | Buffer/LinkedIn integration | |
@@ -1283,7 +1292,14 @@ itself post-beta. The exposure window before beta is test accounts only.
 Revisit if an admin manually upgrades a real client to Advisory with more
 than one company before S43 ships.
 
----
+**Shipped the same day anyway.** The position call above was correct and
+is left as written — nothing about *when this needed to happen* changed.
+What changed is that it stopped being scheduled work the moment it was a
+live, reproducible error rather than a documented gap: once found, the
+fix was small, well-scoped, and there was no reason to sit on a known
+crash. This is the one sprint in this log delivered ahead of its own
+recorded position, and it is written down as exactly that rather than
+quietly reordered after the fact.
 
 #### What's actually broken, checked page by page rather than assumed
 
@@ -1422,6 +1438,22 @@ on one page — confirm every other page reflects it without asking again.
 Re-check a single-client account afterward (any Professional account) to
 confirm none of Parts 1–3 add a selector or any visible change to the
 common case.
+
+**Measured, 18 September 2026.** One page turned out not to need fixing
+at all: `wording_page.py` was never registered in `app.py`'s navigation —
+an orphaned duplicate of `wording.py`, unreachable, deleted rather than
+patched. Seven pages actually changed, not eight.
+
+Six of the seven confirmed live, error-free, correctly scoped to the
+persisted client selection, with no code path left unexercised: Risk
+Assessments (the page that reported the original crash — confirmed clean),
+Dashboard, Obligations, Compliance Record, Incident wording, Activity Log.
+The already-resolved-selection branch of `get_active_client()` — the one
+carrying all the actual risk, since it replaced six near-identical broken
+queries — is exhausted by this set. The ask-inline branch was not
+independently re-proven; it is the same `st.selectbox` mechanic
+`gap.py`/`documents.py` already used correctly before this sprint touched
+them, so it inherits their track record rather than needing its own.
 
 ---
 
