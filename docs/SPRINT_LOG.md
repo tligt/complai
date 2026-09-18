@@ -1450,10 +1450,16 @@ Assessments (the page that reported the original crash — confirmed clean),
 Dashboard, Obligations, Compliance Record, Incident wording, Activity Log.
 The already-resolved-selection branch of `get_active_client()` — the one
 carrying all the actual risk, since it replaced six near-identical broken
-queries — is exhausted by this set. The ask-inline branch was not
-independently re-proven; it is the same `st.selectbox` mechanic
-`gap.py`/`documents.py` already used correctly before this sprint touched
-them, so it inherits their track record rather than needing its own.
+queries — is exhausted by this set. The ask-inline branch was seen
+rendering correctly once during this session's own testing (a fresh
+login, landing on Risk Assessments before anything else had picked a
+client, produced a real "Select client" dropdown on the page), but
+switching clients through it via browser automation was unreliable enough
+— a known BaseWeb-combobox precision issue this session hit repeatedly
+elsewhere, not specific to this code — that it was left for a human to
+confirm rather than forced. **Confirmed by hand, same day: switching
+clients works and feels smooth.** Both branches are now genuinely
+verified, not just the one automation could reach cleanly.
 
 ---
 
