@@ -16,6 +16,12 @@ import json
 import time
 import requests
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# No-op in GitHub Actions (no .env file there, and real env vars are
+# already set via secrets) — only fills in values for local runs.
+load_dotenv()
+
 from database import (
     save_marketing_update,
     log_token_usage,
@@ -216,6 +222,13 @@ def _normalise_items(raw: list) -> list[dict]:
         if not title or len(title) < 10:
             continue
         if url in ("", "N/A", "unknown", "https://example.com"):
+            url = ""
+        # Reject anything that isn't an actual absolute link — e.g. an
+        # internal citation token the search agent sometimes returns
+        # instead of a real URL (observed: "news-afp-20260915-5e6feb42").
+        # Saving that as-is renders as a same-origin relative link in the
+        # BO, which just navigates back into the admin app itself.
+        elif not url.startswith(("http://", "https://")):
             url = ""
         results.append({
             "title":         title,

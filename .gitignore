@@ -1,0 +1,17 @@
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS / editor cruft
+.DS_Store

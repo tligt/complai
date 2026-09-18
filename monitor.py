@@ -17,6 +17,12 @@ import re
 import requests
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# No-op in GitHub Actions (no .env file there, and real env vars are
+# already set via secrets) — only fills in values for local runs.
+load_dotenv()
+
 from database import (
     save_regulatory_update,
     log_token_usage,
