@@ -222,27 +222,61 @@ if "NIS2" in regulations:
 st.divider()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────
-# Summary table + one detail panel for the selected row, not one expander per
-# task — same shape as pages/inventory.py's activities tab, and for the same
-# reason: at 53 open tasks the old per-row button-and-container shape rendered
-# 53 buttons (plus a hidden container each) on every run, most of them never
-# opened. Detail is deliberately NOT a table column: st.dataframe cannot wrap
-# text to two lines, so a Detail column either truncates every long sentence
-# or forces a click per row to read it. Full title, detail and due date show
-# in the panel below instead, for whichever one task is selected.
+# Summary table with two real per-row actions — Go fix it and Dismiss — via
+# st.column_config.ButtonColumn, which renders actual clickable buttons
+# inside a cell and fires a Python callback with the clicked row's index.
+# Every finding already carries `link`, the page that actually fixes the
+# underlying thing; "obligations" is this page, so those rows get no
+# fix-it button — everything else does.
 #
-# Every finding already carries a `link` — which page actually fixes the
-# underlying thing — and nothing rendered it before. "obligations" is this
-# page, so it is left without a button; everything else becomes a real
-# st.page_link, which is the actual answer to "why can't I just fix it from
-# here": most of these can't be fixed here, only acknowledged or dismissed,
-# because the finding is a symptom read off another page's data.
+# A single narrow icon column measured right in testing and then rendered
+# far too wide in a real browser window: st.dataframe distributes any
+# leftover row width EVENLY across every column once the sum of configured
+# widths is less than the table's own width, including a column pinned at
+# 36px — confirmed in the installed column_config source, not assumed. The
+# icon is folded into the Task text instead, so there is no narrow column
+# for that redistribution to inflate. Due is narrowed the same way, though
+# a normal text column being stretched somewhat is far less visually broken
+# than a one-character column was.
 _TASK_LINK_PAGES = {
     "inventory":          "pages/inventory.py",
     "documents":          "pages/documents.py",
     "wording":            "pages/wording.py",
     "compliance_record":  "pages/compliance_record.py",
 }
+_FIX_LABEL = "Fix it"
+_DISMISS_LABEL = "Dismiss"
+
+
+def _task_actions(f: dict) -> list[str]:
+    acts = []
+    if _TASK_LINK_PAGES.get(f.get("link") or ""):
+        acts.append(_FIX_LABEL)
+    acts.append(_DISMISS_LABEL)
+    return acts
+
+
+def _handle_task_action():
+    """ButtonColumn callback. Runs before the rerun it triggers, so it only
+    sets state for the main script body to act on — switch_page itself
+    stays out of the callback, since callbacks execute in their own partial
+    run and are not the documented place to call it.
+    """
+    click = st.session_state.get("ob_task_action_click")
+    if not click:
+        return
+    idx = click.get("row")
+    if idx is None or idx >= len(open_tasks):
+        return
+    f = open_tasks[idx]
+    label = click.get("label") or ""
+    if _DISMISS_LABEL in label:
+        st.session_state["ob_task_dismiss_select"] = f["finding_key"]
+    elif _FIX_LABEL in label:
+        page = _TASK_LINK_PAGES.get(f.get("link") or "")
+        if page:
+            st.session_state["_ob_pending_navigate"] = page
+
 
 if open_tasks:
     st.subheader(f"To do ({len(open_tasks)})")
@@ -251,51 +285,61 @@ if open_tasks:
     st.dataframe(
         [
             {
-                "": _icon.get(f["severity"], "⚪"),
-                "Task": f["title"],
+                "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}",
+                "Detail": f.get("detail") or "",
                 "Due": f.get("due") or "",
+                "Actions": _task_actions(f),
             }
             for f in open_tasks
         ],
         hide_index=True,
+        # stretch (matches every other table on this page) fills the parent
+        # container and spreads whatever is left over EVENLY across every
+        # column. Task and Detail are given a bigger starting width than Due
+        # and Actions specifically so that, after that even split, they are
+        # still the two columns actually getting the space.
         width="stretch",
         column_config={
-            # "small" is a fixed 75px preset — too wide for one character.
-            # An explicit pixel width is also supported and is what a single
-            # icon actually needs.
-            "": st.column_config.TextColumn(width=36),
-            "Task": st.column_config.TextColumn(width="large"),
-            "Due": st.column_config.TextColumn(width="small"),
+            "Task": st.column_config.TextColumn(width=430),
+            "Detail": st.column_config.TextColumn(width=620),
+            "Due": st.column_config.TextColumn(width=90),
+            # A single Dismiss renders directly at this width; two actions
+            # collapse into a "..." menu rather than both showing inline —
+            # kept deliberately, not a compromise: familiar pattern, and it
+            # means Actions does not need to fight Task/Detail for width.
+            "Actions": st.column_config.ButtonColumn(
+                width=100,
+                on_click=_handle_task_action,
+                key="ob_task_action_click",
+            ),
         },
     )
 
+    # Set by the Go fix it button's callback, above. Done here rather than
+    # inside the callback itself — st.switch_page's own docs describe it as
+    # stopping the CURRENT page's execution, which is the main script body,
+    # not the separate partial run a column-button callback executes in.
+    _pending_nav = st.session_state.pop("_ob_pending_navigate", None)
+    if _pending_nav:
+        st.switch_page(_pending_nav)
+
+    # Still a real selector, not just a Dismiss-button landing spot — either
+    # path sets the same key, so clicking Dismiss in the table and picking a
+    # task here do the same thing.
     _tasks_by_key = {f["finding_key"]: f for f in open_tasks}
     _select_options = [None] + list(_tasks_by_key.keys())
     _selected_key = st.selectbox(
-        "Select a task",
+        "Dismiss a task",
         options=_select_options,
         format_func=lambda k: (
-            "— Select a task —" if k is None else _tasks_by_key[k]["title"]
+            "— Select a task to dismiss —" if k is None else _tasks_by_key[k]["title"]
         ),
         key="ob_task_dismiss_select",
-        label_visibility="collapsed",
     )
 
     if _selected_key:
         f = _tasks_by_key[_selected_key]
         with st.container(border=True):
-            st.markdown(f"**{_icon.get(f['severity'], '⚪')} {f['title']}**")
-            if f.get("detail"):
-                st.caption(f["detail"])
-            if f.get("due"):
-                st.caption(f"Due {f['due']}")
-
-            _link_page = _TASK_LINK_PAGES.get(f.get("link") or "")
-            if _link_page:
-                st.page_link(_link_page, label="Go fix it →")
-
-            st.divider()
-
             # A reason is required — the CHECK constraint enforces it, and
             # this is what an auditor asks about.
             why = st.text_input(
@@ -387,20 +431,27 @@ for reg in regulations:
     st.dataframe(
         [
             {
-                "": _STATUS_ICON[verdicts[o["id"]]["status"]],
-                "Obligation": o["title"],
+                # Icon folded into the text rather than its own column — a
+                # narrow pinned-width column gets inflated by st.dataframe's
+                # even redistribution of unused row width, the same issue
+                # fixed in the To-do table above.
+                "Obligation": (
+                    f"{_STATUS_ICON[verdicts[o['id']]['status']]}  {o['title']}"
+                ),
                 "Article": o.get("article", ""),
                 "Status": _STATUS_LABEL[verdicts[o["id"]]["status"]],
             }
             for o in shown
         ],
         hide_index=True,
+        # stretch, same as the To-do table — Obligation given a large
+        # starting width so it is still the column that ends up dominant
+        # after stretch's even split of leftover space.
         width="stretch",
         column_config={
-            "": st.column_config.TextColumn(width=36),
-            "Obligation": st.column_config.TextColumn(width="large"),
-            "Article": st.column_config.TextColumn(width="small"),
-            "Status": st.column_config.TextColumn(width="small"),
+            "Obligation": st.column_config.TextColumn(width=560),
+            "Article": st.column_config.TextColumn(width=90),
+            "Status": st.column_config.TextColumn(width=110),
         },
     )
 
