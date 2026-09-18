@@ -222,46 +222,75 @@ if "NIS2" in regulations:
 st.divider()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────
+# Summary table + one detail form for the selected row, not one expander per
+# task — same shape as pages/inventory.py's activities tab, and for the same
+# reason: at 53 open tasks the old per-row button-and-container shape rendered
+# 53 buttons (plus a hidden container each) on every run, most of them never
+# opened. A table is what a reader scans down; the detail form only costs
+# anything for the one task actually being dismissed.
 if open_tasks:
     st.subheader(f"To do ({len(open_tasks)})")
     _icon = {T.BLOCKING: "🔴", T.DUE: "🟠", T.OPEN: "⚪"}
-    for f in open_tasks:
-        col_a, col_b = st.columns([6, 1])
-        col_a.markdown(f"{_icon.get(f['severity'], '⚪')} **{f['title']}**")
-        if f.get("detail"):
-            col_a.caption(f["detail"])
-        if f.get("due"):
-            col_a.caption(f"Due {f['due']}")
 
-        if col_b.button("Dismiss", key=f"dis_{f['finding_key']}",
-                        use_container_width=True):
-            st.session_state[f"dis_open_{f['finding_key']}"] = True
-            st.rerun()
+    st.dataframe(
+        [
+            {
+                "": _icon.get(f["severity"], "⚪"),
+                "Task": f["title"],
+                "Detail": f.get("detail") or "",
+                "Due": f.get("due") or "",
+            }
+            for f in open_tasks
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "": st.column_config.TextColumn(width="small"),
+            "Task": st.column_config.TextColumn(width="medium"),
+            "Detail": st.column_config.TextColumn(width="large"),
+            "Due": st.column_config.TextColumn(width="small"),
+        },
+    )
 
-        if st.session_state.get(f"dis_open_{f['finding_key']}"):
-            with st.container(border=True):
-                # A reason is required — the CHECK constraint enforces it, and
-                # this is what an auditor asks about.
-                why = st.text_input(
-                    "Why is this not something you need to do?",
-                    key=f"dis_why_{f['finding_key']}",
-                    placeholder="e.g. accepted risk, reviewed and not applicable",
-                )
-                d1, d2 = st.columns(2)
-                if d1.button("Dismiss it", key=f"dis_go_{f['finding_key']}",
-                             type="primary", disabled=not (why or "").strip()):
-                    STORE.dismiss(user_id, client_id, f["producer"],
-                                  f["finding_key"], why)
-                    st.session_state.pop(f"dis_open_{f['finding_key']}", None)
-                    st.rerun()
-                if d2.button("Keep it", key=f"dis_no_{f['finding_key']}"):
-                    st.session_state.pop(f"dis_open_{f['finding_key']}", None)
-                    st.rerun()
-                st.caption(
-                    "It comes back if the situation changes — a dismissal "
-                    "applies to this finding, not to any future one that looks "
-                    "like it."
-                )
+    _tasks_by_key = {f["finding_key"]: f for f in open_tasks}
+    _dismiss_options = [None] + list(_tasks_by_key.keys())
+    _dismiss_key = st.selectbox(
+        "Dismiss a task",
+        options=_dismiss_options,
+        format_func=lambda k: (
+            "— Select a task —" if k is None else _tasks_by_key[k]["title"]
+        ),
+        key="ob_task_dismiss_select",
+    )
+
+    if _dismiss_key:
+        f = _tasks_by_key[_dismiss_key]
+        with st.container(border=True):
+            # A reason is required — the CHECK constraint enforces it, and
+            # this is what an auditor asks about.
+            why = st.text_input(
+                "Why is this not something you need to do?",
+                key=f"dis_why_{f['finding_key']}",
+                placeholder="e.g. accepted risk, reviewed and not applicable",
+            )
+            d1, d2 = st.columns(2)
+            if d1.button("Dismiss it", key=f"dis_go_{f['finding_key']}",
+                         type="primary", disabled=not (why or "").strip()):
+                STORE.dismiss(user_id, client_id, f["producer"],
+                              f["finding_key"], why)
+                # The dismissed task drops out of open_tasks on the next
+                # load, so its key would no longer be a valid option —
+                # cleared here rather than left to raise on rerun.
+                st.session_state.pop("ob_task_dismiss_select", None)
+                st.rerun()
+            if d2.button("Cancel", key=f"dis_no_{f['finding_key']}"):
+                st.session_state.pop("ob_task_dismiss_select", None)
+                st.rerun()
+            st.caption(
+                "It comes back if the situation changes — a dismissal "
+                "applies to this finding, not to any future one that looks "
+                "like it."
+            )
     st.divider()
 else:
     st.success("Nothing outstanding.")

@@ -165,16 +165,43 @@ if _open:
                 st.rerun()
 
     # ── The register ──────────────────────────────────────────────────────
-    for it in items:
-        label = labels.get(it["catalogue_code"], it["catalogue_code"])
-        head = f"**{label}**"
-        if it.get("residual_severity"):
-            head += (f"  ·  after measures: "
-                     f"{RA.level_label(it['residual_severity'], lang)}")
-        else:
-            head += "  ·  :orange[not assessed after measures]"
+    # Summary table + one detail form for the selected risk, same shape as
+    # pages/inventory.py's activities tab: the free-text fields (what already
+    # reduces this, what you will do about it) stay out of the table and only
+    # render for the risk actually being edited, so the table itself never
+    # gets wide or wordy regardless of how many risks are recorded.
+    if items:
+        st.dataframe(
+            [
+                {
+                    "Risk": labels.get(it["catalogue_code"], it["catalogue_code"]),
+                    "Before measures": (
+                        f"{RA.level_label(it.get('likelihood'), lang)} / "
+                        f"{RA.level_label(it.get('severity'), lang)}"
+                    ),
+                    "After measures": (
+                        RA.level_label(it["residual_severity"], lang)
+                        if it.get("residual_severity") else "Not assessed"
+                    ),
+                }
+                for it in items
+            ],
+            hide_index=True,
+            width="stretch",
+        )
 
-        with st.expander(head):
+        _items_by_id = {it["id"]: it for it in items}
+        _sel_id = st.selectbox(
+            "Select a risk to review or update",
+            options=list(_items_by_id.keys()),
+            format_func=lambda i: labels.get(
+                _items_by_id[i]["catalogue_code"], _items_by_id[i]["catalogue_code"]
+            ),
+            key="risk_item_select",
+        )
+        it = _items_by_id[_sel_id]
+
+        with st.container(border=True):
             if it.get("description"):
                 st.caption(it["description"])
             st.markdown(
@@ -230,6 +257,10 @@ if _open:
                     st.rerun()
                 if s2.form_submit_button("Remove"):
                     RS.delete_item(it["id"], user_id)
+                    # The removed risk drops out of items on the next load,
+                    # so its id would no longer be a valid option — cleared
+                    # here rather than left to raise on rerun.
+                    st.session_state.pop("risk_item_select", None)
                     st.rerun()
 
     # ── The conclusion ────────────────────────────────────────────────────
