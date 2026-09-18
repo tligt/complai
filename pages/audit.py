@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from auth import is_logged_in, get_user_id
-from database import load_clients
+from cached_reads import load_clients
 from crawler import crawl, extract_domain
 from checklist import run_checklist, OK, WARN, FAIL
 from report import generate_pdf

@@ -4,10 +4,12 @@ from datetime import datetime
 import streamlit as st
 from auth import get_user_id
 from database import (
-    load_clients, get_signed_url, upload_file,
-    get_current_client_documents, register_client_document,
+    get_signed_url, upload_file,
+    get_current_client_documents as get_current_client_documents_fresh,
+    register_client_document,
     adopt_client_document, set_document_comment,
 )
+from cached_reads import load_clients, get_current_client_documents
 from obligations import DOC_CATALOG, RETIRED_DOC_TYPES
 from gap_assessment import (
     OBLIGATIONS, PROFILE_QUESTIONS, DOCUMENT_TYPES, DOC_OBLIGATIONS,
@@ -405,7 +407,9 @@ with tab2:
                             document_type=doc_type, file_path=path,
                             source="client_upload", change_comment=comment,
                         )
-                        current_docs = get_current_client_documents(client_id, user_id)
+                        # Fresh, not cached: just wrote this document, and the
+                        # repository status below must reflect it immediately.
+                        current_docs = get_current_client_documents_fresh(client_id, user_id)
 
     st.caption(f"**{n_provided}/6** document types available in repository")
     st.divider()

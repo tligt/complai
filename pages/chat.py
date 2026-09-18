@@ -14,13 +14,14 @@ from pypdf import PdfReader
 from auth import get_user_id
 from database import (
     get_supabase, get_supabase_admin,
-    load_clients, create_client_record, update_client_record, delete_client_record,
+    create_client_record, update_client_record, delete_client_record,
     load_chat_history, load_chat_sessions, save_message, delete_chat_session,
     clear_chat_history, build_client_context,
     log_token_usage,
     save_answer_feedback, load_feedback_for_session,
     FEEDBACK_MODE, FEEDBACK_REASONS,
 )
+from cached_reads import load_clients
 from rag import retrieve, get_knowledge_base_summary
 
 # ── Constants ─────────────────────────────────────────────────

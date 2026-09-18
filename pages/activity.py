@@ -1,7 +1,8 @@
 import streamlit as st
 from datetime import datetime, timezone
 from auth import get_user_id
-from database import get_supabase, load_clients
+from database import get_supabase
+from cached_reads import load_clients
 
 # Timestamps are stored in UTC. Streamlit runs server-side, so there is no
 # browser timezone to fall back on — the zone has to be chosen here.

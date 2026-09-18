@@ -44,14 +44,13 @@ import register as REG
 from auth import get_user_id
 from database import (
     get_supabase,
-    get_register_status,
-    get_template_languages,
     get_client_document_history,
     get_signed_url,
     document_source_label,
     set_legal_hold,
     DOCUMENT_STATUSES,
 )
+from cached_reads import get_register_status, get_template_languages
 from obligations import DOC_CATALOG, REGULATION_LABELS
 
 st.title("🗄️ Compliance record")

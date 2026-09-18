@@ -11,9 +11,10 @@ from auth import get_user_id
 from database import (
     load_my_tickets, get_ticket, load_thread_messages,
     post_thread_message, update_ticket, mark_thread_read,
-    load_clients, create_ticket,
+    create_ticket,
     TICKET_CATEGORIES, TICKET_SEVERITIES,
 )
+from cached_reads import load_clients
 
 user_id = get_user_id()
 

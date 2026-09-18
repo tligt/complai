@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from auth import get_user_id
-from database import load_clients
+from cached_reads import load_clients
 from document_generator import (
     DOCUMENT_TYPES, LEGAL_FORMS, DPA_CONTACTS,
     load_intake, save_intake, update_client_profile,
@@ -1006,7 +1006,8 @@ import base64 as _b64
 import requests as _req
 from zoneinfo import ZoneInfo as _ZI
 from datetime import datetime as _dt
-from database import load_document_files, get_signed_url, get_supabase_admin
+from database import get_signed_url, get_supabase_admin
+from cached_reads import load_document_files
 
 def _fmt_ts(raw):
     try:
@@ -1238,7 +1239,8 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
 
         if st.session_state.get(adopt_key, False):
             from datetime import date as _date
-            from database import adopt_client_document, get_current_client_documents
+            from database import adopt_client_document
+            from cached_reads import get_current_client_documents
 
             _live = (get_current_client_documents(
                 reg["client_id"], reg["user_id"], reg["language"]) or {}
@@ -1369,7 +1371,7 @@ else:
     # template, None says we did not check, and claiming our own gap on a
     # failed query is worse than reporting nothing (D-60).
     try:
-        from database import get_template_languages
+        from cached_reads import get_template_languages
         _template_langs = get_template_languages()
     except Exception:
         _template_langs = None

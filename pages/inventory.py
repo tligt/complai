@@ -48,7 +48,7 @@ import pandas as pd
 import streamlit as st
 
 from auth import get_user_id
-from database import load_clients
+from cached_reads import load_clients
 import inventory as INV
 import inventory_store as STORE
 import translate as TR

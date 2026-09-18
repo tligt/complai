@@ -1,6 +1,7 @@
 import streamlit as st
 from auth import get_user_id
-from database import load_client_alerts, mark_alert_read, count_unread_alerts
+from database import load_client_alerts, mark_alert_read
+from cached_reads import count_unread_alerts
 from zoneinfo import ZoneInfo
 from datetime import datetime as _dt
 
