@@ -32,6 +32,7 @@ import tasks as T
 from template_nis2 import INSERTS
 from auth import get_user_id
 from database import get_supabase
+from active_client import get_active_client
 from cached_reads import get_register_status
 from obligations import (
     OBLIGATIONS, OBLIGATION_BY_ID, REGULATION_LABELS, DOCUMENT_TYPES,
@@ -48,15 +49,7 @@ if not user_id:
     st.error("Please log in.")
     st.stop()
 
-try:
-    client = (get_supabase().table("clients").select("*")
-              .eq("user_id", user_id).single().execute().data) or {}
-except Exception:
-    client = {}
-
-if not client:
-    st.warning("Please complete your company profile first.")
-    st.stop()
+client = get_active_client(user_id)
 
 client_id = client["id"]
 regulations = client.get("regulations") or ["GDPR"]

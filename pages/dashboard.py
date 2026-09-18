@@ -1,6 +1,6 @@
 import streamlit as st
 import register as REG
-from database import get_supabase, get_supabase_admin
+from database import get_supabase_admin
 from cached_reads import (
     count_unread_alerts,
     load_document_files,
@@ -9,6 +9,7 @@ from cached_reads import (
     get_template_languages,
 )
 from auth import get_user_id
+from active_client import get_active_client
 from obligations import (
     OBLIGATION_TO_DOC, DOC_CATALOG, REG_DOCS, REGULATION_LABELS,
     OBLIGATION_BY_ID, operational_for_regulations,
@@ -24,20 +25,7 @@ if not user_id:
     st.stop()
 
 # ── Load client profile ───────────────────────────────────────
-try:
-    supabase = get_supabase()
-    client_res = supabase.table("clients") \
-        .select("*") \
-        .eq("user_id", user_id) \
-        .single() \
-        .execute()
-    client = client_res.data or {}
-except Exception:
-    client = {}
-
-if not client:
-    st.warning("Please complete your company profile first.")
-    st.stop()
+client = get_active_client(user_id)
 
 company_name = client.get("company_name", "Your company")
 client_id    = client.get("id")

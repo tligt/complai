@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from auth import get_user_id
+from active_client import get_active_client
 from cached_reads import load_clients
 from document_generator import (
     DOCUMENT_TYPES, LEGAL_FORMS, DPA_CONTACTS,
@@ -85,10 +86,8 @@ selected_client = None
 client_id = None
 
 if mode == "existing_client":
-    client_names = [c["company_name"] for c in clients]
-    chosen = st.selectbox("Select client", options=client_names, key="doc_client_select")
-    selected_client = next((c for c in clients if c["company_name"] == chosen), None)
-    client_id = selected_client["id"] if selected_client else None
+    selected_client = get_active_client(user_id)
+    client_id = selected_client["id"]
 
 st.divider()
 

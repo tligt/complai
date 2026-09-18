@@ -42,8 +42,8 @@ import streamlit as st
 
 import register as REG
 from auth import get_user_id
+from active_client import get_active_client
 from database import (
-    get_supabase,
     get_client_document_history,
     get_signed_url,
     document_source_label,
@@ -64,15 +64,7 @@ if not user_id:
     st.error("Please log in to view the compliance record.")
     st.stop()
 
-try:
-    client = (get_supabase().table("clients").select("*")
-              .eq("user_id", user_id).single().execute().data) or {}
-except Exception:
-    client = {}
-
-if not client:
-    st.warning("Please complete your company profile first.")
-    st.stop()
+client = get_active_client(user_id)
 
 client_id     = client.get("id")
 company_name  = client.get("company_name", "Your company")

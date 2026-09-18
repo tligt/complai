@@ -28,6 +28,7 @@ import streamlit as st
 import draft_inserts
 from auth import get_user_id
 from database import get_supabase, log_audit_event
+from active_client import get_active_client
 from template_nis2 import INSERTS
 
 st.title("Incident and continuity wording")
@@ -42,16 +43,7 @@ if not user_id:
     st.error("Please log in.")
     st.stop()
 
-try:
-    client = (get_supabase().table("clients").select("*")
-              .eq("user_id", user_id).single().execute().data) or {}
-except Exception as e:
-    st.error(f"Could not load your profile: {e}")
-    st.stop()
-
-if not client:
-    st.warning("Please complete your company profile first.")
-    st.stop()
+client = get_active_client(user_id)
 
 client_id = client["id"]
 

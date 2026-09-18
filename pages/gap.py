@@ -9,7 +9,8 @@ from database import (
     register_client_document,
     adopt_client_document, set_document_comment,
 )
-from cached_reads import load_clients, get_current_client_documents
+from active_client import get_active_client
+from cached_reads import get_current_client_documents
 from obligations import DOC_CATALOG, RETIRED_DOC_TYPES
 from gap_assessment import (
     OBLIGATIONS, PROFILE_QUESTIONS, DOCUMENT_TYPES, DOC_OBLIGATIONS,
@@ -34,15 +35,8 @@ st.title("🔍 Gap Assessment")
 st.divider()
 
 # ── Client selection ──────────────────────────────────────────
-clients = load_clients(user_id)
-if not clients:
-    st.info("👈 Create a client profile first before running a gap assessment.")
-    st.stop()
-
-client_names = [c["company_name"] for c in clients]
-chosen = st.selectbox("Select client", options=client_names, key="gap_client")
-selected_client = next((c for c in clients if c["company_name"] == chosen), None)
-client_id = selected_client["id"] if selected_client else None
+selected_client = get_active_client(user_id)
+client_id = selected_client["id"]
 
 st.divider()
 

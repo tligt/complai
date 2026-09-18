@@ -14,6 +14,7 @@ from database import (
     create_ticket,
     TICKET_CATEGORIES, TICKET_SEVERITIES,
 )
+from active_client import get_active_client
 from cached_reads import load_clients
 
 user_id = get_user_id()
@@ -143,8 +144,15 @@ if st.session_state.support_new:
     st.caption("Reporting a problem with a specific feature? Use the **Help** "
                "button on that page instead — it captures the context for you.")
 
-    clients = load_clients(user_id) or []
-    client_id = clients[0]["id"] if clients else None
+    # create_ticket's client_id is genuinely optional (an account-level
+    # question needs no client), so this deliberately does not use
+    # get_active_client's stricter "must have at least one" contract —
+    # only ask when there is real ambiguity to resolve.
+    _owned = load_clients(user_id) or []
+    client_id = (
+        get_active_client(user_id)["id"] if len(_owned) > 1
+        else (_owned[0]["id"] if _owned else None)
+    )
 
     category = st.selectbox(
         "What kind of request is this?",

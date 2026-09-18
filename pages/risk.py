@@ -32,7 +32,7 @@ import inventory as INV
 import risk_assessment as RA
 import risk_store as RS
 from auth import get_user_id
-from database import get_supabase
+from active_client import get_active_client
 
 st.title("Risk assessments")
 st.caption(
@@ -45,15 +45,7 @@ if not user_id:
     st.error("Please log in.")
     st.stop()
 
-try:
-    client = (get_supabase().table("clients").select("*")
-              .eq("user_id", user_id).single().execute().data) or {}
-except Exception as e:
-    st.error(f"Could not load your profile: {e}")
-    st.stop()
-if not client:
-    st.warning("Please complete your company profile first.")
-    st.stop()
+client = get_active_client(user_id)
 
 client_id = client["id"]
 regulations = client.get("regulations") or ["GDPR"]

@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime, timezone
 from auth import get_user_id
 from database import get_supabase
-from cached_reads import load_clients
+from active_client import get_active_client
 
 # Timestamps are stored in UTC. Streamlit runs server-side, so there is no
 # browser timezone to fall back on — the zone has to be chosen here.
@@ -132,14 +132,7 @@ st.caption(
 )
 
 user_id = get_user_id()
-clients = load_clients(user_id)
-
-# Single-owner model until S38 (Advisory multi-client workspace) — one client per user
-client_id = clients[0]["id"] if clients else None
-
-if not client_id:
-    st.info("No client profile found yet.")
-    st.stop()
+client_id = get_active_client(user_id)["id"]
 
 supabase = get_supabase()
 try:
