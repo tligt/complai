@@ -301,7 +301,7 @@ S31 is now the only thing left before the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| S36 | Regulatory update → impact re-scoring | Reads S27 `source_revision` |
+| S36 | Regulatory update → impact re-scoring | Scope-locked 18 Sept — cheaper than it looks, see 3b |
 | S37 | Multi-user for Professional | Seeds `workspace_members` |
 | S38 | Audit rate-limiting | |
 | S39 | Audit report email delivery | |
@@ -858,6 +858,143 @@ product-scope decision — RECOSA launches covering three regulations, not
 six) and reuse `obligations.py`'s existing `REGULATION_PARENT` mapping for
 ePrivacy rather than duplicating it. Part 2's classifier candidate set is
 built from the same `REGULATION_OPTIONS`-scoped list for consistency.
+
+---
+
+### S36 — Regulatory update → impact re-scoring — SCOPE LOCK
+
+**Position:** post-beta by the roadmap, but no structural dependency on
+anything else unbuilt — it needs S27 (delivered) and nothing else. Pure
+data/logic work against tables that already exist, same shape as S34.
+
+**Why this is cheaper than the one-liner suggests.** Grounded against the
+live schema and `tasks.py` rather than designed from scratch: most of what
+S36 needs already exists, just not wired together.
+
+- `document_template_versions` carries `source_revision` (int) **and**
+  `status` (`in_force` / `draft` / `pending_translation` / `superseded`) —
+  templates go through the same adoption lifecycle as client documents
+  (S27). The current live revision for a doc_type + language is simply the
+  `source_revision` of its `status='in_force'` row.
+- `client_documents.source_revision` is already stamped at generation and
+  carried through adoption and supersession (S27) — confirmed via the
+  live schema, not assumed.
+- `document_template_versions.materiality` already exists —
+  `minor` / `recommended` / `required` — and D-01 already specified what
+  each should do: *"minor = silent, recommended = in-app flag, required =
+  flag + email."* Nothing currently reads this field for that purpose. S36
+  is largely the sprint that finally does.
+- `tasks.py` (S29, live) is a pull-based producer architecture: findings are
+  computed fresh on every read, not stored, not cron-driven (D-78). Five
+  producers are registered today (`obligation`, `translation`, `document`,
+  `readiness`, `wording`). A sixth producer is a function plus one line in
+  `PRODUCERS` — no scheduled job required.
+- `regulatory_updates` (the S17 monitor's table) carries `regulations`
+  (array of regulation codes) but **no link at all** to `doc_type` or to
+  any template. This is the one real gap — confirmed by reading the live
+  schema, not the roadmap's framing of it.
+
+---
+
+#### Part 1 — Detect: a new task-register producer
+
+**Mechanism.** A new producer, `template_updates_available()`, joins each
+client's `status='in_force'` `client_documents` rows against the current
+`status='in_force'` `document_template_versions` row for the same
+`doc_type` + `language`. Where the client's `source_revision` is lower,
+emit a finding — same `_finding(producer, key, ...)` shape every other
+producer already uses, `finding_key` = `source_revision:<client_id>:
+<doc_type>:<language>`, matching the stability rule `tasks.py` already
+states (nothing in the key may change while the finding is the same
+thing).
+
+**Severity: `OPEN`, gated by `materiality`.** `minor` produces no finding
+at all (D-01: silent). `recommended` produces one at `OPEN`. `required`
+produces one at `DUE` — a real deadline is arguable here since D-01 also
+promises an email at this tier, which needs *some* date to hang off; the
+simplest honest choice is the date the template version itself went
+`in_force`, not an invented one.
+
+*Rejected — `BLOCKING`.* Nothing is actually blocked by an older revision
+existing; the document is still there, still legally issued, still what
+the client operates under. `BLOCKING` is reserved for what
+`readiness()` already uses it for — a register that cannot be produced at
+all — and this is not that.
+
+---
+
+#### Part 2 — The "why": linking a finding back to what changed
+
+**Not building the regulatory-monitor → template link now.** `regulatory_
+updates.regulations` could in principle be cross-referenced against
+`obligations.py`'s existing doc_type → regulation derivation
+(`DOC_SCORING_OBLIGATIONS`) to suggest which templates a given regulatory
+update might affect — but nothing requires this to make Part 1 work.
+Part 1's finding fires on the `source_revision` comparison alone, whichever
+process caused the bump.
+
+**What ships instead:** the finding text stays generic — "a newer version
+of this template is available" — pointing to `pages/compliance_record.py`,
+where the client can regenerate. If a future admin workflow sets a
+`document_template_versions.regulatory_update_id` when bumping a revision
+(a nullable FK, not built here), the finding can use it to name what
+changed, in the same computed, deterministic, no-LLM way S27's own
+generated-to-generated change notes already work. That is a clean addition
+later, not a blocker now.
+
+*Rejected — building the link first.* Would mean new schema, and a new
+step in an admin workflow that has run manually, without it, since S25.
+The finding is useful without knowing why the revision moved; the why is
+a nice-to-have, not the gate.
+
+---
+
+#### Part 3 — "Impact re-scoring": what it turns out not to mean
+
+**Rejected — adjusting the gap/compliance score.** The roadmap's own
+one-liner ("impact re-scoring") reads as if a stale revision should move a
+client's score. It should not, and S57's own scope lock already states the
+reason in general form: *"Findings must not feed the gap score... Mixing
+register hygiene into document scoring re-creates the DOC_OBLIGATIONS /
+DOC_SCORING_OBLIGATIONS conflation."* A document on an older
+`source_revision` still satisfies its `DOC_SCORING_OBLIGATIONS` — the
+underlying legal position has not necessarily changed just because newer
+template text exists, and `materiality='minor'` exists specifically to
+mark the common case where it has not. Scoring it down presumes
+non-compliance that D-01's own materiality tiers were designed to avoid
+presuming.
+
+**What "impact re-scoring" actually turns out to mean, on this schema:**
+respecting the `materiality` gating D-01 already specified and nothing
+yet implements. Part 1 + the severity rule above is the whole of it. No
+separate re-scoring mechanism is needed because none of the scoring model
+needs to change — only what surfaces in the task register, and how loudly.
+
+---
+
+#### Out of scope
+
+- Any change to `readiness()`, `DOC_SCORING_OBLIGATIONS`, or the gap
+  score. See Part 3.
+- The `regulatory_updates` → template link. See Part 2.
+- A scheduled job. `tasks.py`'s producers are read-time, not cron-driven;
+  this one is no different (D-78).
+- Anything for S55 (annual compliance report) beyond what Part 1 already
+  produces — S55 renders task-register findings, it does not need its own
+  copy of this logic.
+
+---
+
+#### Verification
+
+Exercise `template_updates_available()` against the live schema the same
+way the other five producers are exercised: a client with an in-force
+document whose `source_revision` is behind the current `in_force` template
+version should produce exactly one finding, gated correctly by
+`materiality`; a client already on the current revision should produce
+none. Confirm `collect()`'s dedup-by-`finding_key` and `closures()`'s
+producer-stops-means-closed behaviour both work unmodified — this producer
+should need no changes to either.
 
 ---
 
