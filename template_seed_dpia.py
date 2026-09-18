@@ -64,9 +64,9 @@ BODY_EN = """\
 
 **{{legal_name}}**{{#if:has_legal_form}}, {{legal_form}}{{/if:has_legal_form}}
 
-**{{assessment_title}}**
+## {{assessment_title}}
 
-{{#if:has_policy_effective_date}}Assessed {{policy_effective_date}}.{{/if:has_policy_effective_date}}
+{{#if:has_policy_effective_date}}**Assessed {{policy_effective_date}}.**{{/if:has_policy_effective_date}}
 
 ## 1. Why this assessment was carried out
 
@@ -169,9 +169,9 @@ BODY_FR = """\
 
 **{{legal_name}}**{{#if:has_legal_form}}, {{legal_form}}{{/if:has_legal_form}}
 
-**{{assessment_title}}**
+## {{assessment_title}}
 
-{{#if:has_policy_effective_date}}Analyse réalisée le {{policy_effective_date}}.{{/if:has_policy_effective_date}}
+{{#if:has_policy_effective_date}}**Analyse réalisée le {{policy_effective_date}}.**{{/if:has_policy_effective_date}}
 
 ## 1. Pourquoi cette analyse a été réalisée
 
