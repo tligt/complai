@@ -136,68 +136,88 @@ c4.metric("Outstanding tasks", len(open_tasks))
 #
 # Shown only where NIS2 applies to the client at all.
 if "NIS2" in regulations:
-    _cls = client.get("nis2_entity_class")
-    with st.expander(
-        "NIS2 — are you in scope, and as what?"
-        + ("" if _cls else "  ·  :orange[not answered]"),
-        expanded=not _cls,
-    ):
-        st.caption(
-            "Annex I sectors are **essential** entities, Annex II **important** "
-            "ones. The difference is how you are supervised, not what you owe: "
-            "both are subject to Art. 21 measures and Art. 23 reporting. "
-            "Essential entities are supervised proactively; important ones "
-            "after the fact."
-        )
-        with st.form("nis2_scope"):
-            _opts = [None, "essential", "important", "out_of_scope"]
-            new_cls = st.selectbox(
-                "Classification",
-                options=_opts,
-                index=_opts.index(_cls) if _cls in _opts else 0,
-                format_func=lambda c: {
-                    None: "Not yet determined",
-                    "essential": "Essential entity (Annex I)",
-                    "important": "Important entity (Annex II)",
-                    "out_of_scope": "Not in scope",
-                }[c],
-            )
-            sector = st.text_input(
-                "Sector", value=client.get("nis2_sector") or "",
-                placeholder="e.g. digital infrastructure, manufacturing",
-            )
-            note = st.text_area(
-                "Why", value=client.get("nis2_scope_note") or "", height=80,
-                help=(
-                    "An entity that concluded it is out of scope will be asked "
-                    "to justify that, and will not remember. Size thresholds, "
-                    "sector, and any exception you relied on."
-                ),
-            )
-            if st.form_submit_button("Save", type="primary"):
-                try:
-                    get_supabase().table("clients").update({
-                        "nis2_entity_class": new_cls,
-                        # Kept coherent in code as well as by the CHECK: the
-                        # documents read one of these and the register the
-                        # other, and they must not disagree.
-                        "nis2_in_scope": (
-                            None if new_cls is None
-                            else new_cls in ("essential", "important")
-                        ),
-                        "nis2_sector": sector or None,
-                        "nis2_scope_note": note or None,
-                    }).eq("id", client_id).execute()
-                    st.success("Saved.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Could not save: {e}")
+    @st.fragment
+    def _nis2_scope_panel(client_id: str, initial_client: dict):
+        """Isolated so Save reruns only this panel, not the whole page
+        (inventory reload, obligation evaluation, task derivation).
 
-        if _cls == "out_of_scope" and not (client.get("nis2_scope_note") or "").strip():
-            st.warning(
-                "Recorded as out of scope with no reason given. That is the "
-                "first thing an authority asks about."
+        Re-reads the three NIS2 fields fresh on every fragment rerun rather
+        than trusting the page-level `client` snapshot from above: a
+        fragment-scoped rerun does not re-execute the code that fetched
+        `client` at the top of the script, so that snapshot would otherwise
+        go stale the moment Save is clicked.
+        """
+        try:
+            _row = (get_supabase().table("clients")
+                    .select("nis2_entity_class, nis2_sector, nis2_scope_note")
+                    .eq("id", client_id).single().execute().data) or {}
+        except Exception:
+            _row = initial_client
+
+        _cls = _row.get("nis2_entity_class")
+        with st.expander(
+            "NIS2 — are you in scope, and as what?"
+            + ("" if _cls else "  ·  :orange[not answered]"),
+            expanded=not _cls,
+        ):
+            st.caption(
+                "Annex I sectors are **essential** entities, Annex II **important** "
+                "ones. The difference is how you are supervised, not what you owe: "
+                "both are subject to Art. 21 measures and Art. 23 reporting. "
+                "Essential entities are supervised proactively; important ones "
+                "after the fact."
             )
+            with st.form("nis2_scope"):
+                _opts = [None, "essential", "important", "out_of_scope"]
+                new_cls = st.selectbox(
+                    "Classification",
+                    options=_opts,
+                    index=_opts.index(_cls) if _cls in _opts else 0,
+                    format_func=lambda c: {
+                        None: "Not yet determined",
+                        "essential": "Essential entity (Annex I)",
+                        "important": "Important entity (Annex II)",
+                        "out_of_scope": "Not in scope",
+                    }[c],
+                )
+                sector = st.text_input(
+                    "Sector", value=_row.get("nis2_sector") or "",
+                    placeholder="e.g. digital infrastructure, manufacturing",
+                )
+                note = st.text_area(
+                    "Why", value=_row.get("nis2_scope_note") or "", height=80,
+                    help=(
+                        "An entity that concluded it is out of scope will be asked "
+                        "to justify that, and will not remember. Size thresholds, "
+                        "sector, and any exception you relied on."
+                    ),
+                )
+                if st.form_submit_button("Save", type="primary"):
+                    try:
+                        get_supabase().table("clients").update({
+                            "nis2_entity_class": new_cls,
+                            # Kept coherent in code as well as by the CHECK: the
+                            # documents read one of these and the register the
+                            # other, and they must not disagree.
+                            "nis2_in_scope": (
+                                None if new_cls is None
+                                else new_cls in ("essential", "important")
+                            ),
+                            "nis2_sector": sector or None,
+                            "nis2_scope_note": note or None,
+                        }).eq("id", client_id).execute()
+                        st.success("Saved.")
+                        st.rerun(scope="fragment")
+                    except Exception as e:
+                        st.error(f"Could not save: {e}")
+
+            if _cls == "out_of_scope" and not (_row.get("nis2_scope_note") or "").strip():
+                st.warning(
+                    "Recorded as out of scope with no reason given. That is the "
+                    "first thing an authority asks about."
+                )
+
+    _nis2_scope_panel(client_id, client)
 
 st.divider()
 
