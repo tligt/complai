@@ -264,12 +264,12 @@ page. Closed 4 Sept 2026.
 
 ## 3. Current roadmap
 
-Numbering has changed four times. **This is authoritative; older notes are
+Numbering has changed five times. **This is authoritative; older notes are
 not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S33.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -277,30 +277,30 @@ S34.
 | ~~S29~~ | ~~Obligation register + task register~~ | **Delivered 8 Sept.** D-77 to D-79 |
 | ~~S29A~~ | ~~NIS2 pack~~ | **Delivered 9 Sept.** D-80 to D-83 |
 | ~~S30~~ | ~~DPIA + NIS2 risk assessment~~ | **Delivered 10 Sept.** D-84 to D-89 |
-| ~~S33~~ | ~~Admin user management~~ | **Delivered 18 Sept.** Shipped ahead of S31/S32 — see note below. D-90 to D-94 |
+| ~~S32~~ | ~~UI/navigation rework~~ | **Delivered 18 Sept.** D-69, D-95 |
+| ~~S33~~ | ~~Admin user management~~ | **Delivered 18 Sept.** D-90 to D-94 |
 
-**S33 shipped out of numeric order.** The table's order is planning intent,
-not a dependency graph. S33 (admin user management) had no dependency on the
-infrastructure migration (S31) or the UI rework (S32) — it needed a place to
-assign the new `subscription_tier` field by hand, and support needed that
-before either of the other two existed. Per the renumbering rule below
-(*delivered sprints keep their numbers*), S33 keeps its number rather than
-being relabelled S31. S31 and S32 remain next in the pre-beta queue, under
-their existing numbers.
+**S32 and S33 shipped ahead of S31.** The table's order is planning intent,
+not a dependency graph. Neither the UI/navigation rework nor admin user
+management depended on the infrastructure migration — S32 needed no hosting
+change to ship, and S33 needed a place to assign the new `subscription_tier`
+field by hand well before support could wait on a migration. Per the
+renumbering rule below (*delivered sprints keep their numbers*), both keep
+their numbers rather than being relabelled. S31 is now the only thing left
+before the gate other than S34, below.
 
 ### Before the beta gate
 
 | # | Sprint | Notes |
 |---|---|---|
 | **S31** | **Migration to European infrastructure** | D-67/D-68. Self-hosted Supabase + containerised app. **Cheapest now — no clients yet** |
-| **S32** | **UI/navigation rework** | D-69. In Streamlit, not a rewrite |
-| **S34** | **GDPR deletion + session hardening** | **BETA GATE** |
+| **S34** | **Chat retrieval quality** | Renumbered from S35, 18 Sept — D-96. Metadata filtering, then query decomposition, then hybrid. Measure between each. See the note below |
+| **S35** | **GDPR deletion + session hardening** | Renumbered from S34, 18 Sept — D-96. **BETA GATE** |
 
 ### After beta
 
 | # | Sprint | Notes |
 |---|---|---|
-| S35 | Chat retrieval quality | **Re-scoped 10 Sept** — metadata filtering, then query decomposition, then hybrid. Measure between each. See the note below |
 | S36 | Regulatory update → impact re-scoring | Reads S27 `source_revision` |
 | S37 | Multi-user for Professional | Seeds `workspace_members` |
 | S38 | Audit rate-limiting | |
@@ -325,6 +325,7 @@ their existing numbers.
 | S57 | RoPA consistency checks | Depends on S26C |
 | S58 | Cookie Policy purpose granularity | |
 | S59 | Compliance heartbeat — scheduled checks | `hold_set_on` shipped |
+| S60 | Evaluate a Streamlit alternative | Added 18 Sept. See the note below |
 
 ### Renumbering, 10 September 2026
 
@@ -346,8 +347,9 @@ except for three deliberate changes:
 *136 references were updated across this file. Anything written before this
 date — an issue, a commit message, a note elsewhere — uses the old numbering.*
 
-**S35 — what it should actually be.** The sequencing note here previously
-warned that S28, S29 and S30 would ship LLM inserts against an unvalidated
+**S34 (renumbered from S35 on 18 Sept — D-96) — what it should actually be.**
+The sequencing note here previously warned that S28, S29 and S30 would ship
+LLM inserts against an unvalidated
 retrieval layer. All three have shipped, S28 turned out to need no LLM at all
 (D-71), and S29A's inserts run at authoring time under human review (D-81). The
 warning is spent.
@@ -408,6 +410,32 @@ framing suggests.**
 **Post-S50 backlog:** DB schema import tool; NIS2 vendor risk register (extend
 to third-party AI tools); compliance calendar; public compliance badge; RECOSA
 trust page; SSO/SAML; document diffing; register export as a document.
+
+### Renumbering, 18 September 2026
+
+Two changes. Nothing below S37 moves.
+
+**S32 and S33 close.** Numbers unchanged — delivered sprints keep theirs. See
+D-95 (S32) and D-90 to D-94 (S33).
+
+**S34 and S35 swap.** Chat retrieval quality (D-70) was S35, scheduled after
+the beta gate; it becomes **S34**, moved ahead of it. GDPR deletion + session
+hardening was S34, the gate itself; it becomes **S35** and stays the gate —
+reached one sprint later than before. Full reasoning, including why this
+reverses D-70's own 8 September call not to bring it forward, is in D-96.
+
+**S60 — evaluate a Streamlit alternative — added.** Unscoped and not
+beta-blocking; added because the cost of staying on Streamlit has come up
+repeatedly across this sprint and nowhere in this log tracked it as a live
+item. D-69 already commits to Streamlit through S32 and through the pre-beta
+window specifically, on the grounds that a rewrite before beta is months, not
+weeks — S60 is the sprint that revisits that call once beta is behind it, not
+a reversal of D-69 now. D-61's discipline is what makes the eventual answer
+cheap regardless of which way it goes: every compliance verdict already lives
+in pure modules with no Streamlit in them, so a front-end swap is a rendering
+job, not a re-derivation of the rules. Candidates not yet evaluated. Last in
+the numbered list deliberately — nothing else depends on it, and nothing
+about it is designed yet.
 
 ---
 
@@ -750,7 +778,7 @@ plus S53.
 
 Registered mid-session as a sub-sprint, then renumbered. The letter suffix
 means work running adjacent in time to its parent — S26A ran immediately after
-S26, before anything else. Consistency checks run after the S34 beta gate, so a
+S26, before anything else. Consistency checks run after the S35 beta gate, so a
 suffix would have read as a scheduling error rather than a subject grouping.
 See section 6.
 
@@ -772,7 +800,7 @@ Europe charges €9,900 for a manual pack containing them.
 
 #### S52 — Skills matrix and training register
 
-**Priority:** high value-to-cost. Pre-beta if S34 allows. **Cost:** low —
+**Priority:** high value-to-cost. Pre-beta if S35 allows. **Cost:** low —
 two tables, one form, two documents, no engine.
 
 Informational only; RECOSA does not deliver training. It produces the evidence
@@ -904,7 +932,7 @@ on, and uploaded revisions that need a client-written change note.
 
 Both were briefly registered as sub-sprints of S26 and renumbered. The letter
 suffix means work running adjacent in time to its parent (S26A ran immediately
-after S26, before anything else). These run after the S34 beta gate, so a
+after S26, before anything else). These run after the S35 beta gate, so a
 suffix would have read as a scheduling error rather than a subject grouping.
 
 ---
@@ -1063,7 +1091,7 @@ It is Google specifically that breaks the model.
 
 **Priority:** post-beta, but see the beta caveat.
 **Depends on:** S27 (register, retention, legal hold), S21 (audit trail).
-**Related:** S34 (retention sweep — different job, same schedule), S52 (training
+**Related:** S35 (retention sweep — different job, same schedule), S52 (training
 expiry), S57 (RoPA consistency checks), the task register (unnumbered).
 
 ---
@@ -1125,7 +1153,7 @@ cheap once it exists.
   *(Added 8 Sept from the S28 scope lock.)*
 - **Retention dates approaching.** A superseded version reaching `retain_until`
   within 30 days, so the client can archive a copy before it goes. Pairs with
-  the S34 sweep — this warns, that deletes.
+  the S35 sweep — this warns, that deletes.
 - **Documents not reviewed in a year.** In force, never superseded, never
   looked at. Not a breach, but a register nobody has revisited is usually a
   register that has drifted from the business.
@@ -1160,7 +1188,7 @@ auditor that a gap was found on one date and closed on another — and no way fo
 a client who deleted the email to find out what it was about.
 
 **Nothing acts automatically.** The heartbeat warns; it never releases a hold,
-never deletes, never adopts. S34's retention sweep is the only scheduled job
+never deletes, never adopts. S35's retention sweep is the only scheduled job
 that removes anything, and it is deliberately a separate one.
 
 **Idempotent and quiet.** A rule that fires every night on the same unchanged
@@ -2066,7 +2094,7 @@ infrastructure is a client whose data has been processed there, and a later
 migration is a migration with live clients on it — with a cutover, a support
 burden, and a conversation about why their data moved.
 
-**Consequence for the roadmap:** this precedes S34 (the beta gate). It is not
+**Consequence for the roadmap:** this precedes S35 (the beta gate). It is not
 optional work that fits if there is time.
 
 **Candidates** consistent with the positioning: Scaleway, OVHcloud, Hetzner,
@@ -2118,7 +2146,10 @@ Recorded so the question is not reopened at a bad moment.
 
 ---
 
-### D-70 — Document generation filters retrieval by regulation. S35 stays at 31.
+### D-70 — Document generation filters retrieval by regulation. S34 stays at 31.
+
+*Renumbered from S35 to S34 on 18 September 2026 — see D-96. The number
+below is updated; the reasoning is left exactly as written on 8 September.*
 
 Measured 8 Sept 2026, nine queries across four regulations, seven clean.
 
@@ -2161,12 +2192,13 @@ Roughly twenty lines, plus `ensure_payload_indexes()` — `PayloadSchemaType`
 was imported and never used, so `parent_regulation` may have had no index and
 every filtered query would have scanned.
 
-**S35 is NOT brought forward.** Regulation-aware *allocation* — splitting
-`top_k` across regulations by relevance — addresses ranking quality in the
-genuinely ambiguous chat case. Different problem, less urgent, and not what
-gated S28, S29 and S30.
+**S34 is NOT brought forward.** *(True on 8 Sept; reversed on 18 Sept — see
+D-96, which brings it forward for different reasons than the ones rejected
+below.)* Regulation-aware *allocation* — splitting `top_k` across regulations
+by relevance — addresses ranking quality in the genuinely ambiguous chat
+case. Different problem, less urgent, and not what gated S28, S29 and S30.
 
-*Rejected:* moving S35 ahead of S28 on the raw 7/9 count. The count measured
+*Rejected:* moving S34 ahead of S28 on the raw 7/9 count. The count measured
 the wrong thing. Two sprints of work were avoided by reading why the failures
 happened rather than how many there were.
 
@@ -2759,6 +2791,60 @@ against the installed `supabase_auth` source rather than assumed.
 `get_supabase()` look interchangeable from the call site and are not — the
 next feature needing `client.auth.*` will hit the same wall.
 
+### D-95 — S32 ships as a Streamlit UX pass, not a rewrite
+*S32.*
+
+Delivered as: short-TTL caching on hot Supabase reads across Dashboard,
+Obligations and the rest; `st.fragment` to stop full-page reruns on Alerts
+and the NIS2 scope save; RECOSA branding replacing COMPLAI on every
+client-facing surface; and a list-plus-detail pattern applied across the
+Obligations to-do list, the GDPR/NIS2/EU AI Act registers and the Risk
+register — each converging on the same shape, a summary table with real
+per-row actions (`ButtonColumn` Fix it / Dismiss, collapsing to a "⋮" menu
+below a width threshold rather than fighting Streamlit for two inline
+buttons) plus one detail panel for the selected row.
+
+Exactly D-69's scope: real UX work, done inside Streamlit, not a front-end
+rewrite. No React, no separate SPA — the constraint that kept this cheap
+enough to ship before beta. S60 is where that constraint gets revisited, not
+this sprint.
+
+### D-96 — Chat retrieval quality moves ahead of the beta gate; S34 and S35 swap
+*18 September 2026.*
+
+Chat retrieval quality (D-70's metadata-filtering → query-decomposition →
+hybrid sequence) was S35, scheduled after the beta gate. It becomes **S34**,
+moved ahead of it. GDPR deletion + session hardening was S34, the gate
+itself. It becomes **S35** and stays the gate — simply reached one sprint
+later than before.
+
+**This reverses D-70's own call.** D-70, 8 September: *"S35 is NOT brought
+forward... different problem, less urgent, and not what gated S28, S29 and
+S30."* That reasoning is left standing in D-70 rather than edited, because it
+was correct for the question it was answering at the time — whether raw
+7/9 retrieval accuracy justified jumping the queue ahead of three sprints
+that were about to ship. It did not, and D-70's `regulations` filter fixed
+document generation's half of the problem without needing to.
+
+**What changed since 8 September, and why the same sprint is now worth
+moving:** S28, S29, S29A and S30 have shipped, and so has S32 and S33 — the
+list D-70 was protecting is empty except S31, which nothing in S34
+depends on. And retrieval quality is client-facing in a way session
+hardening is not: a client asking a NIS2 question and getting a defensible
+but wrong GDPR answer notices before beta even opens, whereas a session
+hardening gap does not surface until something goes looking for it. With
+the queue clear, the cheaper and more visible fix goes first.
+
+*Rejected — leaving S35 as the gate and doing retrieval quality after beta,
+unchanged.* Was the default until this session. Revisited on request, not
+because D-70 was wrong, but because the conditions D-70 reasoned about no
+longer hold.
+
+Mechanically a straight swap, not a cascade: only S34 and S35 change
+identity. S36 onward already followed immediately after the old S35 in
+sequence, so nothing below moves, and no other sprint's number changes as a
+side effect.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -3137,7 +3223,7 @@ selector. The multi-client selector is Advisory-only (S46).
 
 | Question | Blocks | Notes |
 |---|---|---|
-| ~~Does S35 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. |
+| ~~Does S34 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. **Revisited 18 Sept: brought forward of the beta gate anyway, for unrelated reasons — D-96.** |
 | Task register — which number? | S57, S59, S26C | Three sprints depend on it. Currently unnumbered. |
 | Systems grid purpose granularity | S58 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
@@ -3152,8 +3238,8 @@ selector. The multi-client selector is Advisory-only (S46).
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
 | ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S31.** |
 | Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |
-| PDF/ODT fallback | S34 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
-| Beta date | — | Six sprints to the S34 gate. The lever if it slips is moving S30 (DPIA) post-beta. |
+| PDF/ODT fallback | S35 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
+| Beta date | — | Two sprints to the S35 gate (S31, S34) as of 18 Sept — S28–S30, S32 and S33 are delivered. |
 
 ### The hosting question — resolved 8 Sept 2026
 
