@@ -222,12 +222,28 @@ if "NIS2" in regulations:
 st.divider()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────
-# Summary table + one detail form for the selected row, not one expander per
+# Summary table + one detail panel for the selected row, not one expander per
 # task — same shape as pages/inventory.py's activities tab, and for the same
 # reason: at 53 open tasks the old per-row button-and-container shape rendered
 # 53 buttons (plus a hidden container each) on every run, most of them never
-# opened. A table is what a reader scans down; the detail form only costs
-# anything for the one task actually being dismissed.
+# opened. Detail is deliberately NOT a table column: st.dataframe cannot wrap
+# text to two lines, so a Detail column either truncates every long sentence
+# or forces a click per row to read it. Full title, detail and due date show
+# in the panel below instead, for whichever one task is selected.
+#
+# Every finding already carries a `link` — which page actually fixes the
+# underlying thing — and nothing rendered it before. "obligations" is this
+# page, so it is left without a button; everything else becomes a real
+# st.page_link, which is the actual answer to "why can't I just fix it from
+# here": most of these can't be fixed here, only acknowledged or dismissed,
+# because the finding is a symptom read off another page's data.
+_TASK_LINK_PAGES = {
+    "inventory":          "pages/inventory.py",
+    "documents":          "pages/documents.py",
+    "wording":            "pages/wording.py",
+    "compliance_record":  "pages/compliance_record.py",
+}
+
 if open_tasks:
     st.subheader(f"To do ({len(open_tasks)})")
     _icon = {T.BLOCKING: "🔴", T.DUE: "🟠", T.OPEN: "⚪"}
@@ -237,7 +253,6 @@ if open_tasks:
             {
                 "": _icon.get(f["severity"], "⚪"),
                 "Task": f["title"],
-                "Detail": f.get("detail") or "",
                 "Due": f.get("due") or "",
             }
             for f in open_tasks
@@ -245,27 +260,42 @@ if open_tasks:
         hide_index=True,
         width="stretch",
         column_config={
-            "": st.column_config.TextColumn(width="small"),
-            "Task": st.column_config.TextColumn(width="medium"),
-            "Detail": st.column_config.TextColumn(width="large"),
+            # "small" is a fixed 75px preset — too wide for one character.
+            # An explicit pixel width is also supported and is what a single
+            # icon actually needs.
+            "": st.column_config.TextColumn(width=36),
+            "Task": st.column_config.TextColumn(width="large"),
             "Due": st.column_config.TextColumn(width="small"),
         },
     )
 
     _tasks_by_key = {f["finding_key"]: f for f in open_tasks}
-    _dismiss_options = [None] + list(_tasks_by_key.keys())
-    _dismiss_key = st.selectbox(
-        "Dismiss a task",
-        options=_dismiss_options,
+    _select_options = [None] + list(_tasks_by_key.keys())
+    _selected_key = st.selectbox(
+        "Select a task",
+        options=_select_options,
         format_func=lambda k: (
             "— Select a task —" if k is None else _tasks_by_key[k]["title"]
         ),
         key="ob_task_dismiss_select",
+        label_visibility="collapsed",
     )
 
-    if _dismiss_key:
-        f = _tasks_by_key[_dismiss_key]
+    if _selected_key:
+        f = _tasks_by_key[_selected_key]
         with st.container(border=True):
+            st.markdown(f"**{_icon.get(f['severity'], '⚪')} {f['title']}**")
+            if f.get("detail"):
+                st.caption(f["detail"])
+            if f.get("due"):
+                st.caption(f"Due {f['due']}")
+
+            _link_page = _TASK_LINK_PAGES.get(f.get("link") or "")
+            if _link_page:
+                st.page_link(_link_page, label="Go fix it →")
+
+            st.divider()
+
             # A reason is required — the CHECK constraint enforces it, and
             # this is what an auditor asks about.
             why = st.text_input(
@@ -297,6 +327,13 @@ else:
     st.divider()
 
 # ── The register ──────────────────────────────────────────────────────────
+# Same table-plus-detail-panel shape as the To-do list above: a compact
+# summary per regulation (icon, title, article, status), and the full
+# description/form for whichever one obligation is selected. Safe to do
+# without touching how verdicts are computed — they are still built once,
+# above, from the full applicable set; this only changes how an already-
+# computed verdict is DISPLAYED, so there is no risk of a stale or wrong
+# status badge the way there would be if a save were scoped to a fragment.
 _STATUS_ICON = {
     OR.COMPLIANT: "🟢", OR.PARTIAL: "🟡", OR.MISSING: "🔴",
     OR.NOT_APPLICABLE: "⚪", OR.UNKNOWN: "⚫",
@@ -321,6 +358,17 @@ only = f1.multiselect(
 )
 search = f2.text_input("Search", placeholder="Article, keyword…")
 
+# The Show/Search filters change which obligations are selectable per
+# regulation. If a filter changes on this rerun, the previously selected
+# obligation in any group may no longer be in that group's options — cleared
+# here, before any selectbox below renders, rather than left to raise on a
+# stale value Streamlit no longer recognises.
+_filter_sig = (tuple(sorted(only)), search)
+if st.session_state.get("_ob_filter_sig") != _filter_sig:
+    st.session_state["_ob_filter_sig"] = _filter_sig
+    for _reg in regulations:
+        st.session_state.pop(f"ob_reg_select_{_reg}", None)
+
 for reg in regulations:
     rows = [o for o in applicable if o["regulation"] == reg]
     if not rows:
@@ -336,125 +384,158 @@ for reg in regulations:
 
     st.subheader(f"{REGULATION_LABELS.get(reg, reg)} ({len(shown)})")
 
-    for ob in shown:
-        v = verdicts[ob["id"]]
-        resp = responses.get(ob["id"]) or {}
-        kind = OR.response_kind(ob)
+    st.dataframe(
+        [
+            {
+                "": _STATUS_ICON[verdicts[o["id"]]["status"]],
+                "Obligation": o["title"],
+                "Article": o.get("article", ""),
+                "Status": _STATUS_LABEL[verdicts[o["id"]]["status"]],
+            }
+            for o in shown
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "": st.column_config.TextColumn(width=36),
+            "Obligation": st.column_config.TextColumn(width="large"),
+            "Article": st.column_config.TextColumn(width="small"),
+            "Status": st.column_config.TextColumn(width="small"),
+        },
+    )
 
-        with st.expander(
-            f"{_STATUS_ICON[v['status']]}  {ob['title']}  ·  {ob.get('article','')}",
-            # Open where the client has something to do. Anything already
-            # settled stays shut — a page of 54 open panels is unreadable.
-            expanded=v["status"] in (OR.MISSING, OR.UNKNOWN) and bool(only),
-        ):
-            st.caption(ob.get("description") or "")
-            note = _SOURCE_NOTE.get(v["source"], "")
-            st.markdown(
-                f"**{_STATUS_LABEL[v['status']]}**"
-                + (f" — {note}" if note else "")
+    _shown_by_id = {o["id"]: o for o in shown}
+    _sel_id = st.selectbox(
+        f"Select a {REGULATION_LABELS.get(reg, reg)} obligation",
+        options=list(_shown_by_id.keys()),
+        format_func=lambda i: _shown_by_id[i]["title"],
+        key=f"ob_reg_select_{reg}",
+        label_visibility="collapsed",
+    )
+    ob = _shown_by_id[_sel_id]
+    v = verdicts[ob["id"]]
+    resp = responses.get(ob["id"]) or {}
+    kind = OR.response_kind(ob)
+
+    with st.container(border=True):
+        st.markdown(
+            f"**{_STATUS_ICON[v['status']]}  {ob['title']}**"
+            + (f"  ·  {ob['article']}" if ob.get("article") else "")
+        )
+        st.caption(ob.get("description") or "")
+        note = _SOURCE_NOTE.get(v["source"], "")
+        st.markdown(
+            f"**{_STATUS_LABEL[v['status']]}**"
+            + (f" — {note}" if note else "")
+        )
+        if v.get("detail"):
+            st.caption(v["detail"])
+        for ev in (v.get("evidence") or [])[:8]:
+            st.caption(f"· {ev}")
+
+        st.divider()
+
+        if kind == OR.KIND_DERIVED:
+            st.caption(
+                "RECOSA works this out from your systems and activities. "
+                "Change it there and this follows — there is nothing to "
+                "fill in here."
             )
-            if v.get("detail"):
-                st.caption(v["detail"])
-            for ev in (v.get("evidence") or [])[:8]:
-                st.caption(f"· {ev}")
-
-            st.divider()
-
-            if kind == OR.KIND_DERIVED:
-                st.caption(
-                    "RECOSA works this out from your systems and activities. "
-                    "Change it there and this follows — there is nothing to "
-                    "fill in here."
-                )
-            elif kind == OR.KIND_DOCUMENT:
-                dt = ob.get("doc_type")
-                st.caption(
-                    f"Satisfied by a **{DOCUMENT_TYPES.get(dt, dt)}**. "
-                    "Generate or upload it under Documents; its status here "
-                    "follows the register."
-                )
-            elif kind == OR.KIND_TRACKED:
-                st.caption("Tracked elsewhere in RECOSA.")
-            else:
-                with st.form(f"ob_{ob['id']}"):
-                    if kind == OR.KIND_ACKNOWLEDGE:
-                        who = st.text_input(
-                            "Who confirmed this, and in what capacity",
-                            value=resp.get("acknowledged_by") or "",
-                            help=(
-                                "A name and a date. An unattributed tick is "
-                                "not evidence of anything."
-                            ),
+        elif kind == OR.KIND_DOCUMENT:
+            dt = ob.get("doc_type")
+            st.caption(
+                f"Satisfied by a **{DOCUMENT_TYPES.get(dt, dt)}**. "
+                "Generate or upload it under Documents; its status here "
+                "follows the register."
+            )
+        elif kind == OR.KIND_TRACKED:
+            st.caption("Tracked elsewhere in RECOSA.")
+        else:
+            with st.form(f"ob_{ob['id']}"):
+                if kind == OR.KIND_ACKNOWLEDGE:
+                    who = st.text_input(
+                        "Who confirmed this, and in what capacity",
+                        value=resp.get("acknowledged_by") or "",
+                        help=(
+                            "A name and a date. An unattributed tick is "
+                            "not evidence of anything."
+                        ),
+                    )
+                    if resp.get("acknowledged_at"):
+                        st.caption(
+                            f"Confirmed {str(resp['acknowledged_at'])[:10]}"
                         )
-                        if resp.get("acknowledged_at"):
-                            st.caption(
-                                f"Confirmed {str(resp['acknowledged_at'])[:10]}"
-                            )
+                else:
+                    who = None
+
+                statement = st.text_area(
+                    "What you do about this",
+                    value=(resp.get("statement_i18n") or {}).get("en", ""),
+                    height=90,
+                    help=(
+                        "In your own words. This is what you would show "
+                        "someone who asked."
+                    ),
+                )
+
+                s1, s2 = st.columns(2)
+                new_status = s1.selectbox(
+                    "Status",
+                    options=["not_started", "in_progress", "compliant",
+                             "partial", "not_applicable"],
+                    index=["not_started", "in_progress", "compliant",
+                           "partial", "not_applicable"].index(
+                        resp.get("status") or "not_started"),
+                    format_func=lambda s: {
+                        "not_started": "Not started",
+                        "in_progress": "In progress",
+                        "compliant": "In place",
+                        "partial": "Partly",
+                        "not_applicable": "Not applicable",
+                    }[s],
+                )
+                review = s2.date_input(
+                    "Review again on",
+                    value=(date.fromisoformat(resp["review_due"])
+                           if resp.get("review_due") else None),
+                    help="Leave blank if it does not need revisiting.",
+                )
+
+                reason = st.text_input(
+                    "If not applicable, why not",
+                    value=resp.get("not_applicable_reason") or "",
+                    help=(
+                        "Required, and the first thing an auditor asks "
+                        "about. It is also what you will not remember."
+                    ),
+                )
+
+                if st.form_submit_button("Save", type="primary"):
+                    if new_status == "not_applicable" and not reason.strip():
+                        st.error(
+                            "A reason is required to mark something not "
+                            "applicable."
+                        )
                     else:
-                        who = None
-
-                    statement = st.text_area(
-                        "What you do about this",
-                        value=(resp.get("statement_i18n") or {}).get("en", ""),
-                        height=90,
-                        help=(
-                            "In your own words. This is what you would show "
-                            "someone who asked."
-                        ),
-                    )
-
-                    s1, s2 = st.columns(2)
-                    new_status = s1.selectbox(
-                        "Status",
-                        options=["not_started", "in_progress", "compliant",
-                                 "partial", "not_applicable"],
-                        index=["not_started", "in_progress", "compliant",
-                               "partial", "not_applicable"].index(
-                            resp.get("status") or "not_started"),
-                        format_func=lambda s: {
-                            "not_started": "Not started",
-                            "in_progress": "In progress",
-                            "compliant": "In place",
-                            "partial": "Partly",
-                            "not_applicable": "Not applicable",
-                        }[s],
-                    )
-                    review = s2.date_input(
-                        "Review again on",
-                        value=(date.fromisoformat(resp["review_due"])
-                               if resp.get("review_due") else None),
-                        help="Leave blank if it does not need revisiting.",
-                    )
-
-                    reason = st.text_input(
-                        "If not applicable, why not",
-                        value=resp.get("not_applicable_reason") or "",
-                        help=(
-                            "Required, and the first thing an auditor asks "
-                            "about. It is also what you will not remember."
-                        ),
-                    )
-
-                    if st.form_submit_button("Save", type="primary"):
-                        if new_status == "not_applicable" and not reason.strip():
-                            st.error(
-                                "A reason is required to mark something not "
-                                "applicable."
-                            )
+                        ok = STORE.save_response(
+                            user_id, client_id, ob["id"],
+                            status=new_status,
+                            statement_en=statement,
+                            acknowledged_by=who,
+                            review_due=review or None,
+                            not_applicable_reason=reason,
+                        )
+                        if ok:
+                            st.success("Saved.")
+                            # The saved status can move the obligation out of
+                            # an active Show filter (e.g. marking a
+                            # previously-Missing item Compliant while
+                            # filtered to Missing) — same stale-option risk
+                            # as a changed filter, cleared the same way.
+                            st.session_state.pop(f"ob_reg_select_{reg}", None)
+                            st.rerun()
                         else:
-                            ok = STORE.save_response(
-                                user_id, client_id, ob["id"],
-                                status=new_status,
-                                statement_en=statement,
-                                acknowledged_by=who,
-                                review_due=review or None,
-                                not_applicable_reason=reason,
-                            )
-                            if ok:
-                                st.success("Saved.")
-                                st.rerun()
-                            else:
-                                st.error("Could not save.")
+                            st.error("Could not save.")
 
 st.divider()
 st.caption(
