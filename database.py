@@ -561,9 +561,27 @@ DOCUMENT_STATUSES = {
 # figure, shown to the client with its reasoning rather than asserted as law
 # (D-50, D-51), and configurable per deployment.
 #
-# VERIFY BEFORE BETA: the Belgian DPA is reported to expect previous cookie
-# policy versions to be retained, dated and version-numbered. Confirm against
-# the primary source before this figure is presented to a client as guidance.
+# VERIFIED 18 Sept 2026 against the primary sources, not a secondary summary.
+# The Belgian DPA's own "Check-list cookies" (autoriteprotectiondonnees.be/
+# publications/checklist-cookies.pdf), under "Responsabilité", confirms the
+# WHAT: "je conserve les versions précédentes de ma politique en matière de
+# cookies, j'indique une date et un numéro de version" — retain previous
+# versions, dated and version-numbered. That part of this file's practice is
+# correctly aligned with actual guidance.
+#
+# It does NOT confirm the FIVE YEARS. The Belgian DPA's own checklist states
+# no duration for this and points readers to CNIL's recommendation (point 48,
+# "S'agissant de la preuve de validité du consentement") for more detail —
+# read directly, point 48 lists four non-exclusive ways to EVIDENCE consent
+# (escrowed/hashed code versions, timestamped screenshots per site version,
+# third-party audits, CMP configuration records) and specifies no retention
+# period for any of them either. The only durations either document states
+# anywhere are unrelated: 6 months for consent-choice cookies, 13/25 months
+# for exempted audience-measurement trackers. No "5 years" figure exists in
+# either source. The comment above already said this honestly — "a
+# risk-management working figure... not asserted as law" — that framing was
+# correct and stays correct; this just closes the "confirm against the
+# primary source" item, rather than changing the figure or its status.
 SUPERSEDED_RETENTION_YEARS = int(
     os.environ.get("SUPERSEDED_RETENTION_YEARS", "5")
 )

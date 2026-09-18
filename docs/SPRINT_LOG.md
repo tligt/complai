@@ -3106,6 +3106,52 @@ saw a wrong date. It did not correctly say why — verifying against
 `obligations.py` directly, rather than fixing to the assumption in the bug
 note, is what caught the difference.
 
+### D-98 — The Belgian DPA cookie-retention citation is half right, and the code already knew which half
+*18 September 2026.*
+
+`database.py`'s `SUPERSEDED_RETENTION_YEARS` comment carried two separate
+claims, only one of which had ever been checked: that the Belgian DPA
+expects dated, version-numbered cookie policies with previous versions
+retained, and that five years is a defensible figure for how long. Primary
+sources, read directly rather than summarised secondhand:
+
+- **Autorité de protection des données / Gegevensbeschermingsautoriteit**,
+  *Check-list cookies* (`autoriteprotectiondonnees.be/publications/
+  checklist-cookies.pdf`), under "Responsabilité": *"je conserve les
+  versions précédentes de ma politique en matière de cookies, j'indique une
+  date et un numéro de version dans ma politique en matière de cookies"* —
+  retain previous versions, dated and version-numbered. **Confirmed,
+  word for word.**
+- The same checklist item footnotes CNIL's recommendation (Délibération
+  n° 2020-092, point 48, "S'agissant de la preuve de validité du
+  consentement") for further detail. Point 48 lists four non-exclusive ways
+  to **evidence** that consent was validly collected — escrowed or
+  publicly-hashed code versions, timestamped screenshots per site version,
+  third-party audits, CMP configuration records kept by the vendor — and
+  states no retention period for any of them.
+- Neither document contains a five-year figure anywhere. The only durations
+  either states are unrelated: 6 months for consent-choice cookies (both
+  documents), and 13/25 months for exempted audience-measurement trackers
+  (CNIL only).
+
+**So: the practice is correctly attributed. The duration never was.** The
+existing comment already said this honestly — "a risk-management working
+figure... not asserted as law" (D-50, D-51) — which was the right call
+without yet having the primary source to know it was right. Nothing in the
+code changes; `SUPERSEDED_RETENTION_YEARS` stays a configurable RECOSA
+policy default, not a cited legal minimum. What changes is that the "verify
+before beta" flag is now closed instead of open, and the comment cites what
+was actually checked rather than what was merely reported.
+
+**Same shape as D-97, back to back.** A tracked open item's own framing
+("the Belgian DPA is reported to expect...") was a fair statement of what
+was unverified, and turned out to be exactly half true on inspection —
+correct about the obligation, silent on the number. Worth naming as a
+pattern: two "unverified legal claim" items in one session, both resolved
+by reading the actual primary text instead of trusting the paraphrase that
+had been carried in this log, and both turned out more precise than the
+open item itself assumed.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -3488,7 +3534,7 @@ selector. The multi-client selector is Advisory-only (S46).
 | ~~Task register — which number?~~ | S57, S59, S26C | **Resolved: part of S29.** No longer unnumbered. |
 | Systems grid purpose granularity | S58 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
-| **Belgian DPA cookie guidance + 5-year figure** | S27 | Recorded from a working note, not a checked primary source. **Confirmed 18 Sept: this is not hypothetical — `SUPERSEDED_RETENTION_YEARS` (`database.py`) is computed into `retain_until` on every document supersession and rendered in the live `pages/compliance_record.py`. The figure is already client-facing today, unverified.** |
+| ~~Belgian DPA cookie guidance + 5-year figure~~ | S27 | **Resolved 18 Sept — D-98.** Primary source found and read: the "dated, versioned, previous copies retained" practice is correctly attributed to the Belgian DPA. The five-year figure is not — no primary source states it, and the comment in `database.py` already correctly called it a working figure rather than law. Nothing to change in the code; the open item was the citation, now closed. |
 | Rolling retention start dates | S57 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
 | ~~AI Act role: per client or per system?~~ | S53 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S48. |
 | ~~Art. 4 AI literacy in the catalogue?~~ | S52 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
@@ -3502,7 +3548,7 @@ selector. The multi-client selector is Advisory-only (S46).
 | PDF/ODT fallback | S35 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
 | ~~Pinning the remaining `requirements.txt` packages~~ | — | **Done 18 Sept.** `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally only — see the file's own header note. |
 | `registered_address` Annex I rendering | — | Carried from S26A. Still needs an actual generated DPA eyeballed, not a code check — never done. |
-| Beta date | — | S31 is the only sprint still standing before the S35 gate (S34 is delivered). The one non-sprint item worth resolving first: verifying the Belgian DPA retention claim above, since it is already live and unverified. |
+| Beta date | — | S31 is the only sprint still standing before the S35 gate (S34 is delivered, the Belgian DPA retention claim is verified — D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
 
 ### The hosting question — resolved 8 Sept 2026
 
