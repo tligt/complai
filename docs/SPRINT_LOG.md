@@ -1422,6 +1422,13 @@ Annex III to 2 December 2027 is recorded; this is not. **Verify against the OJ
 text of Regulation (EU) 2026/1744 — a competitor marketing page is not a
 source.**
 
+**Resolved 18 Sept 2026, while fixing the chat.py contradiction below:**
+yes — `ai_10` ("No AI capability for non-consensual intimate imagery or
+CSAM", Art. 5 as amended) carries `applies_from: "2026-12-02"`. The OJ-text
+verification above is still outstanding; this only confirms the row exists
+in the catalogue, not that the date has been checked against the primary
+source.
+
 **Is AI Act role resolved per client or per system?** Both competitors resolve
 Provider/Deployer/Importer/Distributor per system and per legal entity. If the
 current applicability logic holds a single role on the client record,
@@ -1434,6 +1441,21 @@ deferred the standalone Annex III deadline to 2 December 2027, and
 `applies_from` already reflects it. A client asking the chat gets a date their
 dashboard contradicts, and the date has now passed. **Client-visible wrong
 answer about a legal deadline.** Not S26C; fix separately.
+
+**Resolved 18 Sept 2026.** Fixed in `pages/chat.py`'s `answer_question()`
+system prompt, alongside the S34 Part 1/2 work in the same file. The
+original framing above was itself slightly imprecise: `applies_from`
+doesn't move uniformly to 2 December 2027. `ai_11` (Annex III
+classification/assessment) deliberately stays at 2 August 2026 — its own
+description explains the substantive duties bind later but the assessment
+lead time is substantial, so the prep work belongs now. Only `ai_12`,
+`ai_13` and `ai_14` (the actual Art. 26 deployer duties — human oversight,
+logging, informing workers) carry `applies_from: "2027-12-02"`. The
+corrected prompt states both halves rather than collapsing them into one
+date. Verified live: a client asking "when do the Annex III obligations
+apply" now gets "substantive duties... apply from December 2, 2027, but you
+must assess now whether your AI systems are in scope" — matching the
+catalogue's own nuance instead of contradicting it.
 
 **Art. 9(2) conditions beyond `employment_social_security`** *(carried from
 S24)*. Both seeded paths use the same condition; the other nine are untested.
@@ -3041,6 +3063,31 @@ Mechanically a straight swap, not a cascade: only S34 and S35 change
 identity. S36 onward already followed immediately after the old S35 in
 sequence, so nothing below moves, and no other sprint's number changes as a
 side effect.
+
+### D-97 — `applies_from` for Annex III is deliberately two dates, not one
+*18 September 2026.*
+
+`chat.py`'s system prompt collapsed Annex III into a single date — "applies
+from August 2, 2026" — tracked as a client-visible bug in section 7 since
+before this session. Fixing it surfaced that the obligations catalogue
+itself is more precise than the bug report assumed: `ai_11` (assess and
+document whether a system is in scope) deliberately keeps
+`applies_from: "2026-08-02"`, and only `ai_12`/`ai_13`/`ai_14` (the
+substantive Art. 26 deployer duties — human oversight, logging, informing
+workers) carry `applies_from: "2027-12-02"`. `ai_11`'s own description
+already explains why: the duties bind later, but the assessment lead time
+is substantial, so the prep work belongs now.
+
+The bug was the prompt flattening a deliberate two-date model into one
+wrong date, not the catalogue being wrong. Fixed by stating both halves in
+the prompt rather than by moving `ai_11`'s date to match the others, which
+would have deleted the actual distinction the catalogue was drawing.
+
+**General shape, worth naming:** a "client-visible wrong answer" bug report
+is a claim about the SYMPTOM, not a diagnosis. It correctly said the client
+saw a wrong date. It did not correctly say why — verifying against
+`obligations.py` directly, rather than fixing to the assumption in the bug
+note, is what caught the difference.
 
 ---
 
