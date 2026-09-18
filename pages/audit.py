@@ -102,7 +102,7 @@ def render_results(audit_result, pdf_bytes, is_authenticated=False):
             <div style="background:#1B2A4A;padding:24px;border-radius:8px;text-align:center;margin-top:8px;">
                 <h3 style="color:white;margin:0 0 8px;">Ready to fix these gaps?</h3>
                 <p style="color:#ccc;font-size:14px;margin:0 0 16px;">
-                    COMPLAI shows you exactly how to remediate each issue, generates your privacy policy,
+                    RECOSA shows you exactly how to remediate each issue, generates your privacy policy,
                     cookie policy, and T&Cs, and monitors your compliance continuously.
                 </p>
                 <a href="/" style="display:inline-block;background:#0F6E56;color:white;

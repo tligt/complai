@@ -98,7 +98,7 @@ def _cover_table(audit: AuditResult, styles: dict) -> Table:
     risk_col = RISK_COLORS.get(audit.risk_level, NAVY)
 
     cover_data = [[
-        Paragraph("COMPLAI", styles["title"]),
+        Paragraph("RECOSA", styles["title"]),
         Paragraph(f"Risk: {audit.risk_level.upper()}", ParagraphStyle(
             "risk", fontName="Helvetica-Bold", fontSize=16,
             textColor=WHITE, alignment=TA_RIGHT
@@ -240,13 +240,13 @@ def _cta_table(styles: dict) -> Table:
         Paragraph("Ready to fix these gaps?", styles["cta_head"]),
     ], [
         Paragraph(
-            "COMPLAI shows you exactly how to remediate each issue, generates the required documents "
+            "RECOSA shows you exactly how to remediate each issue, generates the required documents "
             "(privacy policy, cookie policy, T&Cs), and monitors your compliance continuously.",
             styles["cta_body"]
         ),
     ], [
         Paragraph(
-            "Start your free 15-day trial at complai.be — no credit card required.",
+            "Start your free 15-day trial at recosa.eu — no credit card required.",
             ParagraphStyle("cta_link", fontName="Helvetica-Bold", fontSize=10,
                            textColor=colors.HexColor("#A8F0D8"), alignment=TA_CENTER)
         ),
@@ -271,8 +271,8 @@ def generate_pdf(audit: AuditResult) -> bytes:
         pagesize=A4,
         leftMargin=20*mm, rightMargin=20*mm,
         topMargin=20*mm, bottomMargin=20*mm,
-        title=f"COMPLAI Audit — {audit.url}",
-        author="COMPLAI",
+        title=f"RECOSA Audit — {audit.url}",
+        author="RECOSA",
     )
 
     styles = _styles()

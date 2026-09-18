@@ -22,13 +22,14 @@ def send_audit_report(
         raise ValueError("BREVO_API_KEY not set in secrets.")
 
     from_email = os.environ.get("BREVO_FROM_EMAIL", "audit@complai.be")
-    from_name  = os.environ.get("BREVO_FROM_NAME", "COMPLAI Audit")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA Audit")
+    base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
 
     pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
     risk_emoji = {"Green": "🟢", "Amber": "🟡", "Red": "🔴"}.get(risk_level, "⚪")
 
     filename = (
-        "COMPLAI_Audit_"
+        "RECOSA_Audit_"
         + website_url.replace("https://", "").replace("http://", "").replace("/", "_")
         + ".pdf"
     )
@@ -40,7 +41,7 @@ def send_audit_report(
 <body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
 
   <div style="background:#1B2A4A;padding:24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:white;margin:0;font-size:24px;">COMPLAI ⚖️</h1>
+    <h1 style="color:white;margin:0;font-size:24px;">RECOSA ⚖️</h1>
     <p style="color:#ccc;margin:4px 0 0;">Your Website Compliance Audit Report</p>
   </div>
 
@@ -75,10 +76,10 @@ def send_audit_report(
   <div style="background:#4A3B8C;padding:20px;border-radius:0 0 8px 8px;text-align:center;">
     <h3 style="color:white;margin-top:0;">Ready to fix these gaps?</h3>
     <p style="color:#ccc;font-size:14px;">
-      COMPLAI shows you exactly how to remediate each issue, generates the required documents,
+      RECOSA shows you exactly how to remediate each issue, generates the required documents,
       and monitors your compliance continuously.
     </p>
-    <a href="https://complai.be/register"
+    <a href="{base_url}/"
        style="display:inline-block;background:#0F6E56;color:white;
               padding:12px 28px;border-radius:6px;text-decoration:none;
               font-weight:bold;font-size:15px;margin-top:8px;">
@@ -88,9 +89,9 @@ def send_audit_report(
   </div>
 
   <p style="color:#999;font-size:11px;text-align:center;margin-top:16px;">
-    This audit was generated automatically by COMPLAI based on publicly accessible website content.
+    This audit was generated automatically by RECOSA based on publicly accessible website content.
     It does not constitute legal advice.<br>
-    COMPLAI · complai.be
+    RECOSA · recosa.eu
   </p>
 
 </body>
@@ -100,7 +101,7 @@ def send_audit_report(
     payload = {
         "sender": {"name": from_name, "email": from_email},
         "to": [{"email": to_email}],
-        "subject": f"Your COMPLAI Compliance Audit — {website_url} ({risk_level} Risk, {score}/100)",
+        "subject": f"Your RECOSA Compliance Audit — {website_url} ({risk_level} Risk, {score}/100)",
         "htmlContent": html_body,
         "attachment": [
             {
@@ -149,7 +150,8 @@ def send_regulatory_alert(update: dict) -> bool:
 
     api_key = os.environ.get("BREVO_API_KEY","")
     from_email = os.environ.get("BREVO_FROM_EMAIL","audit@complai.be")
-    from_name = os.environ.get("BREVO_FROM_NAME","COMPLAI")
+    from_name = os.environ.get("BREVO_FROM_NAME","RECOSA")
+    base_url = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
 
     if not api_key:
         return False
@@ -174,7 +176,7 @@ def send_regulatory_alert(update: dict) -> bool:
             html = f"""
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
   <div style="background:#1B2A4A;padding:20px;border-radius:8px 8px 0 0">
-    <h1 style="color:white;margin:0;font-size:24px">COMPL<span style="color:#0F6E56">AI</span></h1>
+    <h1 style="color:white;margin:0;font-size:24px">RECOSA</h1>
     <p style="color:#ccc;margin:8px 0 0">Regulatory Alert</p>
   </div>
   <div style="background:#f9f9f9;padding:24px;border:1px solid #eee">
@@ -186,8 +188,8 @@ def send_regulatory_alert(update: dict) -> bool:
   </div>
   <div style="background:#eee;padding:16px;border-radius:0 0 8px 8px;text-align:center">
     <p style="color:#888;font-size:11px;margin:0">
-      COMPLAI · complai.be · EU-native compliance for SMEs<br>
-      <a href="https://app.complai.be/alerts" style="color:#0F6E56">View all alerts in COMPLAI</a>
+      RECOSA · recosa.eu · EU-native compliance for SMEs<br>
+      <a href="{base_url}/alerts" style="color:#0F6E56">View all alerts in RECOSA</a>
     </p>
   </div>
 </div>"""
@@ -198,7 +200,7 @@ def send_regulatory_alert(update: dict) -> bool:
                 json={
                     "sender": {"name": from_name, "email": from_email},
                     "to": [{"email": email}],
-                    "subject": f"[COMPLAI] {severity_label} — {update.get('title','')}",
+                    "subject": f"[RECOSA] {severity_label} — {update.get('title','')}",
                     "htmlContent": html,
                 },
                 timeout=15,
