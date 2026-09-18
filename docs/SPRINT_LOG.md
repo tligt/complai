@@ -3289,9 +3289,49 @@ by reading the actual primary text instead of trusting the paraphrase that
 had been carried in this log, and both turned out more precise than the
 open item itself assumed.
 
----
+### D-99 — `check_client_target_markets()` called `invalid_reference_codes()` with the wrong argument order, silently blocking every second client an account ever tried to add
+*18 September 2026.*
 
-## 5. Constraints and gotchas
+Found while adding three test clients to the `creagent` account for tier
+testing, not by code review — the insert failed with `function
+invalid_reference_codes(unknown, text[]) does not exist`.
+
+The trigger (`check_client_target_markets`, fires on every `clients`
+insert/update) called:
+
+```sql
+invalid_reference_codes('jurisdiction', ARRAY(...))
+```
+
+The actual function signature is `invalid_reference_codes(p_codes text[],
+p_type text, p_scope uuid)` — codes first, then type, then a required
+workspace-scope argument the trigger never supplied at all. Confirmed via
+`pg_get_functiondef` on both sides rather than guessed. `p_scope` scopes a
+reference code to a workspace's own custom vocabulary (`reference_values.
+workspace_id`) — a concept S47/S48 will give meaning to; today every real
+row has `workspace_id IS NULL`, so `NULL` is the correct value until then.
+
+**This was not a theoretical risk.** `create_client_record()` in
+`database.py` never sets `target_markets` on insert, relying on its column
+default — which is non-empty, so the trigger's early-return guard
+(`array_length(...) IS NULL`) never fires and the broken call runs on
+every single client creation. Since no account had ever actually completed
+a *second* client creation in production before this session (S33's
+tier-gating work this session tested only the gated-state UI, never a real
+submission through to success), the bug had been live and undetected since
+whichever migration last touched either function's signature.
+
+**Fixed** by reordering the arguments and supplying `NULL` for `p_scope`,
+applied as a migration, then verified by successfully inserting three
+clients that had failed moments earlier with the old function.
+
+**General shape:** the same drift D-65 and D-97 already named in this log
+— two things that agree today because nobody has exercised the path where
+they wouldn't. A trigger calling a helper function is exactly the kind of
+call site `obligations.py`'s own single-source-of-truth discipline (D-02)
+doesn't reach, because it is SQL, not something `grep` across the Python
+tree finds. Worth remembering when a function's signature changes: check
+`pg_proc` for what else calls it, not just the Python call sites.
 
 Hard-won. Each cost real debugging time.
 
