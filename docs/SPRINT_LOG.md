@@ -312,7 +312,7 @@ S31 is now the only thing left before the gate.
 | S44 | Onboarding redesign | Auto-detection layer only |
 | S45 | Document branding | Theme only |
 | S46 | Breach notification workflow | Follows the S29A procedure |
-| S47 | Advisory multi-client workspace | |
+| S47 | Advisory multi-client workspace | Scope-locked 18 Sept — 8 pages affected, see 3b |
 | S48 | Enterprise multi-seat/multi-division | |
 | S49 | Enterprise routing + in-app messaging | |
 | S50 | Buffer/LinkedIn integration | |
@@ -1261,6 +1261,167 @@ nowhere to land beyond a column in the activity summary.
 
 S27 adds two more producers: documents whose template source revision has moved
 on, and uploaded revisions that need a client-written change note.
+
+---
+
+### S47 — Advisory multi-client workspace — SCOPE LOCK
+
+**Found, not designed.** Discovered 18 September 2026 when the very first
+multi-client account ever to exist in production (`creagent`, given four
+clients for tier testing this session — see D-99's own trigger fix, found
+the same way) hit a live `PGRST116` error on Risk Assessments. Advisory —
+the tier RECOSA already sells as "manage more than one client from this
+account" — has never actually worked correctly on most of the app, because
+no account had ever had more than one client to expose it.
+
+**Position:** stays post-beta as already scheduled. Considered moving it
+forward the way D-96 moved S34, on the same "live client-facing gap"
+reasoning — but rejected: no real Advisory client exists yet, Advisory
+assignment is admin-only and deliberate (D-91), and billing (S43, which is
+what would actually put a paying Advisory client in front of this) is
+itself post-beta. The exposure window before beta is test accounts only.
+Revisit if an admin manually upgrades a real client to Advisory with more
+than one company before S43 ships.
+
+---
+
+#### What's actually broken, checked page by page rather than assumed
+
+**Correctly multi-client-aware already:** `chat.py`, `profile.py`,
+`documents.py`, `gap.py`, `audit.py`, `inventory.py`. Three different
+patterns between them, described below — none of the six is wrong, but
+they don't agree with each other.
+
+**Crashes or silently returns an empty profile for any account with 2+
+clients (6 pages):** `risk.py`, `wording.py`, `wording_page.py`,
+`dashboard.py`, `obligations.py`, `compliance_record.py`. All six carry
+the same query: `.table("clients").select("*").eq("user_id",
+user_id).single()`. `.single()` demands exactly one row; the first account
+ever to have more than one broke it immediately. `risk.py` and the two
+`wording*.py` pages show the raw PostgREST error to the client.
+`dashboard.py` and `obligations.py` catch it into a bare `client = {}`
+with no error at all — `dashboard.py` then tells the client to "complete
+your company profile," which is actively wrong for someone who has
+completed four.
+
+**Silently operates on the wrong client, no error, no warning (2 pages):**
+`support.py` and `activity.py`. Both use `clients[0]` with no selector at
+all. A support ticket or an activity-log view from an Advisory account
+reflects whichever client happens to sort first — never told, easy to
+never notice. `activity.py`'s own comment says *"Single-owner model until
+S38 (Advisory multi-client workspace) — one client per user"* — S38 today
+is Audit rate-limiting; that comment is using pre-10-September numbering
+and was never revisited when the renumbering landed. The sprint it names
+itself as waiting for is this one.
+
+---
+
+#### The three existing patterns, and why to converge on one
+
+- **Local, page-scoped selector** (`gap.py`, `documents.py`): an
+  `st.selectbox("Select client", ...)` that lives entirely on that page.
+  Works for that page. Does not persist — choosing Vantora Cloud on Gap
+  Assessment has no effect on what Risk Assessments or Dashboard show next,
+  so two pages can disagree about which company is "active" in the same
+  session.
+- **Global, refuse-to-guess** (`inventory.py`): reads
+  `st.session_state.get("selected_client")` — set by Chat's own picker —
+  and if it's unset with more than one client on the account, stops with a
+  warning rather than guessing. Safer than the six broken pages, but the
+  warning has nowhere on the page for the client to actually act on it; they
+  have to leave and find Chat's selector.
+- **No pattern at all** (the six broken pages, plus `support.py` and
+  `activity.py`): described above.
+
+**Adopted: one shared helper, `active_client.py`, combining the safe half
+of each.** New module, Streamlit-dependent UI logic rather than a pure
+data read — sits alongside `tier_gates.py`, not in `cached_reads.py`,
+which stays pure-fetch by design.
+
+```python
+def get_active_client(user_id: str) -> dict | None:
+    """The client this page should operate on. Returns None after already
+    calling st.stop() - the caller does not need its own stop handling.
+
+    0 clients: tells the user to create one, stops.
+    1 client: returns it directly, no UI shown - the Starter/Professional
+      case, where the user IS the company (S46's own framing) and asking
+      would be friction over a choice that does not exist.
+    2+ clients, st.session_state.selected_client already set: returns it.
+    2+ clients, nothing selected yet: renders "Select client" inline (the
+      gap.py/documents.py shape) right on the page rather than pointing
+      elsewhere, AND writes the choice into st.session_state.selected_client
+      so it carries into every other page for the rest of the session, not
+      just this one.
+    """
+```
+
+This is a synthesis, not a new invention: `gap.py`/`documents.py` already
+proved the inline-selector UX works; `inventory.py` already proved
+refusing to guess is the right safety property. Neither alone was
+complete — the first doesn't persist, the second has no way to act on its
+own warning.
+
+---
+
+#### Part 1 — Fix the six pages that crash or go silently blank
+
+Replace the `.table("clients")...single()` block in `risk.py`,
+`wording.py`, `wording_page.py`, `dashboard.py`, `obligations.py`,
+`compliance_record.py` with `get_active_client(user_id)`. Six near-
+identical deletions, six one-line replacements. No behavioural change for
+any single-client account — `get_active_client` returns immediately with
+no UI in that case, exactly like today.
+
+#### Part 2 — Fix the two silent wrong-client pages
+
+Replace the `clients[0]` line in `support.py` and `activity.py` with
+`get_active_client(user_id)`, and remove the stale "until S38" comment in
+`activity.py` — the sprint it was waiting for is this one, shipping now,
+under its current number. Worth calling out as higher severity than Part 1
+in spirit despite shipping alongside it: wrong data with no error is worse
+than a visible crash.
+
+#### Part 3 — Bring the two already-working local selectors in line
+
+`gap.py` and `documents.py` work correctly today but don't write to
+`st.session_state.selected_client`, so a choice made there doesn't carry
+over anywhere else — the mirror-image inconsistency from Parts 1–2.
+Switch both to `get_active_client(user_id)` too, so all eight-plus pages
+share one behaviour and one persisted selection instead of three
+disagreeing ones.
+
+---
+
+#### Out of scope
+
+- **A permanent, always-visible client switcher** rendered above or
+  beside the page navigation. Blocked by the same constraint already
+  confirmed this session: `st.navigation`'s auto-generated menu always
+  renders first in the sidebar, and nothing can be placed above it.
+  `get_active_client()`'s inline, appears-once-per-session selector is the
+  workaround available within that constraint. A persistent switcher is a
+  real UX project of its own, not something this bug fix should absorb.
+- **S48** (Enterprise multi-seat/multi-division) — a different axis
+  entirely, multiple *users* on one workspace rather than one user with
+  multiple clients. Not touched here.
+- **Any change to `load_clients()`, `create_client_record()`, or the
+  tier-gating already built** (D-90 to D-96) — this is purely about which
+  client a page reads once it has one, not how many a tier is allowed to
+  have or how upgrading/downgrading works.
+
+---
+
+#### Verification
+
+Exercise all eight affected pages against the `creagent` Advisory account
+(four real clients, already live) two ways: with no selection made yet
+this session — confirm the inline selector appears rather than a crash,
+a silent blank, or silently wrong data — and with a selection already made
+on one page — confirm every other page reflects it without asking again.
+Re-check a single-client account afterward (any Professional account) to
+confirm none of Parts 1–3 add a selector or any visible change to the
+common case.
 
 ---
 
