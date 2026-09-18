@@ -1,8 +1,7 @@
 import streamlit as st
 import register as REG
-from database import (
-    get_supabase,
-    get_supabase_admin,
+from database import get_supabase, get_supabase_admin
+from cached_reads import (
     count_unread_alerts,
     load_document_files,
     load_audit_files,

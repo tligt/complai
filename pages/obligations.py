@@ -31,7 +31,8 @@ import obligation_store as STORE
 import tasks as T
 from template_nis2 import INSERTS
 from auth import get_user_id
-from database import get_supabase, get_register_status
+from database import get_supabase
+from cached_reads import get_register_status
 from obligations import (
     OBLIGATIONS, OBLIGATION_BY_ID, REGULATION_LABELS, DOCUMENT_TYPES,
 )
