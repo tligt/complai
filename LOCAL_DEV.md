@@ -6,7 +6,10 @@ Supabase, GitHub, Qdrant, and Mistral stay exactly where they already are
 
 ## Prerequisites
 
-- Python 3.11
+- Python 3.12+ (tested locally on 3.13; production runs 3.14 per the note
+  at the top of `requirements.txt`). **Not 3.11** — `numpy==2.5.1` in
+  `requirements.txt` requires Python ≥3.12, so `pip install` fails on
+  3.11 with no matching numpy version.
 - LibreOffice (system package — needed for the docx→pdf/odt conversion in
   `document_generator.py`)
   - macOS: `brew install --cask libreoffice`
