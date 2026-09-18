@@ -427,14 +427,38 @@ with st.sidebar:
 selected_client = st.session_state.selected_client
 
 # ── No client selected ────────────────────────────────────────
+# The sidebar's own client selector is real, but it renders below
+# Streamlit's automatic page navigation and the Log out button — twelve-plus
+# rows a new visitor has to scroll past before reaching it. Rather than
+# fight that ordering (st.navigation always renders first in the sidebar,
+# ahead of anything a page adds to it), the picker is repeated here, where
+# the "select a client" message already is and the user is already looking.
 if not selected_client:
     st.markdown("""
     <div class="empty-chat-wrapper">
         <div style="font-size:2.5rem;margin-bottom:1rem;">🛡️</div>
         <h2 style="color:#003366;font-weight:700;margin-bottom:0.5rem;">RECOSA Compliance Chat</h2>
-        <p style="color:#64748B;max-width:400px;">Select a client from the sidebar to start a compliance conversation about GDPR, NIS2, or the EU AI Act.</p>
+        <p style="color:#64748B;max-width:400px;">Select a client to start a compliance conversation about GDPR, NIS2, or the EU AI Act.</p>
     </div>
     """, unsafe_allow_html=True)
+
+    if client_options:
+        _pick_name = st.selectbox(
+            "Client",
+            options=list(client_options.keys()),
+            key="chat_main_client_pick",
+            label_visibility="collapsed",
+        )
+        if st.button("Continue", type="primary"):
+            st.session_state.selected_client = client_options[_pick_name]
+            st.session_state.history_loaded = False
+            start_new_session()
+            st.rerun()
+    else:
+        st.info(
+            "You don't have a company profile yet. Open **➕ New client** in "
+            "the sidebar (below the page list) to set one up."
+        )
     st.stop()
 
 # ── Client header ─────────────────────────────────────────────
