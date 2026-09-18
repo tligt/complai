@@ -662,6 +662,142 @@ and needs wording care.**
 
 ---
 
+### S34 — Chat retrieval quality — SCOPE LOCK
+
+**Position:** before the beta gate (S35), no dependency on S31. The table
+above lists S31 first on priority (D-67: cheapest before there are clients),
+not because S34 needs infrastructure to ship — S34 is pure Python and Qdrant
+query logic, and can land before, after or alongside S31.
+
+**Why this is scope-locked and not just a roadmap line:** D-96 moved this
+ahead of the beta gate on the strength of a three-part plan already sketched
+in D-70 and the "what it should actually be" note above it, but neither
+locks a mechanism. Three parts, **measured between each, next part built
+only if the prior one leaves a gap** — the same discipline the roadmap note
+already states, made concrete enough to build against.
+
+---
+
+#### Part 1 — Metadata filtering from the client profile
+
+**Mechanism.** `pages/chat.py`'s `handle_prompt()` calls `retrieve()`
+(`rag.py:665`) without a `regulations=` argument, so it defaults to `None`
+and every regulation competes — the one caller D-70 deliberately left
+unfiltered. Pass `selected_client.get("regulations") or []`. Nothing else
+changes: `retrieve_from_qdrant()` already treats an empty or `None` list as
+no filter (`if regulations:` guards the `FieldCondition` — confirmed against
+the current source, not assumed), so a client with no regulations recorded
+degrades to today's behaviour rather than returning nothing.
+
+**What this fixes, and what it deliberately does not.** It stops a NIS2
+chunk reaching a client with no NIS2 exposure at all — a GDPR-only client
+asking about breach notification should never compete against Art. 23 NIS2
+chunks it cannot possibly be subject to. **It does not resolve the two
+measured failures.** Both came from clients plausibly subject to both
+regulations in the question, where D-70 already judged the ambiguity real
+and worth preserving rather than filtering away. Part 1 narrows the
+candidate set to what the client is actually subject to; it does not decide
+between two regulations the client is subject to at once. That is Part 2.
+
+**Cost:** roughly the line D-70 already left as a stub. Cheapest of the
+three, and the reason it is first.
+
+---
+
+#### Part 2 — Query decomposition for multi-regulation questions
+
+**Mechanism, adopted:** a lightweight Mistral classification call, run
+before retrieval, asking which of the client's *own* applicable regulations
+(from Part 1's list, never regulations the client isn't subject to) are
+plausibly relevant to the question — structured output, one call, cheap
+relative to the answer generation call that follows it. Zero or one
+regulation flagged: behaves exactly like Part 1. More than one: retrieve
+separately per flagged regulation (Part 1's filter, called once per
+regulation) and merge the chunks into one context, with a short instruction
+appended to the answer prompt naming the regulations in play so
+`answer_question()` addresses each rather than picking one.
+
+*Rejected — decompose every question, always, for any client subject to
+more than one regulation.* No classifier needed, but multiplies retrieval
+calls by the client's regulation count on every question, most of which are
+not ambiguous. Wasteful in the case that is not the problem.
+
+*Rejected — keyword/regex classification.* Cheaper than an LLM call, and
+wrong for exactly the failures this part exists to fix: *"Do I have to tell
+anyone if we get hacked?"* contains no NIS2 vocabulary at all — the overlap
+is semantic, not lexical. A keyword classifier would miss the case D-70
+measured and pass the ones that were never ambiguous.
+
+**Open, to resolve during build, not before:** whether the classification
+call runs sequentially before retrieval (simplest, adds one round-trip's
+latency to every question) or is folded into a single combined call.
+Sequential first; only worth optimising if the added latency is measured as
+a problem.
+
+**Expected to close both of D-70's measured failures.** Both were a client
+plausibly subject to two regulations at once, asked in language that fits
+either — precisely what this decomposes.
+
+---
+
+#### Part 3 — Hybrid dense + BM25
+
+**Mechanism, adopted:** an in-process sparse-text index (`rank_bm25` or
+equivalent) built over the same chunk text already in Qdrant, queried
+alongside the existing dense retrieval and fused client-side (reciprocal
+rank fusion) before taking `top_k`. No change to the Qdrant collection or
+the ingestion pipeline.
+
+*Rejected — Qdrant-native hybrid (sparse + dense vectors in one collection).*
+Requires a sparse vector field and full re-ingestion, which means the S3
+manual PDF-to-Colab pipeline again, for a part explicitly scoped as helping
+a *different* class of failure than the two measured — not proportionate
+until Part 3 is known to be needed at all.
+
+**Built only if Parts 1 and 2 leave a gap.** The roadmap note already
+observes hybrid search "would not have fixed the two misses; helps a
+different class" — exact tokens like `Art. 21(2)(d)` or `Annex III` that
+embeddings blur. Neither measured failure was that shape. Kept as the third
+tier specifically for whatever the wider query set below surfaces that
+Parts 1–2 do not.
+
+---
+
+#### Out of scope
+
+- **Self-RAG / Corrective RAG, Graph RAG, Agentic / Multi-Agent RAG.**
+  Already surveyed and rejected in the roadmap note above D-70 — latency and
+  spend for an unmeasured gain, a sprint on its own for an unmeasured
+  benefit, and solving a team-scale research problem RECOSA does not have,
+  respectively. Not reopened here.
+- **Regulation-aware `top_k` allocation** (splitting slots across
+  regulations by relevance rather than filtering or decomposing). This is
+  the mechanism D-70 originally named and left for later, back when this
+  sprint was S31/S35. D-96 brings the *sprint* forward; it does not adopt
+  this *mechanism* — Parts 1–3 above are filtering, decomposition and
+  hybrid search, not proportional allocation. Worth naming so the two are
+  not conflated on the strength of the scheduling change alone.
+- **Document generation's retrieval.** D-70's `regulations` filter there is
+  unchanged; Parts 1–2 touch only the `pages/chat.py` call site.
+- **Any change to what chunks exist or how they are tagged.** Ingestion
+  (S3), chunking (S7) and the `parent_regulation` tag are inputs to this
+  sprint, not in scope for it.
+
+---
+
+#### Verification
+
+Re-run the D-70 diagnostic set (nine queries, four regulations) after each
+part, not only at the end — the same "measure before the next" discipline
+the roadmap note already commits to. Expected outcome: Part 1 alone should
+not fix either of the two known failures (see above, by design); Part 2 is
+expected to fix both. If it does, **Part 3 does not build against the known
+failures** — it stays scoped for whatever a larger set turns up, ideally
+real chat logs once there are beta clients asking real questions rather than
+nine diagnostic ones.
+
+---
+
 ### S43 — Billing — SCOPE ADDITIONS (from S27)
 
 S43 defines tiers, prices and enforcement. S27 ships the switches and the
