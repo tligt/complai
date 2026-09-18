@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -279,22 +279,22 @@ S34.
 | ~~S30~~ | ~~DPIA + NIS2 risk assessment~~ | **Delivered 10 Sept.** D-84 to D-89 |
 | ~~S32~~ | ~~UI/navigation rework~~ | **Delivered 18 Sept.** D-69, D-95 |
 | ~~S33~~ | ~~Admin user management~~ | **Delivered 18 Sept.** D-90 to D-94 |
+| ~~S34~~ | ~~Chat retrieval quality~~ | **Delivered 18 Sept.** Parts 1–2 shipped, Part 3 not needed. D-96 |
 
-**S32 and S33 shipped ahead of S31.** The table's order is planning intent,
-not a dependency graph. Neither the UI/navigation rework nor admin user
-management depended on the infrastructure migration — S32 needed no hosting
-change to ship, and S33 needed a place to assign the new `subscription_tier`
-field by hand well before support could wait on a migration. Per the
-renumbering rule below (*delivered sprints keep their numbers*), both keep
-their numbers rather than being relabelled. S31 is now the only thing left
-before the gate other than S34, below.
+**S32, S33 and S34 shipped ahead of S31.** The table's order is planning
+intent, not a dependency graph. None of the three depended on the
+infrastructure migration — S32 needed no hosting change to ship, S33
+needed a place to assign the new `subscription_tier` field by hand well
+before support could wait on a migration, and S34 is pure retrieval logic
+against the existing Qdrant collection. Per the renumbering rule below
+(*delivered sprints keep their numbers*), all three keep their numbers.
+S31 is now the only thing left before the gate.
 
 ### Before the beta gate
 
 | # | Sprint | Notes |
 |---|---|---|
 | **S31** | **Migration to European infrastructure** | D-67/D-68. Self-hosted Supabase + containerised app. **Cheapest now — no clients yet** |
-| **S34** | **Chat retrieval quality** | Renumbered from S35, 18 Sept — D-96. Metadata filtering, then query decomposition, then hybrid. Measure between each. See the note below |
 | **S35** | **GDPR deletion + session hardening** | Renumbered from S34, 18 Sept — D-96. **BETA GATE** |
 
 ### After beta
@@ -702,6 +702,36 @@ between two regulations the client is subject to at once. That is Part 2.
 **Cost:** roughly the line D-70 already left as a stub. Cheapest of the
 three, and the reason it is first.
 
+**Refined during implementation, 18 September 2026.** The plain version
+above (`selected_client.get("regulations")`, no further processing) would
+have introduced two new regressions rather than only closing D-70's gap:
+
+1. `obligations.py` already carries `REGULATION_PARENT = {"EPRIVACY":
+   "GDPR"}`, with a comment explaining ePrivacy isn't client-selectable and
+   rides along with GDPR so cookie obligations don't vanish from the
+   dashboard. A filter built from `regulations` alone, without this
+   mapping, would have made ePrivacy chunks unreachable in chat for every
+   client — the exact problem `REGULATION_PARENT` already exists to
+   prevent, one layer up. Reused, not duplicated.
+2. Qdrant also holds `CONSUMER_RIGHTS` and `EAA` as fully ingested `core`
+   regulations (`colab_rebuild_v2.py`), and neither is in
+   `REGULATION_OPTIONS`, `REGULATION_LABELS`, or `REGULATION_PARENT` — no
+   client profile has ever been able to select them. Decided on request:
+   RECOSA launches covering three regulations, and Consumer Rights/EAA
+   "might potentially be for later, or never." So this is not an
+   absence-is-not-evidence case (D-60, D-73) — it is settled, and the
+   filter excludes both outright, for every client, rather than always
+   admitting them as an unfiltered previous draft of this scope lock had
+   it. Before this fix, every chat answer was already silently competing
+   against Accessibility Act and Consumer Rights Directive chunks nobody
+   had decided RECOSA answers questions about.
+
+Implemented in `pages/chat.py`: `chat_regulations` is computed once,
+module-level, from `selected_client`'s regulations intersected with
+`REGULATION_OPTIONS`, expanded with `REGULATION_PARENT`, falling back to
+all three supported regulations (never to no filter) when a client has
+none recorded — and passed to the existing `retrieve()` call.
+
 ---
 
 #### Part 2 — Query decomposition for multi-regulation questions
@@ -795,6 +825,37 @@ expected to fix both. If it does, **Part 3 does not build against the known
 failures** — it stays scoped for whatever a larger set turns up, ideally
 real chat logs once there are beta clients asking real questions rather than
 nine diagnostic ones.
+
+**Measured, 18 September 2026.** Both predictions held.
+
+- **Part 1 alone**, multi-regulation client (GDPR+NIS2+EU_AI_ACT, the
+  common case): 7/9 clean, the same two D-70 failures survive unchanged —
+  confirmed against the real `retrieve_from_qdrant()`, not a re-derivation.
+  A GDPR-only client on the same nine queries correctly stops seeing
+  NIS2/AI Act content at all, confirming the filter itself works.
+- **Part 1 + Part 2**: 9/9 clean. Both known failures fixed. Confirmed twice
+  — once against the raw retrieval layer directly, once live through the
+  actual Chat page in the browser, both D-70 failure questions asked of the
+  real `creagent` client. Both answers correctly addressed GDPR (72h,
+  Belgian DPA) **and** NIS2 (CERT.be/CCB) in one response, citing sources
+  from both regulations' core and supplementary content.
+- **Part 3 not built.** Per the criterion above — no gap left to build it
+  against.
+- **Latency, measured, not yet acted on.** A decomposed answer took
+  roughly 30–40 seconds end to end in the live test (classification call,
+  four retrieval calls instead of two, then generation) against a few
+  seconds for a non-decomposed one. This only affects the questions
+  decomposition actually fires for — the seven non-ambiguous queries were
+  unaffected — but it is a real, measured cost worth watching once there
+  are enough real questions to know how often it fires in practice, not
+  hypothetical the way it was when Part 2 was scoped.
+
+**Refinement during Part 1 implementation, recorded above under Part 1**:
+the filter also had to exclude `CONSUMER_RIGHTS` and `EAA` outright (a
+product-scope decision — RECOSA launches covering three regulations, not
+six) and reuse `obligations.py`'s existing `REGULATION_PARENT` mapping for
+ePrivacy rather than duplicating it. Part 2's classifier candidate set is
+built from the same `REGULATION_OPTIONS`-scoped list for consistency.
 
 ---
 

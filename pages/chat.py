@@ -23,7 +23,8 @@ from database import (
 )
 from cached_reads import load_clients
 from tier_gates import client_limit_reached, upsell_dialog
-from rag import retrieve, get_knowledge_base_summary
+from rag import retrieve, retrieve_from_qdrant, retrieve_from_memory, get_knowledge_base_summary
+from obligations import REGULATION_PARENT
 
 # ── Constants ─────────────────────────────────────────────────
 COUNTRY_OPTIONS = {
@@ -62,6 +63,55 @@ def extract_text(uploaded_file) -> str:
     return uploaded_file.read().decode("utf-8", errors="replace")
 
 
+def classify_regulations(question: str, candidate_regs: list[str]) -> list[str]:
+    """S34 Part 2 (D-96): which of THIS CLIENT's own regulations does the
+    question plausibly touch? One cheap Mistral call, constrained to
+    `candidate_regs` — it can never propose a regulation the client isn't
+    even subject to, since that list is already Part 1's filtered set.
+
+    Zero or one result means "not ambiguous": the caller falls back to
+    Part 1's single filtered retrieval rather than decomposing for
+    nothing. Deliberately not a keyword/regex classifier — the two
+    failures D-70 measured shared no vocabulary with the regulation that
+    actually answered them ("do I have to tell anyone if we get hacked"
+    contains no NIS2 term at all), which is exactly what a keyword rule
+    would miss.
+    """
+    api_key = os.environ.get("MISTRAL_API_KEY")
+    if not api_key or len(candidate_regs) < 2:
+        return []
+    prompt = (
+        "A compliance question from an SME client. Which of the following "
+        "regulations, if any, is this question plausibly asking about? "
+        f"Candidates: {', '.join(candidate_regs)}. "
+        "Reply with ONLY a comma-separated list of the applicable codes "
+        "from the candidates above, nothing else — no explanation. If only "
+        "one candidate applies, name just that one.\n\n"
+        f"Question: {question}"
+    )
+    try:
+        response = requests.post(
+            "https://api.mistral.ai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={
+                "model": "mistral-large-latest",
+                "temperature": 0,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": 50,
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        raw = response.json()["choices"][0]["message"]["content"]
+    except Exception:
+        # Classification is an optimisation, not a requirement — a failed
+        # call degrades to Part 1's single filtered retrieval, not to an
+        # error the client sees.
+        return []
+    flagged = {r.strip().upper() for r in raw.split(",")}
+    return [r for r in candidate_regs if r in flagged]
+
+
 def answer_question(
     question: str,
     context_chunks: list,
@@ -69,6 +119,7 @@ def answer_question(
     client_context: str = "",
     user_id: str | None = None,
     client_id: str | None = None,
+    regulations_in_play: list[str] | None = None,
 ) -> str:
     api_key = os.environ.get("MISTRAL_API_KEY")
     if not api_key:
@@ -81,8 +132,7 @@ def answer_question(
 
     system_prompt = (
         "You are a compliance expert assistant helping EU SMEs understand and comply with "
-        "GDPR, NIS2, the EU AI Act, the ePrivacy Directive, the European Accessibility Act, "
-        "and the EU Consumer Rights Directive. "
+        "GDPR, NIS2, the EU AI Act, and the ePrivacy Directive. "
         "Answer questions strictly based on the provided context passages. "
         "Each passage is labelled with its source document. "
         "You also have access to the conversation history — use it to understand follow-up questions. "
@@ -100,6 +150,19 @@ def answer_question(
         "If the answer is not in the context, say so clearly. "
         "Do not use knowledge outside the provided context."
     )
+    if regulations_in_play:
+        # S34 Part 2 (D-96): the classifier flagged more than one
+        # regulation for this question, and retrieval was decomposed and
+        # merged accordingly. Tell the Generator explicitly rather than
+        # leaving it to notice from the mixed context — the whole point
+        # of decomposing is that one regulation must not silently win
+        # over the other the way it did before this sprint.
+        system_prompt += (
+            " This question touches more than one regulation this client "
+            f"is subject to — specifically {' and '.join(regulations_in_play)}. "
+            "Address each of them in your answer; do not pick one and "
+            "ignore the other."
+        )
 
     messages = [{"role": msg["role"], "content": msg["content"]} for msg in history]
     messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
@@ -483,6 +546,39 @@ st.caption(
     f"{selected_client.get('company_size','')} FTE · {reg_str}"
 )
 
+# S34 Part 1 (D-96): narrow retrieval to the regulations RECOSA
+# currently covers (REGULATION_OPTIONS: GDPR, NIS2, EU_AI_ACT), scoped
+# further to what this client is actually subject to. EPRIVACY rides
+# along with GDPR — REGULATION_PARENT is the same mapping obligations.py
+# uses so cookie obligations don't vanish from the dashboard, reused
+# rather than duplicated.
+#
+# CONSUMER_RIGHTS and EAA are excluded outright, for every client. Both
+# are fully ingested in Qdrant (colab_rebuild_v2.py, tagged doc_type
+# "core" same as the other four) but neither is part of what RECOSA
+# covers at launch — a product decision, not a per-client applicability
+# question. Before this filter, every chat answer was silently competing
+# against European Accessibility Act and Consumer Rights Directive
+# chunks nobody had decided RECOSA answers questions about.
+#
+# A client with no regulations recorded falls back to all three
+# supported regulations rather than to no filtering at all, so
+# CONSUMER_RIGHTS/EAA stay excluded even in that edge case.
+#
+# client_core_regulations (pre-EPRIVACY-expansion) is also S34 Part 2's
+# candidate set for classify_regulations() — EPRIVACY is never offered
+# to the classifier as a separate option, it always rides along with
+# GDPR the same way Part 1 treats it, rather than risking the classifier
+# picking EPRIVACY alone and losing GDPR content a question also needs.
+client_core_regulations = sorted(
+    (set(regs) & set(REGULATION_OPTIONS)) if regs else set(REGULATION_OPTIONS)
+)
+_client_regs = set(client_core_regulations)
+for _child, _parent in REGULATION_PARENT.items():
+    if _parent in _client_regs:
+        _client_regs.add(_child)
+chat_regulations = sorted(_client_regs)
+
 # ── Answer helper ─────────────────────────────────────────────
 def serialise_sources(context_chunks) -> list[dict]:
     """Convert retrieved Chunk objects into jsonb-safe dicts.
@@ -662,14 +758,54 @@ def handle_prompt(prompt: str):
 
             embeddings = build_index(company_chunks) if company_chunks else None
 
-            context_chunks = retrieve(
-                prompt,
-                company_chunks,
-                embeddings,
-                top_k=st.session_state.chat_top_k,
-                language=st.session_state.chat_language,
-                country=st.session_state.chat_country,
-            )
+            # S34 Part 2 (D-96): classify before retrieving. Zero or one
+            # regulation flagged falls straight through to Part 1's single
+            # filtered retrieve() call below — decomposition only fires
+            # when it can actually change the outcome.
+            flagged_regs = classify_regulations(prompt, client_core_regulations)
+
+            if len(flagged_regs) >= 2:
+                # Retrieve once per flagged regulation (each expanded with
+                # REGULATION_PARENT, same rule as Part 1) and merge. The
+                # company-document half of retrieve() is deliberately
+                # NOT repeated per regulation — it doesn't depend on the
+                # regulation filter, so calling it once here rather than
+                # inside a loop avoids duplicating the client's own
+                # uploaded-document chunks into the context N times.
+                half = max(st.session_state.chat_top_k // 2, 3)
+                context_chunks = []
+                for reg in flagged_regs:
+                    reg_filter = {reg}
+                    for _child, _parent in REGULATION_PARENT.items():
+                        if _parent == reg:
+                            reg_filter.add(_child)
+                    reg_filter = sorted(reg_filter)
+                    context_chunks += retrieve_from_qdrant(
+                        prompt, top_k=half,
+                        language=st.session_state.chat_language,
+                        country=st.session_state.chat_country,
+                        doc_type="core", regulations=reg_filter,
+                    )
+                    context_chunks += retrieve_from_qdrant(
+                        prompt, top_k=half,
+                        language=st.session_state.chat_language,
+                        country=st.session_state.chat_country,
+                        doc_type="supplementary", regulations=reg_filter,
+                    )
+                if embeddings is not None and company_chunks:
+                    context_chunks += retrieve_from_memory(
+                        prompt, company_chunks, embeddings, top_k=4,
+                    )
+            else:
+                context_chunks = retrieve(
+                    prompt,
+                    company_chunks,
+                    embeddings,
+                    top_k=st.session_state.chat_top_k,
+                    language=st.session_state.chat_language,
+                    country=st.session_state.chat_country,
+                    regulations=chat_regulations,
+                )
 
             client_context = build_client_context(selected_client)
             history_for_llm = st.session_state.messages[:-1]
@@ -681,6 +817,7 @@ def handle_prompt(prompt: str):
                 client_context,
                 user_id=user_id,
                 client_id=selected_client.get("id"),
+                regulations_in_play=flagged_regs if len(flagged_regs) >= 2 else None,
             )
 
         st.markdown(answer)
