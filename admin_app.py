@@ -118,6 +118,7 @@ if not is_admin(user_id):
 
 home       = st.Page("pages_admin/home.py",       title="Admin Home",    icon="⚙️",  default=True)
 dashboard  = st.Page("pages_admin/dashboard.py",  title="Dashboard",     icon="📊")
+users      = st.Page("pages_admin/users.py",      title="Users",         icon="👥")
 monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",    icon="📡")
 kb         = st.Page("pages_admin/kb.py",         title="Knowledge Base",icon="📚")
 audit_log  = st.Page("pages_admin/audit_log.py",  title="Audit Trail",   icon="🕐")
@@ -134,7 +135,7 @@ tickets = st.Page(
 )
 
 pg = st.navigation({
-    "Admin":   [home, dashboard, audit_log, versions],
+    "Admin":   [home, dashboard, users, audit_log, versions],
     "Support": [tickets, feedback],
     "Content": [monitoring, kb],
 })

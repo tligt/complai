@@ -199,6 +199,7 @@ record    = st.Page("pages/compliance_record.py", title="Compliance Record", ico
 oblig     = st.Page("pages/obligations.py", title="Obligations", icon="✅")
 wording   = st.Page("pages/wording.py", title="Incident wording", icon="✍️")
 risk      = st.Page("pages/risk.py", title="Risk assessments", icon="⚖️")
+profile   = st.Page("pages/profile.py", title="Profile", icon="👤")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -223,7 +224,7 @@ pg = st.navigation({
     # reports: Documents produces, Systems supplies the data, this reports what
     # the organisation actually operates under.
     "Tools":      [inventory, documents, wording, record, audit],
-    "Account":    [activity, support],
+    "Account":    [profile, activity, support],
     "Updates":    [alerts],
 })
 
@@ -261,6 +262,7 @@ PAGE_CONTEXT = {
     "risk":        "risk_assessment",
     "compliance_record": "compliance_record",
     "alerts":    "compliance_pulse",
+    "profile":   "account",
     "activity":  "account",
     "support":   "account",
 }

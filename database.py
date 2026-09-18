@@ -1063,6 +1063,90 @@ def get_all_profiles() -> list[dict]:
         return []
 
 
+def update_user_profile(
+    user_id: str, full_name: str | None = None, ui_language: str | None = None,
+) -> bool:
+    """A user updating their own name / interface language.
+
+    Service role, same as every other profiles access in this file
+    (get_user_profile, get_all_profiles) — not because this needs to bypass
+    RLS for a stranger's row (the caller only ever passes their own
+    user_id), but because that is the only client this table has ever been
+    read or written through here, and introducing a second, RLS-scoped path
+    for just this one write is a new, untested code path for no benefit.
+    """
+    try:
+        update = {}
+        if full_name is not None:
+            update["full_name"] = full_name
+        if ui_language is not None:
+            update["ui_language"] = ui_language
+        if not update:
+            return True
+        get_supabase_admin().table("profiles") \
+            .update(update).eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not update profile: {e}")
+        return False
+
+
+# Append-only, same rule as every other client-facing vocabulary in this
+# file: a client row can already hold a value, and renaming or removing one
+# orphans it.
+SUBSCRIPTION_TIERS = {
+    "professional": "Professional",
+    "advisory":     "Advisory",
+}
+
+ROLES = {
+    # "client", not "user" — matches the column's actual default in the
+    # database (verified directly against information_schema before
+    # writing this), not a guessed value.
+    "client": "Client",
+    "admin":  "Admin",
+}
+
+
+def set_user_tier(target_user_id: str, tier: str) -> bool:
+    """Admin: set a user's subscription tier.
+
+    No billing integration exists yet (S43) — this is how a tier is
+    actually assigned today, by an admin, by hand. Not audit-logged: see
+    set_user_role for why (no company_id to attach an account-level action
+    to; log_audit_event's whole design is per-company).
+    """
+    if tier not in SUBSCRIPTION_TIERS:
+        return False
+    try:
+        get_supabase_admin().table("profiles") \
+            .update({"subscription_tier": tier}).eq("id", target_user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not set tier for {target_user_id}: {e}")
+        return False
+
+
+def set_user_role(target_user_id: str, role: str) -> bool:
+    """Admin: promote or demote a user's role.
+
+    The ONLY code path in this repo that ever writes profiles.role — every
+    admin account until now was made one by hand, directly in the
+    database. The caller (pages_admin/users.py) is responsible for refusing
+    to let an admin demote their own account; nothing here stops that,
+    because nothing here knows who is calling it.
+    """
+    if role not in ROLES:
+        return False
+    try:
+        get_supabase_admin().table("profiles") \
+            .update({"role": role}).eq("id", target_user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not set role for {target_user_id}: {e}")
+        return False
+
+
 # ── Regulatory updates ────────────────────────────────────────
 
 def save_regulatory_update(update: dict) -> str | None:

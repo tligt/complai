@@ -117,3 +117,22 @@ def logout():
 def get_user_id() -> str:
     """Return the current user's UUID."""
     return st.session_state.user.id
+
+
+def change_password(new_password: str) -> tuple[bool, str | None]:
+    """Change the logged-in user's password.
+
+    Must go through THIS module's get_supabase(), not database.py's. That
+    one only sets a PostgREST bearer token (client.postgrest.auth(token)),
+    enough for table access under RLS but not a full auth session — and
+    supabase_auth's update_user() calls self.get_session() first and raises
+    AuthSessionMissingError if there isn't one. This get_supabase() calls
+    client.auth.set_session(access_token, refresh_token), which is what
+    actually establishes one.
+    """
+    try:
+        supabase = get_supabase()
+        supabase.auth.update_user({"password": new_password})
+        return True, None
+    except Exception as e:
+        return False, str(e)
