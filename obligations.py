@@ -751,4 +751,4 @@ def applies_from_label(obligation: dict) -> str:
         d = _dt.date.fromisoformat(applies)
     except ValueError:
         return ""
-    return d.strftime("%-d %B %Y")
+    return f"{d.day} {d.strftime('%B %Y')}"
