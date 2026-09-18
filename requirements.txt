@@ -14,7 +14,15 @@
 # To upgrade: change one pin at a time, redeploy, confirm BOTH apps come up.
 # To re-verify after a deliberate upgrade:
 #
-#     pip freeze | grep -iE "^(streamlit|starlette|supabase|qdrant-client|pypdf|python-docx|reportlab|beautifulsoup4|numpy|requests|python-dotenv)="
+#     pip freeze | grep -iE "^(streamlit|starlette|supabase|qdrant-client|pypdf|python-docx|reportlab|beautifulsoup4|numpy|requests|python-dotenv|openpyxl|pandas)="
+#
+# openpyxl and pandas were unpinned until 18 Sept 2026 — the two exceptions
+# to "EXACT PINS" above, carrying the same reboot-reinstall
+# exposure as the Starlette incident. Pinned to what `pip install -r
+# requirements.txt` actually resolves today, verified locally (Python 3.12)
+# against the current numpy==2.5.1 pin with no conflict. NOT yet verified
+# against both live deployments the way the rest of this file was on 6 Aug —
+# redeploy and confirm both apps come up before treating that as done.
 
 # ── Core app ──────────────────────────────────────────────────
 streamlit==1.61.1
@@ -50,8 +58,8 @@ python-dotenv==1.2.2
 # Not listed, deliberately: `mistralai`. Mistral is called through raw
 # requests.post() against the REST API, so the SDK is not a dependency.
 
-openpyxl
-pandas
+openpyxl==3.1.5
+pandas==3.0.6
 #
 # System packages live in packages.txt (currently: libreoffice, required by
 # convert_docx_to_pdf / convert_docx_to_odt in document_generator.py).
