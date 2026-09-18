@@ -16,6 +16,12 @@ import json
 import time
 import requests
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# No-op in GitHub Actions (no .env file there, and real env vars are
+# already set via secrets) — only fills in values for local runs.
+load_dotenv()
+
 from database import (
     save_marketing_update,
     log_token_usage,

@@ -1,3 +1,9 @@
+from dotenv import load_dotenv
+
+# No-op when running on Streamlit Cloud (no .env file there, and secrets
+# are already exposed as env vars) — only fills in values for local runs.
+load_dotenv()
+
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
 from database import count_unread_replies
