@@ -22,6 +22,7 @@ from database import (
     FEEDBACK_MODE, FEEDBACK_REASONS,
 )
 from cached_reads import load_clients
+from tier_gates import client_limit_reached, upsell_dialog
 from rag import retrieve, get_knowledge_base_summary
 
 # ── Constants ─────────────────────────────────────────────────
@@ -354,25 +355,37 @@ with st.sidebar:
 
     # Add new client
     with st.expander("➕ New client"):
-        nc_name = st.text_input("Company name", key="nc_name")
-        nc_sector = st.selectbox("Sector", SECTOR_OPTIONS, key="nc_sector")
-        nc_country = st.selectbox("Country", list(COUNTRY_OPTIONS.keys()),
-                                   format_func=lambda x: COUNTRY_OPTIONS[x], key="nc_country")
-        nc_size = st.selectbox("Size", SIZE_OPTIONS, key="nc_size")
-        nc_regs = st.multiselect("Regulations", REGULATION_OPTIONS,
-                                  default=["GDPR"], key="nc_regs")
-        if st.button("Create client", type="primary", use_container_width=True, key="btn_nc"):
-            if nc_name.strip():
-                result = create_client_record(user_id, {
-                    "company_name": nc_name.strip(),
-                    "sector": nc_sector,
-                    "country": nc_country,
-                    "company_size": nc_size,
-                    "regulations": nc_regs,
-                })
-                if result:
-                    st.success(f"✅ {nc_name} created")
-                    st.rerun()
+        if client_limit_reached(user_id):
+            st.caption(
+                "Professional includes one client. Upgrade to Advisory "
+                "to add more."
+            )
+            if st.button("Upgrade to add another client",
+                          use_container_width=True, key="btn_nc_upsell"):
+                upsell_dialog(
+                    "Professional accounts manage one client. Upgrade "
+                    "to Advisory to add more."
+                )
+        else:
+            nc_name = st.text_input("Company name", key="nc_name")
+            nc_sector = st.selectbox("Sector", SECTOR_OPTIONS, key="nc_sector")
+            nc_country = st.selectbox("Country", list(COUNTRY_OPTIONS.keys()),
+                                       format_func=lambda x: COUNTRY_OPTIONS[x], key="nc_country")
+            nc_size = st.selectbox("Size", SIZE_OPTIONS, key="nc_size")
+            nc_regs = st.multiselect("Regulations", REGULATION_OPTIONS,
+                                      default=["GDPR"], key="nc_regs")
+            if st.button("Create client", type="primary", use_container_width=True, key="btn_nc"):
+                if nc_name.strip():
+                    result = create_client_record(user_id, {
+                        "company_name": nc_name.strip(),
+                        "sector": nc_sector,
+                        "country": nc_country,
+                        "company_size": nc_size,
+                        "regulations": nc_regs,
+                    })
+                    if result:
+                        st.success(f"✅ {nc_name} created")
+                        st.rerun()
 
     st.divider()
 

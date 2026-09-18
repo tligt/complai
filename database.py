@@ -1108,23 +1108,59 @@ ROLES = {
 }
 
 
-def set_user_tier(target_user_id: str, tier: str) -> bool:
-    """Admin: set a user's subscription tier.
+def set_user_tier(target_user_id: str, tier: str) -> tuple[bool, str | None]:
+    """Admin: set a user's subscription tier. Returns (ok, error_message).
 
     No billing integration exists yet (S43) — this is how a tier is
     actually assigned today, by an admin, by hand. Not audit-logged: see
     set_user_role for why (no company_id to attach an account-level action
     to; log_audit_event's whole design is per-company).
+
+    Upgrading (anything -> advisory) is unguarded: Professional's one-
+    client shape is a subset of what Advisory allows, so nothing about the
+    account can become invalid by gaining room.
+
+    Downgrading TO professional from advisory is blocked here — not just
+    disabled in the page, so no other future caller can do this by
+    accident either — whenever the account has more than one client.
+    Professional has no client selector anywhere in the app (every page
+    that assumes one client uses .single() or clients[0]); silently
+    picking one client to keep and orphaning the rest is a data-loss
+    decision no admin action should make silently, and the alternative —
+    asking which one to keep, right here — is still guessing at something
+    only the client actually knows the answer to. Refused instead.
+
+    Multi-user is NOT checked here. There is no multi-user data model in
+    this codebase yet (S37 — no workspace_members table, nothing to check
+    "which user remains" against) — a check against a table that does not
+    exist would be invented, not implemented. Revisit this function when
+    S37 ships.
     """
     if tier not in SUBSCRIPTION_TIERS:
-        return False
+        return False, "Unknown plan."
     try:
+        current = get_supabase_admin().table("profiles") \
+            .select("subscription_tier").eq("id", target_user_id) \
+            .single().execute().data or {}
+        was_advisory = (current.get("subscription_tier") or "professional") == "advisory"
+
+        if was_advisory and tier == "professional":
+            n = get_supabase_admin().table("clients") \
+                .select("id", count="exact") \
+                .eq("user_id", target_user_id).execute().count or 0
+            if n > 1:
+                return False, (
+                    f"This account has {n} clients. Professional only "
+                    "supports one — move or remove the extra clients "
+                    "first, then downgrade."
+                )
+
         get_supabase_admin().table("profiles") \
             .update({"subscription_tier": tier}).eq("id", target_user_id).execute()
-        return True
+        return True, None
     except Exception as e:
         print(f"Could not set tier for {target_user_id}: {e}")
-        return False
+        return False, "Could not save."
 
 
 def set_user_role(target_user_id: str, role: str) -> bool:

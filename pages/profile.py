@@ -15,9 +15,10 @@ import inventory as INV
 from auth import get_user_id, change_password
 from database import (
     get_user_profile, update_user_profile,
-    create_client_record, SUBSCRIPTION_TIERS,
+    create_client_record, SUBSCRIPTION_TIERS, set_user_tier,
 )
 from cached_reads import load_clients
+from tier_gates import client_limit_reached, upsell_dialog
 
 # Kept local rather than imported from pages/chat.py — pages are scripts,
 # not a module surface meant to be imported from, and these are small
@@ -115,10 +116,28 @@ st.subheader("Plan")
 
 _tier = profile.get("subscription_tier") or "professional"
 st.markdown(f"**{SUBSCRIPTION_TIERS.get(_tier, _tier.title())}**")
-st.caption(
-    "No self-serve upgrade yet — get in touch through Support if you need "
-    "a different plan."
-)
+
+if _tier == "professional":
+    # Upgrade only. Self-serve DOWNGRADE stays out of this page on
+    # purpose — it's a support conversation, not a button, both for the
+    # revenue reason (don't make it easy to pay less) and the technical
+    # one (an Advisory account can hold several clients; Professional
+    # can't, and nothing here should decide which one survives). Upgrade
+    # carries neither risk: Professional's shape is a strict subset of
+    # what Advisory allows, so gaining room can't invalidate anything.
+    st.caption("Manage more than one client from this account.")
+    if st.button("Upgrade to Advisory", type="primary"):
+        ok, err = set_user_tier(user_id, "advisory")
+        if ok:
+            st.success("You're on Advisory now.")
+            st.rerun()
+        else:
+            st.error(err or "Could not upgrade.")
+else:
+    st.caption(
+        "Need to move to Professional? Get in touch through Support — "
+        "downgrading isn't self-serve."
+    )
 
 st.divider()
 
@@ -142,29 +161,40 @@ else:
     st.info("No clients yet. Add one below.")
 
 with st.expander("➕ New client"):
-    with st.form("profile_new_client"):
-        nc_name = st.text_input("Company name")
-        nc_sector = st.selectbox("Sector", SECTOR_OPTIONS)
-        nc_country = st.selectbox(
-            "Country", list(COUNTRY_OPTIONS.keys()),
-            format_func=lambda x: COUNTRY_OPTIONS[x],
+    if client_limit_reached(user_id):
+        st.info(
+            "Professional includes one client. Upgrade to Advisory to "
+            "add more."
         )
-        nc_size = st.selectbox("Size", SIZE_OPTIONS)
-        nc_regs = st.multiselect("Regulations", REGULATION_OPTIONS, default=["GDPR"])
+        if st.button("Upgrade to add another client"):
+            upsell_dialog(
+                "Professional accounts manage one client. Upgrade to "
+                "Advisory to add more."
+            )
+    else:
+        with st.form("profile_new_client"):
+            nc_name = st.text_input("Company name")
+            nc_sector = st.selectbox("Sector", SECTOR_OPTIONS)
+            nc_country = st.selectbox(
+                "Country", list(COUNTRY_OPTIONS.keys()),
+                format_func=lambda x: COUNTRY_OPTIONS[x],
+            )
+            nc_size = st.selectbox("Size", SIZE_OPTIONS)
+            nc_regs = st.multiselect("Regulations", REGULATION_OPTIONS, default=["GDPR"])
 
-        if st.form_submit_button("Create client", type="primary"):
-            if nc_name.strip():
-                result = create_client_record(user_id, {
-                    "company_name": nc_name.strip(),
-                    "sector": nc_sector,
-                    "country": nc_country,
-                    "company_size": nc_size,
-                    "regulations": nc_regs,
-                })
-                if result:
-                    st.success(f"{nc_name} created.")
-                    st.rerun()
+            if st.form_submit_button("Create client", type="primary"):
+                if nc_name.strip():
+                    result = create_client_record(user_id, {
+                        "company_name": nc_name.strip(),
+                        "sector": nc_sector,
+                        "country": nc_country,
+                        "company_size": nc_size,
+                        "regulations": nc_regs,
+                    })
+                    if result:
+                        st.success(f"{nc_name} created.")
+                        st.rerun()
+                    else:
+                        st.error("Could not create client.")
                 else:
-                    st.error("Could not create client.")
-            else:
-                st.warning("Give the company a name.")
+                    st.warning("Give the company a name.")

@@ -107,15 +107,23 @@ with st.container(border=True):
     with col_tier:
         _tier_codes = list(SUBSCRIPTION_TIERS.keys())
         _current_tier = target.get("subscription_tier") or "professional"
+        _n_clients = len(_companies_by_user.get(target["id"], []))
         new_tier = st.selectbox(
             "Plan", options=_tier_codes,
             index=_tier_codes.index(_current_tier) if _current_tier in _tier_codes else 0,
             format_func=lambda c: SUBSCRIPTION_TIERS[c],
             key=f"tier_{target['id']}",
         )
+        if _current_tier == "advisory" and _n_clients > 1:
+            st.caption(
+                f":orange[{_n_clients} clients on this account — "
+                "downgrading to Professional will be refused until it's "
+                "down to one.]"
+            )
         if st.button("Save plan", key=f"save_tier_{target['id']}"):
-            if set_user_tier(target["id"], new_tier):
+            ok, err = set_user_tier(target["id"], new_tier)
+            if ok:
                 st.success("Plan updated.")
                 st.rerun()
             else:
-                st.error("Could not update plan.")
+                st.error(err or "Could not update plan.")
