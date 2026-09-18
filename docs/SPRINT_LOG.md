@@ -405,7 +405,9 @@ framing suggests.**
   outstanding in one place and an auditor cannot see that a gap was found on
   one date and closed on another. **Three sprints already depend on it.**
 - ~~UI/navigation redesign~~ — now **S32** (D-69).
-- Pinning the remaining `requirements.txt` packages — before beta onboarding.
+- ~~Pinning the remaining `requirements.txt` packages~~ — **Done 18 Sept.**
+  `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally, not yet against both
+  live deployments — see the file's own header note.
 
 **Post-S50 backlog:** DB schema import tool; NIS2 vendor risk register (extend
 to third-party AI tools); compliance calendar; public compliance badge; RECOSA
@@ -1415,6 +1417,9 @@ evidence of completion. The most universally applicable AI Act duty in the
 target market and among the cheapest to satisfy. If absent, add with
 `applies_from = 2025-02-02` and link the evidence artifact to S52.
 
+**Resolved 18 Sept 2026.** Yes — `ai_01`, `applies_from: "2025-02-02"`,
+exactly as hoped. Confirmed by reading `obligations.py` directly.
+
 **Is there an `applies_from` row for 2 December 2026?** DPO Europe's timeline
 states additional prohibited AI practices introduced by the AI Omnibus begin to
 apply then, with transitional requirements. The Omnibus deferral of standalone
@@ -1434,6 +1439,13 @@ Provider/Deployer/Importer/Distributor per system and per legal entity. If the
 current applicability logic holds a single role on the client record,
 obligations are wrong for any client that both builds and uses AI — which is
 most of them. Possible live modelling bug, not merely an S53 dependency.
+
+**Resolved 18 Sept 2026.** Queried `information_schema.columns` directly:
+`ai_role` lives on `systems`, not on `clients` — already per-system, matching
+both competitors and matching `ai_03`'s own requirement ("the role must be
+established per system and recorded"). The per-*legal-entity* half of the
+question doesn't apply yet — RECOSA has no multi-entity data model until S48
+— but that's a scope gap already tracked there, not a live bug here.
 
 **`chat.py`'s system prompt contradicts the obligations catalogue.** It tells
 clients Annex III high-risk applies from 2 August 2026. The Digital Omnibus
@@ -1949,15 +1961,20 @@ from the file, and the third contained correction 5.
 **Verify against the file, not against the handover** — including handovers
 written by Claude at the end of a session.
 
-### Carried forward from S26A, still unresolved
+### Carried forward from S26A
 
-- **`activity_systems.role` vs `system_role` is unverified.** Noted in
-  `template_store.py`'s adapter section. The sub-processor loader depends on
-  it; a 400 on that select is the cause.
+- ~~**`activity_systems.role` vs `system_role` is unverified.**~~ **Resolved
+  18 Sept 2026.** Queried `information_schema.columns` directly: the column
+  is genuinely `role`. `_load_vendor_rows`'s `.select("system_id, role")` was
+  correct the whole time — this was never a live bug, just an unconfirmed
+  worry that turned out fine. Found while auditing the sprint log's open
+  items against live code rather than trusting either the comment or the
+  code's own assumption.
 - **`registered_address` gets `"  \\n"` hard breaks in `build_values`.** In
   Annex I it sits indented under a numbered list item — eyeball the first
   render. *(Not observed as a problem in the 3 Sept generated DPA, but not
-  specifically checked either.)*
+  specifically checked either. Still not checked as of 18 Sept — needs an
+  actual generated DPA opened and read, not a code check.)*
 
 ---
 
@@ -3468,22 +3485,24 @@ selector. The multi-client selector is Advisory-only (S46).
 | Question | Blocks | Notes |
 |---|---|---|
 | ~~Does S34 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. **Revisited 18 Sept: brought forward of the beta gate anyway, for unrelated reasons — D-96.** |
-| Task register — which number? | S57, S59, S26C | Three sprints depend on it. Currently unnumbered. |
+| ~~Task register — which number?~~ | S57, S59, S26C | **Resolved: part of S29.** No longer unnumbered. |
 | Systems grid purpose granularity | S58 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
-| Belgian DPA cookie guidance + 5-year figure | S27 | Recorded from a working note, not a checked primary source. **Verify before it becomes a client-facing default.** |
+| **Belgian DPA cookie guidance + 5-year figure** | S27 | Recorded from a working note, not a checked primary source. **Confirmed 18 Sept: this is not hypothetical — `SUPERSEDED_RETENTION_YEARS` (`database.py`) is computed into `retain_until` on every document supersession and rendered in the live `pages/compliance_record.py`. The figure is already client-facing today, unverified.** |
 | Rolling retention start dates | S57 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
-| AI Act role: per client or per system? | S53 | Both competitors resolve per system and per legal entity. Possible live modelling bug. |
-| Art. 4 AI literacy in the catalogue? | S52 | In force since 2 Feb 2025, binds Providers *and* Deployers. |
-| `applies_from` for 2 Dec 2026? | — | Additional prohibited practices per the AI Omnibus. **Verify against the OJ, not a competitor's marketing page.** |
-| `chat.py` says Annex III applies from 2 Aug 2026 | — | Contradicts `obligations.py`. Client-visible wrong answer about a date now past. |
+| ~~AI Act role: per client or per system?~~ | S53 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S48. |
+| ~~Art. 4 AI literacy in the catalogue?~~ | S52 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
+| ~~`applies_from` for 2 Dec 2026?~~ | — | **Resolved 18 Sept: yes**, `ai_10`. OJ-text verification against the primary source still outstanding. |
+| ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
 | Art. 9(2) coverage | S57 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
 | ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S31.** |
 | Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |
 | PDF/ODT fallback | S35 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
-| Beta date | — | Two sprints to the S35 gate (S31, S34) as of 18 Sept — S28–S30, S32 and S33 are delivered. |
+| ~~Pinning the remaining `requirements.txt` packages~~ | — | **Done 18 Sept.** `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally only — see the file's own header note. |
+| `registered_address` Annex I rendering | — | Carried from S26A. Still needs an actual generated DPA eyeballed, not a code check — never done. |
+| Beta date | — | S31 is the only sprint still standing before the S35 gate (S34 is delivered). The one non-sprint item worth resolving first: verifying the Belgian DPA retention claim above, since it is already live and unverified. |
 
 ### The hosting question — resolved 8 Sept 2026
 
