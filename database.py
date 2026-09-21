@@ -1048,6 +1048,37 @@ def set_legal_hold(
 
 # ── Profiles & roles ──────────────────────────────────────────
 
+def create_user_profile(
+    user_id: str, email: str, subscription_tier: str = "professional",
+) -> bool:
+    """S37: the ONLY writer of a profiles row on signup.
+
+    Nothing else in this codebase ever inserted one — grepped for
+    .table("profiles").insert/.upsert before adding this, zero hits. The one
+    real account's profile existed only because it was created by hand,
+    directly in the database (matches D-93's note on how the one admin
+    account was made). Every read already tolerates a missing row
+    (get_user_profile() returns {} on error), which is why nothing had
+    visibly broken — but no tier, no role default, nothing was ever
+    actually recorded for a real signup.
+
+    Upsert, not insert: a retried signup click can't fail on a duplicate
+    key. Only the three columns here are touched on conflict — full_name,
+    ui_language and role are left alone, so this is safe to call again
+    without clobbering anything a later profile edit set.
+    """
+    try:
+        get_supabase_admin().table("profiles").upsert({
+            "id": user_id,
+            "email": email,
+            "subscription_tier": subscription_tier,
+        }, on_conflict="id").execute()
+        return True
+    except Exception as e:
+        print(f"Could not create profile: {e}")
+        return False
+
+
 def get_user_profile(user_id: str) -> dict:
     """Get profile for a user including role."""
     try:

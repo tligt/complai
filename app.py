@@ -6,8 +6,29 @@ load_dotenv()
 
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
-from database import count_unread_replies
+from database import count_unread_replies, create_client_record
+from cached_reads import load_clients
 from support_widget import render_help_widget
+
+# S37. Same lists as pages/chat.py:30-45 and pages/profile.py:27-38 — this
+# repo already duplicates them there rather than sharing a module ("pages
+# are scripts, not a module surface", profile.py:23-26), so a third copy
+# for the zero-client welcome screen below follows the same convention.
+_ONBOARD_COUNTRY_OPTIONS = {
+    "EU": "🇪🇺 EU only",
+    "BE": "🇧🇪 Belgium",
+    "FR": "🇫🇷 France",
+    "nl": "🇳🇱 Netherlands",
+    "de": "🇩🇪 Germany",
+    "lu": "🇱🇺 Luxembourg",
+}
+_ONBOARD_SECTOR_OPTIONS = [
+    "SaaS / Technology", "Professional services", "Healthcare / Medtech",
+    "Manufacturing", "Finance / Fintech", "Logistics / Transport",
+    "Retail / E-commerce", "Education", "Other",
+]
+_ONBOARD_SIZE_OPTIONS = ["1-10", "11-50", "51-150", "150+"]
+_ONBOARD_REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT"]
 
 st.set_page_config(
     page_title="RECOSA",
@@ -185,6 +206,49 @@ with st.sidebar:
     from auth import logout
     if st.button("Log out", use_container_width=True, key="btn_logout"):
         logout()
+
+# ── First-run: no client yet ─────────────────────────────────────
+# S37. Every page reachable below this point (Chat included — chat.py has
+# its own near-identical dead end at chat.py:516-542) stops cold with no
+# client to work against. Intercepted here, once, before st.navigation
+# even builds, rather than patching each page's own empty state — Log out
+# above still works since the sidebar block already rendered.
+if not load_clients(user_id) and not st.session_state.get("skip_onboarding"):
+    st.title("Welcome to RECOSA")
+    st.caption("Set up your first client to get started.")
+    _ob_name = st.text_input("Company name", key="ob_name")
+    _ob_sector = st.selectbox("Sector", _ONBOARD_SECTOR_OPTIONS, key="ob_sector")
+    _ob_country = st.selectbox(
+        "Country", list(_ONBOARD_COUNTRY_OPTIONS.keys()),
+        format_func=lambda x: _ONBOARD_COUNTRY_OPTIONS[x], key="ob_country",
+    )
+    _ob_size = st.selectbox("Size", _ONBOARD_SIZE_OPTIONS, key="ob_size")
+    _ob_regs = st.multiselect(
+        "Regulations", _ONBOARD_REGULATION_OPTIONS, default=["GDPR"], key="ob_regs",
+    )
+    _ob_c1, _ob_c2 = st.columns([3, 1])
+    if _ob_c1.button("Create client", type="primary", use_container_width=True, key="ob_create"):
+        if _ob_name.strip():
+            _ob_result = create_client_record(user_id, {
+                "company_name": _ob_name.strip(),
+                "sector": _ob_sector,
+                "country": _ob_country,
+                "company_size": _ob_size,
+                "regulations": _ob_regs,
+            })
+            if _ob_result:
+                # Cache TTL is 20s and deliberately not invalidated on every
+                # write path elsewhere (cached_reads.py) — but the whole
+                # point here is landing in the app on the very next rerun,
+                # not staring at this same screen for up to 20 more seconds.
+                load_clients.clear()
+                st.rerun()
+        else:
+            st.warning("Company name is required.")
+    if _ob_c2.button("Skip for now", use_container_width=True, key="ob_skip"):
+        st.session_state.skip_onboarding = True
+        st.rerun()
+    st.stop()
 
 # ── Navigation ────────────────────────────────────────────────
 chat      = st.Page("pages/chat.py",      title="Chat",           icon="💬", default=True)

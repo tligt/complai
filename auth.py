@@ -1,6 +1,7 @@
 import os
 import streamlit as st
 from supabase import create_client, Client
+from database import SUBSCRIPTION_TIERS, create_user_profile
 
 
 def get_supabase() -> Client:
@@ -81,6 +82,16 @@ def login_ui():
                                        key="signup_password", placeholder="At least 8 characters")
         new_password2 = st.text_input("Confirm password", type="password",
                                        key="signup_password2", placeholder="Repeat password")
+        # S37. Professional / Advisory only — the two tiers with real
+        # behavioural difference today (D-90). Starter/Enterprise from the
+        # commercial model stay out until S45/S46 give them one.
+        new_tier = st.radio(
+            "Plan", options=["professional", "advisory"],
+            format_func=lambda t: SUBSCRIPTION_TIERS[t],
+            captions=["Manage one client.",
+                      "Manage more than one client — for consultants and advisors."],
+            key="signup_tier", label_visibility="collapsed",
+        )
         if st.button("Create account", type="primary", use_container_width=True, key="btn_signup"):
             if not new_email or not new_password:
                 st.warning("Please fill in all fields.")
@@ -93,6 +104,10 @@ def login_ui():
                     supabase = get_supabase()
                     res = supabase.auth.sign_up({"email": new_email, "password": new_password})
                     if res.user:
+                        # S37: the only place a profiles row is ever created.
+                        # res.user.id exists immediately, whether or not
+                        # email confirmation is required.
+                        create_user_profile(res.user.id, new_email, new_tier)
                         st.success("Account created — check your email to confirm, then log in.")
                     else:
                         st.error("Sign up failed. Please try again.")
