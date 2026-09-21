@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -282,6 +282,7 @@ S34.
 | ~~S34~~ | ~~Chat retrieval quality~~ | **Delivered 18 Sept.** Parts 1–2 shipped, Part 3 not needed. D-96 |
 | ~~S36~~ | ~~Regulatory update → impact re-scoring~~ | **Delivered 21 Sept.** Also fixed the `source_revision` stamping bug the scope lock assumed away. D-101, see 3b |
 | ~~S37~~ | ~~Subscribing and basic onboarding~~ | **Delivered 21 Sept.** Also fixed a second dependency bug: no code had ever written a `profiles` row. D-102 |
+| ~~S38~~ | ~~Multi-user for Professional~~ | **Delivered 21 Sept.** `workspace_members` + RLS across 18 tables; two self-inflicted RLS bugs found and fixed pre-launch. D-103 |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
 **S32, S33, S34 and S47 shipped ahead of S39 (originally numbered S31).**
@@ -306,14 +307,13 @@ quietly reordered.
 ### Before the beta gate
 
 Widened 21 September 2026 (see the renumbering note below): four sprints
-originally stood between here and the gate, not two. The first two of
-them are now delivered the same day — S36 (D-101) and S37 (D-102). Two
-remain. Priority changed, not the gate's own requirements — S40 is still
+originally stood between here and the gate, not two. Three of them are
+now delivered the same day — S36 (D-101), S37 (D-102), S38 (D-103). One
+remains. Priority changed, not the gate's own requirements — S40 is still
 the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| **S38** | **Multi-user for Professional** | Renumbered from S37, 21 Sept. Seeds `workspace_members` |
 | **S39** | **Migration to European infrastructure** | Renumbered from S31, 21 Sept — D-67/D-68. Self-hosted Supabase + containerised app |
 | **S40** | **GDPR deletion + session hardening** | Renumbered from S35, 21 Sept — D-96. **BETA GATE** |
 
@@ -3383,10 +3383,15 @@ Downgrade stays admin/support-only, for two independent reasons:
    need one chosen to survive, and nothing in the product knows which one
    the client would pick. Refusing is the only answer that does not guess.
 
-**Multi-user is explicitly NOT checked by this guard.** There is no
-`workspace_members` table yet (S38) — a check against a table that does not
-exist would be invented, not implemented. Revisit this function when S38
-ships.
+**Multi-user turned out not to need a guard here after all (S38,
+D-103).** `workspace_members` is keyed by `client_id`, not by the
+owner's tier — a Professional account's one client can carry team
+members exactly like an Advisory account's can (the sprint is called
+"Multi-user for Professional" for a reason; D-90's own reasoning
+against gating capabilities nothing prices yet applies here too).
+Downgrading Advisory → Professional neither creates nor removes a
+membership row, so there was nothing for this function to check once
+S38 actually shipped.
 
 ### D-92 — A tier-gated control stays visible and clickable; a dialog explains the limit, never a disabled button
 *S33.*
@@ -3738,6 +3743,119 @@ skip landed cleanly on Chat's own unchanged empty state. Both test
 accounts, and the one test client, were deleted afterward the same way
 S36's verification draft was — the production database holds exactly
 the one real account it held before this sprint.
+
+---
+
+### D-103 — Multi-user for Professional, and the two RLS bugs found before any real account hit them
+
+*21 September 2026.*
+
+S38 shipped the same day it was scope-decided (the user chose the full
+option in an explicit scope-depth question — see the plan record for
+that turn): a `workspace_members` table, and RLS rewritten across every
+client-owned table (`has_client_access(_client_id, _row_user_id)`,
+applied through the Supabase MCP server's `execute_sql`/`apply_migration`
+— this session's first use of that server, since S36/S37 needed no
+schema changes). An owner invites by email from a new Team section on
+the Profile page; an existing account gets active access immediately,
+a not-yet-existing one is recorded by email alone and claimed
+automatically on first login (`claim_pending_invites`, wired into
+`app.py` ahead of S37's zero-client gate — a claimed member must not be
+told to create their own first client).
+
+**Ground truth, not assumption, for once possible directly.** Earlier
+sprints could only infer RLS policy text from app behaviour, because
+nothing in this repo shows it and there was no way to query it. The
+Supabase MCP server's `execute_sql` reads `pg_policies` directly —
+confirmed every existing policy really was the assumed
+`auth.uid() = user_id`, confirmed every client-owned table already
+carried `client_id`, found the existing `is_admin_user()` convention to
+match for the new `has_client_access()`.
+
+**Bug 1 — UPDATE re-pinned authorship and silently rejected every
+cross-authorship edit.** First-draft policies used
+`has_client_access(client_id, user_id) AND user_id = auth.uid()` for
+both INSERT and UPDATE's `WITH CHECK`, reasoning that a written row
+should always be honestly attributed. True for INSERT — false for
+UPDATE, since no app code re-stamps `user_id` on an edit; it stays
+whoever originally created the row. A member editing something the
+owner wrote would then fail `WITH CHECK` (their `auth.uid()` next to the
+owner's unchanged `user_id`) on every single UPDATE, silently. Caught
+before any live test by re-reading `risk_store.py`'s `save_item()` and
+noticing its UPDATE path never touches `user_id`. Fixed: the authorship
+pin stays on INSERT only.
+
+**Bug 2 — `clients`' own policies self-referenced `clients`, and
+`INSERT ... RETURNING` (which PostgREST always does) couldn't see its
+own new row through it.** `has_client_access(id, user_id)` used on
+`clients`' SELECT/UPDATE policies queries `clients` itself — the one
+self-referencing case in the whole migration, every other table's
+policy queries `clients` from a *different* table. Live-tested first
+via direct SQL impersonation (`set local role authenticated; set local
+request.jwt.claims`) before trusting the browser: `INSERT ... RETURNING`
+failed with a bare `42501` for every account, including a brand-new
+owner creating their very first client — a global regression, not a
+multi-user edge case. A naive fix (inlining the same self-reference
+without the function) produced *infinite recursion* instead
+(`clients` → `workspace_members`'s own SELECT policy → `clients` again),
+which is what the `SECURITY DEFINER` wrapping had been silently
+protecting against the whole time. Real fix: `clients`' ownership check
+goes back to a plain `auth.uid() = user_id` column comparison (nothing
+to fail to see), and the membership half calls a new `is_client_member()`
+that touches only `workspace_members`, never `clients` — no cycle, no
+self-reference, nothing for `RETURNING` to trip on.
+
+**The app-layer half turned out bigger than scoped.** Every read across
+`database.py`, `inventory_store.py`, `obligation_store.py`,
+`risk_store.py`, `gap_assessment.py` and several pages filtered
+client-scoped data by the *current session's* `user_id` in addition to
+`client_id` — correct for an owner (session `user_id` always matches
+what they wrote) and silently empty for a member (never matches what a
+co-worker wrote). This was flagged to the user *before* they chose the
+full option, not discovered partway through: the scope-depth question
+explicitly said RLS alone would not be enough. Dropped throughout,
+`client_id` (or, on the handful of nullable-`client_id` tables covering
+the Advisory external-company path, an explicit per-client/per-user
+branch) doing the filtering, RLS doing the access control. New
+`database.load_accessible_clients()` (owned + member-of, role-labelled)
+feeds the client pickers on Chat, the Profile page and
+`active_client.py`'s shared selector; `load_clients()` stays owned-only
+on purpose — `tier_gates.client_limit_reached()` must never count access
+it did not grant.
+
+**Four pages had their own independent, owned-only client-resolution
+logic instead of going through `active_client.py`'s shared helper** —
+`inventory.py`, `documents.py`, `support.py`, `audit.py`. Found only by
+live-testing the member account against every page rather than trusting
+the earlier sweep's page-by-page reasoning: `inventory.py`'s own version
+told a workspace member with real, granted access to "create a client
+profile" first, discovered by literally clicking through as that
+account. `inventory.py`'s copy is now deleted in favour of calling
+`get_active_client()`, matching that module's own stated reason for
+existing; the other three kept their bespoke shape (documents.py's mode
+radio, support.py's optional-client ticket scoping, audit.py's optional
+audit-client link) but source the client list from
+`load_accessible_clients()` now.
+
+**Verified live against production**, not simulated: four disposable
+`+alias` accounts (owner, an existing-account invite, a not-yet-signed-
+up invite, an uninvited outsider). Owner created a client — the exact
+operation Bug 2 broke — then invited the second account by email
+(active immediately) and a third, unregistered address (recorded
+pending). The member logged in, landed in normal nav with the client
+labelled "Member" — not S37's zero-client welcome screen — added a
+system to the shared inventory, and the owner saw it, correctly
+attributed to the member's own `user_id`. The outsider account, given
+the exact client id directly, got zero rows back on every table and a
+`42501` on an attempted write — the negative test that actually matters
+for an RLS change. The pending invite's target account was then
+created, logged in, and claimed automatically. The owner removed the
+member from the Team page; the ex-member's next simulated request for
+that client returned nothing. All four accounts and every row they
+touched — including the mid-session RLS-debugging rows inserted
+directly via SQL — were deleted afterward; `get_advisors(type=
+"security")` was re-run after every corrective migration and stayed
+clean throughout.
 
 ---
 
@@ -4135,7 +4253,7 @@ selector. The multi-client selector is Advisory-only (S47).
 | PDF/ODT fallback | S40 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
 | ~~Pinning the remaining `requirements.txt` packages~~ | — | **Done 18 Sept.** `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally only — see the file's own header note. |
 | `registered_address` Annex I rendering | — | Carried from S26A. Still needs an actual generated DPA eyeballed, not a code check — never done. |
-| Beta date | — | Widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Two are now delivered the same day — S36 (D-101), S37 (D-102) — leaving S38 and S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
+| Beta date | — | Widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Three are now delivered the same day — S36 (D-101), S37 (D-102), S38 (D-103) — leaving only S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
 
 ### The hosting question — resolved 8 Sept 2026
 
