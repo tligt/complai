@@ -313,6 +313,78 @@ def documents_outstanding(
     return out
 
 
+def template_updates_available(
+    client_documents: Iterable[Mapping[str, Any]],
+    current_versions: Mapping[tuple[str, str], Mapping[str, Any]],
+    doc_labels: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    """In-force documents whose template has moved to a newer revision.
+
+    S36. Joins each in-force client_documents row against the current
+    in_force document_template_versions row for the same doc_type +
+    language; a lower client source_revision is the finding.
+
+    Severity is gated by materiality, per D-01: 'minor' means the wording
+    changed but the legal position did not, and produces no finding at all —
+    scoring an older revision down would presume non-compliance materiality
+    exists specifically to avoid presuming (D-89). 'recommended' surfaces at
+    OPEN. 'required' surfaces at DUE, dated to when the new template version
+    itself went in_force — the only honest date available, since D-01's
+    promised email needs one and none was recorded for the client's copy.
+
+    Deliberately not BLOCKING: nothing stops the document being produced or
+    stops being what the client operates under. BLOCKING stays reserved for
+    what readiness() already uses it for.
+    """
+    out = []
+    for r in client_documents:
+        if r.get("status") != "in_force":
+            continue
+        doc_type = r.get("document_type")
+        language = r.get("language")
+        current = current_versions.get((doc_type, language))
+        if not current:
+            continue
+
+        client_rev = r.get("source_revision")
+        current_rev = current.get("source_revision")
+        if client_rev is None or current_rev is None or client_rev >= current_rev:
+            continue
+
+        materiality = current.get("materiality")
+        if materiality == "minor":
+            continue
+
+        label = doc_labels.get(doc_type, doc_type)
+        lang_up = (language or "").upper()
+
+        if materiality == "required":
+            due = current.get("effective_from")
+            if isinstance(due, str) and due:
+                try:
+                    due = datetime.fromisoformat(due[:10]).date()
+                except ValueError:
+                    due = None
+            out.append(_finding(
+                "template", f"source_revision:{r.get('client_id')}:{doc_type}:{language}",
+                f"A required update to your {label} ({lang_up}) template is available",
+                DUE,
+                "This revision is marked required. Regenerate the document "
+                "from the compliance record to bring it up to date.",
+                due, link="compliance_record",
+            ))
+        else:
+            out.append(_finding(
+                "template", f"source_revision:{r.get('client_id')}:{doc_type}:{language}",
+                f"A newer version of your {label} ({lang_up}) template is available",
+                OPEN,
+                "Regenerate the document from the compliance record to bring "
+                "it up to date.",
+                link="compliance_record",
+            ))
+    return out
+
+
 def inventory_gaps(readiness: Mapping[str, Any] | None) -> list[dict[str, Any]]:
     """Gaps that BLOCK a register from being produced.
 
@@ -350,6 +422,7 @@ PRODUCERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "document":    documents_outstanding,
     "readiness":   inventory_gaps,
     "wording":     wording_missing,
+    "template":    template_updates_available,
 }
 
 

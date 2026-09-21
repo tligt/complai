@@ -33,7 +33,7 @@ from template_nis2 import INSERTS
 from auth import get_user_id
 from database import get_supabase
 from active_client import get_active_client
-from cached_reads import get_register_status
+from cached_reads import get_register_status, get_in_force_template_versions
 from obligations import (
     OBLIGATIONS, OBLIGATION_BY_ID, REGULATION_LABELS, DOCUMENT_TYPES,
 )
@@ -97,6 +97,10 @@ findings = T.collect(
     T.obligations_due(verdicts, responses, OBLIGATION_BY_ID),
     T.translations_outstanding(activities, doc_languages),
     T.documents_outstanding(_reg_rows, DOCUMENT_TYPES),
+    # S36. Compares against the shared template catalogue, not per-client data.
+    T.template_updates_available(
+        _reg_rows, get_in_force_template_versions(), DOCUMENT_TYPES,
+    ),
     T.inventory_gaps(readiness),
     # S30. Insert sections that are missing, unconfirmed, or two words long.
     # Surfaced here rather than only on the wording page: a warning on a form

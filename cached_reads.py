@@ -49,6 +49,14 @@ def get_template_languages():
     return _db.get_template_languages()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def get_in_force_template_versions():
+    # Same catalogue-not-client-data reasoning as get_template_languages: this
+    # changes only when an admin bumps a template revision.
+    import template_store as _ts
+    return _ts.load_in_force_versions()
+
+
 @st.cache_data(ttl=20, show_spinner=False)
 def load_document_files(user_id: str, client_id: str | None):
     return _db.load_document_files(user_id, client_id)

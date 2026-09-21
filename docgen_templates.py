@@ -183,6 +183,7 @@ def generate_templated_document(
             xlsx_bytes=xlsx_bytes,
             # S25 stamping
             template_version_id=d.template_version_id,
+            source_revision=d.source_revision,
             document_group_id=d.document_group_id,
             outstanding_fields=d.result.outstanding_fields,
             jurisdictions_applied=d.jurisdictions_applied,

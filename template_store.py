@@ -763,6 +763,38 @@ def load_template_version(doc_type: str, language: str) -> TemplateVersion | Non
     )
 
 
+def load_in_force_versions() -> dict[tuple[str, str], dict[str, Any]]:
+    """Every currently in-force template version, keyed by (doc_type, language).
+
+    One query for the whole catalogue rather than one load_template_version()
+    call per doc_type per language — S36's template_updates_available() needs
+    to check every one of a client's in-force documents against the current
+    revision, and the catalogue is the same for every client.
+    """
+    sb = _get_client()
+    res = (
+        sb.table("document_template_versions")
+        .select(
+            "language, source_revision, materiality, effective_from, "
+            "document_templates!inner(doc_type, active)"
+        )
+        .eq("status", "in_force")
+        .execute()
+    )
+    out: dict[tuple[str, str], dict[str, Any]] = {}
+    for r in res.data or []:
+        doc_type = (r.get("document_templates") or {}).get("doc_type")
+        language = r.get("language")
+        if not doc_type or not language:
+            continue
+        out[(doc_type, language)] = {
+            "source_revision": r["source_revision"],
+            "materiality": r["materiality"],
+            "effective_from": r.get("effective_from"),
+        }
+    return out
+
+
 def load_client(client_id: str) -> dict[str, Any] | None:
     sb = _get_client()
     res = sb.table("clients").select("*").eq("id", client_id).limit(1).execute()
