@@ -11,6 +11,14 @@ from database import upload_file, update_audit_path
 RISK_COLORS = {"Green": "#0F6E56", "Amber": "#BA7517", "Red": "#993C1D"}
 STATUS_EMOJI = {OK: "✅", WARN: "⚠️", FAIL: "❌"}
 
+# S41. The email-domain block below (check_email_domain_used) is keyed
+# entirely on attacker-supplied input — rotating the email's domain, or
+# supplying someone else's, costs nothing. IP is a second, independent
+# signal the domain check doesn't have. Env-var configurable rather than
+# hardcoded, same convention as SUPERSEDED_RETENTION_YEARS in database.py.
+AUDIT_IP_LIMIT = int(os.environ.get("AUDIT_IP_LIMIT", "3"))
+AUDIT_IP_WINDOW_HOURS = int(os.environ.get("AUDIT_IP_WINDOW_HOURS", "24"))
+
 
 def get_supabase_anon():
     from supabase import create_client
@@ -33,7 +41,38 @@ def check_email_domain_used(email_domain: str) -> bool:
         return False
 
 
-def save_audit(email, email_domain, website_url, audit_result, user_id=None, client_id=None):
+def check_ip_rate_limited(ip_address: str | None) -> bool:
+    """True if this IP has already used up its anonymous-audit allowance
+    for the current window.
+
+    None/unknown IP fails OPEN — this check is additive to
+    check_email_domain_used, not a replacement for it, so an IP this app
+    could not determine should not block someone the domain check would
+    otherwise have let through.
+    """
+    if not ip_address:
+        return False
+    try:
+        from datetime import datetime, timedelta, timezone
+        from database import get_supabase_admin
+        since = (
+            datetime.now(timezone.utc) - timedelta(hours=AUDIT_IP_WINDOW_HOURS)
+        ).isoformat()
+        res = (
+            get_supabase_admin().table("audits")
+            .select("id", count="exact")
+            .eq("ip_address", ip_address)
+            .is_("user_id", "null")
+            .gte("created_at", since)
+            .execute()
+        )
+        return (res.count or 0) >= AUDIT_IP_LIMIT
+    except Exception:
+        return False
+
+
+def save_audit(email, email_domain, website_url, audit_result, user_id=None,
+                client_id=None, ip_address=None):
     try:
         from database import get_supabase_admin
         supabase = get_supabase_admin()
@@ -53,6 +92,8 @@ def save_audit(email, email_domain, website_url, audit_result, user_id=None, cli
             record["user_id"] = user_id
         if client_id:
             record["client_id"] = client_id
+        if ip_address:
+            record["ip_address"] = ip_address
         res = supabase.table("audits").insert(record).execute()
         return res.data[0]["id"] if res.data else None
     except Exception as e:
@@ -171,6 +212,7 @@ if logged_in:
                         audit_result=audit_result,
                         user_id=user_id,
                         client_id=client_id,
+                        ip_address=st.context.ip_address,
                     )
                     # Upload PDF to storage
                     try:
@@ -225,10 +267,24 @@ else:
             st.error("Please use your professional email address (not Gmail, Hotmail, etc.).")
         else:
             email_domain = extract_email_domain(email.strip())
+            client_ip = st.context.ip_address
             if check_email_domain_used(email_domain):
                 st.warning(
                     f"A free audit has already been requested for **{email_domain}**. "
                     "Subscribe to RECOSA to run fresh audits and access remediation guidance."
+                )
+                st.markdown(
+                    '<a href="/" style="display:inline-block;background:#0F6E56;color:white;'
+                    'padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">'
+                    'Start free trial →</a>',
+                    unsafe_allow_html=True
+                )
+            elif check_ip_rate_limited(client_ip):
+                # S41. Independent of the domain check above — this is what
+                # stops rotating the email's domain from being a free pass.
+                st.warning(
+                    "You've reached the limit of free audits from this "
+                    "connection. Subscribe to RECOSA to run unlimited audits."
                 )
                 st.markdown(
                     '<a href="/" style="display:inline-block;background:#0F6E56;color:white;'
@@ -249,6 +305,7 @@ else:
                             email_domain=email_domain,
                             website_url=website_url.strip(),
                             audit_result=audit_result,
+                            ip_address=client_ip,
                         )
                         # Upload PDF to storage
                         try:
