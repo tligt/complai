@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -280,6 +280,7 @@ S34.
 | ~~S32~~ | ~~UI/navigation rework~~ | **Delivered 18 Sept.** D-69, D-95 |
 | ~~S33~~ | ~~Admin user management~~ | **Delivered 18 Sept.** D-90 to D-94 |
 | ~~S34~~ | ~~Chat retrieval quality~~ | **Delivered 18 Sept.** Parts 1–2 shipped, Part 3 not needed. D-96 |
+| ~~S36~~ | ~~Regulatory update → impact re-scoring~~ | **Delivered 21 Sept.** Also fixed the `source_revision` stamping bug the scope lock assumed away. D-101, see 3b |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
 **S32, S33, S34 and S47 shipped ahead of S39 (originally numbered S31).**
@@ -304,12 +305,13 @@ quietly reordered.
 ### Before the beta gate
 
 Widened 21 September 2026 (see the renumbering note below): four sprints
-now stand between here and the gate, not two. Priority changed, not the
-gate's own requirements — S40 is still the only sprint that *is* the gate.
+originally stood between here and the gate, not two — the first of them,
+S36, was delivered the same day (D-101). Three remain. Priority changed,
+not the gate's own requirements — S40 is still the only sprint that *is*
+the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| **S36** | **Regulatory update → impact re-scoring** | Scope-locked 18 Sept — cheaper than it looks, see 3b |
 | **S37** | **Subscribing and basic onboarding** *(new)* | Signup + plan selection. No real payment processing — that stays at S46 |
 | **S38** | **Multi-user for Professional** | Renumbered from S37, 21 Sept. Seeds `workspace_members` |
 | **S39** | **Migration to European infrastructure** | Renumbered from S31, 21 Sept — D-67/D-68. Self-hosted Supabase + containerised app |
@@ -932,11 +934,14 @@ built from the same `REGULATION_OPTIONS`-scoped list for consistency.
 
 ---
 
-### S36 — Regulatory update → impact re-scoring — SCOPE LOCK
+### S36 — Regulatory update → impact re-scoring — SCOPE LOCK — DELIVERED 21 SEPT
 
-**Position:** post-beta by the roadmap, but no structural dependency on
-anything else unbuilt — it needs S27 (delivered) and nothing else. Pure
-data/logic work against tables that already exist, same shape as S34.
+**Position at scope-lock time:** post-beta by the roadmap, but no
+structural dependency on anything else unbuilt — it needed S27
+(delivered) and nothing else. Pure data/logic work against tables that
+already existed, same shape as S34. Moved ahead of the beta gate in the
+21 September renumbering (D-100) and delivered the same day (D-101) —
+see there for what shipped and the stamping bug it found and fixed.
 
 **Why this is cheaper than the one-liner suggests.** Grounded against the
 live schema and `tasks.py` rather than designed from scratch: most of what
@@ -3637,6 +3642,54 @@ parallel, non-blocking work.* Was on the table as the reading that changes
 the least. Explicitly not what was asked: the request was for beta to
 actually wait on these two, not merely for them to be numbered near the
 gate while shipping on their own schedule.
+
+---
+
+### D-101 — S36 shipped the day it was scope-locked, and its own premise was wrong
+
+*21 September 2026.*
+
+`template_updates_available()` was added to `tasks.py` as its sixth
+producer, exactly as the scope lock specified: joins each in-force
+`client_documents` row against the current in-force
+`document_template_versions` row for the same doc_type + language,
+severity gated by `materiality` (minor silent, recommended `OPEN`,
+required `DUE` dated to the new revision's `effective_from`). Verified
+against a fixture script reproducing the scope lock's own written test
+scenarios, then wired into `pages/obligations.py` and checked live.
+
+**The live check found the scope lock's central assumption was false.**
+It stated *"`client_documents.source_revision` is already stamped at
+generation and carried through adoption and supersession (S27) —
+confirmed via the live schema, not assumed."* The live schema was
+checked again during verification, and every in-force document for the
+one real multi-document client in production had `source_revision: NULL`
+— including documents generated well after S25 shipped. Reading the
+write path explains why: `save_document_with_files()` received
+`template_version_id` and stamped it on the `documents` table, but never
+forwarded either `template_version_id` or `source_revision` into the
+`register_client_document()` call that writes the row S36 actually
+reads. `source_revision` was not even a parameter on that function. The
+comparison this whole sprint exists to make would have run against NULL
+forever, on every client, silently — no error, just zero findings,
+indistinguishable from "everyone is current."
+
+**Fixed as part of this sprint, not deferred.** Added `source_revision`
+to `save_document_with_files()`'s signature and threaded both it and the
+already-broken `template_version_id` through to
+`register_client_document()`. Confirmed live: a freshly generated
+Privacy Policy draft stamped `source_revision: 1` where every prior row
+for that client read NULL, then the verification draft was discarded
+the same way `pages/documents.py`'s own "Delete draft" button does
+(row, storage objects, and the `draft_deleted` audit event), so nothing
+was left behind in production beyond the fix itself.
+
+**Why this belongs in D-101 and not silently folded into the S36 commit
+message.** The scope lock's whole cost argument — *"cheaper than the
+one-liner suggests... most of what S36 needs already exists, just not
+wired together"* — rested on this field being live. It was not. Anyone
+reading the scope lock later without this entry would reasonably expect
+the producer to have real data to compare against from day one.
 
 ---
 
