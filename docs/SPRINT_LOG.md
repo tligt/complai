@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -283,17 +283,19 @@ S34.
 | ~~S36~~ | ~~Regulatory update → impact re-scoring~~ | **Delivered 21 Sept.** Also fixed the `source_revision` stamping bug the scope lock assumed away. D-101, see 3b |
 | ~~S37~~ | ~~Subscribing and basic onboarding~~ | **Delivered 21 Sept.** Also fixed a second dependency bug: no code had ever written a `profiles` row. D-102 |
 | ~~S38~~ | ~~Multi-user for Professional~~ | **Delivered 21 Sept.** `workspace_members` + RLS across 18 tables; two self-inflicted RLS bugs found and fixed pre-launch. D-103 |
+| ~~S41~~ | ~~Audit rate-limiting~~ | **Delivered 21 Sept, ahead of its After-beta position.** Found the anonymous audit flow it protects is not reachable through `app.py` today. D-104 |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
-**S32, S33, S34 and S47 shipped ahead of S39 (originally numbered S31).**
+**S32, S33, S34, S41 and S47 shipped ahead of S39 (originally numbered S31).**
 The table's order is
-planning intent, not a dependency graph. None of the four depended on the
+planning intent, not a dependency graph. None of the five depended on the
 infrastructure migration — S32 needed no hosting change to ship, S33
 needed a place to assign the new `subscription_tier` field by hand well
 before support could wait on a migration, S34 is pure retrieval logic
-against the existing Qdrant collection, and S47 was a bug fix forced by
+against the existing Qdrant collection, S41 is a self-contained addition
+to one page with its own new column, and S47 was a bug fix forced by
 the first multi-client account ever to exist, not scheduled work. Per the
-renumbering rule below (*delivered sprints keep their numbers*), all four
+renumbering rule below (*delivered sprints keep their numbers*), all five
 keep their numbers.
 
 **S47 in particular jumped its own queue** — it was scoped post-beta (see
@@ -303,6 +305,13 @@ a live error rather than discovered by review. The scope lock's position
 call is left as written; this is the one sprint in this log delivered
 before its own stated position, and it is recorded that way rather than
 quietly reordered.
+
+**S41 jumped its queue too, by direct request** — scheduled After beta
+(below), asked for and delivered before S39. Unlike S47 this was not a
+found error; the roadmap position is left as originally written for the
+same reason S47's is: a sprint's documented position records the plan at
+the time it was made, not a claim that gets edited away once reality
+moves faster than it did.
 
 ### Before the beta gate
 
@@ -321,7 +330,6 @@ the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| S41 | Audit rate-limiting | was S38 |
 | S42 | Audit report email delivery | was S39 |
 | S43 | Domain verification | was S40 |
 | S44 | Scheduled recurring audits | was S41. Depends on S43 |
@@ -3856,6 +3864,62 @@ touched — including the mid-session RLS-debugging rows inserted
 directly via SQL — were deleted afterward; `get_advisors(type=
 "security")` was re-run after every corrective migration and stayed
 clean throughout.
+
+---
+
+### D-104 — Audit rate-limiting, delivered out of its documented position, protecting a flow that turns out to be unreachable
+
+*21 September 2026.*
+
+S41 was asked for directly, out of order — scheduled After beta (see the
+roadmap table), delivered before S39. Recorded the same way S47's
+out-of-position delivery was: the roadmap position is left as originally
+written, since it records the plan at the time it was made, not a claim
+to edit away once reality moves faster.
+
+**What shipped.** `pages/audit.py`'s existing `check_email_domain_used()`
+blocks a second anonymous audit for the same email domain, forever, but
+is keyed entirely on attacker-supplied input — rotating the domain, or
+supplying someone else's to spam their inbox (the email is never
+verified as belonging to the sender), costs nothing. A new
+`check_ip_rate_limited()` adds an independent second layer: at most
+`AUDIT_IP_LIMIT` (default 3) anonymous audits per IP per
+`AUDIT_IP_WINDOW_HOURS` (default 24), both env-var configurable — same
+convention `SUPERSEDED_RETENTION_YEARS` already uses in `database.py`.
+IP comes from `st.context.ip_address`, present in this Streamlit version
+(1.61.1, confirmed directly) and unused anywhere in this codebase until
+now. A new `audits.ip_address` column (migration via the Supabase MCP
+server, same mechanism S38 used) captures it on every audit, gated only
+on the anonymous path — the authenticated flow stays deliberately
+unlimited, unchanged. Unknown IP fails open, since this is additive to
+the domain check, not a replacement for it.
+
+**Found, not introduced: the flow this protects is not reachable.**
+`app.py` gates every page behind `is_logged_in()` before `st.navigation`
+even builds — including `/audit`. The "Free Website Compliance Audit...
+no registration required" anonymous path `pages/audit.py` still carries
+is therefore dead code in the live app today, reachable only once logged
+in, where it is not the anonymous flow at all. Not fixed here: whether
+the public flow should be reachable — behind the main app, behind a
+separate route, embedded on the marketing site, or intentionally gated
+during the pre-beta window per D-100's *"the exposure window before beta
+is test accounts only"* — is a real product and security decision, not
+something to resolve silently while adding rate-limiting to code that
+happened to still be sitting there.
+
+**Verification split between what this sandbox can and cannot do.** The
+rate-limit query itself was run directly against production, matching
+`check_ip_rate_limited()`'s exact shape: three anonymous rows on one IP
+across three different domains correctly tripped the limit (proving
+independence from the domain check, which those three domains would
+individually have passed), a second IP in the same window did not, and
+a missing IP correctly failed open. `st.context.ip_address`'s wiring
+into `save_audit()` was confirmed reachable via the authenticated flow,
+logged in as a disposable test account — but an actual end-to-end
+crawl could not be run: this sandbox has no outbound DNS or internet
+access at all (`Invoke-WebRequest` to a public domain fails to resolve),
+unrelated to this change and not something fixable from here. The test
+account and every row it touched were deleted afterward.
 
 ---
 
