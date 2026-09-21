@@ -19,7 +19,7 @@ client. The first one that did (18 Sept 2026) broke it immediately.
 
 import streamlit as st
 
-from cached_reads import load_clients
+from cached_reads import load_accessible_clients
 
 
 def get_active_client(user_id: str) -> dict | None:
@@ -38,12 +38,18 @@ def get_active_client(user_id: str) -> dict | None:
       right here on the page, and writes the choice into
       st.session_state.selected_client so it carries into every other
       page for the rest of the session — not just this one.
+
+    S38: "clients" here means accessible clients — owned, or granted via
+    workspace_members — not only owned ones. A workspace member with
+    access to exactly one client gets the same silent auto-select an
+    owner with one client always has; 2+ accessible clients (owner with
+    several, or a member added to more than one) gets the same picker.
     """
     selected = st.session_state.get("selected_client")
     if selected and selected.get("id"):
         return selected
 
-    clients = load_clients(user_id) or []
+    clients = load_accessible_clients(user_id) or []
 
     if not clients:
         st.info(

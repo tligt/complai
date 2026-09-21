@@ -300,3 +300,84 @@ def send_ticket_reply_notification(
     except Exception as e:
         print(f"Ticket reply notification error: {e}")
         return False
+
+
+# ── S38: workspace invite notification ─────────────────────────────────────
+
+def send_workspace_invite(
+    to_email: str, client_name: str, inviter_email: str,
+) -> bool:
+    """Tells someone they now have access to a client on RECOSA.
+
+    Same shape as send_ticket_reply_notification: NOTIFY_ENABLED gate,
+    soft-fail, a deep link and nothing else sensitive. There is no
+    per-invite page to land on — logging in is what claims the invite
+    (database.claim_pending_invites, called from app.py) — so the link is
+    just the app root, not a token URL. Less confidentiality-sensitive
+    than a ticket reply, but kept just as short on the same principle:
+    say what happened, not what it is about.
+    """
+    if os.environ.get("NOTIFY_ENABLED", "false").strip().lower() != "true":
+        return False
+
+    api_key    = os.environ.get("BREVO_API_KEY")
+    from_email = os.environ.get("BREVO_FROM_EMAIL")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
+    base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+
+    if not (api_key and from_email and base_url and to_email):
+        return False
+
+    text_body = (
+        f"{inviter_email} has given you access to {client_name} on RECOSA.\n\n"
+        f"Log in here: {base_url}/\n\n"
+        "If you don't have an account yet, sign up with this email address "
+        "and access is granted automatically.\n\n"
+        "RECOSA - recosa.eu"
+    )
+
+    html_body = f"""
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+  <div style="background:#003366;padding:20px;border-radius:8px 8px 0 0">
+    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+  </div>
+  <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2">
+    <p style="color:#333;line-height:1.6;margin:0 0 18px">
+      <strong>{inviter_email}</strong> has given you access to
+      <strong>{client_name}</strong> on RECOSA.
+    </p>
+    <p style="margin:0 0 18px">
+      <a href="{base_url}/"
+         style="display:inline-block;background:#003366;color:#fff;
+                padding:11px 24px;border-radius:6px;text-decoration:none;
+                font-weight:bold;font-size:14px">Log in &rarr;</a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin:0">
+      No account yet? Sign up with this email address and access is
+      granted automatically.
+    </p>
+  </div>
+  <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;
+              text-align:center">
+    <p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+  </div>
+</div>
+"""
+
+    try:
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={"api-key": api_key, "Content-Type": "application/json"},
+            json={
+                "sender":      {"name": from_name, "email": from_email},
+                "to":          [{"email": to_email}],
+                "subject":     f"You've been given access to {client_name} on RECOSA",
+                "textContent": text_body,
+                "htmlContent": html_body,
+            },
+            timeout=10,
+        )
+        return response.status_code in (200, 201, 202)
+    except Exception as e:
+        print(f"Workspace invite notification error: {e}")
+        return False

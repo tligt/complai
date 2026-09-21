@@ -38,13 +38,16 @@ DPA_CONTACTS = {
 # ── Supabase helpers ──────────────────────────────────────────
 
 def load_intake(client_id: str, user_id: str, document_type: str) -> dict:
-    """Load previously saved intake data for this client + document type."""
+    """Load previously saved intake data for this client + document type.
+
+    Filtered on client_id alone (S38) — see database.load_document_files's
+    note.
+    """
     try:
         supabase = get_supabase()
         res = supabase.table("document_intake") \
             .select("*") \
             .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
             .eq("document_type", document_type) \
             .execute()
         return res.data[0] if res.data else {}
@@ -73,13 +76,15 @@ def save_intake(client_id: str, user_id: str, document_type: str, fields: dict) 
 
 
 def update_client_profile(client_id: str, user_id: str, fields: dict) -> bool:
-    """Update universal profile fields on the clients table."""
+    """Update universal profile fields on the clients table.
+
+    Filtered on id alone (S38) — see database.update_client_record's note.
+    """
     try:
         supabase = get_supabase()
         supabase.table("clients") \
             .update(fields) \
             .eq("id", client_id) \
-            .eq("user_id", user_id) \
             .execute()
         return True
     except Exception as e:
@@ -106,16 +111,21 @@ def save_document_record(user_id: str, client_id: str | None,
 
 
 def load_document_history(user_id: str, client_id: str | None) -> list:
-    """Load document generation history for a client."""
+    """Load document generation history for a client.
+
+    Filtered on client_id when given, not also user_id (S38) — see
+    database.load_document_files's note.
+    """
     try:
         supabase = get_supabase()
         q = supabase.table("documents") \
             .select("*") \
-            .eq("user_id", user_id) \
             .order("generated_at", desc=True) \
             .limit(20)
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []

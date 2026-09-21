@@ -15,7 +15,7 @@ from database import (
     TICKET_CATEGORIES, TICKET_SEVERITIES,
 )
 from active_client import get_active_client
-from cached_reads import load_clients
+from cached_reads import load_accessible_clients
 
 user_id = get_user_id()
 
@@ -147,11 +147,13 @@ if st.session_state.support_new:
     # create_ticket's client_id is genuinely optional (an account-level
     # question needs no client), so this deliberately does not use
     # get_active_client's stricter "must have at least one" contract —
-    # only ask when there is real ambiguity to resolve.
-    _owned = load_clients(user_id) or []
+    # only ask when there is real ambiguity to resolve. Accessible, not
+    # just owned (S38) — a workspace member raising a ticket about a
+    # shared client should be able to scope it to that client too.
+    _accessible = load_accessible_clients(user_id) or []
     client_id = (
-        get_active_client(user_id)["id"] if len(_owned) > 1
-        else (_owned[0]["id"] if _owned else None)
+        get_active_client(user_id)["id"] if len(_accessible) > 1
+        else (_accessible[0]["id"] if _accessible else None)
     )
 
     category = st.selectbox(

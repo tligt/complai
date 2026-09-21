@@ -21,10 +21,15 @@ from database import get_supabase, log_audit_event
 # ── Obligation responses ──────────────────────────────────────────────────
 
 def load_responses(client_id: str, user_id: str) -> dict[str, dict[str, Any]]:
-    """{obligation_id: row} for one client. Absent means nothing recorded."""
+    """{obligation_id: row} for one client. Absent means nothing recorded.
+
+    Filtered on client_id alone (S38) — RLS grants access via
+    has_client_access(client_id, user_id), which a workspace member
+    satisfies without matching the row's own user_id.
+    """
     try:
         rows = (get_supabase().table("obligation_responses").select("*")
-                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("client_id", client_id)
                 .execute().data or [])
         return {r["obligation_id"]: r for r in rows}
     except Exception as e:
@@ -127,10 +132,12 @@ def load_events(client_id: str, user_id: str, limit: int = 2000) -> list[dict]:
     tasks.closures both need to know the LATEST event per finding, and a
     truncated read would silently produce wrong answers rather than fewer.
     The limit is a safety valve, not a paging mechanism.
+
+    Filtered on client_id alone (S38) — see load_responses's note.
     """
     try:
         return (get_supabase().table("task_events").select("*")
-                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("client_id", client_id)
                 .order("created_at").limit(limit)
                 .execute().data or [])
     except Exception as e:

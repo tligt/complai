@@ -33,6 +33,15 @@ def load_clients(user_id: str):
 
 
 @st.cache_data(ttl=20, show_spinner=False)
+def load_accessible_clients(user_id: str):
+    # S38. Owned clients (same as load_clients) plus anything this account
+    # has been granted access to as a workspace member. NOT what
+    # tier_gates.client_limit_reached() should ever use — that stays on
+    # load_clients, owned-only, on purpose.
+    return _db.load_accessible_clients(user_id)
+
+
+@st.cache_data(ttl=20, show_spinner=False)
 def get_register_status(client_id: str, user_id: str):
     return _db.get_register_status(client_id, user_id)
 

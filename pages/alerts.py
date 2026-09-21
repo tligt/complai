@@ -38,8 +38,11 @@ def _alerts_panel(user_id: str):
     # ── Alerts list ───────────────────────────────────────────────
     # Load alerts with manual join
     try:
+        # Not filtered by user_id (S38) — see database.load_client_alerts's
+        # note; RLS's has_client_access(client_id, user_id) already scopes
+        # this to alerts for clients the account owns or is a member of.
         supabase = get_supabase()
-        q = supabase.table("client_alerts")         .select("*, regulatory_updates(id, title, summary, url, severity, source, regulations, countries, published_at, action_description)")         .eq("user_id", user_id)         .order("notified_at", desc=True)         .limit(50)
+        q = supabase.table("client_alerts")         .select("*, regulatory_updates(id, title, summary, url, severity, source, regulations, countries, published_at, action_description)")         .order("notified_at", desc=True)         .limit(50)
         if show_unread_only:
             q = q.is_("read_at", "null")
         alerts = q.execute().data or []

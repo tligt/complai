@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from auth import get_user_id
 from active_client import get_active_client
-from cached_reads import load_clients
+from cached_reads import load_accessible_clients
 from document_generator import (
     DOCUMENT_TYPES, LEGAL_FORMS, DPA_CONTACTS,
     load_intake, save_intake, update_client_profile,
@@ -69,7 +69,10 @@ for key, default in [
         st.session_state[key] = default
 
 # ── Client / mode selection ───────────────────────────────────
-clients = load_clients(user_id)
+# S38: accessible, not just owned — a workspace member with no client of
+# their own but access to someone else's should reach "Existing client
+# profile" mode, not be stopped here before get_active_client() ever runs.
+clients = load_accessible_clients(user_id)
 if not clients:
     st.info("👈 Create a client profile first before generating documents.")
     st.stop()
@@ -1318,10 +1321,12 @@ _reg_by_path: dict[str, dict] = {}
 _reg_by_id: dict[str, dict] = {}
 if client_id and mode == "existing_client":
     try:
+        # Not filtered by user_id (S38) — see
+        # database.load_document_files's note.
         from database import get_supabase
         for _r in (get_supabase().table("client_documents")
                    .select("*").eq("client_id", client_id)
-                   .eq("user_id", user_id).execute().data or []):
+                   .execute().data or []):
             _reg_by_id[_r["id"]] = _r
             if _r.get("document_id"):
                 _reg_by_doc[_r["document_id"]] = _r

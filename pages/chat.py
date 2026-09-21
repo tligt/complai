@@ -21,7 +21,7 @@ from database import (
     save_answer_feedback, load_feedback_for_session,
     FEEDBACK_MODE, FEEDBACK_REASONS,
 )
-from cached_reads import load_clients
+from cached_reads import load_accessible_clients
 from tier_gates import client_limit_reached, upsell_dialog
 from rag import retrieve, retrieve_from_qdrant, retrieve_from_memory, get_knowledge_base_summary
 from obligations import REGULATION_PARENT
@@ -287,9 +287,10 @@ if st.query_params.get("logout"):
 with st.sidebar:
     st.markdown("**My clients**")
 
-    # Load clients
+    # Load clients. S38: accessible, not just owned — includes clients
+    # this account has been granted access to as a workspace member.
     try:
-        clients = load_clients(user_id)
+        clients = load_accessible_clients(user_id)
     except Exception:
         clients = []
 

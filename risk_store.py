@@ -21,10 +21,15 @@ from database import get_supabase, log_audit_event
 def load_assessments(
     client_id: str, user_id: str, regulation: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Assessments for a client, newest first."""
+    """Assessments for a client, newest first.
+
+    Filtered on client_id alone (S38) — RLS grants access via
+    has_client_access(client_id, user_id), which a workspace member
+    satisfies without matching the row's own user_id.
+    """
     try:
         q = (get_supabase().table("risk_assessments").select("*")
-             .eq("client_id", client_id).eq("user_id", user_id))
+             .eq("client_id", client_id))
         if regulation:
             q = q.eq("regulation", regulation)
         return q.order("created_at", desc=True).execute().data or []
@@ -34,9 +39,10 @@ def load_assessments(
 
 
 def load_items(assessment_id: str, user_id: str) -> list[dict[str, Any]]:
+    """Filtered on assessment_id alone (S38) — see load_assessments's note."""
     try:
         return (get_supabase().table("risk_items").select("*")
-                .eq("assessment_id", assessment_id).eq("user_id", user_id)
+                .eq("assessment_id", assessment_id)
                 .order("created_at").execute().data or [])
     except Exception as e:
         print(f"Could not load risk items: {e}")
@@ -95,7 +101,7 @@ def save_item(
         supabase = get_supabase()
         if item_id:
             supabase.table("risk_items").update(payload) \
-                .eq("id", item_id).eq("user_id", user_id).execute()
+                .eq("id", item_id).execute()
             return item_id
         payload.update({
             "user_id": user_id, "client_id": client_id,
@@ -117,7 +123,7 @@ def delete_item(item_id: str, user_id: str) -> bool:
     """
     try:
         get_supabase().table("risk_items").delete() \
-            .eq("id", item_id).eq("user_id", user_id).execute()
+            .eq("id", item_id).execute()
         return True
     except Exception as e:
         print(f"Could not delete risk item: {e}")
@@ -142,7 +148,7 @@ def complete_assessment(
         get_supabase().table("risk_assessments").update({
             "status": "complete",
             "completed_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", assessment_id).eq("user_id", user_id).execute()
+        }).eq("id", assessment_id).execute()
 
         log_audit_event(
             company_id=client_id, user_id=user_id,
@@ -174,7 +180,7 @@ def set_dpo_advice(
         get_supabase().table("risk_assessments").update({
             "dpo_consulted": consulted,
             "dpo_advice": (advice or "").strip() or None,
-        }).eq("id", assessment_id).eq("user_id", user_id).execute()
+        }).eq("id", assessment_id).execute()
         return True
     except Exception as e:
         print(f"Could not record DPO advice: {e}")

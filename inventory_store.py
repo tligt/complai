@@ -112,66 +112,70 @@ NON_RECIPIENT_ROLES = frozenset({"internal"})
 # ── Reads ─────────────────────────────────────────────────────────────────
 
 def load_systems(user_id: str, client_id: str | None = None) -> list[dict]:
+    """Filtered on client_id when given, not also user_id (S38) — RLS
+    grants access via has_client_access(client_id, user_id), which falls
+    back to plain ownership only when client_id is NULL. Re-filtering by
+    the current session's user_id here would zero out a workspace
+    member's view of a co-worker's systems."""
     try:
-        q = (
-            get_supabase().table("systems")
-            .select("*").eq("user_id", user_id).order("name")
-        )
+        q = get_supabase().table("systems").select("*").order("name")
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []
 
 
 def load_activities(user_id: str, client_id: str | None = None) -> list[dict]:
+    """See load_systems's note."""
     try:
-        q = (
-            get_supabase().table("processing_activities")
-            .select("*").eq("user_id", user_id).order("name")
-        )
+        q = get_supabase().table("processing_activities").select("*").order("name")
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []
 
 
 def load_links(user_id: str, client_id: str | None = None) -> list[dict]:
+    """See load_systems's note."""
     try:
-        q = (
-            get_supabase().table("activity_systems")
-            .select("*").eq("user_id", user_id)
-        )
+        q = get_supabase().table("activity_systems").select("*")
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []
 
 
 def load_counterparties(user_id: str, client_id: str | None = None) -> list[dict]:
-    """Controllers on whose behalf this client processes (Art. 30(2)(a))."""
+    """Controllers on whose behalf this client processes (Art. 30(2)(a)).
+    See load_systems's note."""
     try:
-        q = (
-            get_supabase().table("processing_counterparties")
-            .select("*").eq("user_id", user_id).order("legal_name")
-        )
+        q = get_supabase().table("processing_counterparties").select("*").order("legal_name")
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []
 
 
 def load_counterparty_links(user_id: str, client_id: str | None = None) -> list[dict]:
+    """See load_systems's note."""
     try:
-        q = (
-            get_supabase().table("activity_counterparties")
-            .select("*").eq("user_id", user_id)
-        )
+        q = get_supabase().table("activity_counterparties").select("*")
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []

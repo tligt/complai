@@ -66,7 +66,16 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
 
 
 def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
-    """Update an existing client profile."""
+    """Update an existing client profile.
+
+    Filtered on id alone (S38) — not also user_id. RLS now lets a
+    workspace member edit the company profile too (has_client_access);
+    filtering by the CURRENT session's user_id would silently refuse a
+    member's edit even though the database would have allowed it. clients
+    itself has a trigger (clients_lock_owner) that prevents user_id from
+    ever changing via this UPDATE, so a member editing this cannot use it
+    to reassign ownership.
+    """
     try:
         supabase = get_supabase()
         supabase.table("clients").update({
@@ -75,7 +84,7 @@ def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
             "country": profile.get("country", "BE"),
             "company_size": profile.get("company_size", ""),
             "regulations": profile.get("regulations", ["GDPR"]),
-        }).eq("id", client_id).eq("user_id", user_id).execute()
+        }).eq("id", client_id).execute()
         return True
     except Exception as e:
         _st().error(f"Could not update client: {e}")
@@ -107,13 +116,18 @@ def load_chat_history(client_id: str, user_id: str,
     Otherwise all messages for the client are returned (legacy behaviour).
 
     Each returned dict has: role, content, sources (list, possibly empty).
+
+    Filtered on client_id alone (S38) — not also user_id. RLS now grants
+    access via has_client_access(client_id), which a workspace member
+    satisfies without being the row's own user_id; re-filtering by the
+    CURRENT session's user_id here would silently zero out a member's
+    view of history someone else on the same client wrote.
     """
     try:
         supabase = get_supabase()
         query = supabase.table("chat_history") \
             .select("id, role, content, sources, session_id, created_at") \
-            .eq("client_id", client_id) \
-            .eq("user_id", user_id)
+            .eq("client_id", client_id)
         if session_id:
             query = query.eq("session_id", session_id)
         res = query.order("created_at").execute()
@@ -137,13 +151,14 @@ def load_chat_sessions(client_id: str, user_id: str) -> list[dict]:
     Aggregation happens in Python rather than SQL: PostgREST has no GROUP BY,
     and per-client message volumes are small enough that fetching and folding
     is cheaper than maintaining an RPC.
+
+    Filtered on client_id alone (S38) — see load_chat_history's note.
     """
     try:
         supabase = get_supabase()
         res = supabase.table("chat_history") \
             .select("session_id, role, content, created_at") \
             .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
             .order("created_at") \
             .execute()
 
@@ -215,13 +230,17 @@ def save_message(client_id: str, user_id: str, role: str, content: str,
 
 
 def delete_chat_session(client_id: str, user_id: str, session_id: str) -> bool:
-    """Delete a single conversation."""
+    """Delete a single conversation.
+
+    Filtered on client_id alone (S38) — see load_chat_history's note. A
+    workspace member can delete a conversation a co-worker started; that is
+    the intended shape of shared access, not a gap.
+    """
     try:
         supabase = get_supabase()
         supabase.table("chat_history") \
             .delete() \
             .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
             .eq("session_id", session_id) \
             .execute()
         return True
@@ -231,13 +250,13 @@ def delete_chat_session(client_id: str, user_id: str, session_id: str) -> bool:
 
 
 def clear_chat_history(client_id: str, user_id: str) -> bool:
-    """Delete all chat history for a client."""
+    """Delete all chat history for a client. Filtered on client_id alone
+    (S38) — see load_chat_history's note."""
     try:
         supabase = get_supabase()
         supabase.table("chat_history") \
             .delete() \
             .eq("client_id", client_id) \
-            .eq("user_id", user_id) \
             .execute()
         return True
     except Exception as e:
@@ -360,7 +379,6 @@ def update_document_paths(doc_id: str, user_id: str,
         supabase.table("documents") \
             .update(update) \
             .eq("id", doc_id) \
-            .eq("user_id", user_id) \
             .execute()
         return True
     except Exception as e:
@@ -383,18 +401,26 @@ def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
 
 
 def load_document_files(user_id: str, client_id: str | None) -> list[dict]:
-    """Load document records with file paths for history display."""
+    """Load document records with file paths for history display.
+
+    Filtered on client_id when given, not also user_id (S38) — RLS now
+    grants access via has_client_access(client_id, user_id), which falls
+    back to plain ownership only when client_id is NULL (the external-
+    company path). Re-filtering by the current session's user_id here
+    would zero out a workspace member's view of a co-worker's documents.
+    """
     try:
         supabase = get_supabase()
         q = supabase.table("documents") \
             .select("id, document_type, language, company_name, generated_at, "
                     "file_path_docx, file_path_pdf, file_path_odt, "
                     "file_path_xlsx, outstanding_fields, document_group_id") \
-            .eq("user_id", user_id) \
             .order("generated_at", desc=True) \
             .limit(20)
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception as e:
         _st().warning(f"Could not load document history: {e}")
@@ -439,7 +465,7 @@ def get_current_client_documents(
     """
     try:
         rows = (get_supabase().table("client_documents").select("*")
-                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("client_id", client_id)
                 .eq("status", "in_force").execute().data or [])
         out: dict = {}
         for r in rows:
@@ -462,7 +488,7 @@ def get_register_status(client_id: str, user_id: str) -> dict:
     """
     try:
         rows = (get_supabase().table("client_documents").select("*")
-                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("client_id", client_id)
                 .in_("status", ["draft", "in_force"])
                 .order("uploaded_at", desc=True).execute().data or [])
         out: dict = {}
@@ -491,7 +517,7 @@ def get_client_document_history(
     """
     try:
         q = (get_supabase().table("client_documents").select("*")
-             .eq("client_id", client_id).eq("user_id", user_id)
+             .eq("client_id", client_id)
              .eq("document_type", document_type))
         if language:
             q = q.eq("language", language)
@@ -664,7 +690,7 @@ def adopt_client_document(
         supabase = get_supabase()
 
         row = (supabase.table("client_documents").select("*")
-               .eq("id", document_row_id).eq("user_id", user_id)
+               .eq("id", document_row_id)
                .execute().data or [None])[0]
         if not row:
             return None
@@ -764,7 +790,7 @@ def archive_client_document(
     try:
         supabase = get_supabase()
         row = (supabase.table("client_documents").select("*")
-               .eq("id", document_row_id).eq("user_id", user_id)
+               .eq("id", document_row_id)
                .execute().data or [None])[0]
         if not row or row["status"] != "in_force":
             return False
@@ -830,7 +856,7 @@ def get_latest_draft(
     """
     try:
         rows = (get_supabase().table("client_documents").select("*")
-                .eq("client_id", client_id).eq("user_id", user_id)
+                .eq("client_id", client_id)
                 .eq("document_type", document_type)
                 .eq("language", language).eq("status", "draft")
                 .order("uploaded_at", desc=True).limit(1)
@@ -863,7 +889,7 @@ def delete_draft_document(document_row_id: str, user_id: str) -> bool:
     try:
         supabase = get_supabase()
         row = (supabase.table("client_documents").select("*")
-               .eq("id", document_row_id).eq("user_id", user_id)
+               .eq("id", document_row_id)
                .execute().data or [None])[0]
         if not row:
             return False
@@ -892,7 +918,7 @@ def delete_draft_document(document_row_id: str, user_id: str) -> bool:
             delete_file("compliance-files", _p)
 
         supabase.table("client_documents").delete() \
-            .eq("id", document_row_id).eq("user_id", user_id).execute()
+            .eq("id", document_row_id).execute()
 
         # The generation row SURVIVES — that a generation happened is true
         # whether or not its output was kept — but it is marked, so the history
@@ -944,7 +970,7 @@ def set_document_comment(
     try:
         get_supabase().table("client_documents") \
             .update({"change_comment": comment}) \
-            .eq("id", document_row_id).eq("user_id", user_id).execute()
+            .eq("id", document_row_id).execute()
         return True
     except Exception as e:
         print(f"Could not save change comment: {e}")
@@ -978,7 +1004,7 @@ def set_legal_hold(
         row = (supabase.table("client_documents")
                .select("client_id, document_type, language, version, "
                        "hold_set_on, hold_reason")
-               .eq("id", document_row_id).eq("user_id", user_id)
+               .eq("id", document_row_id)
                .execute().data or [None])[0]
         if not row:
             return False
@@ -987,7 +1013,7 @@ def set_legal_hold(
             "legal_hold": on,
             "hold_reason": reason if on else None,
             "hold_set_on": _dt.now(_tz).isoformat() if on else None,
-        }).eq("id", document_row_id).eq("user_id", user_id).execute()
+        }).eq("id", document_row_id).execute()
 
         # A hold is a statement about live litigation or an investigation, and
         # RELEASING one is what allows the document to be deleted. If that
@@ -1051,16 +1077,19 @@ def set_legal_hold(
 def create_user_profile(
     user_id: str, email: str, subscription_tier: str = "professional",
 ) -> bool:
-    """S37: the ONLY writer of a profiles row on signup.
+    """S37, corrected after S38: NOT the only writer of a profiles row.
 
-    Nothing else in this codebase ever inserted one — grepped for
-    .table("profiles").insert/.upsert before adding this, zero hits. The one
-    real account's profile existed only because it was created by hand,
-    directly in the database (matches D-93's note on how the one admin
-    account was made). Every read already tolerates a missing row
-    (get_user_profile() returns {} on error), which is why nothing had
-    visibly broken — but no tier, no role default, nothing was ever
-    actually recorded for a real signup.
+    A database trigger, on_auth_user_created -> handle_new_user(), already
+    inserts (id, email, role='client') on every auth.users signup — found
+    via the Supabase MCP server's execute_sql during S38, invisible to a
+    repo grep since it lives in the database, not in this codebase. It
+    never sets subscription_tier, which is what this function actually
+    contributes: the plan choice made at signup. Upsert rather than
+    insert, so this works whether the trigger already created the row or
+    not, and is idempotent either way. Every read already tolerates a
+    missing row regardless (get_user_profile() returns {} on error) — but
+    before this function existed, no tier was ever recorded for a real
+    signup.
 
     Upsert, not insert: a retried signup click can't fail on a duplicate
     key. Only the three columns here are touched on conflict — full_name,
@@ -1179,11 +1208,15 @@ def set_user_tier(target_user_id: str, tier: str) -> tuple[bool, str | None]:
     asking which one to keep, right here — is still guessing at something
     only the client actually knows the answer to. Refused instead.
 
-    Multi-user is NOT checked here. There is no multi-user data model in
-    this codebase yet (S37 — no workspace_members table, nothing to check
-    "which user remains" against) — a check against a table that does not
-    exist would be invented, not implemented. Revisit this function when
-    S37 ships.
+    Multi-user (S38, workspace_members) turned out not to need a guard
+    here after all. workspace_members is keyed by client_id, not by the
+    owner's tier — a Professional account's one client can carry team
+    members exactly like an Advisory account's can (the sprint is called
+    "Multi-user for Professional" for a reason; D-90's own reasoning
+    against tier-gating things nothing prices yet applies here too).
+    Downgrading Advisory -> Professional neither creates nor removes a
+    membership row, so there is nothing about workspace_members for this
+    function to check.
     """
     if tier not in SUBSCRIPTION_TIERS:
         return False, "Unknown plan."
@@ -1230,6 +1263,172 @@ def set_user_role(target_user_id: str, role: str) -> bool:
     except Exception as e:
         print(f"Could not set role for {target_user_id}: {e}")
         return False
+
+
+# ── Workspace members (S38) ─────────────────────────────────────
+# Real multi-user access: a second person gets read/write on a client's
+# data, not just a name in a list. The RLS half (has_client_access(),
+# and every client-owned table's policies) lives in the database, applied
+# via the Supabase MCP server rather than a file in this repo — see
+# docs/SPRINT_LOG.md's S38 entry for the migration. This section is the
+# app-layer half: who gets invited, and how an invite turns into access.
+
+def invite_workspace_member(
+    client_id: str, invited_by: str, email: str,
+) -> tuple[bool, str | None]:
+    """Grant a client to another person by email. Returns (ok, error).
+
+    If that email already has a profiles row, access is immediate
+    (status='active', member_user_id set) — no separate accept step.
+    Nothing in this product asks someone to confirm being given access to
+    something (S33's admin tier assignment does not either), and adding
+    one here would be a second UI surface for a case that does not need
+    it. If the email has no account yet, the row is recorded by
+    invited_email alone and claimed automatically the first time that
+    person logs in (claim_pending_invites), the moment their profiles row
+    exists to attach it to.
+
+    Service-role: RLS's workspace_members_insert policy already refuses
+    this for anyone who is not the client's owner, but a member being
+    told "you don't have permission" by a raw PostgREST error is worse
+    than this function checking the same thing and returning a plain
+    string. Not double-guessing RLS — trusting it, and translating its
+    refusal into words.
+    """
+    email = email.strip().lower()
+    if not email:
+        return False, "Enter an email address."
+    try:
+        admin = get_supabase_admin()
+        owner_rows = admin.table("clients").select("id, company_name") \
+            .eq("id", client_id).eq("user_id", invited_by).execute().data
+        if not owner_rows:
+            return False, "You can only invite people to a client you own."
+        client_name = owner_rows[0].get("company_name") or "your account"
+
+        existing = admin.table("profiles").select("id") \
+            .ilike("email", email).limit(1).execute().data
+        member_user_id = existing[0]["id"] if existing else None
+
+        admin.table("workspace_members").upsert({
+            "client_id": client_id,
+            "invited_email": email,
+            "invited_by": invited_by,
+            "member_user_id": member_user_id,
+            "status": "active" if member_user_id else "pending",
+            "activated_at": (
+                datetime.now(timezone.utc).isoformat() if member_user_id else None
+            ),
+        }, on_conflict="client_id,invited_email").execute()
+
+        inviter = admin.table("profiles").select("email") \
+            .eq("id", invited_by).limit(1).execute().data
+        inviter_email = inviter[0]["email"] if inviter else "A RECOSA user"
+        from email_sender import send_workspace_invite
+        send_workspace_invite(email, client_name, inviter_email)
+
+        return True, None
+    except Exception as e:
+        print(f"Could not invite {email} to {client_id}: {e}")
+        return False, "Could not send the invite."
+
+
+def list_workspace_members(client_id: str) -> list[dict]:
+    """Every membership row for a client, owner and pending invites alike.
+
+    Joined against profiles for a name where claimed — an unclaimed
+    invite has nothing to join against yet, and invited_email is the only
+    thing there is to show for it.
+    """
+    try:
+        rows = get_supabase_admin().table("workspace_members") \
+            .select("*").eq("client_id", client_id) \
+            .order("created_at").execute().data or []
+        ids = [r["member_user_id"] for r in rows if r.get("member_user_id")]
+        profiles = {}
+        if ids:
+            for p in (get_supabase_admin().table("profiles")
+                      .select("id, email, full_name").in_("id", ids)
+                      .execute().data or []):
+                profiles[p["id"]] = p
+        for r in rows:
+            p = profiles.get(r.get("member_user_id")) or {}
+            r["display_name"] = p.get("full_name") or r["invited_email"]
+        return rows
+    except Exception as e:
+        print(f"Could not load members for {client_id}: {e}")
+        return []
+
+
+def remove_workspace_member(member_row_id: str, acting_user_id: str) -> bool:
+    """Revoke access, or leave. RLS decides which of those this actually
+    is — the owner can remove anyone on their own clients, a member can
+    remove only their own row — this just issues the delete and lets the
+    database refuse it if the caller has neither right."""
+    try:
+        get_supabase().table("workspace_members") \
+            .delete().eq("id", member_row_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not remove membership {member_row_id}: {e}")
+        return False
+
+
+def claim_pending_invites(user_id: str, email: str) -> int:
+    """Turn every pending invite to this email into active access.
+
+    Called once per login (app.py), right after the session is
+    established and before the S37 zero-client welcome gate — a member
+    whose invite claims here must not be shown "create your first
+    client" for having zero clients of their OWN. Service-role: this is
+    an account-lifecycle write in the same trust tier as
+    create_user_profile(), not something RLS needs to arbitrate, since
+    the only fact being asserted is "this email belongs to this user_id,"
+    which only Supabase Auth actually knows.
+    """
+    try:
+        res = get_supabase_admin().table("workspace_members").update({
+            "member_user_id": user_id,
+            "status": "active",
+            "activated_at": datetime.now(timezone.utc).isoformat(),
+        }).ilike("invited_email", email.strip()).is_("member_user_id", "null").execute()
+        return len(res.data or [])
+    except Exception as e:
+        print(f"Could not claim invites for {email}: {e}")
+        return 0
+
+
+def load_accessible_clients(user_id: str) -> list[dict]:
+    """Every client this account can work on: owned, or via membership.
+
+    NOT a replacement for load_clients(), which stays owned-only on
+    purpose — tier_gates.client_limit_reached() must keep counting only
+    what this account owns, never what it has been given access to.
+    This is the broader question the UI needs answered instead: which
+    clients show up to work on at all. Each row carries role: "owner" or
+    "member" so the UI can label it.
+    """
+    try:
+        supabase = get_supabase()
+        owned = supabase.table("clients").select("*") \
+            .eq("user_id", user_id).order("company_name").execute().data or []
+        for c in owned:
+            c["role"] = "owner"
+
+        member_rows = supabase.table("workspace_members").select("client_id") \
+            .eq("member_user_id", user_id).eq("status", "active").execute().data or []
+        member_client_ids = [r["client_id"] for r in member_rows]
+        member_clients = []
+        if member_client_ids:
+            member_clients = supabase.table("clients").select("*") \
+                .in_("id", member_client_ids).order("company_name").execute().data or []
+            for c in member_clients:
+                c["role"] = "member"
+
+        return owned + member_clients
+    except Exception as e:
+        _st().error(f"Could not load accessible clients: {e}")
+        return []
 
 
 # ── Regulatory updates ────────────────────────────────────────
@@ -1342,12 +1541,19 @@ def create_client_alerts(update_id: str, update: dict) -> int:
 
 
 def load_client_alerts(user_id: str, unread_only: bool = False) -> list[dict]:
-    """Load alerts for a client user."""
+    """Load alerts for a client user.
+
+    Not filtered by user_id (S38) — RLS's has_client_access(client_id,
+    user_id) already restricts this to alerts for clients the current
+    account owns or is a workspace member of, which is a superset of the
+    old owned-only behaviour for an owner and correctly widens it for a
+    member. The user_id parameter is unused by the query now; kept so
+    every call site's signature stays unchanged.
+    """
     try:
         supabase = get_supabase()
         q = supabase.table("client_alerts") \
             .select("*, regulatory_updates(*)") \
-            .eq("user_id", user_id) \
             .order("notified_at", desc=True) \
             .limit(50)
         if unread_only:
@@ -1358,13 +1564,13 @@ def load_client_alerts(user_id: str, unread_only: bool = False) -> list[dict]:
 
 
 def mark_alert_read(alert_id: str, user_id: str) -> bool:
-    """Mark an alert as read."""
+    """Mark an alert as read. Filtered on id alone (S38) — see
+    load_client_alerts's note."""
     try:
         supabase = get_supabase()
         supabase.table("client_alerts") \
             .update({"read_at": datetime.now(timezone.utc).isoformat()}) \
             .eq("id", alert_id) \
-            .eq("user_id", user_id) \
             .execute()
         return True
     except Exception:
@@ -1372,12 +1578,12 @@ def mark_alert_read(alert_id: str, user_id: str) -> bool:
 
 
 def count_unread_alerts(user_id: str) -> int:
-    """Count unread alerts for a user."""
+    """Count unread alerts for a user. Not filtered by user_id (S38) —
+    see load_client_alerts's note."""
     try:
         supabase = get_supabase()
         res = supabase.table("client_alerts") \
             .select("id", count="exact") \
-            .eq("user_id", user_id) \
             .is_("read_at", "null") \
             .execute()
         return res.count or 0
@@ -1780,12 +1986,12 @@ def load_feedback_for_session(user_id: str, session_id: str) -> dict[str, dict]:
     """Existing feedback for a conversation, keyed by message_id.
 
     Used to re-render thumbs state when a conversation is reloaded.
+    Filtered on session_id alone (S38) — see load_client_alerts's note.
     """
     try:
         supabase = get_supabase()
         res = supabase.table("answer_feedback") \
             .select("message_id, rating, reason_codes, comment") \
-            .eq("user_id", user_id) \
             .eq("session_id", session_id) \
             .execute()
         return {r["message_id"]: r for r in (res.data or []) if r.get("message_id")}
@@ -1963,12 +2169,14 @@ def load_thread_messages(thread_id: str) -> list[dict]:
 
 
 def load_my_tickets(user_id: str) -> list[dict]:
-    """Client-facing: this user's tickets, newest activity first."""
+    """Client-facing: tickets for clients this account can access, newest
+    activity first. Not filtered by user_id (S38) — see
+    load_client_alerts's note; a ticket with no client_id still falls
+    back to the filer alone, via RLS's NULL-client_id branch."""
     try:
         supabase = get_supabase()
         res = supabase.table("support_tickets") \
             .select("*") \
-            .eq("user_id", user_id) \
             .order("updated_at", desc=True) \
             .execute()
         return res.data or []
@@ -2069,12 +2277,12 @@ def mark_thread_read(thread_id: str, reader_role: str) -> bool:
 
 
 def count_unread_replies(user_id: str) -> int:
-    """Client-facing badge: unread admin replies across this user's tickets."""
+    """Client-facing badge: unread admin replies across accessible tickets.
+    Not filtered by user_id (S38) — see load_my_tickets's note."""
     try:
         supabase = get_supabase()
         tickets = supabase.table("support_tickets") \
             .select("thread_id") \
-            .eq("user_id", user_id) \
             .not_.in_("status", ["closed"]) \
             .execute()
         thread_ids = [t["thread_id"] for t in (tickets.data or [])]

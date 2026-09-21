@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 from auth import is_logged_in, get_user_id
-from cached_reads import load_clients
+from cached_reads import load_accessible_clients
 from crawler import crawl, extract_domain
 from checklist import run_checklist, OK, WARN, FAIL
 from report import generate_pdf
@@ -133,7 +133,9 @@ if logged_in:
     user_id = get_user_id()
     st.info("👤 Running as logged-in user — unlimited audits, results saved to your account.")
 
-    clients = load_clients(user_id)
+    # Accessible, not just owned (S38) — a workspace member should be able
+    # to link an audit to a client they've been given access to.
+    clients = load_accessible_clients(user_id)
     client_options = {c["company_name"]: c for c in clients}
 
     selected_client_name = st.selectbox(

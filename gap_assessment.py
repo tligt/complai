@@ -791,15 +791,19 @@ def save_gap_assessment(user_id: str, client_id: str | None,
 
 
 def load_gap_assessment_history(user_id: str, client_id: str | None) -> list[dict]:
+    """Filtered on client_id when given, not also user_id (S38) — see
+    database.load_document_files's note; falls back to plain ownership
+    only when client_id is None."""
     from database import get_supabase
     try:
         supabase = get_supabase()
         q = supabase.table("gap_assessments") \
             .select("id,created_at,score_overall,score_gdpr,score_nis2,score_eprivacy,score_eu_ai_act,file_path_pdf") \
-            .eq("user_id", user_id) \
             .order("created_at", desc=True).limit(10)
         if client_id:
             q = q.eq("client_id", client_id)
+        else:
+            q = q.eq("user_id", user_id)
         return q.execute().data or []
     except Exception:
         return []

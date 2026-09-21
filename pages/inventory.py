@@ -48,7 +48,7 @@ import pandas as pd
 import streamlit as st
 
 from auth import get_user_id
-from cached_reads import load_clients
+from active_client import get_active_client
 import inventory as INV
 import inventory_store as STORE
 import translate as TR
@@ -69,34 +69,21 @@ if not user_id:
     st.stop()
 
 
-# ── Client resolution (S25) ───────────────────────────────────────────────
+# ── Client resolution (S25, S38) ──────────────────────────────────────────
 # One identity per company, resolved the same way on every page. Writing NULL
 # here and a real id elsewhere is what broke the Cookie Policy read, and it
 # would have broken the RoPA (S26) and the register (S27) in turn.
+#
+# This used to reimplement its own version of this logic against
+# load_clients() (owned-only), rather than going through active_client.py's
+# shared helper — the exact duplication that module's own docstring names as
+# the reason it exists. That duplication meant a workspace member (S38) with
+# an accessible-but-not-owned client got "Create a client profile" here even
+# though every other page already recognised them correctly.
 
-_client = st.session_state.get("selected_client") or {}
+_client = get_active_client(user_id) or {}
 _profile = st.session_state.get("profile") or {}
 client_id = _client.get("id")
-
-if not client_id:
-    _owned = load_clients(user_id) or []
-    if len(_owned) == 1:
-        # Starter and Professional: the user is the company. There is exactly
-        # one client row, so using it is unambiguous.
-        _client = _owned[0]
-        client_id = _client["id"]
-    elif len(_owned) > 1:
-        # Advisory, with nothing selected. Guessing would attach a vendor to
-        # the wrong company — a silent, hard-to-notice error in a document that
-        # later gets filed. Stop and ask instead.
-        st.warning(
-            "Select a client before editing the inventory. Systems, processing "
-            "activities and controllers belong to a specific company."
-        )
-        st.stop()
-    else:
-        st.info("Create a client profile before filling in your inventory.")
-        st.stop()
 
 # Language for labels. This is UI chrome, so it should follow the user once a
 # user language column exists. Until then the first document language is the

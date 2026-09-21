@@ -85,10 +85,16 @@ doc_gap_status = {}  # doc_type → {"status": compliant/partial/missing, "detai
 gap_by_id = {}       # obligation id → gap result, for operational obligations
 
 try:
+    # S38: this client's own most recent assessment, not this session's
+    # user_id — a workspace member's session user_id never matches the
+    # owner's, which would otherwise hide it. Uses the admin client (RLS
+    # bypass) so filtering correctly here is the only access control on
+    # this query; get_active_client() above already establishes that this
+    # session may see client_id at all.
     admin = get_supabase_admin()
     gap_res = admin.table("gap_assessments") \
         .select("*") \
-        .eq("user_id", user_id) \
+        .eq("client_id", client_id) \
         .order("created_at", desc=True) \
         .limit(1) \
         .execute()

@@ -6,8 +6,8 @@ load_dotenv()
 
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
-from database import count_unread_replies, create_client_record
-from cached_reads import load_clients
+from database import count_unread_replies, create_client_record, claim_pending_invites
+from cached_reads import load_clients, load_accessible_clients
 from support_widget import render_help_widget
 
 # S37. Same lists as pages/chat.py:30-45 and pages/profile.py:27-38 — this
@@ -207,13 +207,25 @@ with st.sidebar:
     if st.button("Log out", use_container_width=True, key="btn_logout"):
         logout()
 
+# ── Claim any pending workspace invites ───────────────────────────
+# S38. Runs on every authenticated load, before the zero-client gate below
+# — an invited member with zero clients of their OWN must not be shown
+# "create your first client" once their invite has claimed. Cheap when
+# there is nothing to claim: one UPDATE that matches zero rows.
+if claim_pending_invites(user_id, st.session_state.user.email):
+    load_clients.clear()
+    load_accessible_clients.clear()
+
 # ── First-run: no client yet ─────────────────────────────────────
-# S37. Every page reachable below this point (Chat included — chat.py has
-# its own near-identical dead end at chat.py:516-542) stops cold with no
-# client to work against. Intercepted here, once, before st.navigation
-# even builds, rather than patching each page's own empty state — Log out
-# above still works since the sidebar block already rendered.
-if not load_clients(user_id) and not st.session_state.get("skip_onboarding"):
+# S37, widened in S38 to accessible clients (owned or member-of) — not
+# load_clients, which is owned-only and would wrongly show this to a
+# member who just claimed access to someone else's client. Every page
+# reachable below this point (Chat included — chat.py has its own near-
+# identical dead end at chat.py:516-542) stops cold with no client to
+# work against. Intercepted here, once, before st.navigation even builds,
+# rather than patching each page's own empty state — Log out above still
+# works since the sidebar block already rendered.
+if not load_accessible_clients(user_id) and not st.session_state.get("skip_onboarding"):
     st.title("Welcome to RECOSA")
     st.caption("Set up your first client to get started.")
     _ob_name = st.text_input("Company name", key="ob_name")
@@ -242,6 +254,7 @@ if not load_clients(user_id) and not st.session_state.get("skip_onboarding"):
                 # point here is landing in the app on the very next rerun,
                 # not staring at this same screen for up to 20 more seconds.
                 load_clients.clear()
+                load_accessible_clients.clear()
                 st.rerun()
         else:
             st.warning("Company name is required.")

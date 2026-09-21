@@ -16,8 +16,9 @@ from auth import get_user_id, change_password
 from database import (
     get_user_profile, update_user_profile,
     create_client_record, SUBSCRIPTION_TIERS, set_user_tier,
+    invite_workspace_member, list_workspace_members, remove_workspace_member,
 )
-from cached_reads import load_clients
+from cached_reads import load_accessible_clients
 from tier_gates import client_limit_reached, upsell_dialog
 
 # Kept local rather than imported from pages/chat.py — pages are scripts,
@@ -144,15 +145,18 @@ st.divider()
 # ── Your clients ─────────────────────────────────────────────────────────
 st.subheader("Your clients")
 st.caption(
-    "The companies this account manages compliance for. Professional "
-    "accounts have one; Advisory accounts can have several."
+    "The companies this account can work on — owned, or shared by "
+    "someone else's team (S38)."
 )
 
-clients = load_clients(user_id)
+clients = load_accessible_clients(user_id)
 if clients:
     for c in clients:
         with st.container(border=True):
-            st.markdown(f"**{c['company_name']}**")
+            st.markdown(
+                f"**{c['company_name']}**  ·  "
+                + ("Owner" if c.get("role") == "owner" else "Member")
+            )
             st.caption(
                 f"{c.get('sector', '')} · {COUNTRY_OPTIONS.get(c.get('country'), c.get('country', ''))} · "
                 + ", ".join(c.get("regulations") or [])
@@ -192,9 +196,56 @@ with st.expander("➕ New client"):
                         "regulations": nc_regs,
                     })
                     if result:
+                        load_accessible_clients.clear()
                         st.success(f"{nc_name} created.")
                         st.rerun()
                     else:
                         st.error("Could not create client.")
                 else:
                     st.warning("Give the company a name.")
+
+st.divider()
+
+# ── Team (S38) ───────────────────────────────────────────────────────────
+# Not tier-gated. D-90's reasoning against inventing gates ahead of a
+# billing model that actually checks them applies here too — there is no
+# seat pricing yet, and "Multi-user for Professional" is the sprint's own
+# name for a reason: a one-client Professional account benefits from this
+# exactly as much as an Advisory one does.
+st.subheader("Team")
+
+owned_clients = [c for c in clients if c.get("role") == "owner"]
+if not owned_clients:
+    st.caption("Own a client to invite people to work on it with you.")
+else:
+    for c in owned_clients:
+        with st.container(border=True):
+            st.markdown(f"**{c['company_name']}**")
+            members = list_workspace_members(c["id"])
+            if members:
+                for m in members:
+                    mc1, mc2, mc3 = st.columns([3, 2, 1])
+                    mc1.write(m["display_name"])
+                    mc2.caption("Active" if m["status"] == "active" else "Invited — not signed up yet")
+                    if mc3.button("Remove", key=f"rm_member_{m['id']}"):
+                        if remove_workspace_member(m["id"], user_id):
+                            st.rerun()
+            else:
+                st.caption("No one else has access yet.")
+
+            with st.form(f"invite_form_{c['id']}", clear_on_submit=True):
+                inv_col1, inv_col2 = st.columns([3, 1])
+                inv_email = inv_col1.text_input(
+                    "Email", key=f"inv_email_{c['id']}", label_visibility="collapsed",
+                    placeholder="colleague@company.com",
+                )
+                if inv_col2.form_submit_button("Invite", use_container_width=True):
+                    if inv_email.strip():
+                        ok, err = invite_workspace_member(c["id"], user_id, inv_email)
+                        if ok:
+                            st.success(f"Invited {inv_email.strip()}.")
+                            st.rerun()
+                        else:
+                            st.error(err or "Could not send the invite.")
+                    else:
+                        st.warning("Enter an email address.")
