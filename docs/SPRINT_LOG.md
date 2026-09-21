@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -281,6 +281,7 @@ S34.
 | ~~S33~~ | ~~Admin user management~~ | **Delivered 18 Sept.** D-90 to D-94 |
 | ~~S34~~ | ~~Chat retrieval quality~~ | **Delivered 18 Sept.** Parts 1–2 shipped, Part 3 not needed. D-96 |
 | ~~S36~~ | ~~Regulatory update → impact re-scoring~~ | **Delivered 21 Sept.** Also fixed the `source_revision` stamping bug the scope lock assumed away. D-101, see 3b |
+| ~~S37~~ | ~~Subscribing and basic onboarding~~ | **Delivered 21 Sept.** Also fixed a second dependency bug: no code had ever written a `profiles` row. D-102 |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
 **S32, S33, S34 and S47 shipped ahead of S39 (originally numbered S31).**
@@ -305,14 +306,13 @@ quietly reordered.
 ### Before the beta gate
 
 Widened 21 September 2026 (see the renumbering note below): four sprints
-originally stood between here and the gate, not two — the first of them,
-S36, was delivered the same day (D-101). Three remain. Priority changed,
-not the gate's own requirements — S40 is still the only sprint that *is*
-the gate.
+originally stood between here and the gate, not two. The first two of
+them are now delivered the same day — S36 (D-101) and S37 (D-102). Two
+remain. Priority changed, not the gate's own requirements — S40 is still
+the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| **S37** | **Subscribing and basic onboarding** *(new)* | Signup + plan selection. No real payment processing — that stays at S46 |
 | **S38** | **Multi-user for Professional** | Renumbered from S37, 21 Sept. Seeds `workspace_members` |
 | **S39** | **Migration to European infrastructure** | Renumbered from S31, 21 Sept — D-67/D-68. Self-hosted Supabase + containerised app |
 | **S40** | **GDPR deletion + session hardening** | Renumbered from S35, 21 Sept — D-96. **BETA GATE** |
@@ -3693,6 +3693,54 @@ the producer to have real data to compare against from day one.
 
 ---
 
+### D-102 — Signup gets a plan choice, and no code had ever written a `profiles` row
+
+*21 September 2026.*
+
+S37 shipped the day after the renumbering that created it (D-100):
+`auth.py`'s signup tab now asks Professional or Advisory (D-90's two
+real tiers, not the commercial model's unbuilt Starter/Enterprise), and
+a new `database.create_user_profile()` upserts the choice on successful
+`sign_up()`. A new zero-client welcome screen in `app.py`, inserted once
+before `st.navigation` builds, replaces the dead end every client-scoped
+page — Chat included — hits today with nothing but `st.info` +
+`st.stop()`; it reuses `create_client_record()` and the same fields
+`chat.py` and `profile.py` already duplicate for their own "New client"
+forms, with a session-only "skip for now" so an Advisory account isn't
+forced through it.
+
+**A second dependency bug, in the same shape as S36's.** Before wiring
+the plan choice anywhere, the write target was checked directly: grepped
+the repo for `.table("profiles").insert`/`.upsert` — zero hits, no DB
+trigger checked in either. Confirmed against the live database rather
+than assumed: the one real account's `profiles` row (`created_at`
+2026-06-16) postdates its `auth.users` row (`created_at` 2026-06-10) by
+six days, meaning it was made by hand — exactly what D-93 already said
+about how the one admin account came to exist, just not previously
+connected to "and therefore nothing has ever inserted this row through
+the app." Every read already tolerates a missing row
+(`get_user_profile()` returns `{}` on error; every caller does
+`profile.get("subscription_tier") or "professional"`), which is why nothing
+had visibly broken. `create_user_profile()` is now the first and only
+writer.
+
+**Verified live, then cleaned up.** Signed up one Advisory and one
+Professional test account against production (`+s37test1`/`+s37test2`
+on the real account's own address), confirmed each through the admin
+API since email confirmation is enabled and this session has no inbox
+access, and logged in as each. Advisory: the chosen tier landed in
+`profiles` correctly; creating a client from the welcome screen
+required explicitly clearing `cached_reads.load_clients`'s cache
+(20s TTL, deliberately not invalidated on most write paths per that
+module's own docstring) so the very next rerun saw it rather than
+looping the same empty state for up to 20 more seconds. Professional:
+skip landed cleanly on Chat's own unchanged empty state. Both test
+accounts, and the one test client, were deleted afterward the same way
+S36's verification draft was — the production database holds exactly
+the one real account it held before this sprint.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.
@@ -4087,7 +4135,7 @@ selector. The multi-client selector is Advisory-only (S47).
 | PDF/ODT fallback | S40 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
 | ~~Pinning the remaining `requirements.txt` packages~~ | — | **Done 18 Sept.** `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally only — see the file's own header note. |
 | `registered_address` Annex I rendering | — | Carried from S26A. Still needs an actual generated DPA eyeballed, not a code check — never done. |
-| Beta date | — | Four sprints stand before the S40 gate as of 21 Sept: S36, S37 (new), S38, S39 — widened by request, not by new blockers (D-100). The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
+| Beta date | — | Widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Two are now delivered the same day — S36 (D-101), S37 (D-102) — leaving S38 and S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
 
 ### The hosting question — resolved 8 Sept 2026
 
