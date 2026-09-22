@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -284,19 +284,20 @@ S34.
 | ~~S37~~ | ~~Subscribing and basic onboarding~~ | **Delivered 21 Sept.** Also fixed a second dependency bug: no code had ever written a `profiles` row. D-102 |
 | ~~S38~~ | ~~Multi-user for Professional~~ | **Delivered 21 Sept.** `workspace_members` + RLS across 18 tables; two self-inflicted RLS bugs found and fixed pre-launch. D-103 |
 | ~~S41~~ | ~~Audit rate-limiting~~ | **Delivered 21 Sept, ahead of its After-beta position.** Found the anonymous audit flow it protects is not reachable through `app.py` today. D-104 |
+| ~~S43~~ | ~~Domain verification~~ | **Delivered 22 Sept, ahead of its After-beta position.** Requester email must match the audited site's own domain; re-keyed the reuse block to the site, not the requester. D-105 |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
-**S32, S33, S34, S41 and S47 shipped ahead of S39 (originally numbered S31).**
+**S32, S33, S34, S41, S43 and S47 shipped ahead of S39 (originally numbered S31).**
 The table's order is
-planning intent, not a dependency graph. None of the five depended on the
+planning intent, not a dependency graph. None of the six depended on the
 infrastructure migration — S32 needed no hosting change to ship, S33
 needed a place to assign the new `subscription_tier` field by hand well
 before support could wait on a migration, S34 is pure retrieval logic
-against the existing Qdrant collection, S41 is a self-contained addition
-to one page with its own new column, and S47 was a bug fix forced by
-the first multi-client account ever to exist, not scheduled work. Per the
-renumbering rule below (*delivered sprints keep their numbers*), all five
-keep their numbers.
+against the existing Qdrant collection, S41 and S43 are self-contained
+additions to one page each with their own new columns, and S47 was a bug
+fix forced by the first multi-client account ever to exist, not scheduled
+work. Per the renumbering rule below (*delivered sprints keep their
+numbers*), all six keep their numbers.
 
 **S47 in particular jumped its own queue** — it was scoped post-beta (see
 its own scope lock in 3b for why that stays the documented position going
@@ -306,12 +307,23 @@ call is left as written; this is the one sprint in this log delivered
 before its own stated position, and it is recorded that way rather than
 quietly reordered.
 
-**S41 jumped its queue too, by direct request** — scheduled After beta
-(below), asked for and delivered before S39. Unlike S47 this was not a
-found error; the roadmap position is left as originally written for the
-same reason S47's is: a sprint's documented position records the plan at
-the time it was made, not a claim that gets edited away once reality
-moves faster than it did.
+**S41 and S43 jumped their queue too, by direct request** — both
+scheduled After beta (below), both asked for and delivered before S39.
+Unlike S47 this was not a found error; the roadmap position is left as
+originally written for the same reason S47's is: a sprint's documented
+position records the plan at the time it was made, not a claim that gets
+edited away once reality moves faster than it did.
+
+**S42 was scoped in conversation but not built.** While discussing it,
+found that `email_sender.send_audit_report()` already handles the
+anonymous flow's delivery, and that the real remaining gap is
+`database.update_audit_path()` — imported in `pages/audit.py`, never
+actually called in either flow, so a generated PDF's Storage path is
+never written back to its own `audits` row. Left open rather than
+built speculatively: S43 changed what `pages/audit.py` needs from that
+fix (a `site_domain`-keyed lookup now makes as much sense as
+`email_domain`-keyed), and S42 itself was set aside once the
+conversation moved to S43/S44 before its own scope was confirmed.
 
 ### Before the beta gate
 
@@ -330,9 +342,8 @@ the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| S42 | Audit report email delivery | was S39 |
-| S43 | Domain verification | was S40 |
-| S44 | Scheduled recurring audits | was S41. Depends on S43 |
+| S42 | Audit report email delivery | was S39. Scoped in conversation 22 Sept, not built — `update_audit_path()` is the real remaining gap. See the Delivered-section note above |
+| S44 | Scheduled recurring audits | was S41. Depended on S43 — delivered 22 Sept, D-105 |
 | S45 | Freemium single-page scanner | was S42. Two-stage funnel |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | S48 | Onboarding redesign | was S44. Auto-detection layer, now builds on S37's basic version |
@@ -3920,6 +3931,72 @@ crawl could not be run: this sandbox has no outbound DNS or internet
 access at all (`Invoke-WebRequest` to a public domain fails to resolve),
 unrelated to this change and not something fixable from here. The test
 account and every row it touched were deleted afterward.
+
+---
+
+### D-105 — Domain verification, a genuine cross-field bug found while building it, and S44 stays what it already was
+
+*22 September 2026.*
+
+S43 shipped the same day it was asked for, out of its After-beta
+position, the same way S41 did — see D-104's reasoning, unchanged here.
+
+**What shipped.** `domains_match(email_domain, site_domain)`: the
+requester's email must be at the audited site's own domain, or the two
+must be subdomain-related in either direction, checked before any
+database query. Without it, `pages/audit.py`'s free scanner had no
+concept that the requester and the site being audited were supposed to
+be related at all — any real professional email could audit any site on
+the internet. The existing one-time-forever reuse block
+(`check_email_domain_used`) was keyed on the *requester's* domain, not
+the site's, which is a second, independent hole the first fix doesn't
+close by itself: two different people at two different companies could
+each request a free audit of the same third site, repeatedly, since
+nothing tied "already used" to what was actually being audited. Renamed
+to `check_site_domain_used` and re-keyed to the site's domain — once
+domain-match holds, that is both the correct anti-abuse key and a real
+per-site rerun limit, for free, with no new mechanism.
+
+**A real, pre-existing bug found while wiring the new `site_domain`
+column in.** The authenticated flow already computed
+`extract_domain(website_url)` — the *site's* domain — but stored it
+under a variable named `email_domain` and passed it straight into
+`save_audit()`'s `email_domain` parameter. `audits.email_domain` has
+therefore never actually held a logged-in user's real email domain;
+it held whichever site they audited, mislabelled. Not a bug this
+sprint introduced, but the exact kind of cross-field confusion S43
+exists to prevent, so it was fixed in the same pass: both domains are
+now computed and stored under their own, correctly named columns.
+
+**S44 does NOT become "compliance heartbeat."** Discussed and
+explicitly declined in the same conversation that scoped S43: what
+"tell the client this is outdated, be careful, on a schedule" actually
+already names is S62 (Compliance heartbeat), which has its own full,
+separate scope lock — legal holds, retention dates, stale drafts,
+training expiry, consistency findings, none of which involve
+re-crawling a website. S44 as positioned (After beta, depending on
+S43) stays what the roadmap already had it as: periodic re-runs of the
+free website scanner against a domain that has already passed S43's
+verification. The two are not merged; S62 is not renumbered.
+
+**S42 stays unscoped, on purpose.** Investigated in the same
+conversation — `send_audit_report()` already handles delivery for the
+anonymous flow, so "email delivery" as literally named has little left
+to build. The real gap found instead was `update_audit_path()` (see
+above), which S43 changes the shape of (a `site_domain`-keyed lookup
+now makes at least as much sense as an `email_domain`-keyed one) — so
+finishing S42's scope was deliberately left until after S43 landed
+rather than locked in first and rewritten immediately after.
+
+**Verification**: `domains_match()` run against a battery of cases —
+exact match, subdomain each direction, an outright mismatch, and a
+deliberate near-miss (`notacme.com` must not match `acme.com` on a
+naive substring check) — all correct. `check_site_domain_used()` run
+directly against production with the same shape as the real function:
+empty before any row, `True` after one, unaffected by an unrelated
+domain. As with S41, the live crawl itself could not be exercised
+end-to-end in this sandbox (no outbound internet); every test row was
+deleted afterward.
 
 ---
 
