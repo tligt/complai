@@ -790,6 +790,35 @@ def save_gap_assessment(user_id: str, client_id: str | None,
     return assessment_id
 
 
+def load_latest_gap_results(user_id: str, client_id: str | None) -> dict[str, dict]:
+    """The most recent gap_assessments row's findings, keyed by obligation id.
+
+    Feeds obligation_register.evaluate()'s gap_results parameter (S45) — that
+    parameter has existed since the register was written but pages/obligations.py
+    never passed it, so a gap assessment's findings never reached the action
+    plan. not_assessed is dropped rather than passed through: it means "no
+    evidence to examine", not a verdict, and evaluate() would otherwise treat
+    the literal string as a status the register vocabulary doesn't have.
+    """
+    from database import get_supabase
+    try:
+        supabase = get_supabase()
+        q = supabase.table("gap_assessments").select("gaps,created_at") \
+            .order("created_at", desc=True).limit(1)
+        q = q.eq("client_id", client_id) if client_id else q.eq("user_id", user_id)
+        rows = q.execute().data or []
+    except Exception:
+        return {}
+    if not rows:
+        return {}
+    valid = {COMPLIANT, PARTIAL, MISSING, NOT_APPLICABLE}
+    return {
+        g["id"]: {"status": g["status"], "explanation": g.get("explanation", "")}
+        for g in (rows[0].get("gaps") or [])
+        if g.get("id") and g.get("status") in valid
+    }
+
+
 def load_gap_assessment_history(user_id: str, client_id: str | None) -> list[dict]:
     """Filtered on client_id when given, not also user_id (S38) — see
     database.load_document_files's note; falls back to plain ownership

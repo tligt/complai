@@ -37,6 +37,7 @@ from cached_reads import get_register_status, get_in_force_template_versions
 from obligations import (
     OBLIGATIONS, OBLIGATION_BY_ID, REGULATION_LABELS, DOCUMENT_TYPES,
 )
+from gap_assessment import load_latest_gap_results
 
 st.title("Obligations")
 st.caption(
@@ -82,11 +83,17 @@ doc_status = {
 
 applicable = [o for o in OBLIGATIONS if o.get("regulation") in regulations]
 
+# S45. evaluate()'s gap_results parameter has existed since the register was
+# written but was never actually passed here — a gap assessment's findings
+# never reached the action plan until now. See gap_assessment.py's docstring.
+gap_results = load_latest_gap_results(user_id, client_id)
+
 verdicts = OR.evaluate(
     applicable,
     {"client": client, "activities": activities, "systems": systems,
      "links": links},
     document_status=doc_status,
+    gap_results=gap_results,
     responses=responses,
 )
 
