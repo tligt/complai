@@ -1,6 +1,6 @@
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # utcnow() returns a NAIVE datetime that claims to be UTC without saying so.
 # Written to a timestamptz column with no offset, Postgres interprets it as the
@@ -309,7 +309,14 @@ def get_supabase_admin() -> Client:
 
 def upload_file(bucket: str, path: str, file_bytes: bytes,
                 content_type: str = "application/octet-stream") -> str | None:
-    """Upload file to Supabase Storage. Returns storage path on success."""
+    """Upload file to Supabase Storage. Returns storage path on success.
+
+    S44: error path uses print(), not _st() — this is called from
+    monitor_audits.py (a GitHub Actions cron script with no Streamlit
+    installed), where _st()'s lazy `import streamlit` would itself raise
+    ModuleNotFoundError inside the except block. Same reasoning as
+    start_monitor_run's own print()-only error handling.
+    """
     try:
         supabase = get_supabase_admin()
         supabase.storage.from_(bucket).upload(
@@ -319,7 +326,7 @@ def upload_file(bucket: str, path: str, file_bytes: bytes,
         )
         return path
     except Exception as e:
-        _st().warning(f"Could not upload file to storage: {e}")
+        print(f"Could not upload file to storage: {e}")
         return None
 
 
@@ -387,7 +394,12 @@ def update_document_paths(doc_id: str, user_id: str,
 
 
 def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
-    """Save storage path back to audits table."""
+    """Save storage path back to audits table.
+
+    S44: error path uses print(), not _st() — see upload_file's note,
+    same reasoning (called from monitor_audits.py, a Streamlit-free
+    cron script).
+    """
     try:
         supabase = get_supabase_admin()
         supabase.table("audits") \
@@ -396,7 +408,186 @@ def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
             .execute()
         return True
     except Exception as e:
-        _st().warning(f"Could not update audit path: {e}")
+        print(f"Could not update audit path: {e}")
+        return False
+
+
+# ── Web audit: domain verification, rate limiting, save (S41, S43, S44) ────
+# Moved here from pages/audit.py (S44): monitor_audits.py, a GitHub Actions
+# cron script with no Streamlit installed, needs domains_match() and
+# save_audit() to gate and record scheduled re-runs the same way the two
+# live Streamlit flows do — and cannot import pages/audit.py at all, since
+# that module runs UI code at import time. pages/audit.py now imports
+# these from here instead of defining them locally; behaviour for the two
+# existing flows is unchanged except save_audit's failure path (see its
+# own docstring below).
+
+AUDIT_IP_LIMIT = int(os.environ.get("AUDIT_IP_LIMIT", "3"))
+AUDIT_IP_WINDOW_HOURS = int(os.environ.get("AUDIT_IP_WINDOW_HOURS", "24"))
+
+
+def domains_match(email_domain: str, site_domain: str) -> bool:
+    """S43. True if the requester's email domain is the site's own domain,
+    or the two are subdomain-related in either direction (bob@acme.com may
+    audit acme.com or app.acme.com; bob@mail.acme.com may audit acme.com).
+
+    This is the actual domain-verification control: a free audit is for
+    auditing a site you have an email address at, not any site on the
+    internet. No DNS/TXT-record challenge — an email domain match is a
+    weaker proof of ownership than that, but it is real (you cannot type
+    someone else's professional domain into your own inbox), costs nothing
+    to check, and matches the bar every other input on this form already
+    clears at (is_free_email, not a verified account).
+    """
+    email_domain = (email_domain or "").lower()
+    site_domain = (site_domain or "").lower()
+    if not email_domain or not site_domain:
+        return False
+    return (
+        site_domain == email_domain
+        or site_domain.endswith("." + email_domain)
+        or email_domain.endswith("." + site_domain)
+    )
+
+
+def check_site_domain_used(site_domain: str) -> bool:
+    """True if this exact site has already had a free anonymous audit.
+
+    S43: keyed on the SITE's domain, not the requester's email domain.
+    Before this, the block was keyed on the email's domain — which meant
+    two different people at two different companies could each request a
+    free audit of the same THIRD site, repeatedly, since nothing tied the
+    reuse check to what was actually being audited. Once domains_match()
+    enforces that the requester's email is at the site's own domain,
+    checking by site_domain is both the correct anti-abuse key and a real
+    limit on reruns of one's own site (once, ever, same as before this
+    fix — the mechanism is unchanged, only what it's keyed on).
+    """
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("audits") \
+            .select("id") \
+            .eq("site_domain", site_domain) \
+            .is_("user_id", "null") \
+            .execute()
+        return len(res.data) > 0
+    except Exception:
+        return False
+
+
+def check_ip_rate_limited(ip_address: str | None) -> bool:
+    """True if this IP has already used up its anonymous-audit allowance
+    for the current window.
+
+    None/unknown IP fails OPEN — this check is additive to
+    check_site_domain_used, not a replacement for it, so an IP this app
+    could not determine should not block someone the domain check would
+    otherwise have let through.
+    """
+    if not ip_address:
+        return False
+    try:
+        since = (
+            datetime.now(timezone.utc) - timedelta(hours=AUDIT_IP_WINDOW_HOURS)
+        ).isoformat()
+        res = (
+            get_supabase_admin().table("audits")
+            .select("id", count="exact")
+            .eq("ip_address", ip_address)
+            .is_("user_id", "null")
+            .gte("created_at", since)
+            .execute()
+        )
+        return (res.count or 0) >= AUDIT_IP_LIMIT
+    except Exception:
+        return False
+
+
+def save_audit(email, email_domain, website_url, audit_result, user_id=None,
+                client_id=None, ip_address=None, site_domain=None):
+    """Insert one audits row. Returns the new row id, or None on failure.
+
+    S44: error path uses print(), not the st.warning() this had when it
+    lived in pages/audit.py — monitor_audits.py calls this too, and has
+    no Streamlit installed. The two existing Streamlit call sites already
+    tolerate a None return without depending on the toast (chat.py-style
+    "check the return value" pattern, not "the warning was the signal").
+    """
+    try:
+        supabase = get_supabase_admin()
+        record = {
+            "email": email,
+            "email_domain": email_domain,
+            "website_url": website_url,
+            "risk_level": audit_result.risk_level,
+            "report_data": {
+                "score": audit_result.score,
+                "ok_count": audit_result.ok_count,
+                "warn_count": audit_result.warn_count,
+                "fail_count": audit_result.fail_count,
+            }
+        }
+        if user_id:
+            record["user_id"] = user_id
+        if client_id:
+            record["client_id"] = client_id
+        if ip_address:
+            record["ip_address"] = ip_address
+        if site_domain:
+            record["site_domain"] = site_domain
+        res = supabase.table("audits").insert(record).execute()
+        return res.data[0]["id"] if res.data else None
+    except Exception as e:
+        print(f"Could not save audit record: {e}")
+        return None
+
+
+# ── Audit subscriptions (S44) ───────────────────────────────────────────
+
+def create_audit_subscription(
+    user_id: str, client_id: str | None, website_url: str,
+    site_domain: str, email: str, frequency_days: int,
+) -> bool:
+    """Subscribe a verified domain to recurring audits. Upsert on
+    (user_id, site_domain) — resubscribing just updates the frequency."""
+    try:
+        get_supabase().table("audit_subscriptions").upsert({
+            "user_id": user_id,
+            "client_id": client_id,
+            "website_url": website_url,
+            "site_domain": site_domain,
+            "email": email,
+            "frequency_days": frequency_days,
+            "active": True,
+        }, on_conflict="user_id,site_domain").execute()
+        return True
+    except Exception as e:
+        print(f"Could not create audit subscription: {e}")
+        return False
+
+
+def list_audit_subscriptions(user_id: str) -> list[dict]:
+    """This account's active recurring-audit subscriptions."""
+    try:
+        res = (get_supabase().table("audit_subscriptions")
+               .select("*").eq("user_id", user_id).eq("active", True)
+               .order("created_at").execute())
+        return res.data or []
+    except Exception:
+        return []
+
+
+def deactivate_audit_subscription(subscription_id: str, user_id: str) -> bool:
+    """Unsubscribe. Filtered on id alone, trusting RLS (auth.uid() =
+    user_id) the same way every S38-era write does — user_id kept as a
+    parameter so the call site reads as an ownership-scoped action even
+    though the database is what actually enforces it."""
+    try:
+        get_supabase().table("audit_subscriptions") \
+            .update({"active": False}).eq("id", subscription_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not deactivate audit subscription {subscription_id}: {e}")
         return False
 
 

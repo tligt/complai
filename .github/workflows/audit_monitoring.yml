@@ -1,0 +1,36 @@
+name: Audit Monitoring
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # Daily at 08:00 UTC — the script itself decides which subscriptions are due
+  workflow_dispatch:        # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  audits:
+    name: Run Scheduled Audits
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests supabase python-dotenv beautifulsoup4 reportlab==5.0.0
+
+      - name: Run audit monitor
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:         ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BREVO_API_KEY:        ${{ secrets.BREVO_API_KEY }}
+          BREVO_FROM_EMAIL:     ${{ secrets.BREVO_FROM_EMAIL }}
+          BREVO_FROM_NAME:      ${{ secrets.BREVO_FROM_NAME }}
+          APP_BASE_URL:         ${{ secrets.APP_BASE_URL }}
+        run: |
+          python monitor_audits.py
