@@ -351,7 +351,7 @@ the only sprint that *is* the gate.
 | # | Sprint | Notes |
 |---|---|---|
 | S42 | Audit report email delivery | was S39. Scoped in conversation 22 Sept, not built — `update_audit_path()` on the two existing flows is the real remaining gap (closed for S44's new path only). See the Delivered-section note above |
-| S45 | Freemium single-page scanner | was S42. Two-stage funnel |
+| S45 | Freemium single-page scanner | was S42. **Scope-locked 22 Sept 2026** — standalone public quiz, feeds the existing gap-assessment engine in-product, not built. D-107, see 3b |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | S48 | Onboarding redesign | was S44. Auto-detection layer, now builds on S37's basic version |
 | S49 | Document branding | was S45. Theme only |
@@ -1100,6 +1100,114 @@ should need no changes to either.
 
 ---
 
+### S45 — Freemium single-page scanner — SCOPE LOCK
+
+**Position:** After beta, before S46. No dependency on S46 (billing) — S45
+acquires leads and signups; monetising them is S46's separate job. Depends on
+S37 (basic onboarding/signup) existing as the landing point for stage 2.
+
+**Objective stated plainly, because it drives every choice below: acquisition,
+not audit accuracy.** Adequacy and DPO Europe both use a public
+micro-assessment to generate leads, not to deliver a real compliance finding —
+that framing (confirmed with the user 22 Sept) settles the two open questions
+the original one-line roadmap note left unresolved: how the public stage is
+built, and whether it shares an engine with the in-product stage.
+
+---
+
+#### Two surfaces, deliberately disconnected
+
+**Stage 1 — public quiz. Standalone, not routed through the gated app.**
+`app.py` gates every page behind `is_logged_in()` before `st.navigation` even
+builds (D-104's finding, made while building S41), so putting a public
+marketing tool behind that gate means either punching a hole in the app's real
+security boundary for a lead magnet, or building a small separate surface
+purpose-built for the job. Chose the latter: 10 fixed multiple-choice
+questions, a hardcoded point rubric, no LLM call, no document upload, no site
+crawl, no database write until the visitor converts, result shown inline.
+Concrete hosting (a static page on the marketing site, a minimal separate
+Streamlit app, a small serverless function) is an implementation choice, not a
+scope decision — none of it touches the gated app or `database.py`.
+
+**Explicitly does not resolve D-104.** `pages/audit.py`'s anonymous audit flow
+stays exactly as unreachable as D-104 found it. S45 does not attempt to fix or
+repurpose that path — it builds a new, disconnected surface instead, because
+the two flows want different things (audit.py's anonymous flow does a real
+crawl and needs the S41/S43 anti-abuse machinery; S45's quiz is static and
+needs none of it).
+
+**Stage 2 — in-product assessment. Reuses the existing gap-assessment
+engine** (`pages/gap.py`, `gap_assessment.py`) rather than a parallel
+NIS2-only questionnaire. `run_gap_assessment`/`save_gap_assessment` already
+score GDPR/NIS2/ePrivacy/AI Act from documents plus `PROFILE_QUESTIONS`; a
+second, independent 32-question scoring system would duplicate the obligations
+model this app has otherwise kept singular (S27's own register logic, the
+append-only `doc_type` convention) and would never actually show a converted
+visitor the real product — the thing that has to happen for the signup to be
+worth anything past day one. `PROFILE_QUESTIONS` currently holds 9 entries;
+growing it toward the roadmap note's "32 questions is what a credible NIS2
+maturity assessment costs a user" calibration is stage 2's real build work,
+not a new engine.
+
+**Rejected — DPO Europe's gated-PDF pattern.** The original roadmap note
+blended two competitors' models: Adequacy's ungated inline quiz, and DPO
+Europe's 4-step AI Act checklist behind an email form that sends a PDF. Only
+the first is adopted. An email wall on stage 1 directly contradicts the
+"ungated, no email wall" note already in this log, and pulls in infrastructure
+(email capture, PDF generation, S43-style domain verification against a
+claimed email) that a pure lead-gen quiz doesn't need. If a gated,
+emailed-PDF variant is wanted later, it is a separate, later decision — not
+folded into S45.
+
+---
+
+#### The bridge between the two stages
+
+**No data carried across automatically.** Stage 1's answers and score are not
+persisted server-side and are not passed into stage 2 on signup. The CTA at
+the end of the quiz is a plain link to signup (S37) — nothing more. Chosen
+deliberately: building a bridge (query-param handoff, session token,
+pre-filled stage-2 answers) is real engineering for a benefit that doesn't
+matter much — the quiz's whole job is converting a visitor into a signup, not
+accuracy or continuity, and a rough score is enough to do that. Revisit only
+if conversion data later shows visitors dropping off because stage 2 re-asks
+something they already answered.
+
+---
+
+#### The action-plan claim, checked against what exists
+
+The roadmap note says stage 2 "populates the action plan." Checked directly:
+`tasks.py` has six producers today (`obligations_due`,
+`translations_outstanding`, `wording_missing`, `wording_too_short`,
+`documents_outstanding`, `template_updates_available`, `inventory_gaps`) and
+none of them reads gap-assessment results — a `gap_assessments` row's `gaps`
+list lives only in that table and `pages/gap.py`'s own UI, never in the
+dashboard's action-item register. **Stage 2's action-plan population is
+therefore real, net-new work**: a seventh producer, `gap_findings` (or
+similar), reading the client's latest `gap_assessments` row and emitting a
+`_finding()` per `missing`/`partial` obligation, following the same shape
+every other producer already uses (`producer:key` finding key, severity,
+`collect()`/`closures()` handle dedup and history for free, per `tasks.py`'s
+own docstring). Not a new mechanism — an obvious seventh instance of the
+existing one, once someone reads the file closely enough to notice it wasn't
+wired in already.
+
+---
+
+#### Out of scope
+
+- Fixing `pages/audit.py`'s anonymous-flow reachability (D-104's open item —
+  separate surface, separate decision).
+- A gated/email-walled variant of the public quiz (DPO Europe's pattern,
+  rejected above).
+- Carrying stage-1 answers into stage 2 automatically.
+- Scoring accuracy work on stage 1 beyond a plausible static rubric — it is a
+  lead magnet, not a second obligations engine.
+- Billing/tier gating of stage 2 (S46's job).
+
+---
+
 ### S46 — Billing — SCOPE ADDITIONS (from S27)
 
 S46 defines tiers, prices and enforcement. S27 ships the switches and the
@@ -1197,14 +1305,16 @@ sector). Reference data at the end.
 template rather than inventing a structure: an auditor recognising the shape of
 the document is worth more than a better-organised original.
 
-**S45 — freemium scanner — two-stage funnel.** Adequacy runs a public
-10-question NIS2 self-assessment (ungated, no email wall) feeding a 32-question
-in-product maturity questionnaire that scores and populates the action plan.
-DPO Europe gates a 4-step AI Act checklist behind a form and emails a PDF.
-Public stage short and ungated with the answer inline; in-product stage full
-and scored. **Calibration: 32 questions is what a credible NIS2 maturity
-assessment costs a user** — if the RECOSA set produces materially fewer, check
-for thinness.
+**S45 — freemium scanner — two-stage funnel. Scope-locked 22 Sept 2026, see
+the full lock below.** Started from Adequacy's public ungated 10-question NIS2
+self-assessment feeding a 32-question in-product maturity questionnaire, and
+DPO Europe's gated 4-step AI Act checklist emailing a PDF. The lock adopts
+only the first: a standalone public quiz (acquisition, not audit accuracy)
+feeding the *existing* gap-assessment engine in-product, not a parallel
+questionnaire — DPO's email-gated PDF pattern is explicitly rejected.
+**Calibration kept from the original note: 32 questions is what a credible
+NIS2 maturity assessment costs a user** — if the RECOSA set produces
+materially fewer, check for thinness.
 
 **Vendor/supply-chain risk register (unscheduled) — extend to AI tools.** DPO
 Europe sells a "vendor and external AI tools compliance checklist" as a
@@ -4087,6 +4197,52 @@ domain's earlier row from the Streamlit flow, still `NULL` — and
 `total_errors=0`. Unsubscribe confirmed live too. Every test row, the
 uploaded PDF, and the disposable test account were deleted afterward;
 `get_advisors(type="security")` re-run after the migration and clean.
+
+---
+
+### D-107 — S45 scope-locked: two disconnected surfaces, not one, and a gap
+found in what "populates the action plan" actually requires
+
+*22 September 2026. Design-only session — nothing built, no code shipped.*
+
+The roadmap's one-line S45 note blended two competitors' models (Adequacy's
+ungated public quiz feeding an in-product questionnaire; DPO Europe's
+gated-email checklist emailing a PDF) without saying which parts applied, and
+left the real architectural question open: `app.py` gates every page behind
+`is_logged_in()` before `st.navigation` builds, so a public lead-gen quiz has
+nowhere to live in the app as it stands today.
+
+**Decided with the user, both against the user's own initial lean on one of
+the two.** First question — how a public visitor reaches stage 1 — the user
+leaned standalone, agreed: a small surface disconnected from the gated app
+entirely, not a carve-out of `is_logged_in()`'s security boundary for a
+marketing tool, and explicitly not a resurrection of D-104's dead anonymous
+audit-flow finding (separate surface, separate decision, D-104 stays open).
+Second question — whether stage 2 reuses the existing gap-assessment engine or
+gets its own NIS2-only questionnaire — the user leaned standalone here too,
+reasoning that the acquisition objective meant "not a real audit." Pushed back:
+that framing argues *for* reusing `pages/gap.py`/`gap_assessment.py` at stage
+2, not against it — stage 2 only happens after signup, which is exactly the
+moment the product needs to prove itself with its real scoring engine rather
+than a second, parallel NIS2 rubric that would drift from the real obligations
+model over time. The user accepted the reversal.
+
+**Rejected outright: DPO Europe's gated-PDF pattern.** An email wall on stage
+1 contradicts the "ungated, no email wall" note already in this log and pulls
+in infrastructure (email capture, PDF generation, S43-style domain
+verification) a pure lead-gen quiz does not need.
+
+**Found while checking the "populates the action plan" claim against the
+actual codebase: it doesn't, yet.** `tasks.py`'s six producers
+(`obligations_due` through `inventory_gaps`) never read `gap_assessments`
+rows — a gap-assessment's findings live only in that table and `pages/gap.py`'s
+own UI, never in the dashboard's action-item register. Stage 2 "populating the
+action plan" therefore requires a seventh producer (`gap_findings`, reading the
+client's latest assessment and emitting a `_finding()` per unmet obligation)
+that does not exist today — not a new mechanism, but real, net-new work rather
+than something already wired.
+
+Full design in section 3b's S45 scope lock.
 
 ---
 
