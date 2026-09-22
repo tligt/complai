@@ -128,7 +128,15 @@ RoPA, incident response, AI transparency notice. DOCX/PDF/ODT output.
 **S10 — Gap assessment engine.** `gap_assessments` table with a `gaps` JSONB
 field, per-regulation scores, PDF report.
 
-**S11 — Uncertain.** See the confidence note above. Verify against the repo.
+**S11 — Deferred, never built.** Scoped at the time as data extraction from
+uploaded documents to pre-fill generation, then explicitly deferred in the
+same discussion before anything shipped. Confirmed 22 Sept: zero commits
+reference S11 anywhere in git history, no code comment anywhere references
+it either (every sprint from roughly S17 on leaves at least one), and no
+feature resembling "extract data from an upload to pre-fill a form" exists
+in the codebase today — `pages/documents.py`'s prefill comes from the
+client profile, not an upload, and `chat.py`'s upload feeds RAG context,
+not a form. A genuine gap in the sequence, not a lost record.
 
 **S12 — Knowledge base live updates.** Approved regulatory alerts ingested into
 Qdrant. Three-tier strategy: the summary is always embedded, full article text
