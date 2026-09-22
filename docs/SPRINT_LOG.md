@@ -277,7 +277,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S44, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S44, S45, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -294,6 +294,7 @@ S34.
 | ~~S41~~ | ~~Audit rate-limiting~~ | **Delivered 21 Sept, ahead of its After-beta position.** Found the anonymous audit flow it protects is not reachable through `app.py` today. D-104 |
 | ~~S43~~ | ~~Domain verification~~ | **Delivered 22 Sept, ahead of its After-beta position.** Requester email must match the audited site's own domain; re-keyed the reuse block to the site, not the requester. D-105 |
 | ~~S44~~ | ~~Scheduled recurring audits~~ | **Delivered 22 Sept, ahead of its After-beta position.** First real GitHub Actions cron path in the app-facing product (`monitor_audits.py`); closes S42's real gap for the new path only. D-106 |
+| ~~S45~~ | ~~Freemium single-page scanner~~ | **Delivered 22 Sept, ahead of its After-beta position — infrastructure only.** Standalone public quiz (`quiz/quiz_app.py`) and the `gap_results` wiring that lets a gap assessment reach the action plan, both built and verified. Growing `PROFILE_QUESTIONS` toward the 32-question calibration and actually deploying the quiz publicly are still open. D-108, see 3b |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
 **S32, S33, S34, S41, S43, S44 and S47 shipped ahead of S39 (originally numbered S31).**
@@ -351,7 +352,6 @@ the only sprint that *is* the gate.
 | # | Sprint | Notes |
 |---|---|---|
 | S42 | Audit report email delivery | was S39. Scoped in conversation 22 Sept, not built — `update_audit_path()` on the two existing flows is the real remaining gap (closed for S44's new path only). See the Delivered-section note above |
-| S45 | Freemium single-page scanner | was S42. **Scope-locked 22 Sept 2026** — standalone public quiz, feeds the existing gap-assessment engine in-product, not built. D-107, see 3b |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | S48 | Onboarding redesign | was S44. Auto-detection layer, now builds on S37's basic version |
 | S49 | Document branding | was S45. Theme only |
@@ -1100,7 +1100,13 @@ should need no changes to either.
 
 ---
 
-### S45 — Freemium single-page scanner — SCOPE LOCK
+### S45 — Freemium single-page scanner — SCOPE LOCK — INFRASTRUCTURE DELIVERED 22 SEPT
+
+**Delivered same day as scope-locked (D-108): the standalone quiz and the
+`gap_results` wiring below, both built and verified.** Still open, and not
+part of what shipped: growing `PROFILE_QUESTIONS` toward the 32-question
+calibration, and actually deploying `quiz/quiz_app.py` to a public host. The
+design below is left as originally written.
 
 **Position:** After beta, before S46. No dependency on S46 (billing) — S45
 acquires leads and signups; monetising them is S46's separate job. Depends on
@@ -1305,13 +1311,16 @@ sector). Reference data at the end.
 template rather than inventing a structure: an auditor recognising the shape of
 the document is worth more than a better-organised original.
 
-**S45 — freemium scanner — two-stage funnel. Scope-locked 22 Sept 2026, see
-the full lock below.** Started from Adequacy's public ungated 10-question NIS2
-self-assessment feeding a 32-question in-product maturity questionnaire, and
-DPO Europe's gated 4-step AI Act checklist emailing a PDF. The lock adopts
-only the first: a standalone public quiz (acquisition, not audit accuracy)
-feeding the *existing* gap-assessment engine in-product, not a parallel
-questionnaire — DPO's email-gated PDF pattern is explicitly rejected.
+**S45 — freemium scanner — two-stage funnel. Scope-locked 22 Sept 2026,
+infrastructure delivered the same day — see D-108 and the full lock below.**
+Started from Adequacy's public ungated 10-question NIS2 self-assessment
+feeding a 32-question in-product maturity questionnaire, and DPO Europe's
+gated 4-step AI Act checklist emailing a PDF. The lock adopts only the first:
+a standalone public quiz (`quiz/quiz_app.py`, acquisition, not audit
+accuracy) feeding the *existing* gap-assessment engine in-product via a fixed
+`gap_results` wiring bug, not a parallel questionnaire — DPO's email-gated
+PDF pattern is explicitly rejected. **Still open: growing `PROFILE_QUESTIONS`
+toward the calibration below, and actually deploying the quiz publicly.**
 **Calibration kept from the original note: 32 questions is what a credible
 NIS2 maturity assessment costs a user** — if the RECOSA set produces
 materially fewer, check for thinness.
@@ -4243,6 +4252,78 @@ that does not exist today — not a new mechanism, but real, net-new work rather
 than something already wired.
 
 Full design in section 3b's S45 scope lock.
+
+---
+
+### D-108 — S45's infrastructure built and verified the same day it was
+scope-locked, and a real precedence bug found while wiring it in
+
+*22 September 2026.*
+
+D-107 scoped S45; this session built the two pieces of infrastructure it
+identified, the same day.
+
+**Stage 1.** `quiz/quiz_app.py` — 10 fixed questions, one per NIS2 Art.
+21(2)(a)-(j) measure category, a hardcoded 0-3 point rubric, result shown
+inline, no persistence, no email wall, CTA to `APP_BASE_URL`. **Found while
+first verifying it live: launching it from the repo root put every gated
+page in its sidebar.** Streamlit's legacy multipage auto-discovery lists any
+`pages/` directory sitting next to whichever script it runs — confirmed by
+actually clicking through to `documents.py` from the quiz's own sidebar,
+which executed the real page directly with no `is_logged_in()` check (it
+only failed to render real data because `st.session_state` had no `user` key
+to read, an accident, not a gate). Fixed by moving the file to `quiz/`, a
+directory with no `pages/` sibling, which removes the discovery path
+entirely rather than relying on nothing being clicked. Re-verified after the
+move: clean sidebar-free render, all 10 questions answerable, scoring
+confirmed correct (19/30 against a known set of answers), CTA present.
+
+**Stage 2.** Traced `obligation_register.py`'s own docstring — *"why this is
+not a fourth evaluator"* — and found it already defines a `gap_results`
+parameter on `evaluate()`, built for exactly this (a gap assessment's
+findings feeding the register at `SOURCE_ANALYSED` precedence, below a real
+derivation or an in-force document, above a client's own declared answer).
+`pages/obligations.py` never actually passed it. That is the real fix, not a
+new `tasks.py` producer as D-107 first guessed — `obligations_due` already
+reads `verdicts`, so once `gap_results` reaches `evaluate()`, the action plan
+populates itself with no new producer at all. Added
+`gap_assessment.load_latest_gap_results()` (drops `not_assessed` findings
+before they reach the register — that status means no evidence, not a
+verdict, and `evaluate()`'s vocabulary has no such status to place it in) and
+one `gap_results=` argument at the actual call site.
+
+**Verified for real, under real RLS, not simulated.** A disposable test
+account and client, a `gap_assessments` row with a `missing` finding on
+`nis2_01` (chosen for having no derivation and no in-force document, so
+`SOURCE_ANALYSED` was the only candidate that could win), signed in for a
+real access token rather than relying on `st.session_state` in a headless
+script, confirmed the row was fetchable under the test user's own RLS,
+confirmed `evaluate()` returned `status=missing, source=analysed`, and
+confirmed `tasks.obligations_due()` produced the matching finding — the full
+chain, not just the query. Separately smoke-tested the live Obligations page
+with a second disposable account: renders correctly, 40 outstanding tasks,
+no regression. Every test row and both accounts deleted afterward;
+`get_advisors(type="security")` shows nothing new — no schema changed this
+session.
+
+**A red herring, recorded so it isn't repeated.** A direct URL navigation to
+`/obligations` on a logged-out browser tab appeared, briefly, to execute the
+page's code before crashing — looking exactly like the reachability hole
+D-104 described. It wasn't: `app.py`'s hard gate at the top of the script
+(`if not is_logged_in(): ... st.stop()`, before `st.navigation` ever builds)
+is intact and unchanged. The hard `navigate()` call had dropped the
+browser's WebSocket connection entirely, which is what actually clears
+`st.session_state` — ordinary Streamlit behaviour, not a routing bypass.
+Confirmed by logging in properly and clicking through the sidebar instead,
+which worked exactly as it should.
+
+**Still open, not part of this delivery.** `PROFILE_QUESTIONS` stays at 9;
+growing it toward the 32-question calibration is real legal-content work,
+not something to author unreviewed in a coding pass. `quiz/quiz_app.py` is
+written to be deployed separately but isn't deployed anywhere yet — that is
+an infrastructure/hosting step outside what this session can provision,
+the same kind of gap S44's GitHub Actions secrets left for the user to
+configure.
 
 ---
 
