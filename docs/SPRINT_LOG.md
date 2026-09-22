@@ -269,7 +269,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S44, S47.
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -285,19 +285,22 @@ S34.
 | ~~S38~~ | ~~Multi-user for Professional~~ | **Delivered 21 Sept.** `workspace_members` + RLS across 18 tables; two self-inflicted RLS bugs found and fixed pre-launch. D-103 |
 | ~~S41~~ | ~~Audit rate-limiting~~ | **Delivered 21 Sept, ahead of its After-beta position.** Found the anonymous audit flow it protects is not reachable through `app.py` today. D-104 |
 | ~~S43~~ | ~~Domain verification~~ | **Delivered 22 Sept, ahead of its After-beta position.** Requester email must match the audited site's own domain; re-keyed the reuse block to the site, not the requester. D-105 |
+| ~~S44~~ | ~~Scheduled recurring audits~~ | **Delivered 22 Sept, ahead of its After-beta position.** First real GitHub Actions cron path in the app-facing product (`monitor_audits.py`); closes S42's real gap for the new path only. D-106 |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
-**S32, S33, S34, S41, S43 and S47 shipped ahead of S39 (originally numbered S31).**
+**S32, S33, S34, S41, S43, S44 and S47 shipped ahead of S39 (originally numbered S31).**
 The table's order is
-planning intent, not a dependency graph. None of the six depended on the
+planning intent, not a dependency graph. None of the seven depended on the
 infrastructure migration — S32 needed no hosting change to ship, S33
 needed a place to assign the new `subscription_tier` field by hand well
 before support could wait on a migration, S34 is pure retrieval logic
 against the existing Qdrant collection, S41 and S43 are self-contained
-additions to one page each with their own new columns, and S47 was a bug
-fix forced by the first multi-client account ever to exist, not scheduled
-work. Per the renumbering rule below (*delivered sprints keep their
-numbers*), all six keep their numbers.
+additions to one page each with their own new columns, S44 adds a new
+cron script alongside the existing regulatory/marketing ones rather than
+touching the migration's own infrastructure, and S47 was a bug fix forced
+by the first multi-client account ever to exist, not scheduled work. Per
+the renumbering rule below (*delivered sprints keep their numbers*), all
+seven keep their numbers.
 
 **S47 in particular jumped its own queue** — it was scoped post-beta (see
 its own scope lock in 3b for why that stays the documented position going
@@ -307,23 +310,20 @@ call is left as written; this is the one sprint in this log delivered
 before its own stated position, and it is recorded that way rather than
 quietly reordered.
 
-**S41 and S43 jumped their queue too, by direct request** — both
-scheduled After beta (below), both asked for and delivered before S39.
-Unlike S47 this was not a found error; the roadmap position is left as
-originally written for the same reason S47's is: a sprint's documented
-position records the plan at the time it was made, not a claim that gets
-edited away once reality moves faster than it did.
+**S41, S43 and S44 jumped their queue too, by direct request** — all
+three scheduled After beta (below), all three asked for and delivered
+before S39. Unlike S47 this was not a found error; the roadmap position
+is left as originally written for the same reason S47's is: a sprint's
+documented position records the plan at the time it was made, not a claim
+that gets edited away once reality moves faster than it did.
 
-**S42 was scoped in conversation but not built.** While discussing it,
-found that `email_sender.send_audit_report()` already handles the
-anonymous flow's delivery, and that the real remaining gap is
-`database.update_audit_path()` — imported in `pages/audit.py`, never
-actually called in either flow, so a generated PDF's Storage path is
-never written back to its own `audits` row. Left open rather than
-built speculatively: S43 changed what `pages/audit.py` needs from that
-fix (a `site_domain`-keyed lookup now makes as much sense as
-`email_domain`-keyed), and S42 itself was set aside once the
-conversation moved to S43/S44 before its own scope was confirmed.
+**S42 stays scoped in conversation but not built as its own sprint.**
+The real gap — `database.update_audit_path()` imported but never called,
+so a generated PDF's Storage path never reaches its own `audits` row —
+is now closed for the **new** S44 subscription path (`monitor_audits.py`
+calls it correctly). The two **existing** Streamlit flows (logged-in and
+anonymous) still don't call it; that retrofit remains S42's own, still
+open, scope.
 
 ### Before the beta gate
 
@@ -342,8 +342,7 @@ the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| S42 | Audit report email delivery | was S39. Scoped in conversation 22 Sept, not built — `update_audit_path()` is the real remaining gap. See the Delivered-section note above |
-| S44 | Scheduled recurring audits | was S41. Depended on S43 — delivered 22 Sept, D-105 |
+| S42 | Audit report email delivery | was S39. Scoped in conversation 22 Sept, not built — `update_audit_path()` on the two existing flows is the real remaining gap (closed for S44's new path only). See the Delivered-section note above |
 | S45 | Freemium single-page scanner | was S42. Two-stage funnel |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | S48 | Onboarding redesign | was S44. Auto-detection layer, now builds on S37's basic version |
@@ -3997,6 +3996,89 @@ empty before any row, `True` after one, unaffected by an unrelated
 domain. As with S41, the live crawl itself could not be exercised
 end-to-end in this sandbox (no outbound internet); every test row was
 deleted afterward.
+
+---
+
+### D-106 — Scheduled recurring audits: the first real cron path in the app-facing product, and the no-internet finding didn't hold this time
+
+*22 September 2026.*
+
+S44 shipped the same day it was asked for, out of its After-beta
+position — third sprint in a row to do that (S41, S43, now this one),
+same reasoning as D-104/D-105 each time: not a found error, the roadmap
+position is left as written.
+
+**The actual problem, solved before any feature code.** Everything this
+session has built so far runs inside a live Streamlit request.
+Recurring audits cannot — they have to fire on a schedule with nobody
+watching. Rather than invent a mechanism, read `monitor.py` and
+`monitor_marketing.py` in full first: both are real, working GitHub
+Actions cron scripts already in this repo (`regulatory_monitoring.yml`
+runs them daily), and `cached_reads.py`'s own docstring already explains
+why the codebase is split the way it is — kept out of `database.py`
+"because that module is imported by the GitHub Actions cron scripts...
+and must stay import-safe without pulling in Streamlit." `monitor_audits.py`
+follows that exact skeleton: only `get_supabase_admin()`-backed
+`database.py` functions, `print()` for every log line, `monitor_runs`
+for structured tracking, per-item try/except-and-continue.
+
+**That research surfaced the actual blocker.** `domains_match()`,
+`check_site_domain_used()`, `check_ip_rate_limited()` and `save_audit()`
+— S41/S43's work — all lived inside `pages/audit.py`, which imports
+`streamlit` and runs UI code at import time. A cron script cannot import
+that file at all, full stop. All four moved into `database.py`.
+`save_audit()`'s failure path had a direct `st.warning(...)` call, which
+would crash a Streamlit-free cron process outright; changed to `print()`,
+matching every other cron-shared function in this codebase, at the
+accepted cost that a save failure becomes a server-log line instead of a
+UI toast for the two existing flows (which already tolerate a `None`
+return and never depended on the toast itself as a signal). The same
+problem existed, unnoticed until this sprint needed to call them from
+cron, in two more *already-shipped* functions this new script also
+calls directly: `upload_file()` and `update_audit_path()`, both using
+`_st().warning(...)` in their except blocks — fixed the same way, same
+reasoning.
+
+**Closes part of S42's gap, not all of it.** `update_audit_path()` being
+imported but never called was found during S43 (D-105) as S42's real
+remaining scope. `monitor_audits.py` calls it correctly for every
+scheduled run — but the two *existing* flows (logged-in ad-hoc audit,
+anonymous free audit) still don't. Deliberately not retrofitted in this
+pass; that stays S42's own, still-open item.
+
+**Design confirmed with the user before building**: the subscribe opt-in
+lives on the authenticated flow only, not the anonymous one — the
+anonymous flow is still unreachable through `app.py` (D-104), so wiring
+a subscribe button into it now would be both untestable and a separate
+decision from this sprint's actual job.
+
+**A real Streamlit rerun trap, caught before it shipped.** The natural
+place for a "Subscribe" button is right after the results it subscribes
+*to* — but that button lives inside the same `if st.button("Run audit"):`
+block as the crawl itself. Clicking Subscribe triggers its own full
+script rerun, and on that rerun the *Run audit* button reads `False`
+(it wasn't what got clicked) — so the whole branch containing the
+results and the Subscribe button never executes, and Subscribe is never
+on the page to be clicked in the first place. Fixed by storing the
+result in `st.session_state` and rendering results-plus-subscribe
+outside the button's own `if`, keyed only on "is there a stored result"
+— which survives the Subscribe click's rerun where a local variable
+would not.
+
+**Verified for real, not simulated — and the earlier "no internet"
+finding turned out not to be universal.** S41 and S43 (D-104, D-105)
+both found this sandbox has no outbound internet and verified their
+logic without a live crawl. This time, a live authenticated run against
+`creagent.be` actually completed — real crawl, real PDF, real score.
+Subscribed through the actual UI, confirmed the row. Then ran
+`monitor_audits.run_audit_monitoring()` directly against it: real crawl,
+real PDF, a real Brevo send, `audits.file_path_pdf` correctly populated
+on the new row — confirmed by comparing it directly against the same
+domain's earlier row from the Streamlit flow, still `NULL` — and
+`monitor_runs` written with `monitor_type='audit'`, `total_saved=1`,
+`total_errors=0`. Unsubscribe confirmed live too. Every test row, the
+uploaded PDF, and the disposable test account were deleted afterward;
+`get_advisors(type="security")` re-run after the migration and clean.
 
 ---
 
