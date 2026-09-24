@@ -168,6 +168,15 @@ def send_regulatory_alert(update: dict) -> bool:
         severity_labels = {"urgent":"🔴 Urgent","important":"🟡 Important","info":"🔵 Info"}
         severity_label = severity_labels.get(update.get("severity","info"),"🔵 Info")
 
+        action_html = (
+            '<div style="background:#e8f5e9;border-left:4px solid #0F6E56;padding:12px;margin:16px 0"><strong>What to do:</strong> '
+            + update.get("action_description", "") + "</div>"
+        ) if update.get("action_description") else ""
+        link_html = (
+            '<p><a href="' + update.get("url", "")
+            + '" style="color:#1B2A4A;font-weight:bold">Read full document →</a></p>'
+        ) if update.get("url") else ""
+
         for alert in alerts:
             email = (alert.get("profiles") or {}).get("email")
             if not email:
@@ -183,8 +192,8 @@ def send_regulatory_alert(update: dict) -> bool:
     <p style="color:#666;font-size:12px;margin:0 0 12px">{severity_label} · {update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
     <h2 style="color:#1B2A4A;font-size:18px;margin:0 0 12px">{update.get('title','')}</h2>
     <p style="color:#444;line-height:1.6">{update.get('summary','')}</p>
-    {"<div style=\"background:#e8f5e9;border-left:4px solid #0F6E56;padding:12px;margin:16px 0\"><strong>What to do:</strong> " + update.get("action_description","") + "</div>" if update.get("action_description") else ""}
-    {"<p><a href=\"" + update.get("url","") + "\" style=\"color:#1B2A4A;font-weight:bold\">Read full document →</a></p>" if update.get("url") else ""}
+    {action_html}
+    {link_html}
   </div>
   <div style="background:#eee;padding:16px;border-radius:0 0 8px 8px;text-align:center">
     <p style="color:#888;font-size:11px;margin:0">
