@@ -190,6 +190,15 @@ def send_regulatory_alert(update: dict) -> dict:
         severity_labels = {"urgent":"🔴 Urgent","important":"🟡 Important","info":"🔵 Info"}
         severity_label = severity_labels.get(update.get("severity","info"),"🔵 Info")
 
+        # Assigned by a DB trigger on approval, so the caller's copy of the
+        # row (loaded before approving) does not have it yet.
+        ref_rows = admin.table("regulatory_updates") \
+            .select("alert_ref") \
+            .eq("id", update["id"]) \
+            .execute().data or []
+        alert_ref = (ref_rows[0].get("alert_ref") if ref_rows else None) or ""
+        ref_prefix = f"{alert_ref} · " if alert_ref else ""
+
         action_html = (
             '<div style="background:#e8f5e9;border-left:4px solid #0F6E56;padding:12px;margin:16px 0"><strong>What to do:</strong> '
             + update.get("action_description", "") + "</div>"
@@ -212,7 +221,7 @@ def send_regulatory_alert(update: dict) -> dict:
     <p style="color:#ccc;margin:8px 0 0">Regulatory Alert</p>
   </div>
   <div style="background:#f9f9f9;padding:24px;border:1px solid #eee">
-    <p style="color:#666;font-size:12px;margin:0 0 12px">{severity_label} · {update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
+    <p style="color:#666;font-size:12px;margin:0 0 12px">{ref_prefix}{severity_label} ·{update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
     <h2 style="color:#1B2A4A;font-size:18px;margin:0 0 12px">{update.get('title','')}</h2>
     <p style="color:#444;line-height:1.6">{update.get('summary','')}</p>
     {action_html}
@@ -233,7 +242,7 @@ def send_regulatory_alert(update: dict) -> dict:
                     json={
                         "sender": {"name": from_name, "email": from_email},
                         "to": [{"email": email}],
-                        "subject": f"[RECOSA] {severity_label} — {update.get('title','')}",
+                        "subject": f"[RECOSA] {ref_prefix}{severity_label} — {update.get('title','')}",
                         "htmlContent": html,
                     },
                     timeout=15,

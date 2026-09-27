@@ -42,7 +42,7 @@ def _alerts_panel(user_id: str):
         # note; RLS's has_client_access(client_id, user_id) already scopes
         # this to alerts for clients the account owns or is a member of.
         supabase = get_supabase()
-        q = supabase.table("client_alerts")         .select("*, regulatory_updates(id, title, summary, url, severity, source, regulations, countries, published_at, action_description)")         .order("notified_at", desc=True)         .limit(50)
+        q = supabase.table("client_alerts")         .select("*, regulatory_updates(id, alert_ref, title, summary, url, severity, source, regulations, countries, published_at, action_description)")         .order("notified_at", desc=True)         .limit(50)
         if show_unread_only:
             q = q.is_("read_at", "null")
         alerts = q.execute().data or []
@@ -110,6 +110,7 @@ def _alerts_panel(user_id: str):
                 countries = update.get("countries") or []
                 source = update.get("source", "")
                 tags = " · ".join(filter(None, [
+                    update.get("alert_ref") or "",
                     source,
                     ", ".join(regs) if regs else "",
                     ", ".join(countries) if countries else "",

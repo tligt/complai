@@ -351,7 +351,9 @@ with tab_reg:
             status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
 
             with st.expander(
-                f"{severity_icon} {status_icon} {u.get('title', 'Untitled')} — {u.get('source', '')}",
+                f"{severity_icon} {status_icon} "
+                + (f"{u['alert_ref']} · " if u.get("alert_ref") else "")
+                + f"{u.get('title', 'Untitled')} — {u.get('source', '')}",
                 expanded=False
             ):
                 col_a, col_b = st.columns([3, 1])
