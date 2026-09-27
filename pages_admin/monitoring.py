@@ -409,6 +409,8 @@ with tab_reg:
                                     get_supabase_admin().table("regulatory_updates").update(
                                         {"url": new_url or None}
                                     ).eq("id", u["id"]).execute()
+                                    # Ingestion below reads u, so it must see the corrected URL
+                                    u["url"] = new_url or None
                                 if u.get("status") == "url_flagged":
                                     get_supabase_admin().table("regulatory_updates").update(
                                         {"status": "pending"}
@@ -426,7 +428,9 @@ with tab_reg:
                                 result = ingest_alert_to_qdrant(u)
                                 if result.get("success"):
                                     mark_alert_ingested(u["id"], result["chunks_ingested"])
-                                st.rerun()
+                                    st.rerun()
+                                else:
+                                    st.error(f"Approved, but KB ingestion failed: {result.get('error')}")
                         with col_reject:
                             if st.button("❌ Reject", key=f"reject_{u['id']}", use_container_width=True):
                                 reject_regulatory_update(u["id"])

@@ -1784,10 +1784,11 @@ def count_unread_alerts(user_id: str) -> int:
 
 # ── Qdrant ingestion ──────────────────────────────────────────────────────────
 
-def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
+def _fetch_article_text(url: str, timeout: int = 10, _follow_translation: bool = True) -> str | None:
     """Fetch full article text from URL. Returns None if blocked or failed."""
     try:
         import requests
+        from urllib.parse import urljoin
         from bs4 import BeautifulSoup
         headers = {
             "User-Agent": (
@@ -1800,6 +1801,18 @@ def _fetch_article_text(url: str, timeout: int = 10) -> str | None:
         if resp.status_code != 200 or len(resp.text) < 500:
             return None
         soup = BeautifulSoup(resp.text, "html.parser")
+        # The Belgian DPA serves an English stub ("The requested content is
+        # not available in English") linking to the FR/NL pages that hold
+        # the real text. Follow one hop, French first.
+        if _follow_translation and "not available in English" in soup.get_text(" "):
+            links = soup.select("a[href]")
+            for lang in ("Français", "Nederlands"):
+                for a in links:
+                    if lang in a.get_text():
+                        text = _fetch_article_text(urljoin(resp.url, a["href"]), timeout,
+                                                   _follow_translation=False)
+                        if text:
+                            return text
         for tag in soup(["nav", "footer", "script", "style", "header", "aside"]):
             tag.decompose()
         for selector in ["article", "main", ".content", "#content", ".document-content"]:
