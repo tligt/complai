@@ -28,6 +28,7 @@ from database import (
     load_monitor_runs,
     get_supabase_admin,
 )
+from email_sender import send_regulatory_alert
 from slug_generation import slugify
 
 st.title("📡 Monitoring")
@@ -329,6 +330,18 @@ with tab_reg:
         status=None if status_filter == "all" else status_filter
     )
 
+    flash = st.session_state.pop("reg_email_flash", None)
+    if flash:
+        title, sent = flash
+        if sent["sent"]:
+            st.success(f"📧 “{title}” emailed to: {', '.join(sent['sent'])}")
+        for email, reason in sent["failed"]:
+            st.error(f"📧 “{title}” not sent to {email}: {reason}")
+        if sent["error"]:
+            st.error(f"📧 “{title}” email failed: {sent['error']}")
+        if not (sent["sent"] or sent["failed"] or sent["error"]):
+            st.info(f"📧 “{title}”: no matching clients, so no email was sent.")
+
     if not updates:
         st.info("No regulatory updates found.")
     else:
@@ -422,6 +435,12 @@ with tab_reg:
                                         {"published_to_pulse": True}
                                     ).eq("id", u["id"]).execute()
                                 create_client_alerts(u["id"], u)
+                                if send_email and controls_enabled:
+                                    u["severity"] = severity_choice
+                                    sent = send_regulatory_alert(u)
+                                    # Shown above the list after the rerun, since
+                                    # this expander comes back collapsed.
+                                    st.session_state["reg_email_flash"] = (u.get("title", ""), sent)
                                 # Ingest to Qdrant — always happens regardless of
                                 # freshness, since old-but-valid content is still
                                 # useful in the knowledge base

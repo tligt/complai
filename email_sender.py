@@ -143,27 +143,49 @@ def extract_email_domain(email: str) -> str:
     return email.strip().lower().split("@")[-1]
 
 
-def send_regulatory_alert(update: dict) -> bool:
-    """Send regulatory alert email to all affected clients."""
-    import os, requests, json
+def send_regulatory_alert(update: dict) -> dict:
+    """Send the regulatory alert email to every user with an unsent alert.
+
+    One email per user, however many of their clients match: an account
+    with four clients gets one email, not four. Only the alerts of users
+    Brevo accepted are marked email_sent, so a failed send can be retried.
+
+    Returns {"sent": [email, ...], "failed": [(email, reason), ...],
+    "error": str | None}.
+    """
+    import os, requests
     from database import get_supabase_admin
 
+    result = {"sent": [], "failed": [], "error": None}
     api_key = os.environ.get("BREVO_API_KEY","")
     from_email = os.environ.get("BREVO_FROM_EMAIL","audit@complai.be")
     from_name = os.environ.get("BREVO_FROM_NAME","RECOSA")
     base_url = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
 
     if not api_key:
-        return False
+        result["error"] = "BREVO_API_KEY is not set."
+        return result
 
     try:
         admin = get_supabase_admin()
-        # Get all client alert records for this update that haven't been emailed
-        alerts_res = admin.table("client_alerts")             .select("user_id, clients(company_name), profiles(email)")             .eq("update_id", update["id"])             .eq("email_sent", False)             .execute()
-
-        alerts = alerts_res.data or []
+        alerts = admin.table("client_alerts") \
+            .select("id, user_id") \
+            .eq("update_id", update["id"]) \
+            .eq("email_sent", False) \
+            .execute().data or []
         if not alerts:
-            return True
+            return result
+
+        # client_alerts has no foreign key to profiles, so an embedded
+        # profiles(email) select fails (PGRST200). Look the emails up directly.
+        alert_ids_by_user: dict[str, list[str]] = {}
+        for a in alerts:
+            alert_ids_by_user.setdefault(a["user_id"], []).append(a["id"])
+        profiles = admin.table("profiles") \
+            .select("id, email") \
+            .in_("id", list(alert_ids_by_user)) \
+            .execute().data or []
+        email_by_user = {p["id"]: p.get("email") for p in profiles}
 
         severity_labels = {"urgent":"🔴 Urgent","important":"🟡 Important","info":"🔵 Info"}
         severity_label = severity_labels.get(update.get("severity","info"),"🔵 Info")
@@ -177,9 +199,10 @@ def send_regulatory_alert(update: dict) -> bool:
             + '" style="color:#1B2A4A;font-weight:bold">Read full document →</a></p>'
         ) if update.get("url") else ""
 
-        for alert in alerts:
-            email = (alert.get("profiles") or {}).get("email")
+        for user_id, alert_ids in alert_ids_by_user.items():
+            email = email_by_user.get(user_id)
             if not email:
+                result["failed"].append((f"user {user_id}", "no email on profile"))
                 continue
 
             html = f"""
@@ -203,25 +226,36 @@ def send_regulatory_alert(update: dict) -> bool:
   </div>
 </div>"""
 
-            requests.post(
-                "https://api.brevo.com/v3/smtp/email",
-                headers={"api-key": api_key, "Content-Type":"application/json"},
-                json={
-                    "sender": {"name": from_name, "email": from_email},
-                    "to": [{"email": email}],
-                    "subject": f"[RECOSA] {severity_label} — {update.get('title','')}",
-                    "htmlContent": html,
-                },
-                timeout=15,
-            )
+            try:
+                r = requests.post(
+                    "https://api.brevo.com/v3/smtp/email",
+                    headers={"api-key": api_key, "Content-Type":"application/json"},
+                    json={
+                        "sender": {"name": from_name, "email": from_email},
+                        "to": [{"email": email}],
+                        "subject": f"[RECOSA] {severity_label} — {update.get('title','')}",
+                        "htmlContent": html,
+                    },
+                    timeout=15,
+                )
+            except Exception as e:
+                result["failed"].append((email, f"request failed: {e}"))
+                continue
+            if r.status_code not in (200, 201):
+                result["failed"].append((email, f"Brevo {r.status_code}: {r.text[:200]}"))
+                continue
 
-        # Mark as email_sent
-        admin.table("client_alerts")             .update({"email_sent": True})             .eq("update_id", update["id"])             .execute()
+            admin.table("client_alerts") \
+                .update({"email_sent": True}) \
+                .in_("id", alert_ids) \
+                .execute()
+            result["sent"].append(email)
 
-        return True
+        return result
     except Exception as e:
         print(f"Alert email error: {e}")
-        return False
+        result["error"] = str(e)
+        return result
 
 
 # ── S22: Support ticket reply notification ────────────────────────────────────
