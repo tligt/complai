@@ -25,6 +25,7 @@ load_dotenv()
 
 from database import (
     save_regulatory_update,
+    load_recent_regulatory_updates,
     log_token_usage,
     load_monitoring_sources,
     start_monitor_run,
@@ -318,6 +319,94 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
     return results, total_input, total_output
 
 
+# ── Cross-source duplicate detection ──────────────────────────
+#
+# For sources flagged skip_if_covered (e.g. CCB advisories, title-only
+# and behind a bot wall): an item is skipped if another source already
+# covers it, since the other source's copy has the full text. One-way on
+# purpose: a full-text source is never dropped in favour of a title-only one.
+
+_CVE_RE = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
+
+# Words that describe *any* vulnerability rather than *which* product.
+_GENERIC_WORDS = {
+    "a", "an", "the", "and", "or", "of", "in", "on", "to", "for", "with", "by",
+    "via", "from", "its", "is", "are", "can", "could", "may", "be",
+    "warning", "alert", "advisory", "critical", "high", "severe", "new",
+    "vulnerability", "vulnerabilities", "flaw", "flaws", "issue", "issues",
+    "patch", "patches", "immediately", "update", "updates", "security",
+    "fix", "fixes", "released", "published", "multiple", "several",
+    "actively", "exploited", "exploit", "exploitation", "exploits",
+    "zero-day", "0-day", "remote", "code", "execution", "rce", "arbitrary",
+    "unauthenticated", "authenticated", "authentication", "bypass",
+    "unauthorized", "unauthorised", "privilege", "escalation", "attacker",
+    "attackers", "allowing", "allows", "allow", "enables", "enable",
+    "affects", "affecting", "affected", "lead", "leads", "leading",
+    "potentially", "full", "compromise", "disclosure", "data", "script",
+    "injection", "sql", "xss", "ssrf", "denial-of-service", "dos",
+    "buffer", "overflow", "heap-based", "input", "validation", "improper",
+    "cvss", "cve", "products", "product", "versions", "version",
+    "servers", "server", "platform", "databases", "database", "website",
+    "users", "systems", "system", "software",
+}
+
+
+def _dedup_tokens(title: str) -> set[str]:
+    """Distinctive words of a title: product and vendor names, mostly."""
+    words = re.findall(r"[a-z0-9][a-z0-9\-]*", _CVE_RE.sub(" ", title.lower()))
+    return {w.strip("-") for w in words
+            if w not in _GENERIC_WORDS and re.search(r"[a-z]", w) and len(w) > 1}
+
+
+def _published_ts(row: dict) -> datetime | None:
+    raw = row.get("published_at") or row.get("detected_at")
+    if not raw:
+        return None
+    try:
+        ts = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        return ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def find_covering_update(item: dict, source_name: str, recent: list[dict],
+                         window_days: int = 14) -> dict | None:
+    """Return the existing update that already covers `item`, or None.
+
+    item: a raw feed item (title, description, published_raw).
+    recent: recent regulatory_updates rows plus items accepted earlier in
+    this run, each with title, summary, source, published_at/detected_at.
+    """
+    title = item.get("title", "")
+    norm_title = " ".join(title.lower().split())
+    cves = {c.upper() for c in _CVE_RE.findall(title + " " + item.get("description", ""))}
+    tokens = _dedup_tokens(title)
+    item_ts = _published_ts({"published_at": parse_published_date(item.get("published_raw", ""))})
+
+    for row in recent:
+        # Same source: only an identical title is a repeat (feeds re-list items).
+        if row.get("source") == source_name:
+            if " ".join((row.get("title") or "").lower().split()) == norm_title:
+                return row
+            continue
+
+        row_ts = _published_ts(row)
+        if item_ts and row_ts and abs((item_ts - row_ts).days) > window_days:
+            continue
+
+        row_text = (row.get("title") or "") + " " + (row.get("summary") or "")
+        if cves and cves & {c.upper() for c in _CVE_RE.findall(row_text)}:
+            return row
+
+        row_tokens = _dedup_tokens(row.get("title") or "")
+        shared = tokens & row_tokens
+        smaller = min(len(tokens), len(row_tokens))
+        if len(shared) >= 2 and smaller and len(shared) >= 0.6 * smaller:
+            return row
+
+    return None
+
+
 # ── Main monitoring run ───────────────────────────────────────
 
 def run_monitoring(triggered_by: str = "cron") -> dict:
@@ -350,6 +439,17 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
 
     print(f"Loaded {len(sources)} active regulatory sources from DB.")
 
+    # skip_if_covered sources last, so they are checked against everything
+    # the full-text sources saved in this same run (stable sort keeps
+    # the name order within each group).
+    sources.sort(key=lambda s: bool(s.get("skip_if_covered")))
+
+    # Only needed when a source asks to be checked against the others.
+    recent_updates = (
+        load_recent_regulatory_updates(days=45)
+        if any(s.get("skip_if_covered") for s in sources) else []
+    )
+
     total_fetched  = 0
     total_saved    = 0
     total_skipped  = 0
@@ -358,6 +458,7 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
     total_input_tokens  = 0
     total_output_tokens = 0
     source_stats   = []
+    kept_this_run  = []   # skip_if_covered items accepted so far this run
 
     for source in sources:
         print(f"\nFetching {source['name']}...")
@@ -380,6 +481,25 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
             print(f"  {len(raw_items)} items fetched")
             source_stat["fetched"] = len(raw_items)
             total_fetched += len(raw_items)
+
+            # Before summarising, so covered items cost no Mistral tokens.
+            if source.get("skip_if_covered"):
+                kept = []
+                for item in raw_items:
+                    covering = find_covering_update(
+                        item, source["name"], recent_updates + kept_this_run)
+                    if covering:
+                        total_skipped += 1
+                        source_stat["skipped"] += 1
+                        print(f"  ⤷ Covered by [{covering.get('source')}] "
+                              f"{(covering.get('title') or '')[:50]}: skipped {item['title'][:50]}")
+                    else:
+                        kept.append(item)
+                        kept_this_run.append({
+                            "title": item["title"], "summary": "", "source": source["name"],
+                            "published_at": parse_published_date(item.get("published_raw", "")),
+                        })
+                raw_items = kept
 
             if not raw_items:
                 source_stats.append(source_stat)
@@ -405,6 +525,8 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
                 if result:
                     total_saved += 1
                     source_stat["saved"] += 1
+                    # Visible to skip_if_covered sources later in this run
+                    recent_updates.append(item)
                     print(f"  ✅ Saved: {item['title'][:60]}")
                 else:
                     total_skipped += 1

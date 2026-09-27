@@ -4325,6 +4325,30 @@ an infrastructure/hosting step outside what this session can provision,
 the same kind of gap S44's GitHub Actions secrets left for the user to
 configure.
 
+### D-109 — CCB advisories monitored title-only, and dropped when another source covers them
+
+*27 September 2026.*
+
+`ccb.belgium.be` article pages sit behind Akamai bot protection (403 to any
+script). Its two RSS feeds load fine but carry no body: `news.xml` a one-line
+teaser, `advisories.xml` a title only. **We do not work around the block** —
+it is deliberate on CCB's side; asking them for access is logged in section 7.
+
+`CCB (Advisories)` was added as a source anyway, because most of its warnings
+are Belgian-only (in a 10-item sample: 7 unique, 2 already covered by CERT-EU,
+1 repeated in CCB's own feed). It is flagged `skip_if_covered`
+(`migration_ccb_advisories.sql`): `monitor.find_covering_update` drops an
+item when another source's update in the last 45 days shares a CVE, or its
+title shares the same product names within 14 days, or the same source
+already has that exact title. Checked before the Mistral call, so dropped
+items cost nothing; flagged sources run last so they also see what the
+full-text sources saved in the same run.
+
+**One-way on purpose.** The title-only copy is always the one dropped; a
+full-text source (CERT-EU) is never skipped in favour of it, even if CCB
+publishes first. *Rejected:* symmetric dedup keeping whichever came first,
+which would regularly keep the copy with no content.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -4715,6 +4739,7 @@ selector. The multi-client selector is Advisory-only (S47).
 | ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
 | Art. 9(2) coverage | S60 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
+| Ask CCB for full-text access | — | **Idea, logged 27 Sept; premature until RECOSA is up and running.** CCB articles are bot-blocked, so CCB items reach the KB as title/teaser only (D-109). Ask CCB for a full-text feed or an allow-listed monitor, framed as a compliance service quoting them with attribution. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
 | ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S39.** |
 | Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |

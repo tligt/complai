@@ -1644,6 +1644,21 @@ def save_regulatory_update(update: dict) -> str | None:
         return None
 
 
+def load_recent_regulatory_updates(days: int = 45) -> list[dict]:
+    """Updates detected in the last `days` days, any status. Used by the
+    monitor's cross-source duplicate check, so rejected items count too:
+    an item already reviewed once should not come back via another feed."""
+    try:
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        return get_supabase_admin().table("regulatory_updates") \
+            .select("title, summary, source, published_at, detected_at") \
+            .gte("detected_at", since) \
+            .execute().data or []
+    except Exception as e:
+        print(f"Could not load recent regulatory updates: {e}")
+        return []
+
+
 def load_regulatory_updates(status: str | None = None) -> list[dict]:
     """Load regulatory updates, optionally filtered by status."""
     try:
