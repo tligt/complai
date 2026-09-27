@@ -998,7 +998,7 @@ with tab_runs:
     with col_r1:
         run_type_filter = st.selectbox(
             "Monitor type",
-            ["all", "regulatory", "marketing"],
+            ["all", "regulatory", "marketing", "audit"],
             key="run_type_filter",
         )
     with col_r2:
@@ -1037,12 +1037,21 @@ with tab_runs:
                 source_stats = run.get("source_stats") or []
                 flagged_total = sum(stat.get("flagged", 0) for stat in source_stats)
 
-                col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
-                col_s1.metric("Fetched",    run.get("total_fetched", 0))
-                col_s2.metric("Saved",      run.get("total_saved", 0))
-                col_s3.metric("Flagged",    flagged_total)
-                col_s4.metric("Duplicates", run.get("total_skipped", 0))
-                col_s5.metric("Errors",     run.get("total_errors", 0))
+                if run.get("monitor_type") == "audit":
+                    # monitor_audits.py reuses the counters: fetched = scheduled
+                    # audits checked, saved = audits run, skipped = not yet due.
+                    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                    col_s1.metric("Checked",  run.get("total_fetched", 0))
+                    col_s2.metric("Run",      run.get("total_saved", 0))
+                    col_s3.metric("Not due",  run.get("total_skipped", 0))
+                    col_s4.metric("Errors",   run.get("total_errors", 0))
+                else:
+                    col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
+                    col_s1.metric("Fetched",    run.get("total_fetched", 0))
+                    col_s2.metric("Saved",      run.get("total_saved", 0))
+                    col_s3.metric("Flagged",    flagged_total)
+                    col_s4.metric("Duplicates", run.get("total_skipped", 0))
+                    col_s5.metric("Errors",     run.get("total_errors", 0))
 
                 token_usage = run.get("token_usage") or {}
                 if token_usage:
@@ -1055,7 +1064,18 @@ with tab_runs:
                 if run.get("error_message"):
                     st.error(run["error_message"])
 
-                if source_stats:
+                if source_stats and run.get("monitor_type") == "audit":
+                    # Audit entries are per domain: {domain, score, risk_level}
+                    # or {domain, error}, not the monitors' per-source counts.
+                    st.markdown("**Per-domain breakdown:**")
+                    for stat in source_stats:
+                        domain = stat.get("domain", "—")
+                        if stat.get("error"):
+                            st.caption(f"🔴 {domain}: error: {str(stat['error'])[:80]}")
+                        else:
+                            st.caption(f"🟢 {domain}: score {stat.get('score', '—')}/100, "
+                                       f"{stat.get('risk_level', '—')} risk")
+                elif source_stats:
                     st.markdown("**Per-source breakdown:**")
                     for stat in source_stats:
                         fetched = stat.get("fetched", 0)
