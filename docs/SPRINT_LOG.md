@@ -279,6 +279,13 @@ S34.
 
 **Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S44, S45, S47.
 
+**Cancelled:** S31, S35.
+
+| # | Sprint | Notes |
+|---|---|---|
+| S31 | — | Cancelled |
+| S35 | — | Cancelled |
+
 | # | Sprint | Notes |
 |---|---|---|
 | ~~S28~~ | ~~Privacy Policy~~ | **Delivered 8 Sept.** Tier 1, no LLM (D-71) |
