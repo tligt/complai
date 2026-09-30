@@ -300,6 +300,13 @@ with st.sidebar:
 
     client_options = {c["company_name"]: c for c in clients}
 
+    # Show the current client when arriving here, e.g. after switching it
+    # on another page's picker (active_client.py). Only when the widget has
+    # no state yet: after a change made here, its own value must win.
+    _current = (st.session_state.get("selected_client") or {}).get("company_name")
+    if "client_selector" not in st.session_state and _current in client_options:
+        st.session_state.client_selector = _current
+
     # Client selector
     selected_name = st.selectbox(
         "Active client",
