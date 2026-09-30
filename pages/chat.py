@@ -278,8 +278,12 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Handle logout via query param
+# Handle logout via query param. Clear it first: left in the URL, it logged
+# the user out again straight after every later login (the chat page is
+# where login lands), and with a global sign-out that took every other
+# session of the account down with it.
 if st.query_params.get("logout"):
+    del st.query_params["logout"]
     from auth import logout
     logout()
 

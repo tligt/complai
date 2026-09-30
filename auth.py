@@ -119,7 +119,11 @@ def logout():
     """Clear session and log out."""
     try:
         supabase = get_supabase()
-        supabase.auth.sign_out()
+        # "local": end this session only. supabase-py defaults to "global",
+        # which revokes every session of the account, so logging out in one
+        # browser silently logged the user out everywhere else at their
+        # next click (init_auth's refresh then fails and clears the session).
+        supabase.auth.sign_out({"scope": "local"})
     except Exception:
         pass
     for key in ["user", "access_token", "refresh_token",
