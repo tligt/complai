@@ -956,6 +956,7 @@ VENDOR_CATALOGUE = [
             "votre configuration."
         ),
         "domain_patterns": [
+            ("googletagmanager.com/gtag/js", "script_src", "high"),  # S48
             ("google-analytics.com", "domain", "high"),
             ("googletagmanager.com", "script_src", "medium"),
             ("_ga", "cookie_name", "high"),
@@ -1019,6 +1020,8 @@ VENDOR_CATALOGUE = [
         "default_criticality": "critical",
         "default_system_role": "processor",
         "domain_patterns": [
+            ("mail.protection.outlook.com", "mx", "high"),  # S48
+            ("spf.protection.outlook.com", "spf_include", "high"),  # S48
             ("office.com", "domain", "medium"),
             ("outlook.office365.com", "domain", "high"),
         ],
@@ -1172,6 +1175,11 @@ VENDOR_CATALOGUE = [
             "paramètres de votre compte."
         ),
         "domain_patterns": [
+            ("hubspotemail.net", "spf_include", "high"),  # S48
+            ("hs-banner.com", "script_src", "high"),  # S48: HubSpot cookie banner
+            ("hs-analytics.net", "script_src", "high"),  # S48
+            ("hsforms.net", "script_src", "high"),  # S48: HubSpot forms
+            ("hsappstatic.net", "script_src", "medium"),  # S48: HubSpot app assets
             ("hs-scripts.com", "script_src", "high"),
             ("hubspot.com", "domain", "medium"),
             ("__hstc", "cookie_name", "high"),
@@ -1241,6 +1249,8 @@ VENDOR_CATALOGUE = [
             "anonyme dans les paramètres Brevo évite de lier les clics à un contact."
         ),
         "domain_patterns": [
+            ("spf.sendinblue.com", "spf_include", "high"),  # S48
+            ("spf.brevo.com", "spf_include", "high"),  # S48
             ("sendinblue.com", "domain", "medium"),
             ("sibautomation.com", "script_src", "high"),
         ],
@@ -1450,7 +1460,9 @@ VENDOR_CATALOGUE = [
             "responsable indépendant pour ses obligations réglementaires, en "
             "plus de son rôle de sous-traitant pour vos transactions."
         ),
-        "domain_patterns": [],
+        "domain_patterns": [
+            ("js.mollie.com", "script_src", "high"),  # S48
+        ],
         "activities": [
             {
                 "name_en": "Payment processing",
@@ -1497,7 +1509,9 @@ VENDOR_CATALOGUE = [
             "auto-hébergée ou hébergée par un partenaire peut se trouver "
             "ailleurs — indiquez où se trouve la vôtre."
         ),
-        "domain_patterns": [],
+        "domain_patterns": [
+            ("_spf.odoo.com", "spf_include", "high"),  # S48
+        ],
         "activities": [
             {
                 "name_en": "Invoicing and accounts receivable",
@@ -1580,7 +1594,10 @@ VENDOR_CATALOGUE = [
             "Vérifiez la région du datacentre utilisé. OVHcloud opère "
             "également hors de l'UE."
         ),
-        "domain_patterns": [],
+        "domain_patterns": [
+            ("mail.ovh.net", "mx", "high"),  # S48
+            ("mx.ovh.com", "spf_include", "high"),  # S48
+        ],
         "activities": [
             {
                 "name_en": "Website and application hosting",
@@ -1630,7 +1647,9 @@ VENDOR_CATALOGUE = [
             "tout transfert — l'accès support et certains services gérés "
             "peuvent encore en générer."
         ),
-        "domain_patterns": [],
+        "domain_patterns": [
+            ("amazonses.com", "spf_include", "medium"),  # S48
+        ],
         "activities": [
             {
                 "name_en": "Cloud infrastructure and storage",
@@ -1676,7 +1695,12 @@ VENDOR_CATALOGUE = [
         ),
         "default_criticality": "critical",
         "default_system_role": "processor",
-        "domain_patterns": [],
+        "domain_patterns": [
+            ("aspmx.l.google.com", "mx", "high"),  # S48
+            ("googlemail.com", "mx", "high"),  # S48
+            ("smtp.google.com", "mx", "high"),  # S48
+            ("_spf.google.com", "spf_include", "high"),  # S48
+        ],
         "activities": [
             {
                 "name_en": "Business email and calendaring",
@@ -1800,6 +1824,7 @@ VENDOR_CATALOGUE = [
             "Vérifiez si des données sensibles y parviennent en pratique."
         ),
         "domain_patterns": [
+            ("mail.zendesk.com", "spf_include", "high"),  # S48
             ("zdassets.com", "script_src", "high"),
         ],
         "activities": [
