@@ -297,9 +297,23 @@ with tab_systems:
             if _have:
                 st.caption("Already in your inventory: " + ", ".join(_have))
             if _res.other_services:
-                st.markdown("**Other services found**, not in our catalogue. "
-                            "If you use them, add them in the table below:")
-                st.markdown("\n".join(f"- `{h}`: {how}" for h, how in _res.other_services))
+                st.markdown("**Other services found**, not in our catalogue. Add the ones "
+                            "you use; you'll complete their details in the table below.")
+                _names = {(s.get("name") or "").strip().lower() for s in systems}
+                for _h, _how in _res.other_services:
+                    _oc1, _oc2 = st.columns([4, 1])
+                    _oc1.markdown(f"`{_h}`: {_how}")
+                    if _h.lower() in _names:
+                        _oc2.caption("In your inventory")
+                    elif _oc2.button("Add", key=f"inv_scan_other_{client_id}_{_h}",
+                                     use_container_width=True):
+                        _r = STORE.add_detected_service(_h, _how, user_id, client_id)
+                        st.session_state[_flash_key] = [
+                            ("error", _r["error"]) if _r.get("error") else
+                            ("success", f"Added {_r['system_name']} to your systems. "
+                                        "Complete its vendor details in the table below.")
+                        ]
+                        st.rerun()
 
     if available:
         with st.expander("Add a common tool", expanded=not systems):

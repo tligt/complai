@@ -677,6 +677,41 @@ def seed_from_catalogue(
     }
 
 
+def add_detected_service(
+    host: str,
+    how: str,
+    user_id: str,
+    client_id: str | None,
+) -> dict:
+    """
+    S48: add a service the website scan found but the catalogue does not
+    know (e.g. one.com as the mail provider) as a bare system, in one click.
+
+    Only what the scan actually established is filled in: the name, and the
+    category when the evidence says it (a mail host is email; a script host
+    could be anything, so its category is left for the client). The note
+    records where the row came from, and the vendor details stay blank for
+    the client to complete — the readiness figures then show them as gaps.
+    """
+    name = host.strip().lower()
+    row = {
+        "user_id": user_id,
+        "client_id": client_id,
+        "name": name,
+        "category": "email_comms" if how.startswith(("email", "sends email")) else None,
+        "notes": (f"Found by the website scan ({how}). Not in the RECOSA "
+                  "catalogue: complete the vendor details."),
+    }
+    errs = INV.validate_system(row, scope=client_id)
+    if errs:
+        return {"error": "; ".join(errs)}
+    try:
+        res = get_supabase().table("systems").insert(row).execute()
+        return {"system_id": (res.data or [{}])[0].get("id"), "system_name": name}
+    except Exception as e:
+        return {"error": f"Could not add {name}: {e}"}
+
+
 def already_seeded(systems: list[dict]) -> set[str]:
     return {s["catalogue_key"] for s in systems if s.get("catalogue_key")}
 
