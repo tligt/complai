@@ -1685,6 +1685,76 @@ verified, not just the one automation could reach cleanly.
 
 ---
 
+### S48 — Onboarding auto-detection — SCOPE LOCK
+
+*Scope-locked 30 September 2026, with the user. Started ahead of its
+After-beta position by request, like S41–S45; S39 and S40 remain the
+beta gate.*
+
+**Objective.** A new client should type as little as possible. S37 asks for
+name, sector, country, size and regulations, and nothing is detected. S48
+adds a detection layer that *suggests*; the user confirms.
+
+**Three signals** (all three, confirmed with the user):
+
+1. **Company registry**, from a company number. Prefills legal name,
+   address, legal form, NACE activity code (mapped to RECOSA's sector list)
+   and, where the registry has it, the website — which then feeds the
+   other two signals.
+   - **France:** `recherche-entreprises.api.gouv.fr`, official, free, no key.
+   - **Belgium:** third-party **CBEAPI** (cbeapi.be, by Retinens) free tier,
+     API key from a free account, commercial use allowed. **Chosen as a
+     proof of value, not the end state:** the user intends to move to the
+     official BCE/KBO web service (€50 per 2,000 lookups) once the UX is
+     proven. Built behind a per-source adapter so that move is a new
+     adapter plus a setting. Only the company number (public data) is
+     sent. *Rejected:* scraping KBO Public Search (a human-facing page:
+     brittle, likely against its terms); the monthly open-data CSV import
+     (free and official, but a bulk import of every Belgian company to
+     prove a UX point).
+   - **NL, LU:** not in S48 (paid registries, no current clients there).
+2. **Website scan.** Script sources, iframes and embedded third-party
+   domains on the homepage, matched against `vendor_domain_patterns`
+   (S24's fingerprints, unused until now). Also reads the Google Tag
+   Manager container, which is public, because tags injected by GTM are
+   otherwise invisible to a static fetch. JavaScript-set cookies stay out
+   of reach; cookie-name fingerprints will rarely match and that is
+   accepted.
+3. **DNS.** MX and SPF records reveal the email provider and mail-sending
+   services (Microsoft 365, Google Workspace, Brevo, HubSpot, …). New
+   match types `mx` and `spf_include` in `vendor_domain_patterns`. New
+   dependency: `dnspython`.
+
+**Placement** (confirmed): onboarding gets optional *company number* and
+*website* fields; the Systems page gets a *Scan my website* button to
+re-run detection any time, since sites change and existing clients
+should benefit too.
+
+**Results** (confirmed): **suggest, user confirms.** Each detected vendor
+is shown with its evidence ("script from js.stripe.com", "MX record
+points to outlook.com"). Nothing is written until the user ticks it;
+ticked vendors go through the existing `seed_from_catalogue`, activities
+included. Third-party domains found but not in the catalogue are listed
+separately as *other services found* rather than dropped — for manual
+add, and as a guide to which vendors to add to the catalogue next.
+
+**Out of scope, deliberately.**
+- *NIS2 applicability from NACE code + size.* The registry data makes it
+  tempting, but it is a legal judgement; a later, reviewed item, not a
+  side effect of onboarding.
+- *Auto-adding anything* without the user's confirmation.
+- *Domain verification before scanning.* S43 gates the free public audit;
+  here the user is authenticated, scans a public homepage, and results
+  only reach their own client's inventory. An Advisory account scanning
+  its clients' sites (not its own domain) is the normal case.
+
+**Build order.** (1) detection engine as a pure module, no Streamlit
+(website + DNS + matching), (2) registry adapters (FR, BE), (3) UI:
+onboarding and Systems page, (4) extra fingerprints for the catalogue's
+vendors that have none.
+
+---
+
 ### S60 and S61 — post-beta sprints
 
 Both were briefly registered as sub-sprints of S26 and renumbered. The letter
