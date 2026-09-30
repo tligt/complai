@@ -52,6 +52,7 @@ from active_client import get_active_client
 import inventory as INV
 import inventory_store as STORE
 import translate as TR
+import detection
 
 st.title("Systems, activities and controllers")
 st.caption(
@@ -225,6 +226,80 @@ with tab_systems:
     catalogue = INV.get_catalogue()
     seeded = STORE.already_seeded(systems)
     available = [v for v in catalogue if v["key"] not in seeded]
+
+    # ── S48: scan the website and email records for known tools ──────────
+    # Suggest, never add on its own: each hit shows its evidence, and only
+    # what the user ticks goes through the same seed_from_catalogue path as
+    # "Add a common tool" below.
+    _scan_key = f"inv_scan_{client_id}"
+    _flash_key = f"inv_scan_flash_{client_id}"
+    with st.expander("🔎 Scan your website for tools you use",
+                     expanded=not systems or _scan_key in st.session_state):
+        st.caption(
+            "Checks your website and your domain's email records (MX and SPF) "
+            "for tools in our catalogue. Nothing is added until you tick it."
+        )
+        for _msg_kind, _msg in st.session_state.pop(_flash_key, []):
+            getattr(st, _msg_kind)(_msg)
+
+        _sc1, _sc2 = st.columns([4, 1])
+        _scan_url = _sc1.text_input(
+            "Website", value=_client.get("website_url") or "",
+            placeholder="yourcompany.com", key=f"inv_scan_url_{client_id}",
+            label_visibility="collapsed",
+        )
+        if _sc2.button("Scan", key=f"inv_scan_btn_{client_id}",
+                       use_container_width=True, disabled=not _scan_url.strip()):
+            with st.spinner("Scanning the website and email records…"):
+                st.session_state[_scan_key] = detection.detect(_scan_url)
+
+        _res = st.session_state.get(_scan_key)
+        if _res:
+            for _e in _res.errors:
+                st.caption(f"⚠️ {_e}")
+            _new = [d for d in _res.detected if d.catalogue_key not in seeded]
+            _have = [d.name for d in _res.detected if d.catalogue_key in seeded]
+
+            if _new:
+                st.markdown(f"**Found for {_res.domain}.** Tick the ones you use:")
+                _picks = []
+                for _d in _new:
+                    if st.checkbox(
+                        f"{_d.name}" + ("" if _d.confidence == "high" else " (possible)"),
+                        value=_d.confidence == "high",
+                        key=f"inv_scan_pick_{client_id}_{_d.catalogue_key}",
+                    ):
+                        _picks.append(_d.catalogue_key)
+                    st.caption("Evidence: " + "; ".join(_d.evidence))
+                if st.button(
+                    f"Add {len(_picks)} selected to my inventory" if _picks else "Add selected",
+                    type="primary", disabled=not _picks,
+                    key=f"inv_scan_add_{client_id}",
+                ):
+                    _msgs = []
+                    for _k in _picks:
+                        _r = STORE.seed_from_catalogue(_k, user_id, client_id, lang)
+                        if _r.get("error"):
+                            _msgs.append(("error", _r["error"]))
+                        else:
+                            _msgs.append(("success",
+                                f"Added {_r['system_name']} and "
+                                f"{_r['activities_created']} processing activities."))
+                            _msgs += [("warning", e) for e in _r.get("errors", [])]
+                            _msgs += [("warning", f"Needs completing — {i}")
+                                      for i in _r.get("incomplete", [])]
+                    # Shown after the rerun, which rebuilds the lists above
+                    st.session_state[_flash_key] = _msgs
+                    st.rerun()
+            elif not _have:
+                st.info(f"No tools from our catalogue were recognised for {_res.domain}.")
+
+            if _have:
+                st.caption("Already in your inventory: " + ", ".join(_have))
+            if _res.other_services:
+                st.markdown("**Other services found**, not in our catalogue. "
+                            "If you use them, add them in the table below:")
+                st.markdown("\n".join(f"- `{h}`: {how}" for h, how in _res.other_services))
 
     if available:
         with st.expander("Add a common tool", expanded=not systems):
