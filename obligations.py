@@ -550,8 +550,273 @@ OBLIGATIONS = [
 ]
 
 # ── Profile questions ─────────────────────────────────────────────────────
+#
+# Grouped by regulation, in the order they are asked (S45). "regulations"
+# says which of the client's selected regulations a question belongs to: the
+# gap page only asks the groups the client has selected, and
+# run_gap_assessment does not score regulations the client has not selected.
+# ePrivacy questions sit under GDPR, matching REGULATION_PARENT. "help" is
+# shown under the question where the wording alone is not enough.
+#
+# The 22 questions added in S45 (30 Sept 2026) were drafted and reviewed in
+# scope/s45_profile_questions_review.md; each closes an operational
+# obligation that previously had no question.
+
+PROFILE_QUESTION_GROUPS = [
+    ("GDPR", "GDPR and ePrivacy"),
+    ("NIS2", "NIS2"),
+    ("EU_AI_ACT", "EU AI Act"),
+]
+
 PROFILE_QUESTIONS = {
+    # ── GDPR and ePrivacy ────────────────────────────────────────────────
+    "dpo": {
+        "regulations": ["GDPR"],
+        "question": "Have you appointed a Data Protection Officer (DPO)?",
+        "help": "A DPO is mandatory for public bodies, and for organisations whose core "
+                "activities involve large-scale monitoring of people or large-scale "
+                "processing of sensitive data. Most SMEs are not required to appoint one.",
+        "options": ["Yes", "No", "Not required for our organisation"],
+        "compliant_answers": ["Yes", "Not required for our organisation"],
+    },
+    "processors_dpa": {
+        "regulations": ["GDPR"],
+        "question": "Do you have a data processing agreement with every service provider that "
+                    "handles personal data on your behalf (e.g. hosting, payroll, CRM, email marketing)?",
+        "help": "A service provider that stores or handles personal data for you (a "
+                "\"processor\") needs a contract meeting GDPR Art. 28. Cloud email, file "
+                "storage and accounting software almost always count.",
+        "options": ["Yes — with all of them", "With some of them", "No",
+                    "We use no such service providers"],
+        "compliant_answers": ["Yes — with all of them", "We use no such service providers"],
+        "partial_answers": ["With some of them"],
+        "na_answers": ["We use no such service providers"],
+    },
+    "dsr_procedure": {
+        "regulations": ["GDPR"],
+        "question": "If someone asks to see, correct or delete their personal data, is there a "
+                    "written procedure for handling the request within the one-month legal deadline?",
+        "options": ["Yes — a written procedure",
+                    "We handle requests case by case, without a written procedure", "No"],
+        "compliant_answers": ["Yes — a written procedure"],
+        "partial_answers": ["We handle requests case by case, without a written procedure"],
+    },
+    "notice_at_collection": {
+        "regulations": ["GDPR"],
+        "question": "Where you collect personal data (web forms, sign-ups, contracts, job "
+                    "applications), are people told at that moment how it will be used, with a "
+                    "link to your privacy notice?",
+        "options": ["Yes — at every collection point", "At some collection points", "No"],
+        "compliant_answers": ["Yes — at every collection point"],
+        "partial_answers": ["At some collection points"],
+    },
+    "legitimate_interest": {
+        "regulations": ["GDPR"],
+        "question": "Do you rely on \"legitimate interest\" as the legal basis for any processing "
+                    "(e.g. marketing to existing customers, CCTV, fraud prevention)?",
+        "help": "Legitimate interest is one of the six legal bases for using personal data. "
+                "Relying on it requires a documented balancing test showing your interest "
+                "is not overridden by the rights of the people concerned.",
+        "options": ["No", "Yes — with a documented legitimate interest assessment",
+                    "Yes — not documented", "Not sure"],
+        "compliant_answers": ["No", "Yes — with a documented legitimate interest assessment"],
+        "partial_answers": ["Not sure"],
+        "na_answers": ["No"],
+    },
+    "special_category": {
+        "regulations": ["GDPR"],
+        "question": "Do you process sensitive data: health, biometrics, religion, political "
+                    "opinions, trade-union membership, sexual orientation, or ethnic origin?",
+        "help": "Health data includes staff sick-leave records and medical certificates, "
+                "which almost every employer holds.",
+        "options": ["No", "Yes — with a documented legal basis and extra safeguards",
+                    "Yes — not specifically assessed"],
+        "compliant_answers": ["No", "Yes — with a documented legal basis and extra safeguards"],
+        "na_answers": ["No"],
+    },
+    "children_data": {
+        "regulations": ["GDPR"],
+        "question": "Do you offer online services directly to children, or knowingly collect "
+                    "personal data from children?",
+        "help": "Who counts as a child depends on the country. For consent to online services "
+                "(GDPR Art. 8), a parent's consent is needed below: **13 in Belgium**, **15 in "
+                "France** (below 15, the child and a parent consent together), **16 in the "
+                "Netherlands** (where parental consent under 16 applies to any consent-based "
+                "processing, not only online services) and **16 in Luxembourg**. Under civil "
+                "law, everyone under 18 is a minor in all four countries. If you serve several "
+                "countries, apply each country's threshold, or the highest (16).",
+        "options": ["No", "Yes — with age checks and parental consent where required",
+                    "Yes — without specific safeguards"],
+        "compliant_answers": ["No", "Yes — with age checks and parental consent where required"],
+        "na_answers": ["No"],
+    },
+    "joint_controllers": {
+        "regulations": ["GDPR"],
+        "question": "Do you decide together with another organisation why and how some personal "
+                    "data is used (e.g. a joint marketing campaign, a shared customer platform)?",
+        "help": "When two organisations jointly decide the purpose and means of processing, "
+                "they are joint controllers and must set out their respective "
+                "responsibilities in a written arrangement (GDPR Art. 26).",
+        "options": ["No", "Yes — with a written joint-controller arrangement",
+                    "Yes — no written arrangement", "Not sure"],
+        "compliant_answers": ["No", "Yes — with a written joint-controller arrangement"],
+        "partial_answers": ["Not sure"],
+        "na_answers": ["No"],
+    },
+    "intl_transfers": {
+        "regulations": ["GDPR"],
+        "question": "Is any personal data you hold transferred outside the EEA, or accessible "
+                    "from outside it (e.g. through US-based cloud or software providers)?",
+        "help": "Many common tools (office suites, email marketing, CRM, video calls) are run "
+                "by US companies and can involve transfers even when data is stored in the EU. "
+                "Check each provider's data processing terms.",
+        "options": ["No — all data stays in the EEA",
+                    "Yes — with safeguards in place (adequacy decision, standard contractual clauses or similar)",
+                    "Yes — safeguards not checked", "Not sure"],
+        "compliant_answers": ["No — all data stays in the EEA",
+                              "Yes — with safeguards in place (adequacy decision, standard contractual clauses or similar)"],
+        "partial_answers": ["Not sure"],
+        "na_answers": ["No — all data stays in the EEA"],
+    },
+    "data_minimisation": {
+        "regulations": ["GDPR"],
+        "question": "Do you limit the personal data you collect to what you actually need, and "
+                    "delete it once you no longer need it?",
+        "options": ["Yes — with defined retention periods that are applied", "Partly", "No"],
+        "compliant_answers": ["Yes — with defined retention periods that are applied"],
+        "partial_answers": ["Partly"],
+    },
+    "privacy_by_design": {
+        "regulations": ["GDPR"],
+        "question": "Before a new tool, system or process that uses personal data goes live, do "
+                    "you consider data protection as a set step?",
+        "options": ["Yes — a documented step (e.g. a checklist or review)",
+                    "Sometimes, informally", "No"],
+        "compliant_answers": ["Yes — a documented step (e.g. a checklist or review)"],
+        "partial_answers": ["Sometimes, informally"],
+    },
+    "security_measures": {
+        "regulations": ["GDPR"],
+        "question": "Are the security measures protecting personal data (access rights, "
+                    "encryption, backups and so on) documented?",
+        "options": ["Yes — documented", "In place, but not documented", "No"],
+        "compliant_answers": ["Yes — documented"],
+        "partial_answers": ["In place, but not documented"],
+    },
+    "training": {
+        # Shared: satisfies gdpr_13 and nis2_09. Asked once, in the first
+        # of its groups the client has selected.
+        "regulations": ["GDPR", "NIS2"],
+        "question": "Do you conduct regular security and privacy training for all staff?",
+        "options": ["Yes — formal training programme", "Partially — some staff or informal", "No"],
+        "compliant_answers": ["Yes — formal training programme"],
+        "partial_answers": ["Partially — some staff or informal"],
+    },
+    "cookies": {
+        "regulations": ["GDPR"],
+        "question": "Do you use cookies or tracking technologies on your website?",
+        "options": ["Yes — including non-essential cookies", "No — essential cookies only", "We have no website"],
+        "compliant_answers": ["No — essential cookies only", "We have no website"],
+        "na_answers": ["No — essential cookies only", "We have no website"],
+    },
+    "marketing": {
+        "regulations": ["GDPR"],
+        "question": "Do you send marketing emails to prospects or customers?",
+        "options": ["Yes", "No"],
+        "compliant_answers": ["No"],
+        "na_answers": ["No"],
+    },
+
+    # ── NIS2 ─────────────────────────────────────────────────────────────
+    "nis2_registered": {
+        "regulations": ["NIS2"],
+        "question": "Have you registered with your national NIS2 authority (CCB for Belgium, ANSSI for France)?",
+        "options": ["Yes", "No", "Not applicable — we are not in scope for NIS2"],
+        "compliant_answers": ["Yes", "Not applicable — we are not in scope for NIS2"],
+    },
+    "management_approval": {
+        "regulations": ["NIS2"],
+        "question": "Has your management body (directors) formally approved your cybersecurity "
+                    "measures, and do its members follow cybersecurity training?",
+        "help": "NIS2 Art. 20 makes the management body responsible: it must approve the "
+                "cybersecurity measures, oversee their implementation, and its members must "
+                "follow training. Directors can be held personally liable.",
+        "options": ["Yes — approved, and management trained",
+                    "Approved, but no management training", "No"],
+        "compliant_answers": ["Yes — approved, and management trained"],
+        "partial_answers": ["Approved, but no management training"],
+    },
+    "supplier_security": {
+        "regulations": ["NIS2"],
+        "question": "Do you assess the security of the suppliers and service providers your "
+                    "business depends on, and set security requirements in their contracts?",
+        "options": ["Yes — assessed and in contracts",
+                    "Informally, or for some suppliers only", "No"],
+        "compliant_answers": ["Yes — assessed and in contracts"],
+        "partial_answers": ["Informally, or for some suppliers only"],
+    },
+    "access_mfa": {
+        "regulations": ["NIS2"],
+        "question": "Is access to your systems limited to what each person needs, with "
+                    "multi-factor authentication for remote and administrator access?",
+        "options": ["Yes — role-based access and MFA",
+                    "Partly (e.g. MFA on some systems only)", "No"],
+        "compliant_answers": ["Yes — role-based access and MFA"],
+        "partial_answers": ["Partly (e.g. MFA on some systems only)"],
+    },
+    "encryption": {
+        "regulations": ["NIS2"],
+        "question": "Is sensitive data encrypted both when stored and when sent over networks?",
+        "options": ["Yes", "Partly", "No", "Not sure"],
+        "compliant_answers": ["Yes"],
+        "partial_answers": ["Partly"],
+    },
+    "patching": {
+        "regulations": ["NIS2"],
+        "question": "Do you have a process for tracking security updates and applying patches "
+                    "within a set timeframe?",
+        "options": ["Yes — a documented process with timeframes",
+                    "Updates are applied, but informally", "No"],
+        "compliant_answers": ["Yes — a documented process with timeframes"],
+        "partial_answers": ["Updates are applied, but informally"],
+    },
+    "backups_tested": {
+        "regulations": ["NIS2"],
+        "question": "Are backups made regularly, stored separately from your main systems, and "
+                    "tested by actually restoring from them?",
+        "options": ["Yes — including regular restore tests",
+                    "Backups are made, but restores are not tested", "No regular backups"],
+        "compliant_answers": ["Yes — including regular restore tests"],
+        "partial_answers": ["Backups are made, but restores are not tested"],
+    },
+    "security_monitoring": {
+        "regulations": ["NIS2"],
+        "question": "Do you monitor your network and systems for suspicious activity (e.g. "
+                    "firewall or antivirus alerts, or a managed security provider), with someone "
+                    "reviewing the alerts?",
+        "options": ["Yes — alerts are reviewed",
+                    "Tools are in place, but alerts are not routinely reviewed", "No"],
+        "compliant_answers": ["Yes — alerts are reviewed"],
+        "partial_answers": ["Tools are in place, but alerts are not routinely reviewed"],
+    },
+    "audit_logs": {
+        "regulations": ["NIS2"],
+        "question": "Do your key systems keep logs of who accessed or changed what, kept long "
+                    "enough to investigate an incident?",
+        "options": ["Yes", "Partly", "No"],
+        "compliant_answers": ["Yes"],
+        "partial_answers": ["Partly"],
+    },
+    "pentest": {
+        "regulations": ["NIS2"],
+        "question": "Have you conducted a penetration test in the last 12 months?",
+        "options": ["Yes", "No", "Not applicable"],
+        "compliant_answers": ["Yes", "Not applicable"],
+    },
+
+    # ── EU AI Act ────────────────────────────────────────────────────────
     "ai_usage": {
+        "regulations": ["EU_AI_ACT"],
         "question": "How does your organisation use AI systems?",
         "options": [
             "We do not use AI systems",
@@ -563,6 +828,7 @@ PROFILE_QUESTIONS = {
         "na_answers": ["We do not use AI systems"],
     },
     "ai_generative": {
+        "regulations": ["EU_AI_ACT"],
         "question": "Do you publish content generated or edited by AI (images, video, audio or text)?",
         "options": [
             "No",
@@ -573,6 +839,7 @@ PROFILE_QUESTIONS = {
         "na_answers": ["No"],
     },
     "ai_annexiii": {
+        "regulations": ["EU_AI_ACT"],
         "question": "Do you use AI for recruitment or candidate screening, credit or insurance decisions, worker evaluation, or access to essential services?",
         "options": ["No", "Yes", "Not sure"],
         "compliant_answers": ["No"],
@@ -581,40 +848,83 @@ PROFILE_QUESTIONS = {
         # queued for a later sprint — until then, partial is the honest answer.
         "partial_answers": ["Not sure"],
     },
-    "dpo": {
-        "question": "Have you appointed a Data Protection Officer (DPO)?",
-        "options": ["Yes", "No", "Not required for our organisation"],
-        "compliant_answers": ["Yes", "Not required for our organisation"],
-    },
-    "nis2_registered": {
-        "question": "Have you registered with your national NIS2 authority (CCB for Belgium, ANSSI for France)?",
-        "options": ["Yes", "No", "Not applicable — we are not in scope for NIS2"],
-        "compliant_answers": ["Yes", "Not applicable — we are not in scope for NIS2"],
-    },
-    "training": {
-        "question": "Do you conduct regular security and privacy training for all staff?",
-        "options": ["Yes — formal training programme", "Partially — some staff or informal", "No"],
-        "compliant_answers": ["Yes — formal training programme"],
-        "partial_answers": ["Partially — some staff or informal"],
-    },
-    "pentest": {
-        "question": "Have you conducted a penetration test in the last 12 months?",
-        "options": ["Yes", "No", "Not applicable"],
-        "compliant_answers": ["Yes", "Not applicable"],
-    },
-    "cookies": {
-        "question": "Do you use cookies or tracking technologies on your website?",
-        "options": ["Yes — including non-essential cookies", "No — essential cookies only", "We have no website"],
-        "compliant_answers": ["No — essential cookies only", "We have no website"],
-        "na_answers": ["No — essential cookies only", "We have no website"],
-    },
-    "marketing": {
-        "question": "Do you send marketing emails to prospects or customers?",
-        "options": ["Yes", "No"],
+    "ai_prohibited": {
+        "regulations": ["EU_AI_ACT"],
+        "question": "Do you use AI for any of the following: manipulative or deceptive "
+                    "techniques, exploiting people's vulnerabilities, social scoring, emotion "
+                    "recognition at work or in education, untargeted scraping of facial images, "
+                    "or categorising people by sensitive traits from biometric data?",
+        "help": "These practices are prohibited outright by AI Act Art. 5 since 2 February "
+                "2025. \"Yes\" is not a gap to close over time: the use must stop.",
+        "options": ["No", "Not sure", "Yes"],
         "compliant_answers": ["No"],
-        "na_answers": ["No"],
+        "partial_answers": ["Not sure"],
+    },
+    "ai_roles": {
+        "regulations": ["EU_AI_ACT"],
+        "question": "For each AI system you use or offer, have you determined whether you are "
+                    "its provider or its deployer under the AI Act?",
+        "help": "The provider develops an AI system, or has one developed, and places it on "
+                "the market under its own name. The deployer uses it under its own authority. "
+                "Using ChatGPT or Copilot at work typically makes you a deployer.",
+        "options": ["We do not use AI systems", "Yes — documented for each system", "Partly", "No"],
+        "compliant_answers": ["We do not use AI systems", "Yes — documented for each system"],
+        "partial_answers": ["Partly"],
+        "na_answers": ["We do not use AI systems"],
+    },
+    "ai_intimate_imagery": {
+        "regulations": ["EU_AI_ACT"],
+        "question": "Can any AI system you provide or deploy generate sexual imagery of real "
+                    "people without their consent, or child sexual abuse material?",
+        "options": ["We do not provide or deploy image- or video-generating AI",
+                    "No — safeguards prevent it", "Not sure", "Yes"],
+        "compliant_answers": ["We do not provide or deploy image- or video-generating AI",
+                              "No — safeguards prevent it"],
+        "na_answers": ["We do not provide or deploy image- or video-generating AI"],
     },
 }
+
+# S45: obligation id -> question key for the 22 questions added in S45.
+# Applied to OBLIGATIONS here rather than edited into each entry, so the
+# reviewed mapping stays visible in one place.
+_S45_QUESTION_LINKS = {
+    "gdpr_05": "processors_dpa",      "gdpr_07": "dsr_procedure",
+    "gdpr_11": "intl_transfers",      "gdpr_12": "privacy_by_design",
+    "gdpr_14": "data_minimisation",   "gdpr_15": "notice_at_collection",
+    "gdpr_16": "special_category",    "gdpr_17": "joint_controllers",
+    "gdpr_18": "legitimate_interest", "gdpr_19": "children_data",
+    "gdpr_20": "security_measures",
+    "nis2_05": "supplier_security",   "nis2_06": "access_mfa",
+    "nis2_07": "encryption",          "nis2_08": "patching",
+    "nis2_10": "backups_tested",      "nis2_12": "management_approval",
+    "nis2_13": "security_monitoring", "nis2_15": "audit_logs",
+    "ai_02":   "ai_prohibited",       "ai_03":   "ai_roles",
+    "ai_10":   "ai_intimate_imagery",
+}
+for _o in OBLIGATIONS:
+    if _o["id"] in _S45_QUESTION_LINKS:
+        assert _o["profile_question"] is None, _o["id"]
+        _o["profile_question"] = _S45_QUESTION_LINKS[_o["id"]]
+del _o
+
+
+def profile_questions_for(regulations) -> list:
+    """[(group_key, group_label, [question keys])] for the client's selected
+    regulations, in asking order. A question shared by several regulations is
+    asked once, in the first of its groups the client has selected. Empty or
+    missing regulations means all groups."""
+    all_groups = [g for g, _ in PROFILE_QUESTION_GROUPS]
+    selected = set(regulations or []) or set(all_groups)
+    asked, out = set(), []
+    for group, label in PROFILE_QUESTION_GROUPS:
+        if group not in selected:
+            continue
+        keys = [k for k, q in PROFILE_QUESTIONS.items()
+                if group in q["regulations"] and k not in asked]
+        asked.update(keys)
+        if keys:
+            out.append((group, label, keys))
+    return out
 
 
 # ── Derived views ─────────────────────────────────────────────────────────

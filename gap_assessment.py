@@ -19,6 +19,7 @@ from obligations import (            # noqa: F401
     DOC_CATALOG, REG_DOCS, REGULATION_LABELS,
     KIND_DOCUMENT, KIND_OPERATIONAL,
     is_in_force, applies_from_label, split_by_force,
+    REGULATION_PARENT,
 )
 
 # Status vocabulary. NOT_ASSESSED is deliberately distinct from "missing":
@@ -433,6 +434,12 @@ def run_gap_assessment(
     # Add uploaded documents (override)
     doc_texts.update(uploaded_docs)
 
+    # S45: only the client's selected regulations are asked and scored. The
+    # gap page asks profile questions per selected regulation, so scoring an
+    # unselected one would count every unasked question as a gap. No
+    # selection recorded -> everything, as before.
+    selected_regs = set(client.get("regulations") or [])
+
     results = []
     total = len(OBLIGATIONS)
     progress = st.progress(0, text="Starting gap assessment...")
@@ -449,6 +456,16 @@ def run_gap_assessment(
                 "id": obligation["id"], "status": NOT_ASSESSED,
                 "explanation": f"Applies from {applies_from_label(obligation)}. "
                                "Not assessed because it is not yet in force.",
+                "recommendation": "",
+            })
+            continue
+
+        client_reg = REGULATION_PARENT.get(obligation["regulation"], obligation["regulation"])
+        if selected_regs and client_reg not in selected_regs:
+            results.append({
+                "id": obligation["id"], "status": NOT_ASSESSED,
+                "explanation": f"{REGULATION_LABELS.get(client_reg, client_reg)} is not "
+                               "among your selected regulations.",
                 "recommendation": "",
             })
             continue

@@ -301,7 +301,7 @@ S34.
 | ~~S41~~ | ~~Audit rate-limiting~~ | **Delivered 21 Sept, ahead of its After-beta position.** Found the anonymous audit flow it protects is not reachable through `app.py` today. D-104 |
 | ~~S43~~ | ~~Domain verification~~ | **Delivered 22 Sept, ahead of its After-beta position.** Requester email must match the audited site's own domain; re-keyed the reuse block to the site, not the requester. D-105 |
 | ~~S44~~ | ~~Scheduled recurring audits~~ | **Delivered 22 Sept, ahead of its After-beta position.** First real GitHub Actions cron path in the app-facing product (`monitor_audits.py`); closes S42's real gap for the new path only. D-106 |
-| ~~S45~~ | ~~Freemium single-page scanner~~ | **Delivered 22 Sept, ahead of its After-beta position — infrastructure only.** Standalone public quiz (`quiz/quiz_app.py`) and the `gap_results` wiring that lets a gap assessment reach the action plan, both built and verified. Growing `PROFILE_QUESTIONS` toward the 32-question calibration and actually deploying the quiz publicly are still open. D-108, see 3b. **30 Sept:** 22 draft questions awaiting review in `scope/s45_profile_questions_review.md` (not wired in); quiz has its own `quiz/requirements.txt`, ready to deploy |
+| ~~S45~~ | ~~Freemium single-page scanner~~ | **Delivered 22 Sept, ahead of its After-beta position — infrastructure only.** Standalone public quiz (`quiz/quiz_app.py`) and the `gap_results` wiring that lets a gap assessment reach the action plan, both built and verified. Growing `PROFILE_QUESTIONS` toward the 32-question calibration and actually deploying the quiz publicly are still open. D-108, see 3b. **30 Sept:** profile questions 9 → 31, reviewed and shipped (D-111). Only the public quiz deployment remains (Streamlit Cloud, entry point `quiz/quiz_app.py`, own `quiz/requirements.txt`) |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
 **S32, S33, S34, S41, S43, S44 and S47 shipped ahead of S39 (originally numbered S31).**
@@ -4378,6 +4378,34 @@ from 22 Sept under a user id that no longer exists in `auth.users`: deleting
 that account left its report behind in `audit-reports`. **That is S40's
 problem in miniature** — user deletion has to remove Storage objects too, and
 now that every flow links `file_path_pdf`, S40 can find them from the row.
+
+### D-111 — S45 profile questions: 31, grouped by regulation, only the client's regulations scored
+
+*30 September 2026.*
+
+`PROFILE_QUESTIONS` 9 → 31: one question per operational obligation that had
+none (11 GDPR, 8 NIS2, 3 AI Act), drafted in
+`scope/s45_profile_questions_review.md` and approved by the user before
+shipping, per D-108. Every operational obligation now has a question. Before,
+those 22 were judged by Mistral reading the first 4,000 characters of all the
+client's documents combined — mostly `missing` on weak evidence. Now the
+client's answer decides, as the original 9 already did.
+
+**Help notes** under questions that need clarifying, shown between question
+and options rather than in a tooltip. The children question states the GDPR
+Art. 8 age per country, verified 30 Sept: 13 BE, 15 FR (joint consent below
+15), 16 NL (parental consent under 16 for any consent-based processing, UAVG
+Art. 5), 16 LU; under-18s are minors under civil law in all four.
+
+**Grouped by regulation, and only the selected ones asked** — asked for by the
+user because clients subscribe to one, two or all regulations.
+`profile_questions_for(regulations)` drives the gap page; a question shared by
+two regulations (`training`) is asked once. **Consequence, deliberate:**
+`run_gap_assessment` now marks obligations of unselected regulations
+`not_assessed` instead of scoring them, otherwise every unasked question would
+count as a gap. A GDPR-only client previously got a NIS2 and AI Act score from
+answers it should never have been asked for; it no longer does. A client with
+no regulations recorded is still asked and scored on everything.
 
 ---
 

@@ -1,9 +1,10 @@
 # S45 — draft profile questions, for review
 
-**Status: DRAFT, not wired in.** Nothing here is imported, scored or shown to
-clients. Once approved (edited as needed), each entry is added to
-`PROFILE_QUESTIONS` in `obligations.py` and its obligation's
-`profile_question` is set to the key.
+**Status: APPROVED and shipped 30 Sept 2026 (D-111).** Approved as drafted,
+with two additions from the review: help notes under questions that need
+clarifying (notably the country-specific age of a "child"), and questions
+grouped by regulation with only the client's selected regulations asked.
+`obligations.py` is now the source of truth; this file is the review record.
 
 Written 30 Sept 2026 as S45's remaining build item: `PROFILE_QUESTIONS` grows
 from 9 toward the ~32-question calibration (D-107). Per D-108, question wording

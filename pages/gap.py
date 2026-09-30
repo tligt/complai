@@ -11,7 +11,7 @@ from database import (
 )
 from active_client import get_active_client
 from cached_reads import get_current_client_documents
-from obligations import DOC_CATALOG, RETIRED_DOC_TYPES
+from obligations import DOC_CATALOG, RETIRED_DOC_TYPES, profile_questions_for
 from gap_assessment import (
     OBLIGATIONS, PROFILE_QUESTIONS, DOCUMENT_TYPES, DOC_OBLIGATIONS,
     extract_text_from_upload, run_document_review, run_gap_assessment,
@@ -30,6 +30,23 @@ STATUS_LABELS = {
     "not_applicable": "Not applicable",
     "not_assessed":   "Not assessed",
 }
+
+
+def _profile_radio(q_key: str, widget_key: str) -> str:
+    """One profile question: the question, its help note (S45) where it has
+    one, then the options. The note sits between question and options so it
+    is read before answering, not discovered after in a tooltip."""
+    q_config = PROFILE_QUESTIONS[q_key]
+    st.markdown(f"**{q_config['question']}**")
+    if q_config.get("help"):
+        st.caption(q_config["help"])
+    return st.radio(
+        q_config["question"],
+        options=q_config["options"],
+        key=widget_key,
+        horizontal=True,
+        label_visibility="collapsed",
+    )
 
 st.title("🔍 Gap Assessment")
 st.divider()
@@ -92,15 +109,9 @@ with tab1:
     if relevant_profile_qs:
         st.divider()
         st.markdown("**A few quick questions:**")
-        for q_key in relevant_profile_qs:
-            q_config = PROFILE_QUESTIONS[q_key]
-            answer = st.radio(
-                q_config["question"],
-                options=q_config["options"],
-                key=f"rev_q_{q_key}",
-                horizontal=True,
-            )
-            profile_answers_review[q_key] = answer
+        # Asking order (grouped by regulation), not set order
+        for q_key in [k for k in PROFILE_QUESTIONS if k in relevant_profile_qs]:
+            profile_answers_review[q_key] = _profile_radio(q_key, f"rev_q_{q_key}")
 
     run_review = st.button(
         f"🔍 Review {DOCUMENT_TYPES[doc_type_review]}",
@@ -412,15 +423,15 @@ with tab2:
     st.markdown("**Quick profile questions:**")
     st.caption("These cover obligations that can't be assessed from documents alone.")
 
+    # S45: grouped by regulation, and only the regulations this client has
+    # selected. run_gap_assessment leaves unselected ones unscored, so the
+    # questions not asked here are never counted as gaps.
     profile_answers = {}
-    for q_key, q_config in PROFILE_QUESTIONS.items():
-        answer = st.radio(
-            q_config["question"],
-            options=q_config["options"],
-            key=f"full_q_{q_key}",
-            horizontal=True,
-        )
-        profile_answers[q_key] = answer
+    for _group, group_label, q_keys in profile_questions_for(
+            (selected_client or {}).get("regulations")):
+        st.markdown(f"##### {group_label}")
+        for q_key in q_keys:
+            profile_answers[q_key] = _profile_radio(q_key, f"full_q_{q_key}")
 
     st.divider()
     st.caption(
