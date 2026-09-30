@@ -29,21 +29,47 @@ def init_auth():
     if "refresh_token" not in st.session_state:
         st.session_state.refresh_token = None
 
-    # Refresh session on every load to keep user logged in across refreshes
-    # Supabase refresh tokens are long-lived (weeks) so this survives page refreshes
+    # Refresh only when the access token is about to expire, not on every
+    # rerun. Supabase refresh tokens are single-use: refreshing on every
+    # click meant any two overlapping reruns (or one interrupted mid-refresh)
+    # presented an already-used token, and the failure logged the user out
+    # (refresh_token_already_used, dozens of times on 30 Sept 2026).
     if st.session_state.get("refresh_token"):
-        try:
-            supabase = get_supabase()
-            res = supabase.auth.refresh_session(st.session_state.refresh_token)
-            if res and res.session:
-                st.session_state.access_token  = res.session.access_token
-                st.session_state.refresh_token = res.session.refresh_token
-                st.session_state.user          = res.user
-        except Exception:
-            # Token expired or invalid — clear session
-            st.session_state.user          = None
-            st.session_state.access_token  = None
-            st.session_state.refresh_token = None
+        remaining = _seconds_until_expiry(st.session_state.get("access_token"))
+        if remaining is None or remaining < _REFRESH_MARGIN_SECONDS:
+            try:
+                supabase = get_supabase()
+                res = supabase.auth.refresh_session(st.session_state.refresh_token)
+                if res and res.session:
+                    st.session_state.access_token  = res.session.access_token
+                    st.session_state.refresh_token = res.session.refresh_token
+                    st.session_state.user          = res.user
+            except Exception:
+                # Only a session whose access token has actually run out is
+                # over. If it is still valid, a failed refresh (e.g. another
+                # rerun already rotated the token) must not log the user out.
+                if remaining is None or remaining <= 0:
+                    st.session_state.user          = None
+                    st.session_state.access_token  = None
+                    st.session_state.refresh_token = None
+
+
+# Refresh when less than this is left on the access token (default 1 hour).
+_REFRESH_MARGIN_SECONDS = 300
+
+
+def _seconds_until_expiry(access_token: str | None) -> float | None:
+    """Seconds before the JWT's exp claim, or None if it can't be read.
+    Reads the payload without verifying the signature: only used to decide
+    when to refresh, never to trust the token."""
+    import base64, json, time
+    try:
+        payload = access_token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        exp = json.loads(base64.urlsafe_b64decode(payload))["exp"]
+        return exp - time.time()
+    except Exception:
+        return None
 
 
 def is_logged_in() -> bool:
