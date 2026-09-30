@@ -165,6 +165,10 @@ if logged_in:
                         safe_domain = site_domain.replace(".", "_")
                         pdf_storage_path = f"{user_id}/{safe_domain}/{ts}_audit.pdf"
                         stored_path = upload_file("audit-reports", pdf_storage_path, pdf_bytes, "application/pdf")
+                        # S42: link the stored report to its audits row, so it
+                        # can be found again (and deleted, S40) from the row.
+                        if stored_path and audit_id:
+                            update_audit_path(audit_id, stored_path)
                     except Exception:
                         pass
 
@@ -308,7 +312,7 @@ else:
                     else:
                         audit_result = run_checklist(crawl_result)
                         pdf_bytes = generate_pdf(audit_result)
-                        save_audit(
+                        audit_id = save_audit(
                             email=email.strip(),
                             email_domain=email_domain,
                             website_url=website_url.strip(),
@@ -322,7 +326,10 @@ else:
                             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_domain = site_domain.replace(".", "_")
                             pdf_storage_path = f"{safe_domain}/{ts}_audit.pdf"
-                            upload_file("audit-reports", pdf_storage_path, pdf_bytes, "application/pdf")
+                            stored_path = upload_file("audit-reports", pdf_storage_path, pdf_bytes, "application/pdf")
+                            # S42: same link as the authenticated flow above
+                            if stored_path and audit_id:
+                                update_audit_path(audit_id, stored_path)
                         except Exception:
                             pass
                         try:

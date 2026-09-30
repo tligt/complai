@@ -277,7 +277,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S43, S44, S45, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47.
 
 **Cancelled:** S31, S35.
 
@@ -339,7 +339,7 @@ so a generated PDF's Storage path never reaches its own `audits` row —
 is now closed for the **new** S44 subscription path (`monitor_audits.py`
 calls it correctly). The two **existing** Streamlit flows (logged-in and
 anonymous) still don't call it; that retrofit remains S42's own, still
-open, scope.
+open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 
 ### Before the beta gate
 
@@ -358,7 +358,7 @@ the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| S42 | Audit report email delivery | was S39. Scoped in conversation 22 Sept, not built — `update_audit_path()` on the two existing flows is the real remaining gap (closed for S44's new path only). See the Delivered-section note above |
+| ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | S48 | Onboarding redesign | was S44. Auto-detection layer, now builds on S37's basic version |
 | S49 | Document branding | was S45. Theme only |
@@ -4355,6 +4355,29 @@ full-text sources saved in the same run.
 full-text source (CERT-EU) is never skipped in favour of it, even if CCB
 publishes first. *Rejected:* symmetric dedup keeping whichever came first,
 which would regularly keep the copy with no content.
+
+### D-110 — S42 closed: every audit flow links its stored report to its row
+
+*30 September 2026.*
+
+As D-105/D-106 found, "email delivery" as literally named had nothing left
+to build (`send_audit_report()` already delivers); the real gap was
+`update_audit_path()` never being called by the two existing flows in
+`pages/audit.py`. Both now call it after a successful upload; the anonymous
+flow also keeps `save_audit()`'s return value, which it previously dropped.
+Verified against production with the page's own call sequence (row saved,
+report uploaded, path linked, test row and file removed after).
+
+**Backfill: one of three existing rows.** The 31 July logged-in audit matched
+its stored report exactly (same user, same second) and was linked. The two
+June rows have no report in storage.
+
+**Found, not fixed: four stored reports with no row.** Three from 31 July on
+the founder's account — rows lost to the S21-era save failures (D-06). One
+from 22 Sept under a user id that no longer exists in `auth.users`: deleting
+that account left its report behind in `audit-reports`. **That is S40's
+problem in miniature** — user deletion has to remove Storage objects too, and
+now that every flow links `file_path_pdf`, S40 can find them from the row.
 
 ---
 
