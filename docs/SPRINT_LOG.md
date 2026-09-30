@@ -4797,6 +4797,7 @@ selector. The multi-client selector is Advisory-only (S47).
 | ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
 | Art. 9(2) coverage | S60 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
+| A page refresh logs the user out | S40 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S40's scope; a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
 | Ask CCB for full-text access | — | **Idea, logged 27 Sept; premature until RECOSA is up and running.** CCB articles are bot-blocked, so CCB items reach the KB as title/teaser only (D-109). Ask CCB for a full-text feed or an allow-listed monitor, framed as a compliance service quoting them with attribution. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
 | ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S39.** |

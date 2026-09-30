@@ -69,8 +69,14 @@ def get_active_client(user_id: str) -> dict | None:
     # module existed); ask instead, with something to act on right here
     # rather than a warning pointing elsewhere.
     names = [c["company_name"] for c in clients]
+    # index=None: nothing preselected, so the page waits (st.stop below)
+    # for an actual choice. Preselecting the first client stored it on the
+    # very first run, and the early return above then ignored whatever the
+    # user picked next: the choice silently had no effect and the page kept
+    # working on the first client (found 30 Sept 2026).
     chosen = st.selectbox(
         "Select client", options=names, key="active_client_select",
+        index=None, placeholder="Choose a client",
     )
     picked = next((c for c in clients if c["company_name"] == chosen), None)
     if not picked:
