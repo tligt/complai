@@ -256,6 +256,19 @@ def _other_services(web: _WebSignals | None, mx: list[str], spf: list[str],
     return sorted(out.items())
 
 
+def result_from_saved(row: dict) -> DetectionResult:
+    """Rebuild a DetectionResult from a stored website_scans row, so a past
+    scan can be shown and acted on like a fresh one."""
+    return DetectionResult(
+        domain=row.get("domain") or "",
+        detected=[Detection(catalogue_key=d["catalogue_key"], name=d["name"],
+                            confidence=d["confidence"], evidence=list(d.get("evidence") or []))
+                  for d in row.get("detected") or []],
+        other_services=[(o["host"], o["how"]) for o in row.get("other_services") or []],
+        errors=list(row.get("errors") or []),
+    )
+
+
 # ── Entry point ──────────────────────────────────────────────────────────
 
 def load_patterns() -> list[dict]:

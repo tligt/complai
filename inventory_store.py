@@ -712,6 +712,47 @@ def add_detected_service(
         return {"error": f"Could not add {name}: {e}"}
 
 
+def save_website_scan(result, website: str, user_id: str,
+                      client_id: str | None) -> bool:
+    """S48: keep a scan (a detection.DetectionResult) with its date and
+    findings. Append-only by design, see migration_s48_website_scans.sql.
+    A failure to save must not cost the user the scan they just ran, so it
+    is reported, not raised."""
+    if not client_id:
+        return False
+    try:
+        get_supabase().table("website_scans").insert({
+            "client_id": client_id,
+            "user_id": user_id,
+            "website": website.strip(),
+            "domain": result.domain,
+            "detected": [
+                {"catalogue_key": d.catalogue_key, "name": d.name,
+                 "confidence": d.confidence, "evidence": d.evidence}
+                for d in result.detected
+            ],
+            "other_services": [{"host": h, "how": how} for h, how in result.other_services],
+            "errors": result.errors,
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"Could not save website scan: {e}")
+        return False
+
+
+def load_website_scans(client_id: str | None, limit: int = 20) -> list[dict]:
+    """Past scans for a client, newest first."""
+    if not client_id:
+        return []
+    try:
+        return (get_supabase().table("website_scans").select("*")
+                .eq("client_id", client_id)
+                .order("scanned_at", desc=True).limit(limit)
+                .execute().data or [])
+    except Exception:
+        return []
+
+
 def already_seeded(systems: list[dict]) -> set[str]:
     return {s["catalogue_key"] for s in systems if s.get("catalogue_key")}
 

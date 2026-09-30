@@ -146,6 +146,18 @@ def _i18n_get(row: dict, field: str, language: str) -> str:
     return ""
 
 
+def _scan_date(row: dict) -> str:
+    """A website_scans timestamp in Brussels time, e.g. '30 Sep 2026 16:55'."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    raw = row.get("scanned_at") or ""
+    try:
+        return (datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                .astimezone(ZoneInfo("Europe/Brussels")).strftime("%d %b %Y %H:%M"))
+    except ValueError:
+        return raw[:16].replace("T", " ")
+
+
 def _unplaced(row: dict, field: str) -> str:
     """Legacy text not accounted for by any of this client's document languages.
 
@@ -251,9 +263,20 @@ with tab_systems:
         if _sc2.button("Scan", key=f"inv_scan_btn_{client_id}",
                        use_container_width=True, disabled=not _scan_url.strip()):
             with st.spinner("Scanning the website and email records…"):
-                st.session_state[_scan_key] = detection.detect(_scan_url)
+                _fresh = detection.detect(_scan_url)
+            st.session_state[_scan_key] = _fresh
+            if not STORE.save_website_scan(_fresh, _scan_url, user_id, client_id):
+                st.caption("⚠️ This scan could not be saved to the scan history.")
 
+        # Every scan is kept (date + findings). Without a scan in this
+        # session, the last saved one is shown, so its suggestions can still
+        # be acted on without scanning again.
+        _history = STORE.load_website_scans(client_id)
         _res = st.session_state.get(_scan_key)
+        if not _res and _history:
+            _res = detection.result_from_saved(_history[0])
+            st.caption(f"Showing your last scan, {_scan_date(_history[0])} "
+                       f"({_history[0]['website']}). Scan again to refresh it.")
         if _res:
             for _e in _res.errors:
                 st.caption(f"⚠️ {_e}")
@@ -314,6 +337,19 @@ with tab_systems:
                                         "Complete its vendor details in the table below.")
                         ]
                         st.rerun()
+
+        if _history and st.toggle(f"Scan history ({len(_history)})",
+                                  key=f"inv_scan_hist_{client_id}"):
+            for _h_row in _history:
+                _tools = [d["name"] for d in _h_row.get("detected") or []]
+                _others = [o["host"] for o in _h_row.get("other_services") or []]
+                st.markdown(
+                    f"**{_scan_date(_h_row)}** · {_h_row['website']}  \n"
+                    + (f"Tools: {', '.join(_tools)}" if _tools else "No catalogue tools")
+                    + (f" · Other services: {', '.join(_others)}" if _others else "")
+                )
+                for _d in _h_row.get("detected") or []:
+                    st.caption(f"{_d['name']}: " + "; ".join(_d.get("evidence") or []))
 
     if available:
         with st.expander("Add a common tool", expanded=not systems):
