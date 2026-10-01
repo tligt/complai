@@ -277,7 +277,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48.
 
 **Cancelled:** S31, S35.
 
@@ -360,7 +360,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
-| S48 | Onboarding redesign | was S44. Auto-detection layer, now builds on S37's basic version |
+| ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112 |
 | S49 | Document branding | was S45. Theme only |
 | S50 | Breach notification workflow | was S46. Follows the S29A procedure |
 | S51 | Enterprise multi-seat/multi-division | was S48 |
@@ -1685,7 +1685,10 @@ verified, not just the one automation could reach cleanly.
 
 ---
 
-### S48 — Onboarding auto-detection — SCOPE LOCK
+### S48 — Onboarding auto-detection — SCOPE LOCK — DELIVERED 1 OCT
+
+**Delivered as scoped, plus two additions agreed in review: D-112.** The
+design below is left as originally written.
 
 *Scope-locked 30 September 2026, with the user. Started ahead of its
 After-beta position by request, like S41–S45; S39 and S40 remain the
@@ -4476,6 +4479,86 @@ two regulations (`training`) is asked once. **Consequence, deliberate:**
 count as a gap. A GDPR-only client previously got a NIS2 and AI Act score from
 answers it should never have been asked for; it no longer does. A client with
 no regulations recorded is still asked and scored on everything.
+
+### D-112 — S48 delivered: onboarding auto-detection, suggest-and-confirm throughout
+
+*30 September – 1 October 2026. Scope lock in section 3b.*
+
+Built as scoped, in four parts:
+
+1. **`detection.py`** (pure module): homepage scan (script sources, embeds,
+   inline code, headers, and the public Google Tag Manager container) plus
+   DNS (MX, SPF), matched against `vendor_domain_patterns`. New fingerprint
+   types `mx` and `spf_include` (`migration_s48_detection.sql`); 38
+   fingerprints over 13 vendors, was 18 over 11. **The GTM container was
+   worth reading:** on hubspot.com, LinkedIn Insight Tag and Meta Pixel were
+   visible *only* there. A company's own domain never counts as its vendor.
+2. **`company_registry.py`**: one record shape from FR (official API, free)
+   and BE (CBEAPI, `CBEAPI_KEY`), provider chosen by `REGISTRY_BE_PROVIDER`
+   so the move to the official BCE/KBO service is one adapter. BE numbers
+   checked by modulo 97 before any call. Formats match existing client data
+   (short legal form, two-line address); FR INSEE codes mapped to their
+   abbreviation, left blank if unmapped rather than printed as a number.
+   NACE division → RECOSA sector, a suggestion only.
+3. **Systems page:** *Scan your website*, prefilled from `website_url`.
+4. **One new-client form** (`client_setup.py`) replacing three copies
+   (first-run welcome, Chat, Profile): optional company number + *Look up*
+   prefills name, sector, website; *Create client* stores the registry
+   fields and scans the website.
+
+**Added in review with the user, beyond the scope lock:**
+- *Other services found* get a one-click **Add** (`add_detected_service`):
+  a bare system named after the host, category only where the evidence
+  says it (mail host → email; script host left blank, not guessed), and a
+  note that it came from the scan. A list the user had to retype was poor
+  UX.
+- **Every scan is kept** (`website_scans`, `migration_s48_website_scans.sql`):
+  date, website, findings with evidence. Append-only for users (SELECT and
+  INSERT policies only), since a scan records what was observed that day;
+  rows go with the client or the account (CASCADE, as systems do). The last
+  scan is shown on return, so its suggestions can be added without
+  rescanning; a *Scan history* toggle lists all of them.
+
+**Unchanged from the scope lock:** nothing reaches the inventory without the
+user's click; NIS2 applicability is not derived from the NACE code.
+
+**Verified:** live on the Systems page (scans of creagent.be, hubspot.com,
+recosa.eu; the **Add** for one.com used by the user on creagent) and on the
+Profile form (BE lookup of creagent's own number); headless, a throwaway FR
+client created end to end, then deleted with its scan.
+
+**Open:** `CBEAPI_KEY` in Streamlit Cloud Secrets and a redeploy (installs
+`dnspython`). A scan takes ~20–25 s on a tag-heavy site. CBEAPI still shows
+pre-2019 short forms (creagent: SPRL, now SRL); the field is editable
+before saving.
+
+### D-113 — Three session and client-picker bugs, found while testing S45 and S48
+
+*30 September 2026. None in a sprint's scope; all fixed because they made
+the app unusable to test, and S40's session hardening is where the
+remaining work belongs.*
+
+1. **Logout loop.** The Chat account menu's *Log out* link sets
+   `?logout=1` and nothing removed it, so every later login landed on Chat
+   and was logged out again within seconds. Now cleared before logging out.
+   And `logout()` used supabase-py's default **global** sign-out, revoking
+   every session of the account: logging out on one device silently logged
+   the user out everywhere at their next click. Now `scope: local`.
+2. **Random logouts.** `init_auth` exchanged the single-use refresh token on
+   **every rerun**; overlapping or interrupted reruns presented a spent token
+   (`refresh_token_already_used`, dozens of times that afternoon) and the
+   failure cleared the session. Now refreshes only when under 5 minutes are
+   left on the access token, and a failed refresh while it is still valid
+   keeps the user logged in.
+3. **Client picker.** `get_active_client` preselected the first client and
+   stored it on the first run, then ignored the user's actual choice; and
+   once a client was chosen the picker disappeared, leaving Chat's picker as
+   the only way to switch. Now nothing is preselected, and with 2+ clients
+   the picker stays on every page that uses it, showing the current client.
+   Switching from a page starts a fresh chat, as Chat's own picker does.
+
+**Still open, for S40** (logged in section 7): a browser refresh logs the
+user out, because the session lives only in `st.session_state`.
 
 ---
 
