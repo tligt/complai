@@ -14,7 +14,7 @@ from pypdf import PdfReader
 from auth import get_user_id
 from database import (
     get_supabase, get_supabase_admin,
-    create_client_record, update_client_record, delete_client_record,
+    update_client_record, delete_client_record,
     load_chat_history, load_chat_sessions, save_message, delete_chat_session,
     clear_chat_history, build_client_context,
     log_token_usage,
@@ -446,25 +446,10 @@ with st.sidebar:
                     "to Advisory to add more."
                 )
         else:
-            nc_name = st.text_input("Company name", key="nc_name")
-            nc_sector = st.selectbox("Sector", SECTOR_OPTIONS, key="nc_sector")
-            nc_country = st.selectbox("Country", list(COUNTRY_OPTIONS.keys()),
-                                       format_func=lambda x: COUNTRY_OPTIONS[x], key="nc_country")
-            nc_size = st.selectbox("Size", SIZE_OPTIONS, key="nc_size")
-            nc_regs = st.multiselect("Regulations", REGULATION_OPTIONS,
-                                      default=["GDPR"], key="nc_regs")
-            if st.button("Create client", type="primary", use_container_width=True, key="btn_nc"):
-                if nc_name.strip():
-                    result = create_client_record(user_id, {
-                        "company_name": nc_name.strip(),
-                        "sector": nc_sector,
-                        "country": nc_country,
-                        "company_size": nc_size,
-                        "regulations": nc_regs,
-                    })
-                    if result:
-                        st.success(f"✅ {nc_name} created")
-                        st.rerun()
+            # S48: shared form (client_setup.py), with lookup and website scan
+            from client_setup import render_new_client_form
+            if render_new_client_form(user_id, key="nc"):
+                st.rerun()
 
     st.divider()
 

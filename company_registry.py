@@ -94,6 +94,16 @@ def normalise_number(country: str, raw: str) -> tuple[str, str]:
 
 # ── Adapters ─────────────────────────────────────────────────────────────
 
+# INSEE "catégorie juridique" codes for the forms SMEs actually have.
+_FR_LEGAL_FORMS = {
+    "1000": "Entrepreneur individuel",
+    "5410": "SARL", "5498": "EURL", "5499": "SARL",
+    "5505": "SA", "5599": "SA", "5699": "SA",
+    "5710": "SAS", "5720": "SASU",
+    "5785": "SELAS", "5385": "SELARL",
+    "6540": "SCI", "9220": "Association",
+}
+
 def _lookup_fr(number: str) -> RegistryRecord:
     rec = RegistryRecord(country="FR", number=number, source="recherche-entreprises.api.gouv.fr")
     try:
@@ -110,8 +120,14 @@ def _lookup_fr(number: str) -> RegistryRecord:
     h = hits[0]
     siege = h.get("siege") or {}
     rec.legal_name = h.get("nom_raison_sociale") or h.get("nom_complet") or ""
-    rec.legal_form = h.get("nature_juridique") or ""   # INSEE code, e.g. 5710 (SAS)
-    rec.registered_address = siege.get("adresse") or ""
+    # INSEE gives a numeric code; an unmapped one is left blank rather than
+    # printed as a number in a client's documents.
+    rec.legal_form = _FR_LEGAL_FORMS.get(h.get("nature_juridique") or "", "")
+    street = " ".join(x for x in (siege.get("numero_voie"), siege.get("type_voie"),
+                                  siege.get("libelle_voie")) if x)
+    town = " ".join(x for x in (siege.get("code_postal"), siege.get("libelle_commune")) if x)
+    rec.registered_address = ("\n".join(x for x in (street, town) if x)
+                              if street else siege.get("adresse") or "")
     rec.nace_code = h.get("activite_principale") or siege.get("activite_principale") or ""
     rec.sector = sector_for_nace(rec.nace_code)
     rec.active = h.get("etat_administratif") == "A"
@@ -148,13 +164,16 @@ def _lookup_be_cbeapi(number: str) -> RegistryRecord:
     body = r.json()
     d = body.get("data", body) if isinstance(body, dict) else {}
     rec.legal_name = d.get("denomination") or ""
-    jf = d.get("juridical_form")
-    rec.legal_form = (jf.get("description") or jf.get("label") or "") if isinstance(jf, dict) else (jf or "")
+    # Short form ("SRL"), as clients already store it and documents print it
+    rec.legal_form = d.get("juridical_form_short") or d.get("juridical_form") or ""
     a = d.get("address") or {}
     if isinstance(a, dict):
         street = " ".join(x for x in (a.get("street"), a.get("street_number")) if x)
+        if a.get("box"):
+            street += f" bte {a['box']}"
         town = " ".join(x for x in (a.get("post_code"), a.get("city")) if x)
-        rec.registered_address = ", ".join(x for x in (street, town) if x)
+        # Two lines, the format of clients.registered_address
+        rec.registered_address = "\n".join(x for x in (street, town) if x)
     naces = d.get("nace_activities") or []
     if naces:
         main = naces[0]

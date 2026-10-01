@@ -15,7 +15,7 @@ import inventory as INV
 from auth import get_user_id, change_password
 from database import (
     get_user_profile, update_user_profile,
-    create_client_record, SUBSCRIPTION_TIERS, set_user_tier,
+    SUBSCRIPTION_TIERS, set_user_tier,
     invite_workspace_member, list_workspace_members, remove_workspace_member,
 )
 from cached_reads import load_accessible_clients
@@ -176,33 +176,10 @@ with st.expander("➕ New client"):
                 "Advisory to add more."
             )
     else:
-        with st.form("profile_new_client"):
-            nc_name = st.text_input("Company name")
-            nc_sector = st.selectbox("Sector", SECTOR_OPTIONS)
-            nc_country = st.selectbox(
-                "Country", list(COUNTRY_OPTIONS.keys()),
-                format_func=lambda x: COUNTRY_OPTIONS[x],
-            )
-            nc_size = st.selectbox("Size", SIZE_OPTIONS)
-            nc_regs = st.multiselect("Regulations", REGULATION_OPTIONS, default=["GDPR"])
-
-            if st.form_submit_button("Create client", type="primary"):
-                if nc_name.strip():
-                    result = create_client_record(user_id, {
-                        "company_name": nc_name.strip(),
-                        "sector": nc_sector,
-                        "country": nc_country,
-                        "company_size": nc_size,
-                        "regulations": nc_regs,
-                    })
-                    if result:
-                        load_accessible_clients.clear()
-                        st.success(f"{nc_name} created.")
-                        st.rerun()
-                    else:
-                        st.error("Could not create client.")
-                else:
-                    st.warning("Give the company a name.")
+        # S48: shared form (client_setup.py), with lookup and website scan
+        from client_setup import render_new_client_form
+        if render_new_client_form(user_id, key="pnc"):
+            st.rerun()
 
 st.divider()
 

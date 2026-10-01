@@ -48,7 +48,12 @@ def load_clients(user_id: str) -> list[dict]:
 
 
 def create_client_record(user_id: str, profile: dict) -> dict | None:
-    """Create a new client profile. Returns the created record."""
+    """Create a new client profile. Returns the created record.
+
+    S48: also accepts the registry and website fields client_setup.py
+    fills in; only those present are written."""
+    optional = ("website_url", "enterprise_number", "legal_name",
+                "legal_form", "registered_address")
     try:
         supabase = get_supabase()
         res = supabase.table("clients").insert({
@@ -58,6 +63,7 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
             "country": profile.get("country", "BE"),
             "company_size": profile.get("company_size", ""),
             "regulations": profile.get("regulations", ["GDPR"]),
+            **{f: profile[f] for f in optional if profile.get(f)},
         }).execute()
         return res.data[0] if res.data else None
     except Exception as e:
