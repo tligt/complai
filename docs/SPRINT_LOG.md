@@ -348,7 +348,7 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 
 1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
-3. **S48** — finish: `CBEAPI_KEY` in Streamlit Cloud Secrets and a redeploy (installs `dnspython`).
+3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
 4. **S49** — migrate to production environment with EU sovereignty.
 5. **S50** — GDPR deletion + session hardening, the beta gate.
 
@@ -373,7 +373,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
-| ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112 |
+| ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S51 | Document branding | was S49 (22 Oct), S45 before. Theme only |
 | S52 | Breach notification workflow | was S50, S46 before. Follows the S29A procedure |
 | S53 | Enterprise multi-seat/multi-division | was S51, S48 before |
