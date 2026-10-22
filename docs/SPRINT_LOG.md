@@ -128,7 +128,7 @@ RoPA, incident response, AI transparency notice. DOCX/PDF/ODT output.
 **S10 — Gap assessment engine.** `gap_assessments` table with a `gaps` JSONB
 field, per-regulation scores, PDF report.
 
-**S11 — Deferred, never built.** Scoped at the time as data extraction from
+**S11 — Abandoned 22 Oct 2026 (D-114).** Deferred, never built. Scoped at the time as data extraction from
 uploaded documents to pre-fill generation, then explicitly deferred in the
 same discussion before anything shipped. Confirmed 22 Sept: zero commits
 reference S11 anywhere in git history, no code comment anywhere references
@@ -279,12 +279,15 @@ S34.
 
 **Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48.
 
-**Cancelled:** S31, S35.
+**Cancelled:** S11, S31, S35, S39, S40.
 
 | # | Sprint | Notes |
 |---|---|---|
+| S11 | Data extraction from uploads | Abandoned 22 Oct, never built. The useful half survives as S66 — D-114 |
 | S31 | — | Cancelled |
 | S35 | — | Cancelled |
+| S39 | Migration to European infrastructure | Cancelled 22 Oct, replaced by S49 — D-114 |
+| S40 | GDPR deletion + session hardening | Cancelled 22 Oct, replaced by S50 (same scope, still the gate) — D-114 |
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -341,6 +344,14 @@ calls it correctly). The two **existing** Streamlit flows (logged-in and
 anonymous) still don't call it; that retrofit remains S42's own, still
 open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 
+### Next, in order (set 22 October 2026 — D-114)
+
+1. **S45** — finish: deploy the public quiz (`quiz/quiz_app.py`, own `quiz/requirements.txt`) on Streamlit Cloud.
+2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
+3. **S48** — finish: `CBEAPI_KEY` in Streamlit Cloud Secrets and a redeploy (installs `dnspython`).
+4. **S49** — migrate to production environment with EU sovereignty.
+5. **S50** — GDPR deletion + session hardening, the beta gate.
+
 ### Before the beta gate
 
 Widened 21 September 2026 (see the renumbering note below): four sprints
@@ -351,8 +362,10 @@ the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| **S39** | **Migration to European infrastructure** | Renumbered from S31, 21 Sept — D-67/D-68. Self-hosted Supabase + containerised app |
-| **S40** | **GDPR deletion + session hardening** | Renumbered from S35, 21 Sept — D-96. **BETA GATE** |
+| ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S49 — D-114 |
+| ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S50 — D-114 |
+| **S49** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
+| **S50** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
 ### After beta
 
@@ -361,21 +374,22 @@ the only sprint that *is* the gate.
 | ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112 |
-| S49 | Document branding | was S45. Theme only |
-| S50 | Breach notification workflow | was S46. Follows the S29A procedure |
-| S51 | Enterprise multi-seat/multi-division | was S48 |
-| S52 | Enterprise routing + in-app messaging | was S49 |
-| S53 | Buffer/LinkedIn integration | was S50 |
-| S54 | Monitoring sources + competitive monitoring | was S51. Merged — both touch the same admin pages |
-| S55 | Skills matrix and training register | was S52. High value-to-cost. Feeds the S29 register |
-| S56 | AI Act three-layer inventory | was S53. Use case / system / model |
-| S57 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S54. Needs S56's inventory to describe |
-| S58 | Annual compliance report | was S55. Renders S29 statements |
-| S59 | Dutch language support | was S56. Cost grows with every template shipped |
-| S60 | RoPA consistency checks | was S57. Depends on S26C |
-| S61 | Cookie Policy purpose granularity | was S58 |
-| S62 | Compliance heartbeat — scheduled checks | was S59. `hold_set_on` shipped |
-| S63 | Evaluate a Streamlit alternative | was S60. Added 18 Sept. See the note below |
+| S51 | Document branding | was S49 (22 Oct), S45 before. Theme only |
+| S52 | Breach notification workflow | was S50, S46 before. Follows the S29A procedure |
+| S53 | Enterprise multi-seat/multi-division | was S51, S48 before |
+| S54 | Enterprise routing + in-app messaging | was S52, S49 before |
+| S55 | Buffer/LinkedIn integration | was S53, S50 before |
+| S56 | Monitoring sources + competitive monitoring | was S54, S51 before. Merged — both touch the same admin pages |
+| S57 | Skills matrix and training register | was S55, S52 before. High value-to-cost. Feeds the S29 register |
+| S58 | AI Act three-layer inventory | was S56, S53 before. Use case / system / model |
+| S59 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S57, S54 before. Needs S58's inventory to describe |
+| S60 | Annual compliance report | was S58, S55 before. Renders S29 statements |
+| S61 | Dutch language support | was S59, S56 before. Cost grows with every template shipped |
+| S62 | RoPA consistency checks | was S60, S57 before. Depends on S26C |
+| S63 | Cookie Policy purpose granularity | was S61, S58 before |
+| S64 | Compliance heartbeat — scheduled checks | was S62, S59 before. `hold_set_on` shipped |
+| S65 | Evaluate a Streamlit alternative | was S63, S60 before. Added 18 Sept. See the note below |
+| S66 | Import existing documents into the inventory | New 22 Oct. Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -544,6 +558,27 @@ renumbering. This one touches fewer — S36's own content and every
 S26A/S26C/S28–S34/S47-era decision entry are historical and left as
 written, per the same rule that has applied every time this log has been
 renumbered.*
+
+### Renumbering, 22 October 2026
+
+By request (D-114). S39 and S40 are cancelled and replaced by two new
+sprints placed at S49 and S50, directly after the last delivered sprint
+(S48). Every unshipped sprint from the old S49 shifts two higher, in the
+same relative order. Delivered sprints keep their numbers; S46 (Stripe)
+is below the insertion point and is unchanged.
+
+| was | now | why |
+|---|---|---|
+| S39 | S49 | Cancelled and replaced: *Migrate to production environment with EU sovereignty* |
+| S40 | S50 | Cancelled and replaced with the same scope; still the beta gate |
+| S49–S63 | S51–S65 | Straight shift, two higher each |
+| S11 | S66 | S11 abandoned; its useful half added as a new sprint at the end |
+
+*Only the roadmap tables and section 7 were updated. Every other mention
+of S39–S63 in this file (scope locks in 3b, decision entries, gotchas)
+uses the numbering in force when it was written — map it through the
+table above. The file `scope/s49_monitoring_sources.md` predates even the
+10 September renumbering: its subject is now S56.*
 
 ---
 
@@ -4560,6 +4595,41 @@ remaining work belongs.*
 **Still open, for S40** (logged in section 7): a browser refresh logs the
 user out, because the session lives only in `st.session_state`.
 
+### D-114 — Roadmap reset: S39/S40 replaced by S49/S50, S11 abandoned, open items closed first
+
+*22 October 2026. By request, not by discovery.*
+
+**Order of work from here:** finish S45 (public quiz deployment) and S48
+(`CBEAPI_KEY` secret + redeploy), then S49, then S50. S47 was confirmed
+complete against the code the same day: all ten client-facing pages that
+read a client use `get_active_client`, and no `.single()` or `clients[0]`
+lookups of the clients table remain (the one `clients[0]` left is
+`active_client.py`'s own single-client branch).
+
+**S39 cancelled → S49, *Migrate to production environment with EU
+sovereignty*.** The new name states the goal (a production environment
+under EU jurisdiction) rather than the move. D-67 and D-68 still hold:
+before beta, self-hosted Supabase, app containerised on EU infrastructure.
+
+**S40 cancelled → S50, same scope.** GDPR deletion + session hardening,
+including the refresh-logs-out bug and the PDF/ODT fallback from
+section 7. Still the only sprint that *is* the beta gate.
+
+**S48 and S51 are different axes, both kept.** S48 (delivered) sets up
+*one* company quickly: registry lookup and website scan. S51 — now S53 —
+is *many* legal entities or divisions and many users under one
+enterprise account. Nothing in S48 builds toward S53.
+
+**S11 abandoned.** Never built (see section 2). Its premise — pre-fill
+document generation from an uploaded file — is covered by the client
+profile and S48's lookup and scan. The useful half is kept as **S66**:
+read a client's existing privacy policy or RoPA to suggest inventory
+entries, suggest-and-confirm as in S48.
+
+*Rejected — keeping the S39/S40 numbers and only renaming S39.* Asked for
+explicitly: the new sprints sit after the last delivered one, so the
+numbers read in the order the work will happen.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -4940,25 +5010,25 @@ selector. The multi-client selector is Advisory-only (S47).
 |---|---|---|
 | ~~Does S34 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. **Revisited 18 Sept: brought forward of the beta gate anyway, for unrelated reasons — D-96.** |
 | ~~Task register — which number?~~ | S60, S62, S26C | **Resolved: part of S29.** No longer unnumbered. |
-| Systems grid purpose granularity | S61 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
+| Systems grid purpose granularity | S63 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
 | ~~Belgian DPA cookie guidance + 5-year figure~~ | S27 | **Resolved 18 Sept — D-98.** Primary source found and read: the "dated, versioned, previous copies retained" practice is correctly attributed to the Belgian DPA. The five-year figure is not — no primary source states it, and the comment in `database.py` already correctly called it a working figure rather than law. Nothing to change in the code; the open item was the citation, now closed. |
-| Rolling retention start dates | S60 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
+| Rolling retention start dates | S62 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
 | ~~AI Act role: per client or per system?~~ | S56 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S51. |
 | ~~Art. 4 AI literacy in the catalogue?~~ | S55 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
 | ~~`applies_from` for 2 Dec 2026?~~ | — | **Resolved 18 Sept: yes**, `ai_10`. OJ-text verification against the primary source still outstanding. |
 | ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
-| Art. 9(2) coverage | S60 | Both seeded paths use `employment_social_security`; the other nine untested. |
+| Art. 9(2) coverage | S62 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
-| A page refresh logs the user out | S40 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S40's scope; a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
+| A page refresh logs the user out | S50 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S50's scope (was S40); a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
 | Ask CCB for full-text access | — | **Idea, logged 27 Sept; premature until RECOSA is up and running.** CCB articles are bot-blocked, so CCB items reach the KB as title/teaser only (D-109). Ask CCB for a full-text feed or an allow-listed monitor, framed as a compliance service quoting them with attribution. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
-| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S39.** |
+| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S49 (was S39, D-114).** |
 | Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |
-| PDF/ODT fallback | S40 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
+| PDF/ODT fallback | S50 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
 | ~~Pinning the remaining `requirements.txt` packages~~ | — | **Done 18 Sept.** `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally only — see the file's own header note. |
 | `registered_address` Annex I rendering | — | Carried from S26A. Still needs an actual generated DPA eyeballed, not a code check — never done. |
-| Beta date | — | Widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Three are now delivered the same day — S36 (D-101), S37 (D-102), S38 (D-103) — leaving only S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
+| Beta date | — | **22 Oct (D-114):** S39/S40 replaced by S49/S50; beta waits on S45 and S48 being finished, then S49, then the S50 gate. Earlier: widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Three are now delivered the same day — S36 (D-101), S37 (D-102), S38 (D-103) — leaving only S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
 
 ### The hosting question — resolved 8 Sept 2026
 
