@@ -349,7 +349,7 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
-4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115). **Built 22 Oct (D-116);** goes fully live once the public app's secrets are set, then a live run-through.
+4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115). **Built and live 22 Oct (D-116).** Left: the website report email sent for real, and the quiz copy review.
 5. **S50** — migrate to production environment with EU sovereignty.
 6. **S51** — GDPR deletion + session hardening, the beta gate.
 
@@ -365,7 +365,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
-| **S49** | **Free checks to subscription funnel** | **Built 22 Oct — D-116.** Open: the public app's Streamlit secrets, then one live run-through. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
@@ -4849,6 +4849,19 @@ email step answers "couldn't record your request". The quiz copy still
 needs its review. Supabase's advisor lists the three new functions as
 callable by `anon` — intended.
 
+**Live, same day.** Secrets set; client app rebooted (the first push left
+it with an `ImportError`: Streamlit Cloud loaded the new `app.py` against
+the old `database.py` still in memory — a reboot cleared it). Verified on
+production: a website check of creagent.be from the public app (counted,
+IP recorded), the quiz link opening *Sign up* with the parameters cleared,
+`/dashboard` logged out showing the login screen, and a quiz result email
+requested, delivered and opened (Brevo log, 16:42). **Brevo had IP
+blocking on**: every send from an address not on its list was refused,
+which Streamlit Cloud cannot satisfy (no fixed IP). Turned off by the user;
+this likely also affected the client app's audit reports, ticket
+notifications and invites until then. Refusals are now logged with Brevo's
+reason. Test leads were deleted.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -4911,6 +4924,12 @@ Hard-won. Each cost real debugging time.
   boundaries.
 
 ### Added Oct 2026
+- **Brevo's "authorised IPs" must stay off** while the apps run on
+  Streamlit Cloud, which has no fixed outbound IP. With it on, every send
+  fails with 401 "unrecognised IP address" (D-116).
+- **After a push that changes several modules, reboot the client app** on
+  Streamlit Cloud. It can reload `app.py` while keeping an older imported
+  module in memory, and fail on an import that exists in the new code.
 - **Never name the page folder `pages/`.** Streamlit then runs page files
   directly whenever `st.navigation` hasn't been called yet in that run,
   bypassing `app.py`. The pages live in `app_pages/` (D-116).
