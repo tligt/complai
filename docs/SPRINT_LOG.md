@@ -349,7 +349,7 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
-4. **S49** — quiz-to-subscription funnel (added 22 Oct — D-115).
+4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115).
 5. **S50** — migrate to production environment with EU sovereignty.
 6. **S51** — GDPR deletion + session hardening, the beta gate.
 
@@ -365,7 +365,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
-| **S49** | **Quiz-to-subscription funnel** | New 22 Oct — D-115, scope lock in 3b. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| **S49** | **Free checks to subscription funnel** | New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
@@ -2301,7 +2301,7 @@ competitor serves a founder with a credit card. Adequacy is bought by a DPO
 with a budget line; RECOSA by an SME with no DPO at all.
 ---
 
-### S49 — Quiz-to-subscription funnel — SCOPE LOCK
+### S49 — Free checks to subscription funnel — SCOPE LOCK
 
 *22 October 2026. Decided with the user — D-115.*
 
@@ -2346,9 +2346,37 @@ nothing records that a signup came from the quiz.
    kept. Until Stripe exists (S46), upgrading is *"contact us"* — an admin
    sets the plan by hand as S33 already allows.
 
+#### The same principle for the website check
+
+*Added 22 October, same session.* The free GDPR website check follows the
+quiz's flow exactly: **free to check, the full result behind an email or
+an account, everything else behind the trial.**
+
+1. **Free check, no email.** Enter a URL, get the overall score and the
+   number of issues per regulation. The findings themselves are shown as
+   locked.
+2. **Email for the full report.** The existing PDF report (`report.py`)
+   is sent by email and the lead recorded in `quiz_leads` (a `tool`
+   column: `nis2_quiz` / `website_check`). S43's rule stays: the email
+   must be at the checked site's own domain — a full report about a
+   company goes only to that company.
+3. **Sign up to see it in the app.** Same CTA mechanism as the quiz: the
+   app opens on *Sign up* with the checked site carried in the link; after
+   creating the company, the audit is saved as its first audit and shown in
+   full. Every other page → subscribe page with the trial.
+
+**Where it lives.** On the public surface beside the quiz, not in
+`app.py` — the same reason as D-107. This retires the anonymous branch of
+`pages/audit.py`, which D-104 found unreachable behind `is_logged_in()`;
+its protections move with it: S41's per-IP limit now also covers the free
+check (a crawl costs real time even without an email), and S43's
+domain match and per-site reuse block cover the emailed report. The
+public app gains the crawler's dependencies; its `requirements.txt` stays
+separate from the product's.
+
 #### Data
 
-- `quiz_leads` — email, answers, score, consent flags + wording version,
+- `quiz_leads` — tool (`nis2_quiz` / `website_check`), email, answers or checked site, score, consent flags + wording version,
   `source`, created_at, `converted_profile_id` (set when the same email
   signs up). Retention: unconverted leads deleted after 24 months.
 - `profiles` gains `subscription_status` (`registered` / `trial` /
@@ -4724,7 +4752,7 @@ entries, suggest-and-confirm as in S48.
 explicitly: the new sprints sit after the last delivered one, so the
 numbers read in the order the work will happen.
 
-### D-115 — The quiz becomes a funnel: optional email first, results after signup, a trial behind every other page
+### D-115 — The free checks become a funnel: optional email first, results after signup, a trial behind every other page
 
 *22 October 2026. By request.*
 
@@ -4748,6 +4776,11 @@ personal data; an email address in a URL ends up in logs and referrers.
 and the score alone is what makes someone want the breakdown.
 *Rejected — free access with no trial.* Signing up today unlocks
 everything, so there is nothing to convert to.
+
+**Extended the same day to the GDPR website check**, by request: free
+summary, full PDF report by email (still only to the site's own domain,
+S43), full findings after signup. It moves to the public surface and
+replaces the unreachable anonymous branch of `pages/audit.py` (D-104).
 
 ---
 
