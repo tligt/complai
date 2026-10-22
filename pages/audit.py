@@ -113,10 +113,20 @@ if logged_in:
     clients = load_accessible_clients(user_id)
     client_options = {c["company_name"]: c for c in clients}
 
+    # Picking a client fills the URL field with that client's website.
+    # Runs as on_change, before the text_input below is drawn — setting a
+    # widget's key after it has rendered raises in Streamlit. "No client",
+    # or a client without a website, leaves whatever was typed.
+    def _prefill_url_from_client():
+        chosen = client_options.get(st.session_state.auth_client_select)
+        if chosen and chosen.get("website_url"):
+            st.session_state.auth_url = chosen["website_url"]
+
     selected_client_name = st.selectbox(
         "Link this audit to a client (optional)",
         options=["— No client —"] + list(client_options.keys()),
-        key="auth_client_select"
+        key="auth_client_select",
+        on_change=_prefill_url_from_client,
     )
     selected_client = client_options.get(selected_client_name)
 
