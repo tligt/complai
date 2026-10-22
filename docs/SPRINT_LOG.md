@@ -349,8 +349,9 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
-4. **S49** — migrate to production environment with EU sovereignty.
-5. **S50** — GDPR deletion + session hardening, the beta gate.
+4. **S49** — quiz-to-subscription funnel (added 22 Oct — D-115).
+5. **S50** — migrate to production environment with EU sovereignty.
+6. **S51** — GDPR deletion + session hardening, the beta gate.
 
 ### Before the beta gate
 
@@ -362,10 +363,11 @@ the only sprint that *is* the gate.
 
 | # | Sprint | Notes |
 |---|---|---|
-| ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S49 — D-114 |
-| ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S50 — D-114 |
-| **S49** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
-| **S50** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
+| ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
+| ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
+| **S49** | **Quiz-to-subscription funnel** | New 22 Oct — D-115, scope lock in 3b. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
+| **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
 ### After beta
 
@@ -374,22 +376,22 @@ the only sprint that *is* the gate.
 | ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
-| S51 | Document branding | was S49 (22 Oct), S45 before. Theme only |
-| S52 | Breach notification workflow | was S50, S46 before. Follows the S29A procedure |
-| S53 | Enterprise multi-seat/multi-division | was S51, S48 before |
-| S54 | Enterprise routing + in-app messaging | was S52, S49 before |
-| S55 | Buffer/LinkedIn integration | was S53, S50 before |
-| S56 | Monitoring sources + competitive monitoring | was S54, S51 before. Merged — both touch the same admin pages |
-| S57 | Skills matrix and training register | was S55, S52 before. High value-to-cost. Feeds the S29 register |
-| S58 | AI Act three-layer inventory | was S56, S53 before. Use case / system / model |
-| S59 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S57, S54 before. Needs S58's inventory to describe |
-| S60 | Annual compliance report | was S58, S55 before. Renders S29 statements |
-| S61 | Dutch language support | was S59, S56 before. Cost grows with every template shipped |
-| S62 | RoPA consistency checks | was S60, S57 before. Depends on S26C |
-| S63 | Cookie Policy purpose granularity | was S61, S58 before |
-| S64 | Compliance heartbeat — scheduled checks | was S62, S59 before. `hold_set_on` shipped |
-| S65 | Evaluate a Streamlit alternative | was S63, S60 before. Added 18 Sept. See the note below |
-| S66 | Import existing documents into the inventory | New 22 Oct. Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
+| S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
+| S53 | Breach notification workflow | was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
+| S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before |
+| S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
+| S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
+| S57 | Monitoring sources + competitive monitoring | was S56 until D-115; was S54, S51 before. Merged — both touch the same admin pages |
+| S58 | Skills matrix and training register | was S57 until D-115; was S55, S52 before. High value-to-cost. Feeds the S29 register |
+| S59 | AI Act three-layer inventory | was S58 until D-115; was S56, S53 before. Use case / system / model |
+| S60 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S59 until D-115; was S57, S54 before. Needs S59's inventory to describe |
+| S61 | Annual compliance report | was S60 until D-115; was S58, S55 before. Renders S29 statements |
+| S62 | Dutch language support | was S61 until D-115; was S59, S56 before. Cost grows with every template shipped |
+| S63 | RoPA consistency checks | was S62 until D-115; was S60, S57 before. Depends on S26C |
+| S64 | Cookie Policy purpose granularity | was S63 until D-115; was S61, S58 before |
+| S65 | Compliance heartbeat — scheduled checks | was S64 until D-115; was S62, S59 before. `hold_set_on` shipped |
+| S66 | Evaluate a Streamlit alternative | was S65 until D-115; was S63, S60 before. Added 18 Sept. See the note below |
+| S67 | Import existing documents into the inventory | New 22 Oct (S66 until D-115). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -573,6 +575,18 @@ is below the insertion point and is unchanged.
 | S40 | S50 | Cancelled and replaced with the same scope; still the beta gate |
 | S49–S63 | S51–S65 | Straight shift, two higher each |
 | S11 | S66 | S11 abandoned; its useful half added as a new sprint at the end |
+
+**Same day, second insert (D-115).** The quiz-to-subscription funnel
+goes in at S49, ahead of the migration; everything from the S49 above
+shifts one higher. Final mapping for 22 October:
+
+| before 22 Oct | after D-115 |
+|---|---|
+| — | S49 Quiz-to-subscription funnel (new) |
+| S39 | S50 Migrate to production environment with EU sovereignty |
+| S40 | S51 GDPR deletion + session hardening — beta gate |
+| S49–S63 | S52–S66 (three higher each) |
+| S11 | S67 Import existing documents into the inventory |
 
 *Only the roadmap tables and section 7 were updated. Every other mention
 of S39–S63 in this file (scope locks in 3b, decision entries, gotchas)
@@ -2285,6 +2299,86 @@ OVHcloud.
 **Published pricing retained as a deliberate differentiator.** Neither
 competitor serves a founder with a credit card. Adequacy is bought by a DPO
 with a budget line; RECOSA by an SME with no DPO at all.
+---
+
+### S49 — Quiz-to-subscription funnel — SCOPE LOCK
+
+*22 October 2026. Decided with the user — D-115.*
+
+**The problem.** The public quiz (S45) ends at a button that opens the
+client app's *Log in* tab. The full result is already shown, so there is
+nothing to sign up for; the answers are lost; email confirmation drops the
+new user on a cold login page; signing up grants everything for free; and
+nothing records that a signup came from the quiz.
+
+#### The flow
+
+1. **Quiz, ungated.** Score and band shown free. The per-area breakdown
+   ("where you're weakest, what to fix first") is visible as locked.
+2. **Optional email, step one.** *"Email me my full result"* — one field,
+   not a wall. Submitting sends the full breakdown by email (Brevo) and
+   records a lead. The visitor can skip it and go straight to signup.
+   - Two checkboxes, both unticked: the result email itself needs none
+     (it is what was asked for); **marketing follow-ups need explicit
+     consent**, recorded with its wording and timestamp. A link to the
+     privacy policy beside the field. RECOSA sells GDPR compliance; its own
+     lead capture has to be the example.
+3. **CTA carries the answers.** *"See your full result in RECOSA — free"*
+   opens the client app on the **Sign up** tab, with the ten answers in the
+   link (`?quiz=` + ten digits — answers only, never the email or anything
+   personal) and `source=quiz`. The email is prefilled only if the visitor
+   typed it in step 2, and then only within the same browser session, not
+   through the URL.
+4. **Answers survive email confirmation.** The confirmation link returns to
+   the app with the quiz answers still attached (Supabase `emailRedirectTo`),
+   so the first screen after confirming is the result, not a login form.
+5. **Registered account = result only.** After signup the account is
+   *registered*: it creates its company (the S48 form — lookup and website
+   scan) and sees its full NIS2 breakdown. The quiz answers feed the
+   obligation register as **declared** answers — the lowest precedence, so
+   any real assessment or document overrides them.
+6. **Every other page leads to the subscribe page.** Any menu click from a
+   registered account opens *Subscribe*: a **14-day free trial of
+   Professional, no card**, plus the plans. The S37 plan choice moves here
+   from the signup form. Applies to every registered account, not only
+   quiz signups.
+7. **Trial end.** The account returns to the subscribe page; its data is
+   kept. Until Stripe exists (S46), upgrading is *"contact us"* — an admin
+   sets the plan by hand as S33 already allows.
+
+#### Data
+
+- `quiz_leads` — email, answers, score, consent flags + wording version,
+  `source`, created_at, `converted_profile_id` (set when the same email
+  signs up). Retention: unconverted leads deleted after 24 months.
+- `profiles` gains `subscription_status` (`registered` / `trial` /
+  `active` / `expired`), `trial_ends_at`, `signup_source`.
+- Measurement: quiz completions, emails given, CTA clicks, signups,
+  trials started, by source. Counted, not tracked per visitor beyond the
+  lead row.
+
+#### Security — the quiz stops being write-free
+
+D-108's quiz wrote nothing anywhere. It now writes a lead and sends an
+email, so: **no service-role key in the public app.** One `SECURITY
+DEFINER` function (`submit_quiz_lead`) called with the anon key, insert
+only, no read-back; it rate-limits per email and refuses repeats within a
+window, so the form cannot be used to mail-bomb someone else's address.
+The Brevo key lives in the quiz app's secrets.
+
+#### Before launch
+
+- **The quiz questions and weights get a review** — they are draft
+  marketing copy (header of `quiz/quiz_app.py`) and become the front door.
+- Cold start on Streamlit Cloud (~10 s blank page) loses prospects; S50's
+  migration is what fixes it.
+
+#### Out of scope
+
+- Card payment — S46. Trial-to-paid stays manual until then.
+- Email nurture sequences beyond the single result email.
+- Quizzes for GDPR or the AI Act — NIS2 first; same mechanism later.
+
 ---
 
 ## 4. Decision register
@@ -4630,6 +4724,31 @@ entries, suggest-and-confirm as in S48.
 explicitly: the new sprints sit after the last delivered one, so the
 numbers read in the order the work will happen.
 
+### D-115 — The quiz becomes a funnel: optional email first, results after signup, a trial behind every other page
+
+*22 October 2026. By request.*
+
+Inserted as **S49**, ahead of the migration (now S50) and the beta gate
+(now S51); scope lock in 3b.
+
+**Adopted, from the user:** collect the email at step one, as an
+incentive rather than a wall — giving it gets the full result by email,
+and RECOSA gets the lead. The prospect can also skip it and sign up to see
+the result in the app. A registered account sees its result and nothing
+else: any other menu item leads to the subscribe page with a free trial.
+
+**Revises D-107's "no email wall".** The quiz stays usable without an
+email; what changes is that the breakdown is the reward for an email or an
+account. D-107's reason still holds — no gate before the score.
+
+**Answers travel in the link, the email does not.** Ten digits carry no
+personal data; an email address in a URL ends up in logs and referrers.
+
+*Rejected — gating the whole result behind the email.* Fewer completions,
+and the score alone is what makes someone want the breakdown.
+*Rejected — free access with no trial.* Signing up today unlocks
+everything, so there is nothing to convert to.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -5010,25 +5129,25 @@ selector. The multi-client selector is Advisory-only (S47).
 |---|---|---|
 | ~~Does S34 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. **Revisited 18 Sept: brought forward of the beta gate anyway, for unrelated reasons — D-96.** |
 | ~~Task register — which number?~~ | S60, S62, S26C | **Resolved: part of S29.** No longer unnumbered. |
-| Systems grid purpose granularity | S63 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
+| Systems grid purpose granularity | S64 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
 | ~~Belgian DPA cookie guidance + 5-year figure~~ | S27 | **Resolved 18 Sept — D-98.** Primary source found and read: the "dated, versioned, previous copies retained" practice is correctly attributed to the Belgian DPA. The five-year figure is not — no primary source states it, and the comment in `database.py` already correctly called it a working figure rather than law. Nothing to change in the code; the open item was the citation, now closed. |
-| Rolling retention start dates | S62 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
+| Rolling retention start dates | S63 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
 | ~~AI Act role: per client or per system?~~ | S56 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S51. |
 | ~~Art. 4 AI literacy in the catalogue?~~ | S55 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
 | ~~`applies_from` for 2 Dec 2026?~~ | — | **Resolved 18 Sept: yes**, `ai_10`. OJ-text verification against the primary source still outstanding. |
 | ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
-| Art. 9(2) coverage | S62 | Both seeded paths use `employment_social_security`; the other nine untested. |
+| Art. 9(2) coverage | S63 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
-| A page refresh logs the user out | S50 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S50's scope (was S40); a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
+| A page refresh logs the user out | S51 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S51's scope (was S40); a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
 | Ask CCB for full-text access | — | **Idea, logged 27 Sept; premature until RECOSA is up and running.** CCB articles are bot-blocked, so CCB items reach the KB as title/teaser only (D-109). Ask CCB for a full-text feed or an allow-listed monitor, framed as a compliance service quoting them with attribution. |
 | `DISPLAY_TZ_NAME` | — | Brussels for everyone. Becomes per-client on the first non-Belgian client. |
-| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S49 (was S39, D-114).** |
+| ~~Hosting before beta~~ | — | **Resolved: D-66 to D-69. Now S50 (was S39; D-114, D-115).** |
 | Marketing copy correction | — | **D-66. This week, independent of any sprint.** Framer site. |
-| PDF/ODT fallback | S50 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
+| PDF/ODT fallback | S51 | `convert_docx_to_pdf` raises when `soffice` is missing; generation should degrade to DOCX rather than fail. |
 | ~~Pinning the remaining `requirements.txt` packages~~ | — | **Done 18 Sept.** `openpyxl==3.1.5`, `pandas==3.0.6`. Verified locally only — see the file's own header note. |
 | `registered_address` Annex I rendering | — | Carried from S26A. Still needs an actual generated DPA eyeballed, not a code check — never done. |
-| Beta date | — | **22 Oct (D-114):** S39/S40 replaced by S49/S50; beta waits on S45 and S48 being finished, then S49, then the S50 gate. Earlier: widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Three are now delivered the same day — S36 (D-101), S37 (D-102), S38 (D-103) — leaving only S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
+| Beta date | — | **22 Oct (D-114, D-115):** S45 and S48 finished; beta now waits on S49 (funnel), S50 (migration), then the S51 gate. Earlier: widened to four sprints before the S40 gate on 21 Sept, by request, not by new blockers (D-100). Three are now delivered the same day — S36 (D-101), S37 (D-102), S38 (D-103) — leaving only S39. The Belgian DPA retention claim is verified (D-98). Remaining non-sprint item: `registered_address` Annex I rendering, still needs an actual document eyeballed. |
 
 ### The hosting question — resolved 8 Sept 2026
 
