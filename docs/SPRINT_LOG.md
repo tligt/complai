@@ -304,7 +304,7 @@ S34.
 | ~~S41~~ | ~~Audit rate-limiting~~ | **Delivered 21 Sept, ahead of its After-beta position.** Found the anonymous audit flow it protects is not reachable through `app.py` today. D-104 |
 | ~~S43~~ | ~~Domain verification~~ | **Delivered 22 Sept, ahead of its After-beta position.** Requester email must match the audited site's own domain; re-keyed the reuse block to the site, not the requester. D-105 |
 | ~~S44~~ | ~~Scheduled recurring audits~~ | **Delivered 22 Sept, ahead of its After-beta position.** First real GitHub Actions cron path in the app-facing product (`monitor_audits.py`); closes S42's real gap for the new path only. D-106 |
-| ~~S45~~ | ~~Freemium single-page scanner~~ | **Delivered 22 Sept, ahead of its After-beta position — infrastructure only.** Standalone public quiz (`quiz/quiz_app.py`) and the `gap_results` wiring that lets a gap assessment reach the action plan, both built and verified. Growing `PROFILE_QUESTIONS` toward the 32-question calibration and actually deploying the quiz publicly are still open. D-108, see 3b. **30 Sept:** profile questions 9 → 31, reviewed and shipped (D-111). Only the public quiz deployment remains (Streamlit Cloud, entry point `quiz/quiz_app.py`, own `quiz/requirements.txt`) |
+| ~~S45~~ | ~~Freemium single-page scanner~~ | **Delivered 22 Sept, ahead of its After-beta position — infrastructure only.** Standalone public quiz (`quiz/quiz_app.py`) and the `gap_results` wiring that lets a gap assessment reach the action plan, both built and verified. Growing `PROFILE_QUESTIONS` toward the 32-question calibration and actually deploying the quiz publicly are still open. D-108, see 3b. **30 Sept:** profile questions 9 → 31, reviewed and shipped (D-111). **22 Oct: public quiz deployed** at https://recosa-checklist.streamlit.app (entry point `quiz/quiz_app.py`, own `quiz/requirements.txt`, `APP_BASE_URL` secret → https://recosa.streamlit.app). Verified live: 10 questions, score and band, CTA opens the client app's login page. First load after idle takes ~10 s (Streamlit Cloud wake-up). **S45 complete.** |
 | ~~S47~~ | ~~Advisory multi-client workspace~~ | **Delivered 18 Sept.** 9 pages, 1 orphaned duplicate deleted. D-99, see 3b |
 
 **S32, S33, S34, S41, S43, S44 and S47 shipped ahead of S39 (originally numbered S31).**
@@ -346,7 +346,7 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 
 ### Next, in order (set 22 October 2026 — D-114)
 
-1. **S45** — finish: deploy the public quiz (`quiz/quiz_app.py`, own `quiz/requirements.txt`) on Streamlit Cloud.
+1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. **S48** — finish: `CBEAPI_KEY` in Streamlit Cloud Secrets and a redeploy (installs `dnspython`).
 4. **S49** — migrate to production environment with EU sovereignty.
