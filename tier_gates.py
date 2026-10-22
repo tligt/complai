@@ -40,4 +40,4 @@ def client_limit_reached(user_id: str) -> bool:
 @st.dialog("Upgrade to add another client")
 def upsell_dialog(reason: str):
     st.write(reason)
-    st.page_link("pages/profile.py", label="Go to Profile to upgrade →")
+    st.page_link("app_pages/profile.py", label="Go to Profile to upgrade →")

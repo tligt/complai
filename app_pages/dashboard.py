@@ -291,10 +291,10 @@ for doc_type, meta in relevant_docs.items():
     with col_action:
         if not in_repo and not in_history:
             if st.button("Generate →", key=f"gen_{doc_type}"):
-                st.switch_page("pages/documents.py")
+                st.switch_page("app_pages/documents.py")
         else:
             if st.button("Gap assessment →", key=f"gap_{doc_type}"):
-                st.switch_page("pages/gap.py")
+                st.switch_page("app_pages/gap.py")
 
     # Expandable details from gap assessment
     if gap_info and gap_info["details"]:
@@ -433,7 +433,7 @@ with col1:
     if unread_alerts > 0:
         st.warning(f"{unread_alerts} unread alert(s)")
         if st.button("View alerts →"):
-            st.switch_page("pages/alerts.py")
+            st.switch_page("app_pages/alerts.py")
     else:
         st.success("All alerts read ✅")
 
@@ -446,14 +446,14 @@ with col2:
         st.info(f"Run on {gap_date}")
         st.caption(f"GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100")
         if st.button("Run new assessment →"):
-            st.switch_page("pages/gap.py")
+            st.switch_page("app_pages/gap.py")
     else:
         st.warning("No assessment run yet")
         if st.button("Run assessment →"):
-            st.switch_page("pages/gap.py")
+            st.switch_page("app_pages/gap.py")
 
 with col3:
     st.markdown("**💬 AI Compliance Chat**")
     st.info("Ask any compliance question")
     if st.button("Open chat →"):
-        st.switch_page("pages/chat.py")
+        st.switch_page("app_pages/chat.py")

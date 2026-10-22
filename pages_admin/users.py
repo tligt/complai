@@ -17,6 +17,7 @@ from auth import get_user_id
 from database import (
     get_all_profiles, get_supabase_admin,
     set_user_role, set_user_tier, SUBSCRIPTION_TIERS, ROLES,
+    SUBSCRIPTION_STATUSES, set_subscription_status,
 )
 
 st.title("Users")
@@ -51,6 +52,12 @@ st.dataframe(
                 p.get("subscription_tier") or "professional",
                 p.get("subscription_tier") or "",
             ),
+            # S49: free / trial / subscribed / trial ended, and where the
+            # signup came from (nis2_quiz, website_check, direct).
+            "Status": SUBSCRIPTION_STATUSES.get(
+                p.get("subscription_status") or "", p.get("subscription_status") or ""),
+            "Trial ends": (p.get("trial_ends_at") or "")[:10],
+            "Source": p.get("signup_source") or "",
             "Clients": ", ".join(_companies_by_user.get(p["id"], [])) or "—",
             "Created": (p.get("created_at") or "")[:10],
         }
@@ -127,3 +134,22 @@ with st.container(border=True):
                 st.rerun()
             else:
                 st.error(err or "Could not update plan.")
+
+    # S49 (D-115). Until Stripe (S46), a plan request from the subscribe
+    # page arrives as a billing ticket, and setting "Subscribed" here is
+    # what grants the full app.
+    _status_codes = list(SUBSCRIPTION_STATUSES.keys())
+    _current_status = target.get("subscription_status") or "registered"
+    new_status = st.selectbox(
+        "Status", options=_status_codes,
+        index=_status_codes.index(_current_status) if _current_status in _status_codes else 0,
+        format_func=lambda c: SUBSCRIPTION_STATUSES[c],
+        key=f"status_{target['id']}",
+        help="Free accounts and ended trials see only their free check and the subscribe page.",
+    )
+    if st.button("Save status", key=f"save_status_{target['id']}"):
+        if set_subscription_status(target["id"], new_status):
+            st.success("Status updated.")
+            st.rerun()
+        else:
+            st.error("Could not update status.")

@@ -243,10 +243,10 @@ st.divider()
 # a normal text column being stretched somewhat is far less visually broken
 # than a one-character column was.
 _TASK_LINK_PAGES = {
-    "inventory":          "pages/inventory.py",
-    "documents":          "pages/documents.py",
-    "wording":            "pages/wording.py",
-    "compliance_record":  "pages/compliance_record.py",
+    "inventory":          "app_pages/inventory.py",
+    "documents":          "app_pages/documents.py",
+    "wording":            "app_pages/wording.py",
+    "compliance_record":  "app_pages/compliance_record.py",
 }
 _FIX_LABEL = "Fix it"
 _DISMISS_LABEL = "Dismiss"

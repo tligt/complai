@@ -6,7 +6,10 @@ load_dotenv()
 
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
-from database import count_unread_replies, claim_pending_invites
+from database import (
+    count_unread_replies, claim_pending_invites, get_user_profile,
+    expire_trial_if_due, save_pending_result, record_funnel_event,
+)
 from cached_reads import load_clients, load_accessible_clients
 from support_widget import render_help_widget
 
@@ -122,6 +125,22 @@ if "ticket" in st.query_params:
     st.session_state.pending_ticket = st.query_params["ticket"]
     del st.query_params["ticket"]
 
+# ── Free check carry-over (S49, D-115) ───────────────────────
+# The public app's CTA links here with ?src= and ?quiz= (ten digits) or
+# ?site= (a domain) — never the email. Parked in session state for the
+# signup form (auth.login_ui), which stores it on the new profile, and
+# removed from the URL at once, as the ticket link is above.
+if any(k in st.query_params for k in ("src", "quiz", "site")):
+    import funnel as _funnel
+    _src = (st.query_params.get("src") or "")[:40] or None
+    _pending = _funnel.pending_from_params(
+        st.query_params.get("quiz"), st.query_params.get("site"))
+    st.session_state.funnel = {"src": _src, "pending": _pending}
+    record_funnel_event("app_landing", (_pending or {}).get("tool"), _src)
+    for _k in ("src", "quiz", "site"):
+        if _k in st.query_params:
+            del st.query_params[_k]
+
 # ── Auth ──────────────────────────────────────────────────────
 init_auth()
 
@@ -196,6 +215,31 @@ if claim_pending_invites(user_id, st.session_state.user.email):
     load_clients.clear()
     load_accessible_clients.clear()
 
+# ── Access: free account or subscribed (S49, D-115) ─────────────────────
+# 'registered' (a free account) and 'expired' see their free check result
+# and the subscribe page — every other menu item opens the subscribe page.
+# Admins, and members of someone else's workspace (S38: the owner's plan
+# covers them), always get the full app. A profile that can't be read
+# fails open, as before S49.
+_profile = expire_trial_if_due(get_user_profile(user_id))
+_funnel_state = st.session_state.pop("funnel", None)
+if _funnel_state and _funnel_state.get("pending") and not _profile.get("pending_result"):
+    # Already logged in when the free check's link was opened.
+    save_pending_result(user_id, _funnel_state["pending"])
+    _profile["pending_result"] = _funnel_state["pending"]
+limited_access = (
+    _profile.get("role") != "admin"
+    and (_profile.get("subscription_status") or "active") in ("registered", "expired")
+    and not any(c.get("role") == "member" for c in load_accessible_clients(user_id))
+)
+
+with st.sidebar:
+    if _profile.get("subscription_status") == "trial" and _profile.get("trial_ends_at"):
+        from datetime import datetime, timezone
+        _left = (datetime.fromisoformat(_profile["trial_ends_at"].replace("Z", "+00:00"))
+                 - datetime.now(timezone.utc)).days + 1
+        st.caption(f"Free trial — {_left} day{'s' if _left != 1 else ''} left")
+
 # ── First-run: no client yet ─────────────────────────────────────
 # S37, widened in S38 to accessible clients (owned or member-of) — not
 # load_clients, which is owned-only and would wrongly show this to a
@@ -220,19 +264,25 @@ if not load_accessible_clients(user_id) and not st.session_state.get("skip_onboa
     st.stop()
 
 # ── Navigation ────────────────────────────────────────────────
-chat      = st.Page("pages/chat.py",      title="Chat",           icon="💬", default=True)
-dashboard = st.Page("pages/dashboard.py", title="Dashboard",      icon="📊")
-gap       = st.Page("pages/gap.py",       title="Gap Assessment", icon="🔍")
-inventory = st.Page("pages/inventory.py", title="Systems",        icon="🗂️")
-documents = st.Page("pages/documents.py", title="Documents",      icon="📄")
-audit     = st.Page("pages/audit.py",     title="Web Audit",      icon="🌐")
-alerts    = st.Page("pages/alerts.py",    title="Alerts",         icon="🔔")
-activity  = st.Page("pages/activity.py",  title="Activity Log",   icon="🕐")
-record    = st.Page("pages/compliance_record.py", title="Compliance Record", icon="🗄️")
-oblig     = st.Page("pages/obligations.py", title="Obligations", icon="✅")
-wording   = st.Page("pages/wording.py", title="Incident wording", icon="✍️")
-risk      = st.Page("pages/risk.py", title="Risk assessments", icon="⚖️")
-profile   = st.Page("pages/profile.py", title="Profile", icon="👤")
+# The page files live in app_pages/, NOT pages/ (S49). Streamlit treats a
+# folder named pages/ as legacy multipage auto-discovery: any run that hasn't
+# yet called st.navigation — a fresh browser load of /dashboard, or a click
+# in the sidebar list shown during login and onboarding — executed the page
+# file directly, skipping this script and with it the login check and the
+# subscribe gate below. Only a crash on the missing session stopped it.
+chat      = st.Page("app_pages/chat.py",      title="Chat",           icon="💬", default=True)
+dashboard = st.Page("app_pages/dashboard.py", title="Dashboard",      icon="📊")
+gap       = st.Page("app_pages/gap.py",       title="Gap Assessment", icon="🔍")
+inventory = st.Page("app_pages/inventory.py", title="Systems",        icon="🗂️")
+documents = st.Page("app_pages/documents.py", title="Documents",      icon="📄")
+audit     = st.Page("app_pages/audit.py",     title="Web Audit",      icon="🌐")
+alerts    = st.Page("app_pages/alerts.py",    title="Alerts",         icon="🔔")
+activity  = st.Page("app_pages/activity.py",  title="Activity Log",   icon="🕐")
+record    = st.Page("app_pages/compliance_record.py", title="Compliance Record", icon="🗄️")
+oblig     = st.Page("app_pages/obligations.py", title="Obligations", icon="✅")
+wording   = st.Page("app_pages/wording.py", title="Incident wording", icon="✍️")
+risk      = st.Page("app_pages/risk.py", title="Risk assessments", icon="⚖️")
+profile   = st.Page("app_pages/profile.py", title="Profile", icon="👤")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -245,12 +295,12 @@ profile   = st.Page("pages/profile.py", title="Profile", icon="👤")
 # to check is the main way replies go unread.
 _unread = count_unread_replies(user_id)
 support   = st.Page(
-    "pages/support.py",
+    "app_pages/support.py",
     title=f"Support ({_unread})" if _unread else "Support",
     icon="💬",
 )
 
-pg = st.navigation({
+_sections = {
     "":           [chat],
     "Compliance": [dashboard, oblig, risk, gap],
     # S27. `record` is read-only and sits next to the pages that write what it
@@ -259,13 +309,31 @@ pg = st.navigation({
     "Tools":      [inventory, documents, wording, record, audit],
     "Account":    [profile, activity, support],
     "Updates":    [alerts],
-})
+}
+
+if limited_access:
+    # S49. Same menu, so a free account sees what RECOSA does; every item
+    # opens the subscribe page under its own title and URL. The free check
+    # result is the one real page, and the default.
+    from subscribe_view import render_subscribe
+
+    def _locked(page):
+        # Chat is the full app's default page, so its url_path is "".
+        return st.Page(render_subscribe, title=page.title, icon=page.icon,
+                       url_path=page.url_path or "chat")
+
+    free_check = st.Page("app_pages/free_check.py", title="Your free check",
+                         icon="🎯", default=True)
+    _sections = {name: [_locked(p) for p in pages] for name, pages in _sections.items()}
+    _sections[""] = [free_check] + _sections[""]
+
+pg = st.navigation(_sections)
 
 # A ticket deep link bypasses everything else and goes straight to the
 # thread. Reading a ticket needs no client context — the ticket carries its
 # own client_id from creation time — so there is nothing to gate on.
 _pending = st.session_state.pop("pending_ticket", None)
-if _pending:
+if _pending and not limited_access:
     st.session_state.support_open_ticket = _pending
     st.switch_page(support)
 
@@ -298,6 +366,7 @@ PAGE_CONTEXT = {
     "profile":   "account",
     "activity":  "account",
     "support":   "account",
+    "free_check": "account",
 }
 
 # The default page is served at the root, so its url_path is empty.

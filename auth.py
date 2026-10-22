@@ -1,7 +1,10 @@
 import os
 import streamlit as st
 from supabase import create_client, Client
-from database import SUBSCRIPTION_TIERS, create_user_profile
+from database import (
+    create_user_profile, get_user_profile, save_pending_result,
+    mark_leads_converted, record_funnel_event,
+)
 
 
 def get_supabase() -> Client:
@@ -82,7 +85,13 @@ def login_ui():
     Called from app.py after centering CSS is applied.
     No title or branding here — app.py handles that.
     """
-    tab_login, tab_signup = st.tabs(["Log in", "Sign up"])
+    # S49: arriving from a free check (app.py parks it in session state),
+    # the visitor is new — open on Sign up and say why.
+    funnel = st.session_state.get("funnel") or {}
+    tabs = ["Log in", "Sign up"]
+    tab_login, tab_signup = st.tabs(
+        tabs, default=tabs[1] if funnel.get("pending") else tabs[0],
+    )
 
     with tab_login:
         email    = st.text_input("Email", key="login_email", placeholder="you@company.com")
@@ -96,6 +105,10 @@ def login_ui():
                     st.session_state.user          = res.user
                     st.session_state.access_token  = res.session.access_token
                     st.session_state.refresh_token = res.session.refresh_token
+                    # S49: an existing account that just took a free check
+                    # keeps that result, unless it already has one.
+                    if funnel.get("pending") and not get_user_profile(res.user.id).get("pending_result"):
+                        save_pending_result(res.user.id, funnel["pending"])
                     st.rerun()
                 except Exception as e:
                     st.error(f"Login failed: {e}")
@@ -103,21 +116,16 @@ def login_ui():
                 st.warning("Please enter your email and password.")
 
     with tab_signup:
+        if funnel.get("pending"):
+            st.info("Create your free account to see your full result.")
         new_email     = st.text_input("Email", key="signup_email", placeholder="you@company.com")
         new_password  = st.text_input("Password (min. 8 characters)", type="password",
                                        key="signup_password", placeholder="At least 8 characters")
         new_password2 = st.text_input("Confirm password", type="password",
                                        key="signup_password2", placeholder="Repeat password")
-        # S37. Professional / Advisory only — the two tiers with real
-        # behavioural difference today (D-90). Starter/Enterprise from the
-        # commercial model stay out until S45/S46 give them one.
-        new_tier = st.radio(
-            "Plan", options=["professional", "advisory"],
-            format_func=lambda t: SUBSCRIPTION_TIERS[t],
-            captions=["Manage one client.",
-                      "Manage more than one client — for consultants and advisors."],
-            key="signup_tier", label_visibility="collapsed",
-        )
+        # S49 (D-115): no plan choice here any more. A new account is a free
+        # one ('registered'); the plan is chosen on the subscribe page, where
+        # the trial starts. S37's radio lived here until then.
         if st.button("Create account", type="primary", use_container_width=True, key="btn_signup"):
             if not new_email or not new_password:
                 st.warning("Please fill in all fields.")
@@ -130,10 +138,18 @@ def login_ui():
                     supabase = get_supabase()
                     res = supabase.auth.sign_up({"email": new_email, "password": new_password})
                     if res.user:
-                        # S37: the only place a profiles row is ever created.
-                        # res.user.id exists immediately, whether or not
-                        # email confirmation is required.
-                        create_user_profile(res.user.id, new_email, new_tier)
+                        # S37: res.user.id exists immediately, whether or
+                        # not email confirmation is required. S49: the free
+                        # check result rides on the profile, so it survives
+                        # the confirmation email and a different browser.
+                        source = funnel.get("src") or "direct"
+                        create_user_profile(
+                            res.user.id, new_email, "professional",
+                            signup_source=source,
+                            pending_result=funnel.get("pending"),
+                        )
+                        mark_leads_converted(new_email, res.user.id)
+                        record_funnel_event("signup", (funnel.get("pending") or {}).get("tool"), source)
                         st.success("Account created — check your email to confirm, then log in.")
                     else:
                         st.error("Sign up failed. Please try again.")

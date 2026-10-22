@@ -1273,6 +1273,7 @@ def set_legal_hold(
 
 def create_user_profile(
     user_id: str, email: str, subscription_tier: str = "professional",
+    signup_source: str | None = None, pending_result: dict | None = None,
 ) -> bool:
     """S37, corrected after S38: NOT the only writer of a profiles row.
 
@@ -1294,15 +1295,120 @@ def create_user_profile(
     without clobbering anything a later profile edit set.
     """
     try:
-        get_supabase_admin().table("profiles").upsert({
+        row = {
             "id": user_id,
             "email": email,
             "subscription_tier": subscription_tier,
-        }, on_conflict="id").execute()
+        }
+        # S49: where the signup came from, and the free check result it
+        # brought with it (shown on its first login, after confirmation).
+        if signup_source:
+            row["signup_source"] = signup_source
+        if pending_result:
+            row["pending_result"] = pending_result
+        get_supabase_admin().table("profiles").upsert(row, on_conflict="id").execute()
         return True
     except Exception as e:
         print(f"Could not create profile: {e}")
         return False
+
+
+# ── Subscription status (S49, D-115) ─────────────────────────────────────
+# registered → trial → active, or trial → expired. A registered or expired
+# account sees its free check result and the subscribe page, nothing else.
+# Until Stripe (S46), "active" is set by an admin by hand.
+
+TRIAL_DAYS = 14
+
+SUBSCRIPTION_STATUSES = {
+    "registered": "Free account",
+    "trial":      "Trial",
+    "active":     "Subscribed",
+    "expired":    "Trial ended",
+}
+
+
+def start_trial(user_id: str) -> bool:
+    """Start the one free trial: Professional, TRIAL_DAYS days. Only from
+    'registered' — an expired trial does not restart."""
+    try:
+        ends = datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)
+        res = get_supabase_admin().table("profiles").update({
+            "subscription_status": "trial",
+            "trial_ends_at": ends.isoformat(),
+            "subscription_tier": "professional",
+        }).eq("id", user_id).eq("subscription_status", "registered").execute()
+        return bool(res.data)
+    except Exception as e:
+        print(f"Could not start trial: {e}")
+        return False
+
+
+def expire_trial_if_due(profile: dict) -> dict:
+    """A trial past its end date becomes 'expired' — stored, so the admin
+    list shows it too. Returns the profile as it now stands."""
+    if profile.get("subscription_status") != "trial" or not profile.get("trial_ends_at"):
+        return profile
+    try:
+        ends = datetime.fromisoformat(profile["trial_ends_at"].replace("Z", "+00:00"))
+    except ValueError:
+        return profile
+    if ends > datetime.now(timezone.utc):
+        return profile
+    try:
+        get_supabase_admin().table("profiles").update(
+            {"subscription_status": "expired"}
+        ).eq("id", profile["id"]).eq("subscription_status", "trial").execute()
+    except Exception as e:
+        print(f"Could not expire trial: {e}")
+    return {**profile, "subscription_status": "expired"}
+
+
+def set_subscription_status(target_user_id: str, status: str) -> bool:
+    """Admin: set an account's status by hand (until Stripe, S46)."""
+    if status not in SUBSCRIPTION_STATUSES:
+        return False
+    try:
+        get_supabase_admin().table("profiles").update(
+            {"subscription_status": status}
+        ).eq("id", target_user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not set subscription status: {e}")
+        return False
+
+
+def save_pending_result(user_id: str, pending_result: dict | None) -> bool:
+    """The free check result an account came with, or None to clear it."""
+    try:
+        get_supabase_admin().table("profiles").update(
+            {"pending_result": pending_result}
+        ).eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not save the free check result: {e}")
+        return False
+
+
+def mark_leads_converted(email: str, user_id: str) -> None:
+    """Link leads given with this email to the account that signed up."""
+    try:
+        get_supabase_admin().table("leads").update(
+            {"converted_profile_id": user_id}
+        ).eq("email", email.strip().lower()).is_("converted_profile_id", "null").execute()
+    except Exception as e:
+        print(f"Could not link leads: {e}")
+
+
+def record_funnel_event(event: str, tool: str | None = None,
+                        source: str | None = None) -> None:
+    """Counts for the funnel (D-115). Never blocks the caller."""
+    try:
+        get_supabase_admin().rpc("record_funnel_event", {
+            "p_event": event, "p_tool": tool, "p_source": source,
+        }).execute()
+    except Exception as e:
+        print(f"Could not record funnel event: {e}")
 
 
 def get_user_profile(user_id: str) -> dict:
@@ -2316,14 +2422,17 @@ def create_ticket(
     try:
         supabase = get_supabase()
 
-        thread_res = supabase.table("message_threads").insert({
+        # The id is made here and the row is not read back (S49): a client
+        # may only SELECT a thread once a ticket of theirs points at it
+        # (message_threads_select), so the insert's default read-back was
+        # refused with 42501 for every non-admin. The one admin account
+        # passes is_admin_user(), which is how this went unnoticed.
+        from postgrest import ReturnMethod
+        thread_id = str(uuid.uuid4())
+        supabase.table("message_threads").insert({
+            "id": thread_id,
             "thread_type": "ticket",
-        }).execute()
-        thread_rows = thread_res.data or []
-        if not thread_rows:
-            _st().error("Could not open a support thread.")
-            return None
-        thread_id = thread_rows[0]["id"]
+        }, returning=ReturnMethod.minimal).execute()
 
         ticket_res = supabase.table("support_tickets").insert({
             "user_id":           user_id,

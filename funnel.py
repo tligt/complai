@@ -11,6 +11,7 @@ legal text (see quiz/quiz_app.py's header, and D-115: reviewed before launch).
 
 from __future__ import annotations
 
+import re
 from urllib.parse import urlencode
 
 # Version of the marketing-consent wording shown beside the email field.
@@ -193,6 +194,22 @@ def declared_responses(answers: list[int]) -> dict[str, str]:
             if prev is None or _DECLARED_STATUS.index(status) < _DECLARED_STATUS.index(prev):
                 out[ob] = status
     return out
+
+
+_DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
+
+
+def pending_from_params(quiz: str | None, site: str | None) -> dict | None:
+    """What the signup link carried, as stored on the profile
+    (profiles.pending_result). Validated: the link is visitor-controlled."""
+    answers = decode_answers(quiz)
+    if answers is not None:
+        return {"tool": TOOL_QUIZ, "answers": encode_answers(answers)}
+    if site:
+        site = site.strip().lower()
+        if _DOMAIN_RE.match(site):
+            return {"tool": TOOL_WEBSITE, "site": site}
+    return None
 
 
 def domains_match(email: str, site_domain: str) -> bool:

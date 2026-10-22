@@ -551,7 +551,7 @@ with tab2:
                             if ob.get("doc_type") and ob.get("doc_type") not in current_docs:
                                 doc_label = DOCUMENT_TYPES.get(ob["doc_type"],ob["doc_type"])
                                 st.page_link(
-                                    "pages/documents.py",
+                                    "app_pages/documents.py",
                                     label=f"📄 Generate compliant {doc_label}",
                                 )
 

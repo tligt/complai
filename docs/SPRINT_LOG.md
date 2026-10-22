@@ -349,7 +349,7 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
-4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115).
+4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115). **Built 22 Oct (D-116);** goes fully live once the public app's secrets are set, then a live run-through.
 5. **S50** — migrate to production environment with EU sovereignty.
 6. **S51** — GDPR deletion + session hardening, the beta gate.
 
@@ -365,7 +365,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
-| **S49** | **Free checks to subscription funnel** | New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| **S49** | **Free checks to subscription funnel** | **Built 22 Oct — D-116.** Open: the public app's Streamlit secrets, then one live run-through. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
@@ -4782,6 +4782,73 @@ summary, full PDF report by email (still only to the site's own domain,
 S43), full findings after signup. It moves to the public surface and
 replaces the unreachable anonymous branch of `pages/audit.py` (D-104).
 
+### D-116 — S49 built: the free checks funnel, and two older holes it exposed
+
+*22 October 2026, same day as the scope lock. Verified locally against the
+production database with a throwaway account, deleted afterwards.*
+
+**Built as scoped (3b):**
+- `migration_s49_funnel.sql` — `leads`, `funnel_events` (RLS on, no
+  policies), three `SECURITY DEFINER` functions the public app calls with
+  the anon key: `submit_lead` (validation, S43 domain match, one report per
+  site, one per email per 24 h, five per IP per 24 h, 24-month purge),
+  `start_website_check` (3 per IP per 24 h; IPs cleared after 7 days),
+  `record_funnel_event`; view `funnel_daily`. `profiles` gains
+  `subscription_status` (`registered` / `trial` / `active` / `expired`),
+  `trial_ends_at`, `signup_source`, `pending_result`. The one existing
+  account was set `active`. Tested as `anon`: every refusal path, and no
+  read access to either table.
+- `funnel.py` (pure) and `funnel_ui.py` — quiz content, scoring,
+  weakest-first breakdown with advice, the declared-answer mapping, the
+  signup link. `audit_view.py` — the website result renderer, `locked`
+  for the free summary.
+- `quiz/quiz_app.py` — NIS2 quiz and GDPR website check as two tabs
+  (`?tool=website` opens the second). Score free, breakdown/findings
+  locked; optional email sends the full result (`send_quiz_result`, or the
+  PDF report with a signup link); CTA carries `?src=` + `?quiz=` or
+  `?site=`, never the email.
+- Client app: the link is parked in session state and cleared from the
+  URL; the login screen opens on *Sign up*; the signup form no longer asks
+  for a plan; the result rides on the profile, so it survives email
+  confirmation. A `registered` or `expired` account gets *Your free check*
+  (`app_pages/free_check.py`) plus the full menu, every item of which opens
+  the subscribe page (`subscribe_view.py`). Quiz answers are written to the
+  register as declared answers, once, never over an existing response.
+  Trial: 14 days of Professional, once; expiry is checked on each load. A
+  plan request is a billing ticket; the admin sets *Subscribed* on the
+  Users page, which now also shows status, trial end and signup source.
+
+**Found and fixed on the way:**
+1. **`pages/` ran pages without `app.py`.** With the folder named `pages/`,
+   Streamlit's legacy auto-discovery executed a page file directly in any
+   run that had not yet called `st.navigation` — a fresh load of
+   `/dashboard`, or a click in the page list the sidebar showed during login
+   and onboarding. That skipped the login check (only a crash on the
+   missing session stopped it) and would have skipped the subscribe gate.
+   Renamed to **`app_pages/`**; `/dashboard` while logged out now shows the
+   login screen. The same mechanism D-108 found from the quiz's side.
+2. **Clients could never open a support ticket.** `create_ticket` read the
+   new thread back after inserting it, but a client may only read a thread
+   once its ticket exists — 42501 for every non-admin. The one admin
+   account passes `is_admin_user()`, so nobody saw it. The thread id is now
+   generated client-side and not read back. This fixes the Help widget too.
+3. **The crawler took ~70 s and fetched whatever it was given.** It is now
+   public, so it refuses non-public addresses on every redirect hop
+   (loopback, metadata, private ranges, unresolvable), and fetches the
+   candidate pages in parallel — recosa.eu: ~70 s → ~7 s, same pages found.
+
+**Removed:** the anonymous branch of the Web Audit page (unreachable since
+D-104) — the free check now lives in the public app. `check_site_domain_used`
+and `check_ip_rate_limited` in `database.py` are left unused.
+
+**Open:** the public app's secrets on Streamlit Cloud (`SUPABASE_URL`,
+`SUPABASE_KEY` — the anon key, `BREVO_API_KEY`, `BREVO_FROM_EMAIL`,
+`BREVO_FROM_NAME`; `APP_BASE_URL` is already set), then one live
+run-through including a real result email. Until then the live quiz's
+email step answers "couldn't record your request". The quiz copy still
+needs its review. Supabase's advisor lists the three new functions as
+callable by `anon` — intended.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -4842,6 +4909,15 @@ Hard-won. Each cost real debugging time.
   not carry their own guards.
 - Cruft accumulates — unused packages, duplicate admin modules. Clear at sprint
   boundaries.
+
+### Added Oct 2026
+- **Never name the page folder `pages/`.** Streamlit then runs page files
+  directly whenever `st.navigation` hasn't been called yet in that run,
+  bypassing `app.py`. The pages live in `app_pages/` (D-116).
+- **Insert-then-read-back fails RLS when the SELECT policy depends on a row
+  that doesn't exist yet** (message_threads → support_tickets). Generate
+  the id client-side and insert with `returning=minimal` (D-116). The admin
+  account hides this class of bug: `is_admin_user()` passes every policy.
 
 ### Added Sept 2026
 
