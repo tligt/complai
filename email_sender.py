@@ -123,8 +123,13 @@ def send_audit_report(
             "Content-Type": "application/json",
         },
         json=payload,
+        timeout=30,
     )
 
+    if response.status_code not in (200, 201):
+        # S49: Brevo's reason (unknown IP, unverified sender, ...) in the
+        # app's logs. Without it a failed send looked like nothing at all.
+        print(f"Brevo refused the audit report: {response.status_code} {response.text[:300]}")
     return response.status_code in (200, 201)
 
 
@@ -207,6 +212,8 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
         },
         timeout=20,
     )
+    if response.status_code not in (200, 201):
+        print(f"Brevo refused the quiz result: {response.status_code} {response.text[:300]}")
     return response.status_code in (200, 201)
 
 
