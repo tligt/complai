@@ -1,5 +1,9 @@
-# Public NIS2 quiz (S45) — deployed as its own Streamlit Cloud app with
+# Public free checks (S45, S49) — deployed as its own Streamlit Cloud app with
 # quiz/quiz_app.py as the entry point. Streamlit Cloud uses the requirements
 # file next to the entry point before the repo root's, so the public app
-# installs only this, not the full product's dependencies.
+# installs only this, not the full product's dependencies. Same pins as the
+# root requirements.txt.
 streamlit==1.61.1
+requests==2.34.2
+beautifulsoup4==4.15.0
+reportlab==5.0.0

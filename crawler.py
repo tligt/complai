@@ -1,4 +1,8 @@
+import ipaddress
 import re
+import socket
+from functools import lru_cache
+
 import requests
 from urllib.parse import urljoin, urlparse
 from dataclasses import dataclass, field
@@ -61,10 +65,50 @@ def extract_domain(url: str) -> str:
     return parsed.netloc.lower().replace("www.", "")
 
 
+@lru_cache(maxsize=256)
+def _is_public_host(host: str) -> bool:
+    """True if every address the host resolves to is a public one.
+
+    S49: the website check is now public (quiz/quiz_app.py), so the URL — and
+    every link on the fetched homepage — is chosen by an anonymous visitor.
+    Without this, it could point the server at loopback, the cloud metadata
+    address or a private network. Unresolvable hosts are refused too.
+    """
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError, ValueError):
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not ip.is_global:
+            return False
+    return bool(infos)
+
+
+def is_public_url(url: str) -> bool:
+    parsed = urlparse(url)
+    return parsed.scheme in ("http", "https") and bool(parsed.hostname)         and _is_public_host(parsed.hostname)
+
+
+def _get_public(url: str, max_redirects: int = 5) -> requests.Response:
+    """GET that follows redirects itself, checking every hop with
+    is_public_url — a public site redirecting to a private address would
+    otherwise slip past the check on the first URL."""
+    for _ in range(max_redirects + 1):
+        if not is_public_url(url):
+            raise ValueError("Not a public address.")
+        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=False)
+        if resp.is_redirect and resp.headers.get("location"):
+            url = urljoin(url, resp.headers["location"])
+            continue
+        return resp
+    raise ValueError("Too many redirects.")
+
+
 def fetch_page(url: str) -> tuple[str, str]:
     """Fetch a page and return (html, plain_text). Returns ('', '') on error."""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True)
+        resp = _get_public(url)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.content, "html.parser")
         # Remove noise
@@ -80,7 +124,7 @@ def fetch_page(url: str) -> tuple[str, str]:
 def fetch_html_raw(url: str) -> str:
     """Fetch raw HTML for structural analysis."""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True)
+        resp = _get_public(url)
         resp.raise_for_status()
         return resp.text
     except Exception:
@@ -125,6 +169,7 @@ def crawl(url: str) -> CrawlResult:
     base = f"{parsed.scheme}://{parsed.netloc}"
 
     # Check candidate paths
+    targets = []
     for path in CANDIDATE_PATHS:
         candidate_url = base + path
         # Also check if it's linked from the homepage (covers non-standard paths)
@@ -132,8 +177,16 @@ def crawl(url: str) -> CrawlResult:
             (l for l in result.all_links if path.lower() in l.lower()),
             None
         )
-        target = linked_match or candidate_url
-        _, page_text = fetch_page(target)
+        targets.append((path, linked_match or candidate_url))
+
+    # S49: fetched in parallel. One after another took ~70 s on a Framer
+    # site — too long for the public check. Results are still read in
+    # CANDIDATE_PATHS order, so which page wins a key is unchanged.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        texts = list(pool.map(lambda pt: fetch_page(pt[1])[1], targets))
+
+    for (path, _), page_text in zip(targets, texts):
         if page_text and len(page_text) > 100:
             # Use a normalised key
             key = path.strip("/").replace("-", "_").replace("/", "_")

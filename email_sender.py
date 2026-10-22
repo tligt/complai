@@ -12,10 +12,14 @@ def send_audit_report(
     ok_count: int,
     warn_count: int,
     fail_count: int,
+    cta_url: str | None = None,
 ) -> bool:
     """
     Send the audit report PDF by email using the Brevo API.
     Returns True on success, False on failure.
+
+    S49: cta_url, when given, is the signup link carrying the checked site
+    (funnel.signup_url); otherwise the button opens the app's root.
     """
     api_key = os.environ.get("BREVO_API_KEY")
     if not api_key:
@@ -24,6 +28,7 @@ def send_audit_report(
     from_email = os.environ.get("BREVO_FROM_EMAIL", "audit@complai.be")
     from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA Audit")
     base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+    cta_url    = cta_url or f"{base_url}/"
 
     pdf_b64 = base64.b64encode(pdf_bytes).decode("utf-8")
     risk_emoji = {"Green": "🟢", "Amber": "🟡", "Red": "🔴"}.get(risk_level, "⚪")
@@ -79,11 +84,11 @@ def send_audit_report(
       RECOSA shows you exactly how to remediate each issue, generates the required documents,
       and monitors your compliance continuously.
     </p>
-    <a href="{base_url}/"
+    <a href="{cta_url}"
        style="display:inline-block;background:#0F6E56;color:white;
               padding:12px 28px;border-radius:6px;text-decoration:none;
               font-weight:bold;font-size:15px;margin-top:8px;">
-      Start your free 15-day trial →
+      Start your free 14-day trial →
     </a>
     <p style="color:#aaa;font-size:12px;margin-top:12px;">No credit card required.</p>
   </div>
@@ -120,6 +125,88 @@ def send_audit_report(
         json=payload,
     )
 
+    return response.status_code in (200, 201)
+
+
+def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
+    """S49. The full NIS2 Quick Check result, sent because the visitor asked
+    for it on the public quiz. Weakest areas first, each with what to do.
+    Returns True on success. Raises if BREVO_API_KEY is not set, like
+    send_audit_report."""
+    import html
+    import funnel
+
+    api_key = os.environ.get("BREVO_API_KEY")
+    if not api_key:
+        raise ValueError("BREVO_API_KEY not set in secrets.")
+    from_email = os.environ.get("BREVO_FROM_EMAIL", "audit@complai.be")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
+
+    total = funnel.score(answers)
+    label, blurb = funnel.band(total)
+    level_colour = ["#993C1D", "#BA7517", "#BA7517", "#0F6E56"]
+    rows = "".join(
+        f"""
+      <tr>
+        <td style="padding:10px;border-bottom:1px solid #E2E8F0;vertical-align:top;">
+          <strong>{html.escape(r["category"])}</strong><br>
+          <span style="color:#555;font-size:13px;">{html.escape(r["advice"])}</span>
+        </td>
+        <td style="padding:10px;border-bottom:1px solid #E2E8F0;vertical-align:top;
+                   white-space:nowrap;color:{level_colour[r["answer"]]};font-weight:bold;">
+          {html.escape(r["level"])}
+        </td>
+      </tr>"""
+        for r in funnel.breakdown(answers)
+    )
+
+    html_body = f"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
+  <div style="background:#1B2A4A;padding:24px;border-radius:8px 8px 0 0;">
+    <h1 style="color:white;margin:0;font-size:24px;">RECOSA</h1>
+    <p style="color:#ccc;margin:4px 0 0;">Your NIS2 Quick Check result</p>
+  </div>
+  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;">
+    <h2 style="color:#1B2A4A;margin-top:0;">{total}/{funnel.MAX_SCORE} — {html.escape(label)}</h2>
+    <p>{html.escape(blurb)}</p>
+    <h3 style="color:#1B2A4A;">Your ten areas, weakest first</h3>
+    <table style="width:100%;border-collapse:collapse;background:white;">{rows}
+    </table>
+  </div>
+  <div style="background:#4A3B8C;padding:20px;border-radius:0 0 8px 8px;text-align:center;">
+    <h3 style="color:white;margin-top:0;">Turn this into a plan</h3>
+    <p style="color:#ccc;font-size:14px;">
+      Create a free account to see this result in RECOSA, then start a 14-day trial
+      to run the full assessment against every NIS2 obligation.
+    </p>
+    <a href="{cta_url}"
+       style="display:inline-block;background:#0F6E56;color:white;padding:12px 28px;
+              border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;">
+      See my result in RECOSA →
+    </a>
+  </div>
+  <p style="color:#999;font-size:11px;text-align:center;margin-top:16px;">
+    A lightweight self-check based on your own answers — not a certified NIS2 audit,
+    and not legal advice. You received this because you asked for your result on
+    recosa.eu.<br>RECOSA · recosa.eu
+  </p>
+</body>
+</html>
+"""
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={"api-key": api_key, "Content-Type": "application/json"},
+        json={
+            "sender": {"name": from_name, "email": from_email},
+            "to": [{"email": to_email}],
+            "subject": f"Your NIS2 Quick Check result: {total}/{funnel.MAX_SCORE} — {label}",
+            "htmlContent": html_body,
+        },
+        timeout=20,
+    )
     return response.status_code in (200, 201)
 
 
