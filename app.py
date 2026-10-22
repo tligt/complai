@@ -282,6 +282,7 @@ record    = st.Page("app_pages/compliance_record.py", title="Compliance Record",
 oblig     = st.Page("app_pages/obligations.py", title="Obligations", icon="✅")
 wording   = st.Page("app_pages/wording.py", title="Incident wording", icon="✍️")
 risk      = st.Page("app_pages/risk.py", title="Risk assessments", icon="⚖️")
+incidents = st.Page("app_pages/incidents.py", title="Incidents", icon="🚨")
 profile   = st.Page("app_pages/profile.py", title="Profile", icon="👤")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
@@ -302,7 +303,7 @@ support   = st.Page(
 
 _sections = {
     "":           [chat],
-    "Compliance": [dashboard, oblig, risk, gap],
+    "Compliance": [dashboard, oblig, incidents, risk, gap],
     # S27. `record` is read-only and sits next to the pages that write what it
     # reports: Documents produces, Systems supplies the data, this reports what
     # the organisation actually operates under.
@@ -367,6 +368,7 @@ PAGE_CONTEXT = {
     "activity":  "account",
     "support":   "account",
     "free_check": "account",
+    "incidents": "incidents",
 }
 
 # The default page is served at the root, so its url_path is empty.

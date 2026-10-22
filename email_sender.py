@@ -217,6 +217,58 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
     return response.status_code in (200, 201)
 
 
+def send_incident_reminder(to_emails: list[str], company: str, incident_title: str,
+                           items: list[tuple[str, str]], overdue: bool) -> bool:
+    """S53. An incident deadline is close or missed. items: (deadline label,
+    'in 4 h 10' / '3 h overdue'). Content-light on purpose — what happened
+    stays in RECOSA; the email only says that a clock is running."""
+    import html
+    api_key = os.environ.get("BREVO_API_KEY")
+    if not api_key:
+        raise ValueError("BREVO_API_KEY not set in secrets.")
+    from_email = os.environ.get("BREVO_FROM_EMAIL")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
+    base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+    colour = "#993C1D" if overdue else "#BA7517"
+    lines = "".join(
+        f'<li style="margin:6px 0;"><strong>{html.escape(l)}</strong> — '
+        f'<span style="color:{colour};">{html.escape(w)}</span></li>' for l, w in items)
+    html_body = f"""
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
+  <div style="background:{colour};padding:18px 22px;border-radius:8px 8px 0 0;">
+    <h2 style="color:white;margin:0;">{'Incident deadline missed' if overdue else 'Incident deadline approaching'}</h2>
+  </div>
+  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;border-radius:0 0 8px 8px;">
+    <p><strong>{html.escape(company)}</strong> — {html.escape(incident_title)}</p>
+    <ul style="padding-left:18px;">{lines}</ul>
+    <p>Send what you know now and follow up later: a late complete notification is worse than an
+       early incomplete one. If a notification was already sent, record it in RECOSA to stop the clock.</p>
+    <a href="{base_url}/incidents" style="display:inline-block;background:#003366;color:white;
+       padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:bold;">Open the incident</a>
+  </div>
+  <p style="color:#999;font-size:11px;text-align:center;margin-top:14px;">
+    Sent because an incident is open in RECOSA for this company. RECOSA · recosa.eu</p>
+</body></html>
+"""
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={"api-key": api_key, "Content-Type": "application/json"},
+        json={
+            "sender": {"name": from_name, "email": from_email},
+            "to": [{"email": e} for e in to_emails],
+            "subject": ("Missed: " if overdue else "Due soon: ")
+                       + f"incident deadline — {incident_title}"[:150],
+            "htmlContent": html_body,
+        },
+        timeout=20,
+    )
+    if response.status_code not in (200, 201):
+        print(f"Brevo refused the incident reminder: {response.status_code} {response.text[:300]}")
+    return response.status_code in (200, 201)
+
+
 def is_free_email(email: str) -> bool:
     """Return True if the email uses a free/consumer provider."""
     free_domains = {

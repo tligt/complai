@@ -27,6 +27,19 @@ if not user_id:
 # ── Load client profile ───────────────────────────────────────
 client = get_active_client(user_id)
 
+# S53. An open incident's deadlines come before everything else here: they
+# are the only items on this page measured in hours.
+import incident_store as _INC
+_inc_tasks = _INC.open_findings(user_id, client)
+if _inc_tasks:
+    _due = [f for f in _inc_tasks if f["severity"] == "due"]
+    _msg = (f"**{len(_inc_tasks)} incident deadline{'s' if len(_inc_tasks) != 1 else ''} open**"
+            + (f" — {len(_due)} due now or overdue" if _due else "")
+            + ". " + "; ".join(f"{f['title']} ({f['detail']})" for f in _inc_tasks[:3]))
+    (st.error if _due else st.warning)(_msg, icon="🚨")
+    if st.button("Open incidents", key="dash_incidents"):
+        st.switch_page("app_pages/incidents.py")
+
 company_name = client.get("company_name", "Your company")
 client_id    = client.get("id")
 regulations  = client.get("regulations") or ["GDPR"]

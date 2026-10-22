@@ -1,0 +1,36 @@
+name: Incident Reminders
+
+on:
+  schedule:
+    - cron: '7 * * * *'   # Hourly — the 24-hour NIS2 clock needs better than daily
+  workflow_dispatch:        # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  reminders:
+    name: Email incident deadline reminders
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install requests supabase python-dotenv
+
+      - name: Run incident reminders
+        env:
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY:         ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BREVO_API_KEY:        ${{ secrets.BREVO_API_KEY }}
+          BREVO_FROM_EMAIL:     ${{ secrets.BREVO_FROM_EMAIL }}
+          BREVO_FROM_NAME:      ${{ secrets.BREVO_FROM_NAME }}
+          APP_BASE_URL:         ${{ secrets.APP_BASE_URL }}
+        run: |
+          python monitor_incidents.py

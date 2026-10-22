@@ -24,6 +24,7 @@ have already dealt with.
 
 from datetime import date
 
+import incident_store as INC
 import streamlit as st
 
 import obligation_register as OR
@@ -115,6 +116,8 @@ findings = T.collect(
     # on.
     T.wording_missing(client, INSERTS, doc_languages),
     T.wording_too_short(client, INSERTS, doc_languages),
+    # S53. Every open notification deadline of an incident not yet closed.
+    INC.open_findings(user_id, client),
 )
 events = STORE.load_events(client_id, user_id)
 STORE.reconcile(user_id, client_id, findings, events)
@@ -247,6 +250,7 @@ _TASK_LINK_PAGES = {
     "documents":          "app_pages/documents.py",
     "wording":            "app_pages/wording.py",
     "compliance_record":  "app_pages/compliance_record.py",
+    "incidents":          "app_pages/incidents.py",
 }
 _FIX_LABEL = "Fix it"
 _DISMISS_LABEL = "Dismiss"
@@ -291,7 +295,7 @@ if open_tasks:
             {
                 "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}",
                 "Detail": f.get("detail") or "",
-                "Due": f.get("due") or "",
+                "Due": f["due"].strftime("%d/%m/%Y") if f.get("due") else "",
                 "Actions": _task_actions(f),
             }
             for f in open_tasks

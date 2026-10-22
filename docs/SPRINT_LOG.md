@@ -377,7 +377,7 @@ the only sprint that *is* the gate.
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
-| S53 | Breach notification workflow | was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
+| **S53** | **Breach notification workflow** | **Built 22 Oct — D-117, scope lock in 3b.** Open: the CNIL channel, counsel review of the draft texts. Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before |
 | S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
 | S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
@@ -2406,6 +2406,61 @@ The Brevo key lives in the quiz app's secrets.
 - Card payment — S46. Trial-to-paid stays manual until then.
 - Email nurture sequences beyond the single result email.
 - Quizzes for GDPR or the AI Act — NIS2 first; same mechanism later.
+
+---
+
+### S53 — Breach notification workflow — SCOPE LOCK
+
+*22 October 2026. Decided with the user — D-117. Taken ahead of S50 and the
+S51 beta gate, by request.*
+
+**The gap.** S29A wrote the procedure — first hour, is it reportable, who to
+tell, deadlines. Nothing in RECOSA helps while it is happening: an incident
+is never recorded, no clock starts, nothing drafts the notification.
+
+1. **Incident register.** One row per incident, per client: what happened,
+   when it was discovered (the clock), affected systems (from the S24
+   inventory), personal data involved and roughly how much, status (open /
+   contained / closed). GDPR Art. 33(5) requires documenting every personal
+   data breach, notified or not.
+2. **Guided steps.** The procedure's first hour, then the two questions —
+   personal data? significant (NIS2, only if the client is in scope)? —
+   and Art. 34's "high risk to people?". Every decision is recorded with its
+   reason, including a decision not to notify.
+3. **Clocks from discovery.** GDPR 72 h; NIS2 early warning 24 h,
+   notification 72 h, final report one month **after the notification**
+   (CCB's own wording — not after discovery). On the incident, the
+   Dashboard and the action plan; overdue in red.
+4. **Drafts, not submissions.** Pre-filled texts to paste into the
+   authority's own portal, in the client's document languages: the GDPR
+   notification (Art. 33(3) a–d), the three NIS2 reports (contents per CCB),
+   the message to data subjects (Art. 34(2)), and — where the client is a
+   processor — the notice to each affected controller (Art. 33(2)), found
+   from the systems via activities and counterparties. Templates, no LLM.
+5. **Recording what was sent** — when, reference number, by whom. A
+   recorded notification stops its clock.
+6. **Closing review** — root cause, what changed. Evidence for the annual
+   report (S60).
+7. **Email reminders** from the first open incident: an hourly job warns
+   the account before a deadline and when one is missed, once per stage.
+
+**Choices:** templates not LLM (a notification is a legal statement);
+anyone with access to the client can log one (the procedure says report
+without judging); subscribed and trial accounts only (S49's gate).
+
+**Authority channels, checked 22 Oct on the authorities' own sites:**
+- BE, GDPR: APD portal, `moncompte.autoriteprotectiondonnees.be`; email
+  notifications are not processed; submission in NL, FR or DE.
+- BE, NIS2: CCB — `notif.safeonweb.be`, option "NIS2 Entity"; emergency
+  +32 2 501 05 60; `incident@ccb.belgium.be`; guide on
+  `ccb.belgium.be/cert/report-incident/nis2-notifications-howto`.
+- FR, NIS2/incident: ANSSI's "Incident" link → `club.ssi.gouv.fr/#/declarations`.
+- FR, GDPR: **not verified** — the CNIL site was in maintenance. Shown as
+  unverified in the app until checked.
+
+**Out of scope:** submitting to authorities, LLM drafting, incidents
+across several clients at once (S54), sector-specific regimes (DORA, eIDAS
+trust services' 24 h).
 
 ---
 
@@ -4861,6 +4916,56 @@ which Streamlit Cloud cannot satisfy (no fixed IP). Turned off by the user;
 this likely also affected the client app's audit reports, ticket
 notifications and invites until then. Refusals are now logged with Brevo's
 reason. Test leads were deleted.
+
+### D-117 — S53 built: incidents, clocks, drafts and reminders
+
+*22 October 2026, same day as the scope lock. Taken ahead of S50 and the
+S51 beta gate, by request.*
+
+**Built as scoped (3b):**
+- `migration_s53_incidents.sql` — `incidents` (updatable, no DELETE
+  policy) and `incident_events` (append-only: no UPDATE or DELETE), access
+  through `has_client_access` so workspace members can log too. The
+  verified reporting channels merged into the BE and FR jurisdiction
+  metadata. Tested as a user: update allowed, timeline edits and deletes
+  affect zero rows.
+- `incident_rules.py` (pure) — regimes, clocks, reminder stages, the
+  processor chain (systems → processor activities → counterparties), the
+  action-plan producer, and the drafts in EN and FR: GDPR Art. 33(3),
+  Art. 34(2), Art. 33(2) per controller, and the three NIS2 reports with
+  CCB's listed contents. `[to complete]` where RECOSA does not know.
+- `app_pages/incidents.py` — *Incidents* under Compliance: log (clock
+  starts), first hour, assess (with reasons, and the systems can be
+  corrected here), notify (authority, portal, draft, record as sent with
+  reference), close with review, timeline. Times in Brussels time,
+  labelled.
+- Dashboard banner and action-plan tasks for every open deadline;
+  `monitor_incidents.py` + `.github/workflows/incident_reminders.yml`,
+  hourly, one email per deadline and stage ('soon' under 6 h, 'overdue'),
+  recorded as a `reminder` event so it is never repeated.
+
+**Decided while building:**
+- **NIS2 scope falls back to the client's regulations.** `nis2_in_scope`
+  was unset on every client; treating unset as "out of scope" would have
+  hidden the 24-hour clock. The page says so and points to the Profile.
+- **The final report has no date until the notification is recorded** —
+  CCB counts it from the notification, not from discovery.
+- **72 hours are 72 real hours**: across the 25 October clock change the
+  local due time moves by an hour, which is correct.
+- The task list's *Due* column now shows text dates; mixing dates and
+  empty strings made Arrow fall back with a warning (pre-existing, first
+  triggered by incident tasks).
+
+**Verified:** rules unit-checked (states, DST, month-end, processor chain);
+the page in AppTest end to end (assess, controller draft, record with
+reference, close); on the production database with a throwaway account —
+logging an incident, the clocks, the Dashboard banner, RLS; the reminder
+job run twice with sending stubbed (one reminder, then none). The account
+and its data were deleted.
+
+**Open:** the CNIL's notification channel (site in maintenance on
+22 Oct); the draft texts and the procedure, for counsel; a real reminder
+email, which needs a real incident or a test with a real inbox.
 
 ---
 
