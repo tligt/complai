@@ -5077,8 +5077,12 @@ All test data deleted afterwards and the company restored.
 
 **Still open:** the CNIL channel; counsel's review of the procedure v2,
 the decision questions and the drafts; a real reminder email; whether
-"Who does what" should stay required once a team list exists; sector
-regimes (DORA, telecom, trust services) stay out.
+sector regimes (DORA, telecom, trust services) stay out.
+
+**"Who does what" answered by the team (23 Oct).** Still required for the
+procedure, but with no written text it is filled from the team: the
+incident lead and deputy with their phone or email. Written text wins; a
+team with no lead or deputy still blocks, and says so.
 
 ---
 

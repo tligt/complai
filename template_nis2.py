@@ -166,7 +166,7 @@ _ENTITY = [
 IR_FIELDS = _IDENTITY + _CONTACT + _ENTITY + [
     FieldSpec("nis2_detection_text", "How incidents are detected", required=True),
     FieldSpec("nis2_containment_text", "Containment and recovery", required=True),
-    FieldSpec("nis2_roles_text", "Who does what", required=True),
+    FieldSpec("nis2_roles_text", "Who does what (or an incident lead under Incidents → Incident team)", required=True),
     FieldSpec("has_critical_systems", "At least one system recorded", flag=True),
 ]
 
@@ -177,7 +177,7 @@ BREACH_FIELDS = _IDENTITY + _CONTACT + _ENTITY + [
     FieldSpec("csirt_name", "National CSIRT", required=True),
     FieldSpec("csirt_url", "CSIRT website"),
     FieldSpec("has_csirt_url", "CSIRT website known", flag=True),
-    FieldSpec("nis2_roles_text", "Who does what", required=True),
+    FieldSpec("nis2_roles_text", "Who does what (or an incident lead under Incidents → Incident team)", required=True),
     # Both regimes can bite at once. The flag exists so the template can say so
     # rather than leaving a client to work it out mid-incident.
     FieldSpec("has_both_regimes", "Subject to GDPR and NIS2", flag=True),
@@ -474,6 +474,20 @@ _TEAM_ALERT = {
 }
 
 
+def _roles_from_team(team: list[Mapping[str, Any]], language: str) -> str:
+    """'Incident lead: Lea Lead (+32 …). Deputy: …' — or '' with no lead or
+    deputy recorded, which leaves the field required and blocking."""
+    lang = language if language in _TEAM_ROLES else "en"
+    parts = []
+    for role in ("lead", "deputy"):
+        for c in team:
+            if c.get("role") == role:
+                how = c.get("phone") or c.get("email")
+                sep = " : " if lang == "fr" else ": "
+                parts.append(f"{_TEAM_ROLES[lang][role]}{sep}{c.get('name')}" + (f" ({how})" if how else ""))
+    return ". ".join(parts) + "." if parts else ""
+
+
 def render_incident_team(context: Mapping[str, Any], language: str) -> Block:
     """S53 part 2 (D-118). Who to alert, from Incidents → Incident team."""
     lang = language if language in _TEAM_ROLES else "en"
@@ -525,6 +539,13 @@ def apply_nis2_values(
                     text = blob[lang].strip()
                     break
         values[key] = text or (client.get(key) or "")
+
+    # "Who does what" stays required, but an incident team (S53, D-118)
+    # answers it: with no written text, the lead and deputy are named from
+    # the team, so a client who recorded the team is not blocked on prose.
+    # Written text always wins.
+    if not values.get("nis2_roles_text"):
+        values["nis2_roles_text"] = _roles_from_team(ctx.get("incident_team") or [], language)
 
     cls = client.get("nis2_entity_class")
     values["has_nis2_class"] = bool(cls)
