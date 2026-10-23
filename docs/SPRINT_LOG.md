@@ -5068,9 +5068,17 @@ them, a follow-up, the PDF); the incident file's content; v2 rendered
 locally in EN/FR with and without a team, then stored byte-identical; RLS
 on the live database with a throwaway account (deleted).
 
+**Live run-through, 23 Oct**, on the user's account with their login,
+on the test company Inventory Analytics: team member added, a TEST
+incident logged — **the alert email was received** — assessed, the GDPR
+notification recorded as sent (text stored, clock stopped), the incident
+file built, the procedure generated from template v2 with the team table.
+All test data deleted afterwards and the company restored.
+
 **Still open:** the CNIL channel; counsel's review of the procedure v2,
-the decision questions and the drafts; a real alert and reminder email;
-sector regimes (DORA, telecom, trust services) stay out.
+the decision questions and the drafts; a real reminder email; whether
+"Who does what" should stay required once a team list exists; sector
+regimes (DORA, telecom, trust services) stay out.
 
 ---
 
