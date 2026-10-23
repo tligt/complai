@@ -181,6 +181,8 @@ BREACH_FIELDS = _IDENTITY + _CONTACT + _ENTITY + [
     # Both regimes can bite at once. The flag exists so the template can say so
     # rather than leaving a client to work it out mid-incident.
     FieldSpec("has_both_regimes", "Subject to GDPR and NIS2", flag=True),
+    FieldSpec("breach_notice_hours", "Hours promised to your own clients"),
+    FieldSpec("has_breach_notice_hours", "Contractual notice period recorded", flag=True),
 ]
 
 BCP_FIELDS = _IDENTITY + _ENTITY + [
@@ -195,7 +197,7 @@ BCP_FIELDS = _IDENTITY + _ENTITY + [
 ]
 
 IR_BLOCKS = ("nis2_systems",)
-BREACH_BLOCKS = ("nis2_timeline",)
+BREACH_BLOCKS = ("nis2_timeline", "incident_team")
 BCP_BLOCKS = ("nis2_recovery",)
 
 
@@ -291,7 +293,19 @@ def build_nis2_block_context(
             if s.get("rto_minutes") is None and s.get("rpo_minutes") is None
         ],
         "nis2_activities": inv["activities"],
+        # S53 part 2 (D-118): the incident team, for the breach procedure.
+        "incident_team": _load_team(client_id),
     }, None
+
+
+def _load_team(client_id: str) -> list[dict[str, Any]]:
+    from template_store import _get_client  # noqa: PLC0415
+    try:
+        return (_get_client().table("incident_contacts").select("*")
+                .eq("client_id", client_id).eq("active", True)
+                .order("sort_order").order("name").execute().data or [])
+    except Exception:
+        return []
 
 
 # ── Renderers ─────────────────────────────────────────────────────────────
@@ -300,16 +314,25 @@ _H = {
     "en": {"system": "System", "vendor": "Provider", "rto": "Back within",
            "rpo": "Data loss limit", "how": "How it is recovered",
            "crit": "Criticality", "not_set": "not set",
-           "when": "When", "who": "Who to tell", "what": "What to send"},
+           "when": "When", "who": "Who to tell", "what": "What to send",
+           "role": "Role", "name": "Name", "phone": "Phone", "email": "Email",
+           "alerted": "Alerted for", "no_team": "No incident team recorded yet — "
+           "add it in RECOSA under Incidents → Incident team."},
     "fr": {"system": "Système", "vendor": "Fournisseur",
            "rto": "Rétabli sous", "rpo": "Perte de données admise",
            "how": "Modalités de rétablissement", "crit": "Criticité",
            "not_set": "non défini", "when": "Quand",
-           "who": "Qui prévenir", "what": "Que transmettre"},
+           "who": "Qui prévenir", "what": "Que transmettre",
+           "role": "Rôle", "name": "Nom", "phone": "Téléphone", "email": "E-mail",
+           "alerted": "Prévenu pour", "no_team": "Aucune équipe incident "
+           "enregistrée — à compléter dans RECOSA, Incidents → Équipe incident."},
     "nl": {"system": "Systeem", "vendor": "Leverancier", "rto": "Hersteld binnen",
            "rpo": "Toegestaan gegevensverlies", "how": "Wijze van herstel",
            "crit": "Kritikaliteit", "not_set": "niet ingesteld",
-           "when": "Wanneer", "who": "Wie informeren", "what": "Wat versturen"},
+           "when": "Wanneer", "who": "Wie informeren", "what": "Wat versturen",
+           "role": "Rol", "name": "Naam", "phone": "Telefoon", "email": "E-mail",
+           "alerted": "Gewaarschuwd voor", "no_team": "Nog geen incidentteam "
+           "geregistreerd — vul het aan in RECOSA, Incidenten → Incidentteam."},
 }
 
 
@@ -374,12 +397,22 @@ _TIMELINE = {
          "Incident notification: an assessment of severity and impact, "
          "indicators of compromise where available."),
         ("Within 72 hours", "GDPR — supervisory authority",
-         "Where personal data is affected: nature of the breach, categories "
-         "and approximate numbers, likely consequences, measures taken."),
+         "A personal data breach, unless it is unlikely to result in a risk to "
+         "people: nature of the breach, categories and approximate numbers of "
+         "people and records, likely consequences, measures taken. Later: the "
+         "reasons for the delay."),
         ("Without undue delay", "GDPR — the people affected",
-         "Only where the breach is likely to result in a high risk to them."),
-        ("Within one month", "NIS2 — CSIRT",
-         "Final report: root cause, mitigation applied, cross-border impact."),
+         "Only where the breach is likely to result in a high risk to them, "
+         "and no Art. 34(3) exemption applies."),
+        ("Without undue delay", "NIS2 — users of your services",
+         "Where a significant incident is likely to affect the services they "
+         "receive."),
+        ("When the CSIRT asks", "NIS2 — CSIRT",
+         "Intermediate report: relevant status updates."),
+        ("Within one month of the notification", "NIS2 — CSIRT",
+         "Final report: root cause, mitigation applied, cross-border impact. "
+         "If the incident is still being handled then: a progress report, and "
+         "the final report within one month of handling ending."),
     ],
     "fr": [
         ("Dans les 24 heures", "NIS2 — CSIRT",
@@ -389,15 +422,24 @@ _TIMELINE = {
          "Notification d'incident : évaluation de la gravité et de l'impact, "
          "indicateurs de compromission le cas échéant."),
         ("Dans les 72 heures", "RGPD — autorité de contrôle",
-         "Lorsque des données à caractère personnel sont concernées : nature "
-         "de la violation, catégories et nombre approximatif de personnes, "
-         "conséquences probables, mesures prises."),
+         "Une violation de données à caractère personnel, sauf si elle est "
+         "peu susceptible d'engendrer un risque pour les personnes : nature "
+         "de la violation, catégories et nombre approximatif de personnes et "
+         "d'enregistrements, conséquences probables, mesures prises. Au-delà : "
+         "les motifs du retard."),
         ("Dans les meilleurs délais", "RGPD — les personnes concernées",
          "Uniquement lorsque la violation est susceptible d'engendrer un "
-         "risque élevé pour elles."),
-        ("Dans un délai d'un mois", "NIS2 — CSIRT",
+         "risque élevé pour elles, sauf exception de l'art. 34(3)."),
+        ("Dans les meilleurs délais", "NIS2 — destinataires de vos services",
+         "Lorsqu'un incident important est susceptible d'affecter les "
+         "services qu'ils reçoivent."),
+        ("À la demande du CSIRT", "NIS2 — CSIRT",
+         "Rapport intermédiaire : mises à jour pertinentes."),
+        ("Dans le mois suivant la notification", "NIS2 — CSIRT",
          "Rapport final : cause profonde, mesures d'atténuation appliquées, "
-         "impact transfrontalier."),
+         "impact transfrontalier. Si l'incident est encore en cours : un "
+         "rapport d'avancement, puis le rapport final dans le mois suivant la "
+         "fin de son traitement."),
     ],
 }
 
@@ -414,10 +456,49 @@ def render_nis2_timeline(context: Mapping[str, Any], language: str) -> Block:
     return block
 
 
+_TEAM_ROLES = {
+    "en": {"lead": "Incident lead", "deputy": "Deputy incident lead", "it": "IT",
+           "external_it": "External IT provider", "dpo": "DPO / privacy contact",
+           "management": "Management", "legal": "Legal", "communications": "Communications",
+           "insurer": "Cyber insurer", "other": "Other"},
+    "fr": {"lead": "Responsable des incidents", "deputy": "Suppléant", "it": "Informatique",
+           "external_it": "Prestataire informatique", "dpo": "DPO / contact vie privée",
+           "management": "Direction", "legal": "Juridique", "communications": "Communication",
+           "insurer": "Assureur cyber", "other": "Autre"},
+}
+_TEAM_ALERT = {
+    "en": {"all": "Every incident", "personal_data": "Personal data involved",
+           "significant": "Significant incidents (NIS2)", "never": "—"},
+    "fr": {"all": "Tout incident", "personal_data": "Données personnelles concernées",
+           "significant": "Incidents importants (NIS2)", "never": "—"},
+}
+
+
+def render_incident_team(context: Mapping[str, Any], language: str) -> Block:
+    """S53 part 2 (D-118). Who to alert, from Incidents → Incident team."""
+    lang = language if language in _TEAM_ROLES else "en"
+    block = Block(
+        name="incident_team",
+        headers=[_t(language, "role"), _t(language, "name"), _t(language, "phone"),
+                 _t(language, "email"), _t(language, "alerted")],
+    )
+    team = context.get("incident_team") or []
+    for c in team:
+        block.rows.append([
+            _TEAM_ROLES[lang].get(c.get("role"), c.get("role") or ""),
+            c.get("name") or "", c.get("phone") or "—", c.get("email") or "—",
+            _TEAM_ALERT[lang].get(c.get("alert_on"), ""),
+        ])
+    if not team:
+        block.rows.append([_t(language, "no_team"), "", "", "", ""])
+    return block
+
+
 NIS2_BLOCK_RENDERERS = {
     "nis2_systems":  render_nis2_systems,
     "nis2_recovery": render_nis2_recovery,
     "nis2_timeline": render_nis2_timeline,
+    "incident_team": render_incident_team,
 }
 
 
@@ -466,6 +547,11 @@ def apply_nis2_values(
     # 24-hour clock is the binding one and a client reading only the GDPR
     # procedure would miss it.
     values["has_both_regimes"] = bool(ctx.get("nis2_activities"))
+
+    # S53 part 2 (D-118). What the client's own DPAs promise its clients.
+    hours = client.get("breach_notice_hours")
+    values["breach_notice_hours"] = str(hours) if hours else ""
+    values["has_breach_notice_hours"] = bool(hours)
 
     values["has_policy_effective_date"] = bool(values.get("policy_effective_date"))
     values["has_authority_url"] = bool(values.get("authority_url"))

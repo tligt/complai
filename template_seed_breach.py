@@ -80,23 +80,44 @@ reportable — that comes next, and it does not change any of the following.
    off if it can be avoided: it destroys evidence you may need.
 2. **Write down the time** you found out, and what you saw. Everything after
    this is measured from that moment.
-3. **Tell the person who leads incidents.** {{nis2_roles_text}}
+3. **Alert the incident team**, starting with whoever leads incidents. Log
+   the incident in RECOSA: it alerts the team below and starts the clocks.
+   {{nis2_roles_text}}
 4. **Do not delete anything**, including the thing that caused it.
 5. **Do not tell customers or the public yet.** That decision comes with the
    assessment below.
+
+**The incident team**
+
+{{#block:incident_team}}
 
 ## 2. Is it reportable?
 
 Two separate regimes can apply, and they ask different questions.
 
 **Is personal data involved?** If personal data has been lost, exposed,
-altered or made unavailable — even temporarily — the GDPR applies. Clock: 72
-hours from becoming aware.
+altered or made unavailable — even temporarily — it is a personal data breach.
+Record it whatever happens next. Then decide the risk to the people concerned,
+and record why:
+
+- **unlikely to result in a risk** — not notified; the reason is recorded;
+- **a risk** — notify the supervisory authority. Clock: 72 hours from becoming
+  aware;
+- **a high risk** — also tell the people concerned, without undue delay,
+  unless the data was unintelligible to anyone not authorised (for example
+  encrypted), measures taken since mean the high risk is no longer likely, or
+  contacting each person would take disproportionate effort — then a public
+  communication instead.
+
+If you process the data for a client, tell that client without undue
+delay{{#if:has_breach_notice_hours}} — within {{breach_notice_hours}} hours, as
+your contracts promise{{/if:has_breach_notice_hours}} — whatever the risk.
 
 {{#if:has_both_regimes}}
 **Is it a significant incident?** NIS2 applies where an incident seriously
 disrupts the services you provide, or causes considerable operational or
-financial damage. Clock: **24 hours** from becoming aware.
+financial damage. Clock: **24 hours** from becoming aware. Where it is likely
+to affect the users of your services, inform them too.
 
 **Both can apply at once.** Ransomware on a system holding personal data is
 the obvious case. When both apply, work to the 24-hour deadline — meeting it
@@ -119,7 +140,15 @@ not.
 
 You do not need complete information to notify. Send what you have within the
 deadline and follow up — that is what the law expects, and a late complete
-notification is worse than an early incomplete one.
+notification is worse than an early incomplete one. A GDPR notification sent
+after 72 hours must give the reasons for the delay. The CSIRT may ask for an
+intermediate report; if the incident is still being handled when the final
+report is due, send a progress report then, and the final report within a
+month of the end of handling.
+
+Each notification is sent by the person on the team who handles it — on the
+authority's own portal, or from your own mailbox for your clients and users —
+and recorded in RECOSA with the text sent and the reference received.
 
 ## 4. Reporting an incident internally
 
@@ -135,7 +164,9 @@ you they have had an incident.
 ## 5. After it is closed
 
 Record what happened, what was done, and what changed as a result. Where the
-incident was notified, the final report is due within a month.
+incident was notified, the final report is due within a month. RECOSA keeps the
+incident file: the facts, each decision and its reason, every notification sent
+with its reference, and who was alerted when.
 
 Reviewing an incident is not optional paperwork — it is the only part of this
 procedure that reduces the chance of the next one.
@@ -161,10 +192,16 @@ qui suit.
    besoin.
 2. **Notez l'heure** à laquelle vous en avez eu connaissance, et ce que vous
    avez constaté. Tous les délais courent à partir de ce moment.
-3. **Prévenez la personne qui pilote les incidents.** {{nis2_roles_text}}
+3. **Prévenez l'équipe incident**, en commençant par la personne qui pilote
+   les incidents. Enregistrez l'incident dans RECOSA : il prévient l'équipe
+   ci-dessous et lance les délais. {{nis2_roles_text}}
 4. **Ne supprimez rien**, y compris ce qui est à l'origine de l'incident.
 5. **N'informez pas encore les clients ni le public.** Cette décision relève de
    l'évaluation ci-dessous.
+
+**L'équipe incident**
+
+{{#block:incident_team}}
 
 ## 2. L'incident est-il notifiable ?
 
@@ -173,14 +210,31 @@ différentes.
 
 **Des données à caractère personnel sont-elles concernées ?** Si des données
 ont été perdues, divulguées, altérées ou rendues indisponibles — même
-temporairement — le RGPD s'applique. Délai : 72 heures à compter de la prise de
-connaissance.
+temporairement — il s'agit d'une violation de données. Consignez-la quoi qu'il
+arrive ensuite. Évaluez ensuite le risque pour les personnes concernées, et
+consignez pourquoi :
+
+- **peu susceptible d'engendrer un risque** — pas de notification ; le motif
+  est consigné ;
+- **un risque** — notifiez l'autorité de contrôle. Délai : 72 heures à compter
+  de la prise de connaissance ;
+- **un risque élevé** — informez aussi les personnes concernées dans les
+  meilleurs délais, sauf si les données étaient incompréhensibles pour toute
+  personne non autorisée (par exemple chiffrées), si des mesures prises depuis
+  rendent ce risque élevé improbable, ou si contacter chaque personne exigerait
+  des efforts disproportionnés — une communication publique est alors faite.
+
+Si vous traitez ces données pour le compte d'un client, prévenez ce client dans
+les meilleurs délais{{#if:has_breach_notice_hours}} — dans les
+{{breach_notice_hours}} heures prévues par vos contrats{{/if:has_breach_notice_hours}}
+— quel que soit le risque.
 
 {{#if:has_both_regimes}}
 **S'agit-il d'un incident important ?** NIS2 s'applique lorsqu'un incident
 perturbe gravement les services que vous fournissez ou cause un dommage
 opérationnel ou financier considérable. Délai : **24 heures** à compter de la
-prise de connaissance.
+prise de connaissance. S'il est susceptible d'affecter les destinataires de vos
+services, informez-les également.
 
 **Les deux peuvent s'appliquer simultanément.** Un rançongiciel sur un système
 contenant des données à caractère personnel en est l'exemple type. Dans ce cas,
@@ -205,7 +259,16 @@ notification manquée, non.
 Vous n'avez pas besoin d'informations complètes pour notifier. Transmettez ce
 dont vous disposez dans le délai imparti, puis complétez : c'est ce que la loi
 prévoit, et une notification tardive mais complète vaut moins qu'une
-notification rapide et partielle.
+notification rapide et partielle. Une notification RGPD envoyée après 72 heures
+doit indiquer les motifs du retard. Le CSIRT peut demander un rapport
+intermédiaire ; si l'incident est encore en cours à l'échéance du rapport final,
+envoyez alors un rapport d'avancement, puis le rapport final dans le mois
+suivant la fin de son traitement.
+
+Chaque notification est envoyée par la personne de l'équipe qui en a la charge
+— sur le portail de l'autorité, ou depuis votre propre messagerie pour vos
+clients et utilisateurs — et consignée dans RECOSA avec le texte envoyé et la
+référence reçue.
 
 ## 4. Signaler un incident en interne
 
@@ -222,7 +285,9 @@ inhabituel, ou un fournisseur vous annonçant un incident.
 
 Consignez ce qui s'est passé, ce qui a été fait et ce qui a changé en
 conséquence. Lorsque l'incident a été notifié, le rapport final est dû dans le
-mois.
+mois. RECOSA conserve le dossier de l'incident : les faits, chaque décision et
+son motif, chaque notification envoyée avec sa référence, et qui a été prévenu
+et quand.
 
 Le retour d'expérience n'est pas une formalité : c'est la seule partie de cette
 procédure qui réduit la probabilité de l'incident suivant.
@@ -236,18 +301,22 @@ DOC = TemplateDoc(
     sort_order=50,
     sprint="S29A",
     bodies={"en": BODY_EN, "fr": BODY_FR},
-    blocks={"nis2_timeline"},
+    blocks={"nis2_timeline", "incident_team"},
     materiality="required",
     source_revision=1,
-    version_no=1,
+    version_no=2,
+    # v1 (S29A): one procedure for GDPR Art. 33 and NIS2 Art. 23, both-apply
+    # case stated, the 24-hour clock binding where both apply.
     change_note=(
-        "Initial version (S29A). One procedure covering both the GDPR Art. 33 "
-        "and NIS2 Art. 23 regimes, with the both-apply case stated explicitly "
-        "and the 24-hour NIS2 clock presented as binding where both apply. "
-        "DRAFT — not yet reviewed by counsel."
+        "Version 2 (S53, D-118). The incident team list; the GDPR risk test "
+        "(no risk / risk / high risk) and the Art. 34(3) exemptions; the "
+        "processor's notice to its clients, with contractual hours where "
+        "recorded; informing users of the service under NIS2; reasons for a "
+        "late notification, intermediate and progress reports; who sends what "
+        "and the incident file. DRAFT — not yet reviewed by counsel."
     ),
 )
 
 
 if __name__ == "__main__":
-    run(DOC, "seed_s29a_breach.sql")
+    run(DOC, "seed_s53_breach_v2.sql")

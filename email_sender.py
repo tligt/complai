@@ -217,6 +217,65 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
     return response.status_code in (200, 201)
 
 
+def send_incident_alert(to_emails: list[str], company: str, incident_title: str,
+                        discovered_at, reason: str) -> bool:
+    """S53 part 2. Tell the incident team an incident is open. Content-light
+    on purpose, like the reminder: what happened stays in RECOSA. reason:
+    'logged', 'personal_data', 'significant' or 'manual'."""
+    import html
+    from datetime import datetime
+    api_key = os.environ.get("BREVO_API_KEY")
+    if not api_key:
+        raise ValueError("BREVO_API_KEY not set in secrets.")
+    from_email = os.environ.get("BREVO_FROM_EMAIL")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
+    base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+    why = {
+        "logged": "An incident has been logged and you are on the incident team.",
+        "personal_data": "The incident involves personal data, and you are on the team for those.",
+        "significant": "The incident has been assessed as significant under NIS2.",
+        "manual": "You have been alerted by the person handling the incident.",
+    }.get(reason, "You are on the incident team.")
+    try:
+        import incident_rules as R
+        found = R.when(discovered_at)
+    except Exception:
+        found = str(discovered_at or "")
+    html_body = f"""
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
+  <div style="background:#993C1D;padding:18px 22px;border-radius:8px 8px 0 0;">
+    <h2 style="color:white;margin:0;">Incident open — {html.escape(company)}</h2>
+  </div>
+  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;border-radius:0 0 8px 8px;">
+    <p><strong>{html.escape(incident_title)}</strong><br>Found out: {html.escape(found)}</p>
+    <p>{html.escape(why)}</p>
+    <p>Reporting deadlines may already be running. Open the incident for the steps, the deadlines
+       and who does what. Do not forward this email outside the team.</p>
+    <a href="{base_url}/incidents" style="display:inline-block;background:#003366;color:white;
+       padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:bold;">Open the incident</a>
+  </div>
+  <p style="color:#999;font-size:11px;text-align:center;margin-top:14px;">
+    Sent by RECOSA because you are on this company's incident team. RECOSA · recosa.eu</p>
+</body></html>
+"""
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={"api-key": api_key, "Content-Type": "application/json"},
+        json={
+            "sender": {"name": from_name, "email": from_email},
+            "to": [{"email": e} for e in to_emails],
+            "subject": f"Incident open — {company}: {incident_title}"[:150],
+            "htmlContent": html_body,
+        },
+        timeout=20,
+    )
+    if response.status_code not in (200, 201):
+        print(f"Brevo refused the incident alert: {response.status_code} {response.text[:300]}")
+    return response.status_code in (200, 201)
+
+
 def send_incident_reminder(to_emails: list[str], company: str, incident_title: str,
                            items: list[tuple[str, str]], overdue: bool) -> bool:
     """S53. An incident deadline is close or missed. items: (deadline label,

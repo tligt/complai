@@ -88,7 +88,7 @@ def add_event(user_id: str, incident: dict, event_type: str, *, kind: str | None
             "reference": (reference or "").strip() or None,
             "body": (body or "").strip() or None,
         }).execute()
-        if event_type in ("notification", "status"):
+        if event_type in ("notification", "status", "followup", "alert"):
             log_audit_event(
                 company_id=incident["client_id"], user_id=user_id, event_type="incident",
                 event_subtype=f"{event_type}:{kind}" if kind else event_type,
@@ -142,4 +142,63 @@ def open_findings(user_id: str, client: dict) -> list[dict]:
     ctx = processor_context(user_id, client["id"])
     processor = {i["id"]: bool(R.affected_controllers(i.get("system_ids") or [], **ctx))
                  for i in incidents}
-    return R.findings(incidents, client, events, processor)
+    return R.findings(incidents, client, events, processor,
+                      contacts=load_contacts(client["id"]))
+
+
+# ── The incident team (S53 part 2, D-118) ────────────────────────────────
+
+def load_contacts(client_id: str, include_inactive: bool = False) -> list[dict]:
+    try:
+        q = get_supabase().table("incident_contacts").select("*").eq("client_id", client_id)
+        if not include_inactive:
+            q = q.eq("active", True)
+        return q.order("sort_order").order("name").execute().data or []
+    except Exception as e:
+        print(f"Could not load the incident team: {e}")
+        return []
+
+
+def save_contact(user_id: str, client_id: str, contact: dict[str, Any],
+                 contact_id: str | None = None) -> bool:
+    """Create, or update when contact_id is given. No delete: a contact is
+    deactivated, so past alerts still name them."""
+    fields = {k: contact.get(k) for k in
+              ("name", "role", "email", "phone", "alert_on", "deadline_hours", "notes",
+               "sort_order", "active") if k in contact}
+    try:
+        if contact_id:
+            get_supabase().table("incident_contacts").update(
+                {**fields, "updated_at": datetime.now(timezone.utc).isoformat()}
+            ).eq("id", contact_id).execute()
+        else:
+            get_supabase().table("incident_contacts").insert(
+                {**fields, "client_id": client_id, "user_id": user_id}
+            ).execute()
+        return True
+    except Exception as e:
+        print(f"Could not save the team member: {e}")
+        return False
+
+
+def alert_team(user_id: str, incident: dict, client: dict, targets: list[dict],
+               reason: str) -> list[dict]:
+    """Email the incident alert to these team members and record who was
+    told, when, and why. Returns the members actually emailed."""
+    if not targets:
+        return []
+    from email_sender import send_incident_alert
+    try:
+        ok = send_incident_alert(
+            [t["email"] for t in targets], client.get("company_name") or "",
+            incident["title"], incident.get("discovered_at"), reason,
+        )
+    except Exception as e:
+        print(f"Incident alert failed: {e}")
+        ok = False
+    if not ok:
+        return []
+    add_event(user_id, incident, "alert", kind=reason,
+              reference=",".join(t["id"] for t in targets),
+              body="; ".join(f"{t['name']} <{t['email']}>" for t in targets))
+    return targets

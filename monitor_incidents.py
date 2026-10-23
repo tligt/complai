@@ -43,6 +43,7 @@ def run(now: datetime | None = None) -> dict:
 
     clients: dict[str, dict] = {}
     contexts: dict[str, dict] = {}
+    team: dict[str, list] = {}
     emails: dict[str, str] = {}
 
     def email_of(uid: str | None) -> str | None:
@@ -62,13 +63,14 @@ def run(now: datetime | None = None) -> dict:
                     "activity_counterparties": _rows("activity_counterparties", client_id=cid),
                     "counterparties": _rows("processing_counterparties", client_id=cid),
                 }
+                team[cid] = _rows("incident_contacts", client_id=cid, active=True)
             client = clients[cid]
             events = _rows("incident_events", incident_id=inc["id"])
             done = {e.get("body") for e in events if e["event_type"] == "reminder"}
             processor = bool(R.affected_controllers(inc.get("system_ids") or [], **contexts[cid]))
 
             due = []
-            for d in R.deadlines(inc, client, events, processor, now):
+            for d in R.deadlines(inc, client, events, processor, now, team[cid]):
                 stage = R.reminder_stage(d)
                 tag = f"{d['kind']}:{stage}"
                 if stage and tag not in done:
@@ -83,7 +85,8 @@ def run(now: datetime | None = None) -> dict:
             overdue = any(s == "overdue" for _, s, _ in due)
             ok = send_incident_reminder(
                 to, client.get("company_name") or "", inc["title"],
-                [(R.LABELS["en"][d["kind"]], R.describe_left(d, "en")) for d, _, _ in due],
+                [(R.label(d["kind"], "en", {c["id"]: c for c in team[cid]}), R.describe_left(d, "en"))
+                 for d, _, _ in due],
                 overdue,
             )
             if not ok:

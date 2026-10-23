@@ -377,7 +377,7 @@ the only sprint that *is* the gate.
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
-| **S53** | **Breach notification workflow** | **Built 22 Oct — D-117, scope lock in 3b.** Open: the CNIL channel, counsel review of the draft texts. Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
+| **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Open: the CNIL channel, counsel review of the procedure and the draft texts, one real alert/reminder email. Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before |
 | S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
 | S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
@@ -2457,6 +2457,56 @@ without judging); subscribed and trial accounts only (S49's gate).
 - FR, NIS2/incident: ANSSI's "Incident" link → `club.ssi.gouv.fr/#/declarations`.
 - FR, GDPR: **not verified** — the CNIL site was in maintenance. Shown as
   unverified in the app until checked.
+
+#### Part 2 — incident team, documented flow, legal gaps (23 October 2026, D-118)
+
+Checked part 1 against GDPR Art. 33/34 and NIS2 Art. 23 with the user;
+the gaps and the missing flow are this part's scope.
+
+**Incident team.** Per client: name, role (incident lead, deputy, IT,
+external IT provider, DPO / privacy contact, management, legal,
+communications, insurer, other), email, phone, and when they are alerted
+(every incident / personal data involved / significant NIS2 incident). An
+optional contractual deadline in hours per contact (an insurer's 48 h)
+becomes its own clock. The procedure document shows the list (template
+version 2); the free-text roles insert stays as the narrative.
+
+**The documented flow**, as the steps of each incident:
+1. *Logged* — the clock starts; the team members marked "every incident"
+   are emailed a short alert (content-light), recorded with recipients.
+2. *First hour* — the procedure's steps; contained.
+3. *Assess* — with reasons; when the answers newly make it a personal data
+   breach or a significant incident, the members marked for that are
+   alerted.
+4. *Notify* — each recipient with who sends it, the portal, the draft;
+   *the text actually sent is stored* with the reference.
+5. *Follow up* — supplementary information (Art. 33(4)), the CSIRT's
+   intermediate report on request, authority questions and answers as
+   notes, the progress report.
+6. *Close and review* — root cause, what changed.
+7. *Incident file* — one document per incident: facts, decisions with
+   reasons, every text sent with its reference, timeline. For an authority
+   or auditor who asks; feeds S60.
+
+**Legal gaps closed:**
+- GDPR trigger is the risk test, not "personal data involved": no risk /
+  risk / high risk. *No risk* → not notified, reason recorded (Art. 33(1),
+  33(5)).
+- Late GDPR notification carries the reasons for the delay (Art. 33(1)).
+- Art. 34(3) exemptions recorded: data unintelligible (encryption),
+  subsequent measures, or a public communication instead (disproportionate
+  effort).
+- Categories of data subjects, not only of data (Art. 33(3)(a)).
+- NIS2: informing recipients of the service where they are likely to be
+  affected (Art. 23(1)); the intermediate report on the CSIRT's request
+  (Art. 23(4)(c)); the progress report when the incident is still being
+  handled at the final report's date, the final report then due one month
+  after handling ends (Art. 23(4)(e)).
+- Contractual deadlines: the client's promised notice to its own clients
+  (DPA clauses) in hours, replacing "without undue delay" when set.
+
+**Still out:** submitting to authorities; sector regimes (DORA, telecom,
+trust services); counsel's review, which this does not replace.
 
 **Out of scope:** submitting to authorities, LLM drafting, incidents
 across several clients at once (S54), sector-specific regimes (DORA, eIDAS
@@ -4966,6 +5016,61 @@ and its data were deleted.
 **Open:** the CNIL's notification channel (site in maintenance on
 22 Oct); the draft texts and the procedure, for counsel; a real reminder
 email, which needs a real incident or a test with a real inbox.
+
+### D-118 — S53 part 2: the incident team, the documented flow, the legal gaps
+
+*23 October 2026.* Prompted by the user asking whether part 1 met the legal
+requirements and what happens after sending. Checked against GDPR Art.
+33/34 and NIS2 Art. 23 — from the texts as known, not a fresh reading of
+the Official Journal, and not counsel. Scope in 3b, part 2.
+
+**Built:**
+- `migration_s53_part2.sql` — `incident_contacts` (no DELETE: deactivated,
+  so past alerts still name them); on `incidents`: `gdpr_risk`
+  (none / risk / high), `subjects_exemption` (Art. 34(3) a/b/c),
+  `subject_categories`, `affects_recipients`, `intermediate_due`; event
+  types `alert`, `followup`, `request`; `clients.breach_notice_hours`.
+- `incident_rules.py` rewritten: the risk test decides the GDPR
+  notification; Art. 33(2) applies to every breach, with contractual hours
+  when recorded; NIS2 recipients, intermediate, progress and final reports
+  with Art. 23(4)(e)'s "one month after handling ends"; a clock per team
+  member with a contractual deadline; `alert_targets`; drafts gained the
+  reasons for delay, supplementary information, the public communication,
+  the recipients notice, the intermediate and progress reports.
+- `app_pages/incidents.py` — tabs *Incidents* / *Incident team*; per
+  incident: 1 Team (who was alerted, alert the rest), 2 First hour (lead's
+  phone), 3 Assess (risk test; a "no risk" decision needs its reason),
+  4 Notify (the edited text is stored as sent; a late GDPR notification
+  can't be recorded without its reasons), 5 Follow up (supplementary
+  information, the CSIRT's request, authority notes), 6 Close, Record &
+  file (PDF).
+- `incident_file.py` — the incident file: facts, assessment, decisions and
+  reasons, deadlines, every text sent with its reference, alerts, timeline,
+  review.
+- Team alerts by email (`send_incident_alert`), content-light, on logging
+  and when the assessment newly makes it personal data or significant;
+  recorded with recipients. The reminder job includes team contract
+  deadlines.
+- **Procedure document version 2** (`template_seed_breach.py`,
+  `seed_s53_breach_v2.sql`, applied): the team table (block
+  `incident_team`), the risk test and exemptions, the processor's notice
+  with contractual hours, NIS2 recipients, late reasons, intermediate and
+  progress reports, who sends what, the incident file. The reporting
+  timeline table updated to match. Version 1 superseded; clients with a v1
+  procedure in force get S36's "update available" task.
+
+**Verified:** rules unit-checked (risk levels, exemptions, processor
+contract hours, progress/final dates, intermediate, contact clocks, alert
+targets, drafts in EN/FR); the page flow in AppTest (manual alert, a
+no-risk decision without reason refused, high risk alerting the DPO, a late
+GDPR notification refused until its reasons are filled in then stored with
+them, a follow-up, the PDF); the incident file's content; v2 rendered
+locally in EN/FR with and without a team, then stored byte-identical; RLS
+on the live database with a throwaway account (deleted).
+
+**Still open:** the CNIL channel; counsel's review of the procedure v2,
+the decision questions and the drafts; a real alert and reminder email;
+sector regimes (DORA, telecom, trust services) stay out.
 
 ---
 
