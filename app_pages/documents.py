@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 
-from display import fmt_datetime, plural
+from display import fmt_date, fmt_datetime, plural
 from auth import get_user_id
 from active_client import get_active_client
 from cached_reads import load_accessible_clients
@@ -1133,7 +1133,7 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
         if _status == "in_force":
             badge += f" · **{_vlabel}** · :green[In force]"
             if reg.get("effective_from"):
-                badge += f" from {reg['effective_from']}"
+                badge += f" from {fmt_date(reg['effective_from'])}"
         elif _status == "draft":
             # The distinction the adoption step exists to make: produced, and
             # not the thing the organisation operates under. No version — one
@@ -1260,7 +1260,7 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                     st.caption(
                         f"This supersedes v{_live_here.get('version')} "
                         f"({reg['language'].upper()}), in force since "
-                        f"{_live_here.get('effective_from') or 'an unrecorded date'}. "
+                        f"{fmt_date(_live_here.get('effective_from')) or 'an unrecorded date'}. "
                         "That version is kept as the record of what applied "
                         "until now."
                     )

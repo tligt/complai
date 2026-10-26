@@ -167,7 +167,7 @@ for doc_type, meta in relevant.items():
         if current.get("version"):
             head += f" · **v{current['version']}**"
         if current.get("status") == "in_force":
-            head += f" · :green[In force] from {current.get('effective_from') or '—'}"
+            head += f" · :green[In force] from {fmt_date(current.get('effective_from')) or '—'}"
         elif current.get("status") == "draft":
             head += " · :orange[Draft — not adopted]"
         else:
@@ -234,9 +234,9 @@ for doc_type, meta in relevant.items():
                 for old in previous:
                     line = f"**v{old.get('version')}**"
                     if old.get("effective_from"):
-                        line += f" · {old['effective_from']}"
+                        line += f" · {fmt_date(old['effective_from'])}"
                     if old.get("superseded_on"):
-                        line += f" → {old['superseded_on']}"
+                        line += f" → {fmt_date(old['superseded_on'])}"
                     if old.get("superseded_by_version"):
                         line += f" · superseded by v{old['superseded_by_version']}"
                     elif old.get("status") == "archived":
@@ -246,7 +246,7 @@ for doc_type, meta in relevant.items():
                     if old.get("change_comment"):
                         st.caption(f"“{old['change_comment']}”")
                     if old.get("retain_until"):
-                        st.caption(f":gray[Retained until {old['retain_until']}]")
+                        st.caption(f":gray[Retained until {fmt_date(old['retain_until'])}]")
 
                     # What the hold does, and what releasing it costs. Stated
                     # at the control rather than in a help tooltip: a client

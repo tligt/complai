@@ -1,6 +1,6 @@
 import streamlit as st
 
-from display import fmt_datetime, plural
+from display import country_label, fmt_datetime, plural, regulations_text
 from auth import get_user_id
 from database import load_client_alerts, mark_alert_read, get_supabase, get_supabase_admin
 from database import count_unread_alerts as _count_unread_alerts_fresh
@@ -113,8 +113,8 @@ def _alerts_panel(user_id: str):
                 tags = " · ".join(filter(None, [
                     update.get("alert_ref") or "",
                     source,
-                    ", ".join(regs) if regs else "",
-                    ", ".join(countries) if countries else "",
+                    regulations_text(regs),
+                    ", ".join(country_label(c) for c in countries),
                     dt,
                 ]))
                 st.caption(tags)
