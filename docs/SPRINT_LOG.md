@@ -365,7 +365,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
-| **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built 26 Oct — D-119.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
@@ -5157,6 +5157,18 @@ flow in AppTest (locked, token shown, verified, unlocked); the scheduled
 sender on the live database with three throwaway accounts — confirmed quiz
 sent once and flagged with its lead, unproven site held, unconfirmed held,
 second run silent; accounts deleted. Every email rendered offline.
+
+**Live test, 26 Oct**, with the user's own address (their account moved to
+a temporary address for the test, then restored): sign-up, confirmation
+email (new template, Brevo SMTP), first login, full report shown. Found and
+fixed on the way: Supabase's SMTP login was wrong (535); Brevo's IP
+blocking had been switched back on; a stale module crashed first login
+(getattr now); a new account with no company was stopped at "set up your
+first client" before its report (free check now first); the in-page send
+was killed by any rerun with no trace (now a background thread, logging
+its result — pushed, not yet seen live); existing addresses get a "log in
+instead" line. Test accounts and records deleted. **S49 closed by the user
+on 26 Oct.**
 
 **For the user:** check Supabase Auth's email settings — the confirmation
 email now carries the funnel, so its sender should be the custom SMTP
