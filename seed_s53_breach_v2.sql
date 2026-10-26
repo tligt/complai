@@ -138,8 +138,8 @@ with its reference, and who was alerted when.
 Reviewing an incident is not optional paperwork — it is the only part of this
 procedure that reduces the chance of the next one.
 $body_en$,
-       'required', 'in_force', 'Version 2 (S53, D-118). The incident team list; the GDPR risk test (no risk / risk / high risk) and the Art. 34(3) exemptions; the processor''s notice to its clients, with contractual hours where recorded; informing users of the service under NIS2; reasons for a late notification, intermediate and progress reports; who sends what and the incident file. DRAFT — not yet reviewed by counsel.',
-       DATE '2026-10-23'
+       'required', 'in_force', 'Version 2 (S53, D-118). The incident team list; the GDPR risk test (no risk / risk / high risk) and the Art. 34(3) exemptions; the processor''s notice to its clients, with contractual hours where recorded; informing users of the service under NIS2; reasons for a late notification, intermediate and progress reports; who sends what and the incident file. Reviewed and approved 26 Oct 2026.',
+       DATE '2026-10-26'
 FROM document_templates WHERE doc_type = 'breach_notification_procedure'
 ON CONFLICT (template_id, language, version_no) DO UPDATE
 SET source_revision = EXCLUDED.source_revision,
@@ -272,8 +272,8 @@ et quand.
 Le retour d'expérience n'est pas une formalité : c'est la seule partie de cette
 procédure qui réduit la probabilité de l'incident suivant.
 $body_fr$,
-       'required', 'in_force', 'Version 2 (S53, D-118). The incident team list; the GDPR risk test (no risk / risk / high risk) and the Art. 34(3) exemptions; the processor''s notice to its clients, with contractual hours where recorded; informing users of the service under NIS2; reasons for a late notification, intermediate and progress reports; who sends what and the incident file. DRAFT — not yet reviewed by counsel.',
-       DATE '2026-10-23'
+       'required', 'in_force', 'Version 2 (S53, D-118). The incident team list; the GDPR risk test (no risk / risk / high risk) and the Art. 34(3) exemptions; the processor''s notice to its clients, with contractual hours where recorded; informing users of the service under NIS2; reasons for a late notification, intermediate and progress reports; who sends what and the incident file. Reviewed and approved 26 Oct 2026.',
+       DATE '2026-10-26'
 FROM document_templates WHERE doc_type = 'breach_notification_procedure'
 ON CONFLICT (template_id, language, version_no) DO UPDATE
 SET source_revision = EXCLUDED.source_revision,

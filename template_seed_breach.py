@@ -11,7 +11,8 @@ NEVER IMPORTED AT RUNTIME.
 ---------------------------------------------------------------------------
 STATUS OF THIS TEXT
 ---------------------------------------------------------------------------
-DRAFT FOR LEGAL REVIEW. Not reviewed by a lawyer as of authoring.
+Version 2 (S53) reviewed and approved by the RECOSA owner, 26 Oct 2026
+("legal review ok"). Version 1 was never reviewed.
 
 ---------------------------------------------------------------------------
 ONE DOCUMENT, TWO REGIMES
@@ -313,7 +314,7 @@ DOC = TemplateDoc(
         "processor's notice to its clients, with contractual hours where "
         "recorded; informing users of the service under NIS2; reasons for a "
         "late notification, intermediate and progress reports; who sends what "
-        "and the incident file. DRAFT — not yet reviewed by counsel."
+        "and the incident file. Reviewed and approved 26 Oct 2026."
     ),
 )
 
