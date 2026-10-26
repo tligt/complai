@@ -10,6 +10,8 @@ import uuid
 import requests
 from datetime import date
 import streamlit as st
+
+from display import COUNTRY_LABELS, country_label, fmt_date, regulations_text, size_label
 from pypdf import PdfReader
 from auth import get_user_id
 from database import (
@@ -27,14 +29,8 @@ from rag import retrieve, retrieve_from_qdrant, retrieve_from_memory, get_knowle
 from obligations import REGULATION_PARENT
 
 # ── Constants ─────────────────────────────────────────────────
-COUNTRY_OPTIONS = {
-    "EU": "🇪🇺 EU only",
-    "BE": "🇧🇪 Belgium",
-    "FR": "🇫🇷 France",
-    "nl": "🇳🇱 Netherlands",
-    "de": "🇩🇪 Germany",
-    "lu": "🇱🇺 Luxembourg",
-}
+# L1 (audit): names, not flag emoji — Windows shows flags as bare letters.
+COUNTRY_OPTIONS = COUNTRY_LABELS
 LANG_LABELS = {"en": "EN — English", "fr": "FR — French", "nl": "NL — Dutch"}
 SECTOR_OPTIONS = [
     "SaaS / Technology", "Professional services", "Healthcare / Medtech",
@@ -361,7 +357,7 @@ with st.sidebar:
 
                     title = s["title"]
                     preview = title[:42] + ("…" if len(title) > 42 else "")
-                    day = (s["last_at"] or "")[:10]
+                    day = fmt_date(s["last_at"])
 
                     if st.session_state.confirm_delete_session == sid:
                         st.warning(f"Delete “{preview}”?")
@@ -540,12 +536,12 @@ if not selected_client:
 
 # ── Client header ─────────────────────────────────────────────
 regs = selected_client.get("regulations") or []
-reg_str = " · ".join(regs) if isinstance(regs, list) else str(regs)
-st.caption(
-    f"{COUNTRY_OPTIONS.get(selected_client.get('country','BE'), '')} · "
-    f"{selected_client.get('sector','')} · "
-    f"{selected_client.get('company_size','')} FTE · {reg_str}"
-)
+st.caption(" · ".join(p for p in (
+    country_label(selected_client.get("country", "BE")),
+    selected_client.get("sector", ""),
+    size_label(selected_client.get("company_size", "")),
+    regulations_text(regs),
+) if p))
 
 # S34 Part 1 (D-96): narrow retrieval to the regulations RECOSA
 # currently covers (REGULATION_OPTIONS: GDPR, NIS2, EU_AI_ACT), scoped

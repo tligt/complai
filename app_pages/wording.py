@@ -31,7 +31,7 @@ from database import get_supabase, log_audit_event
 from active_client import get_active_client
 from template_nis2 import INSERTS
 
-st.title("Incident and continuity wording")
+st.title("Incident wording")
 st.caption(
     "Five short sections that go into your incident response plan and your "
     "business continuity plan. RECOSA drafts each one; you correct it. What "

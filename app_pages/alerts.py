@@ -1,4 +1,6 @@
 import streamlit as st
+
+from display import fmt_datetime, plural
 from auth import get_user_id
 from database import load_client_alerts, mark_alert_read, get_supabase, get_supabase_admin
 from database import count_unread_alerts as _count_unread_alerts_fresh
@@ -7,7 +9,8 @@ from datetime import datetime as _dt
 
 user_id = get_user_id()
 
-st.title("🔔 Regulatory Alerts")
+st.title("Alerts")
+st.caption("Changes in the regulations that apply to you.")
 
 
 @st.fragment
@@ -26,7 +29,7 @@ def _alerts_panel(user_id: str):
     unread = _count_unread_alerts_fresh(user_id)
 
     if unread:
-        st.warning(f"You have **{unread} unread alert(s)**.")
+        st.warning(f"You have **{plural(unread, 'unread alert')}**.")
     else:
         st.caption("You're up to date — no unread alerts.")
 
@@ -78,9 +81,7 @@ def _alerts_panel(user_id: str):
         # Format timestamp
         try:
             raw = alert.get("notified_at", "")
-            dt = _dt.fromisoformat(raw.replace("Z", "+00:00")) \
-                    .astimezone(ZoneInfo("Europe/Brussels")) \
-                    .strftime("%d %b %Y %H:%M")
+            dt = fmt_datetime(raw)
         except Exception:
             dt = raw[:10] if raw else ""
 

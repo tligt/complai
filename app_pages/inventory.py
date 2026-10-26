@@ -54,9 +54,9 @@ import inventory_store as STORE
 import translate as TR
 import detection
 
-st.title("Systems, activities and controllers")
+st.title("Systems")
 st.caption(
-    "This inventory is the source for your Record of Processing Activities, "
+    "Your systems, processing activities and controllers. This inventory is the source for your Record of Processing Activities, "
     "your Data Processing Agreements and your Cookie Policy. Filling it in "
     "once means those documents can be generated rather than written."
 )
@@ -473,8 +473,6 @@ with tab_systems:
         "data."
     )
     st.caption(
-        "Codes such as `scc` or `not_required` are shown raw in this table; "
-        "their full meaning appears wherever they are used in a document. "
         "Scroll the table sideways to reach *Sets cookies*, *AI role*, the "
         "recovery objectives and *Notes*."
     )

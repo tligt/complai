@@ -1,5 +1,7 @@
 import os
 import streamlit as st
+
+from display import fmt_datetime, plural
 from auth import get_user_id
 from active_client import get_active_client
 from cached_reads import load_accessible_clients
@@ -45,7 +47,7 @@ TEMPLATE_DOC_TYPES = {
 
 user_id = get_user_id()
 
-st.title("📄 Document Generation")
+st.title("Documents")
 st.caption("Generate compliance documents tailored to your client's profile.")
 st.divider()
 
@@ -249,8 +251,8 @@ col1.text_input(
 legal_name = st.session_state.get("f_legal_name_stable", st.session_state.doc_legal_name)
 
 country_options = {
-    "BE": "🇧🇪 Belgium", "FR": "🇫🇷 France", "NL": "🇳🇱 Netherlands",
-    "DE": "🇩🇪 Germany", "LU": "🇱🇺 Luxembourg", "EU": "🇪🇺 Other EU"
+    "BE": "Belgium", "FR": "France", "NL": "Netherlands",
+    "DE": "Germany", "LU": "Luxembourg", "EU": "Other EU"
 }
 default_country = pf.get("country", "BE")
 if default_country not in country_options:
@@ -857,7 +859,8 @@ if generate and use_template:
             st.markdown(f"### {item['language'].upper()}")
             if item["outstanding"]:
                 st.warning(
-                    f"{item['outstanding']} field(s) are marked "
+                    f"{plural(item['outstanding'], 'field')} "
+                    + ("is" if item["outstanding"] == 1 else "are") + " marked "
                     "`[[ TO COMPLETE: … ]]` in this version."
                 )
             if item.get("has_xlsx"):
@@ -1013,7 +1016,7 @@ from cached_reads import load_document_files
 
 def _fmt_ts(raw):
     try:
-        return _dt.fromisoformat(raw.replace("Z","+00:00")).astimezone(_ZI("Europe/Brussels")).strftime("%Y-%m-%d %H:%M")
+        return fmt_datetime(_dt.fromisoformat(raw.replace("Z","+00:00")))
     except Exception:
         return raw[:16].replace("T"," ")
 

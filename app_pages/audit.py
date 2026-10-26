@@ -20,7 +20,7 @@ FREQUENCY_OPTIONS = {"Weekly": 7, "Monthly": 30, "Quarterly": 90}
 
 # ── Page header ───────────────────────────────────────────────────────────────
 
-st.title("Website Compliance Audit")
+st.title("Web Audit")
 st.markdown(
     "Check a website against **GDPR, ePrivacy, Accessibility, Consumer Rights, NIS2, and the EU AI Act** "
     "in minutes."
@@ -32,7 +32,7 @@ logged_in = is_logged_in()
 # ── Authenticated flow ────────────────────────────────────────────────────────
 if logged_in:
     user_id = get_user_id()
-    st.info("👤 Running as logged-in user — unlimited audits, results saved to your account.")
+    st.info("Your plan includes unlimited website audits. Each result is saved to your account.")
 
     # S44. Not cached (cached_reads.py), so this is always fresh — no
     # cache-clear needed after Subscribe/Unsubscribe below, just a rerun.

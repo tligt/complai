@@ -1,4 +1,6 @@
 import streamlit as st
+
+from display import fmt_date, plural
 import register as REG
 from database import get_supabase_admin
 from cached_reads import (
@@ -16,7 +18,7 @@ from obligations import (
     split_by_force, applies_from_label,
 )
 
-st.title("📊 Dashboard")
+st.title("Dashboard")
 st.caption("Your compliance status at a glance.")
 
 user_id = get_user_id()
@@ -148,7 +150,7 @@ try:
 except Exception as e:
     st.warning(f"Could not load gap assessment: {e}")
 
-gap_date = str(last_gap.get("created_at", ""))[:10] if last_gap else None
+gap_date = fmt_date(str(last_gap.get("created_at", ""))) if last_gap else None
 
 # ═══════════════════════════════════════════════════════════════
 # SECTION 1 — Regulation Status
@@ -230,6 +232,11 @@ relevant_docs = {
     if v["regulations"] and any(r in regulations for r in v["regulations"])
 }
 
+# H7: the "no template yet in this language" sentence, once above the list
+# instead of on every row; filled after the loop has the statuses.
+_unavailable_slot = st.empty()
+_all_statuses = []
+
 for doc_type, meta in relevant_docs.items():
     col_label, col_status, col_action = st.columns([3, 2, 2])
 
@@ -259,7 +266,9 @@ for doc_type, meta in relevant_docs.items():
             template_languages=template_langs.get(doc_type)
                 if template_langs else None,
         )
-        _note = REG.status_note(_status, multilingual=len(doc_languages) > 1)
+        _all_statuses.append(_status)
+        _note = REG.status_note(_status, multilingual=len(doc_languages) > 1,
+                                include_unavailable=False)
         if _note:
             st.caption(_note.capitalize())
 
@@ -319,6 +328,9 @@ for doc_type, meta in relevant_docs.items():
                 if item.get("recommendation"):
                     st.caption(f"→ {item['recommendation']}")
 
+if len(doc_languages) > 1 and REG.unavailable_banner(_all_statuses):
+    _unavailable_slot.info(REG.unavailable_banner(_all_statuses))
+
 st.divider()
 
 # ═══════════════════════════════════════════════════════════════
@@ -376,7 +388,7 @@ else:
 
     if n_unknown:
         st.caption(
-            f"{n_unknown} obligation(s) were not covered by the assessment on "
+            f"{plural(n_unknown, 'obligation')} {'was' if n_unknown == 1 else 'were'} not covered by the assessment on "
             f"{gap_date} — most likely added since. Re-run to include them."
         )
 
@@ -444,7 +456,7 @@ col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown("**🔔 Regulatory alerts**")
     if unread_alerts > 0:
-        st.warning(f"{unread_alerts} unread alert(s)")
+        st.warning(plural(unread_alerts, "unread alert"))
         if st.button("View alerts →"):
             st.switch_page("app_pages/alerts.py")
     else:

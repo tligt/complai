@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
+from display import fmt_datetime
+
 import incident_rules as R
 import incident_store as S
 from active_client import get_active_client
@@ -43,7 +45,7 @@ STATE_ICON = {R.OVERDUE: "🔴", R.DUE_SOON: "🟠", R.TO_DECIDE: "🟡", R.RUNN
               R.DONE: "✅", R.NOT_REQUIRED: "⚪"}
 STATUS_LABEL = {"open": "Open", "contained": "Contained", "closed": "Closed"}
 
-st.title("🚨 Incidents")
+st.title("Incidents")
 st.caption(
     "Log a security incident or data breach the moment you know about it — the "
     "reporting deadlines run from that moment. RECOSA alerts your incident team, tracks "
@@ -63,7 +65,7 @@ def _local_input(label: str, key: str, default: datetime | None = None) -> datet
 
 
 def _fmt(ts) -> str:
-    return R._ts(ts).astimezone(tz).strftime("%d/%m/%Y %H:%M") if ts else "—"
+    return fmt_datetime(R._ts(ts).astimezone(tz)) if ts else "—"
 
 
 def _contact_line(c) -> str:
@@ -228,13 +230,16 @@ with tab_inc:
                + (f" · systems: {', '.join(sys_names)}" if sys_names else ""))
     if client.get("nis2_in_scope") is None and nis2:
         st.caption("NIS2 deadlines are shown because NIS2 is among this company's regulations. "
-                   "Confirm the NIS2 scope on the Profile page.")
+                   "Confirm whether NIS2 applies at the top of the Obligations page "
+                   "(\"NIS2 — are you in scope, and as what?\").")
+        if st.button("Go to Obligations", icon="✅", key="nis2_scope_link"):
+            st.switch_page("app_pages/obligations.py")
     with st.container(border=True):
         st.markdown("**Deadlines**")
         for d in dls:
             if d["state"] == R.NOT_REQUIRED and d["required"] is False:
                 continue
-            due = (f" — due {d['due'].astimezone(tz).strftime('%d/%m %H:%M')}"
+            due = (f" — due {fmt_datetime(d['due'].astimezone(tz))}"
                    if d["due"] and d["state"] != R.DONE else "")
             extra = " (decide in step 3)" if d["state"] == R.TO_DECIDE else ""
             st.markdown(f"{STATE_ICON[d['state']]} {R.label(d['kind'], 'en', contact_by_id)} · "
@@ -563,7 +568,7 @@ with tab_inc:
         st.download_button(
             "📄 Download the incident file (PDF)",
             build_pdf(inc, client, inc_events, dls, sys_names, contact_by_id),
-            file_name=f"incident_{_fmt(inc['discovered_at'])[:10].replace('/', '-')}_{inc_id[:8]}.pdf",
+            file_name=f"incident_{R._ts(inc['discovered_at']).astimezone(tz):%Y-%m-%d}_{inc_id[:8]}.pdf",
             mime="application/pdf", type="primary",
         )
         st.caption("The facts, the decisions and their reasons, every text sent with its reference, the "

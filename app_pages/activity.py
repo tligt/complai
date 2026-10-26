@@ -1,4 +1,6 @@
 import streamlit as st
+
+from display import plural
 from datetime import datetime, timezone
 from auth import get_user_id
 from database import get_supabase
@@ -99,7 +101,7 @@ def _detail(row: dict) -> str:
         # like a defect.
         parts.append(
             "held the same day" if md["held_days"] == 0
-            else f"held {md['held_days']} day(s)"
+            else f"held {plural(md['held_days'], 'day')}"
         )
     if md.get("supersedes_version"):
         parts.append(f"supersedes v{md['supersedes_version']}")

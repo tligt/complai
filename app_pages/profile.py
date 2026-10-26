@@ -11,6 +11,8 @@ instead of a collapsed expander two screens down.
 
 import streamlit as st
 
+from display import COUNTRY_LABELS, country_label, regulations_text
+
 import inventory as INV
 from auth import get_user_id, change_password
 from database import (
@@ -25,11 +27,8 @@ from tier_gates import client_limit_reached, upsell_dialog
 # not a module surface meant to be imported from, and these are small
 # enough that duplicating them is cheaper than making one page reach into
 # another's internals.
-COUNTRY_OPTIONS = {
-    "BE": "🇧🇪 Belgium",
-    "FR": "🇫🇷 France",
-    "EU": "🇪🇺 EU (no specific country)",
-}
+# L1 (audit): names, not flag emoji — Windows shows flags as bare letters.
+COUNTRY_OPTIONS = COUNTRY_LABELS
 SECTOR_OPTIONS = [
     "SaaS / Technology", "Professional services", "Healthcare / Medtech",
     "Manufacturing", "Finance / Fintech", "Logistics / Transport",
@@ -145,8 +144,8 @@ st.divider()
 # ── Your clients ─────────────────────────────────────────────────────────
 st.subheader("Your clients")
 st.caption(
-    "The companies this account can work on — owned, or shared by "
-    "someone else's team (S38)."
+    "The companies this account can work on — your own, or shared with "
+    "you by another team."
 )
 
 clients = load_accessible_clients(user_id)
@@ -158,8 +157,10 @@ if clients:
                 + ("Owner" if c.get("role") == "owner" else "Member")
             )
             st.caption(
-                f"{c.get('sector', '')} · {COUNTRY_OPTIONS.get(c.get('country'), c.get('country', ''))} · "
-                + ", ".join(c.get("regulations") or [])
+                " · ".join(p for p in (
+                    c.get("sector", ""), country_label(c.get("country")),
+                    regulations_text(c.get("regulations")),
+                ) if p)
             )
 else:
     st.info("No clients yet. Add one below.")

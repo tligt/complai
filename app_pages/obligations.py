@@ -27,6 +27,8 @@ from datetime import date
 import incident_store as INC
 import streamlit as st
 
+from display import fmt_date
+
 import obligation_register as OR
 import obligation_store as STORE
 import tasks as T
@@ -295,7 +297,7 @@ if open_tasks:
             {
                 "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}",
                 "Detail": f.get("detail") or "",
-                "Due": f["due"].strftime("%d/%m/%Y") if f.get("due") else "",
+                "Due": fmt_date(f["due"]) if f.get("due") else "",
                 "Actions": _task_actions(f),
             }
             for f in open_tasks
@@ -522,7 +524,7 @@ for reg in regulations:
                     )
                     if resp.get("acknowledged_at"):
                         st.caption(
-                            f"Confirmed {str(resp['acknowledged_at'])[:10]}"
+                            f"Confirmed {fmt_date(str(resp['acknowledged_at']))}"
                         )
                 else:
                     who = None

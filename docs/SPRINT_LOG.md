@@ -5178,6 +5178,36 @@ sign-ups only; `submit_lead` is unused.
 
 ---
 
+### D-120 — Usability audit, batch 1 (quick wins), 26 Oct
+
+The intermediate usability audit (26 Oct, 35 issues) grouped twelve small
+fixes into batch 1: C1, C2, C4, C5, H6, H7, M1, M3, M5, M6, M12, L1.
+
+- **Menu (C1, C2, M12):** group titles visible again (the CSS targeted a
+  testid Streamlit no longer emits); "View more" and Log out readable;
+  primary buttons dark blue on teal instead of white on teal.
+- **Phone (C4):** the sidebar starts collapsed on narrow screens
+  (`initial_sidebar_state="auto"`).
+- **Incidents (C5):** the NIS2 scope pointer names the Obligations page and
+  links to it (a button + `switch_page`; `st.page_link` fails when the
+  target page is not registered).
+- **Words, not codes (H6, L1):** new `display.py` holds the on-screen names
+  for regulations, countries, company size, dates and plurals. No sprint
+  numbers, no `EU_AI_ACT`, no "FTE", no "former name"; countries are
+  written out (flags show as bare letters on Windows).
+- **Language note once (H7):** `register.status_note(...,
+  include_unavailable=False)` drops "not available in NL — on us" from each
+  row; `register.unavailable_banner()` says it once per page (Dashboard,
+  Compliance Record).
+- **Titles = menu labels (M1), one date format "22 Oct 2026" with Brussels
+  time where it matters (M3), proper plurals (M5).**
+- **M6 is data, not code:** creagent has two activities named "Internal
+  collaboration and messaging" (10 Aug, 16 min apart, purposes "Team
+  communication via Teams" / "Team communication and coordination"). Left
+  for the owner to merge or rename.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.

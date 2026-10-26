@@ -1,0 +1,75 @@
+"""
+display.py — how the client app names things on screen (usability audit,
+26 Oct, batch 1: H6, M3, M5, L1). One place, so every page says a regulation,
+a country, a date or a count the same way. Stored values are untouched; these
+only turn them into words.
+"""
+
+from datetime import date, datetime
+
+REGULATION_LABELS = {
+    "GDPR": "GDPR",
+    "NIS2": "NIS2",
+    "EU_AI_ACT": "EU AI Act",
+    "EPRIVACY": "ePrivacy",
+}
+
+COUNTRY_LABELS = {
+    "BE": "Belgium",
+    "FR": "France",
+    "EU": "EU (no specific country)",
+}
+
+
+def regulation_label(code: str) -> str:
+    return REGULATION_LABELS.get(code, str(code).replace("_", " "))
+
+
+def regulations_text(codes, sep: str = ", ") -> str:
+    if not codes:
+        return ""
+    if isinstance(codes, str):
+        codes = [codes]
+    return sep.join(regulation_label(c) for c in codes)
+
+
+def country_label(code: str) -> str:
+    return COUNTRY_LABELS.get(code, code or "")
+
+
+def size_label(size: str) -> str:
+    return f"{size} employees" if size else ""
+
+
+def fmt_date(value) -> str:
+    """'22 Oct 2026' from a date, a datetime or an ISO string; '' if empty."""
+    if not value:
+        return ""
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return value
+    if isinstance(value, (datetime, date)):
+        return f"{value.day} {value.strftime('%b %Y')}"
+    return str(value)
+
+
+def plural(n: int, word: str, many: str | None = None) -> str:
+    """'1 alert', '3 alerts', '2 criteria' (plural(2, 'criterion', 'criteria'))."""
+    return f"{n} {word if n == 1 else (many or word + 's')}"
+
+
+def fmt_datetime(value) -> str:
+    """'22 Oct 2026, 14:05' in Brussels time; '' if empty."""
+    if not value:
+        return ""
+    from zoneinfo import ZoneInfo
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return value
+    if value.tzinfo is not None:
+        value = value.astimezone(ZoneInfo("Europe/Brussels"))
+    return f"{fmt_date(value)}, {value.strftime('%H:%M')}"

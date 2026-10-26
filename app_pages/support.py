@@ -7,6 +7,8 @@ followed, replied to and closed. Brevo reply notifications link here.
 """
 
 import streamlit as st
+
+from display import fmt_date
 from auth import get_user_id
 from database import (
     load_my_tickets, get_ticket, load_thread_messages,
@@ -88,7 +90,7 @@ if st.session_state.support_open_ticket:
     st.caption(
         f"{icon} {label} · {CATEGORY_LABELS.get(ticket['category'], ticket['category'])} · "
         f"{CONTEXT_LABELS.get(ticket['context'], ticket['context'])} · "
-        f"opened {ticket['created_at'][:10]}"
+        f"opened {fmt_date(ticket['created_at'])}"
     )
 
     mark_thread_read(ticket["thread_id"], "client")
@@ -221,7 +223,7 @@ def render_row(t: dict):
         st.caption(
             f"{icon} {label} · {CATEGORY_LABELS.get(t['category'], t['category'])} · "
             f"{CONTEXT_LABELS.get(t['context'], t['context'])} · "
-            f"updated {t['updated_at'][:10]}"
+            f"updated {fmt_date(t['updated_at'])}"
         )
     with col_b:
         if st.button("Open", key=f"open_{t['id']}", use_container_width=True):

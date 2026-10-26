@@ -28,6 +28,8 @@ from datetime import date
 
 import streamlit as st
 
+from display import plural
+
 import inventory as INV
 import risk_assessment as RA
 import risk_store as RS
@@ -71,7 +73,7 @@ if "GDPR" in regulations:
             "least one criterion."
         )
         for f in flagged:
-            with st.expander(f"{f['activity_name']} — {len(f['triggers'])} criteria"):
+            with st.expander(f"{f['activity_name']} — {plural(len(f['triggers']), 'criterion', 'criteria')}"):
                 for t in f["triggers"]:
                     st.markdown(f"**{t['article']}** — {t['reason']}")
                 st.caption(
@@ -324,7 +326,7 @@ if _open:
             # silently is worse than the empty-assessment problem, because it
             # looks finished.
             st.warning(
-                f"**{len(_unassessed)} risk(s) have not been assessed after "
+                f"**{plural(len(_unassessed), 'risk')} {'has' if len(_unassessed) == 1 else 'have'} not been assessed after "
                 "measures.** Marking this complete records a conclusion the "
                 "register cannot support — whether the residual risk is "
                 "acceptable is the question this document exists to answer."

@@ -23,20 +23,16 @@ from __future__ import annotations
 
 import streamlit as st
 
+from display import COUNTRY_LABELS
+
 import company_registry as REG
 import detection
 import inventory_store as STORE
 from cached_reads import load_accessible_clients, load_clients
 from database import create_client_record
 
-COUNTRY_OPTIONS = {
-    "EU": "🇪🇺 EU only",
-    "BE": "🇧🇪 Belgium",
-    "FR": "🇫🇷 France",
-    "nl": "🇳🇱 Netherlands",
-    "de": "🇩🇪 Germany",
-    "lu": "🇱🇺 Luxembourg",
-}
+# L1 (audit): names, not flag emoji — Windows shows flags as bare letters.
+COUNTRY_OPTIONS = COUNTRY_LABELS
 SECTOR_OPTIONS = [
     "SaaS / Technology", "Professional services", "Healthcare / Medtech",
     "Manufacturing", "Finance / Fintech", "Logistics / Transport",

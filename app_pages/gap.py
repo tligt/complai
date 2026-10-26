@@ -2,6 +2,8 @@ import os
 import re
 from datetime import datetime
 import streamlit as st
+
+from display import fmt_date, fmt_datetime, plural
 from auth import get_user_id
 from database import (
     get_signed_url, upload_file,
@@ -48,7 +50,7 @@ def _profile_radio(q_key: str, widget_key: str) -> str:
         label_visibility="collapsed",
     )
 
-st.title("🔍 Gap Assessment")
+st.title("Gap Assessment")
 st.divider()
 
 # ── Client selection ──────────────────────────────────────────
@@ -370,7 +372,7 @@ with tab2:
             n_provided += 1
             col_s.markdown("✅")
             src = "RECOSA" if current.get("source") == "complai_generated" else "Uploaded"
-            ts = current.get("uploaded_at","")[:10]
+            ts = fmt_date(current.get("uploaded_at",""))
             col_i.markdown(f"**{label}**")
             col_i.caption(f"v{current.get('version',1)} · {src} · {ts}")
             if current.get("change_comment"):
@@ -435,7 +437,7 @@ with tab2:
 
     st.divider()
     st.caption(
-        f"Scores reflect quality of the **{n_provided}** document(s) provided. "
+        f"Scores reflect quality of the **{plural(n_provided, 'document')}** provided. "
         "Missing documents are flagged as gaps but don't lower the quality score. "
         "~30-60 seconds to complete."
     )
@@ -497,7 +499,7 @@ with tab2:
                         if dt not in current_docs and dt not in uploaded_texts]
         if missing_docs:
             st.warning(
-                f"**{len(missing_docs)} document(s) not in repository** — "
+                f"**{plural(len(missing_docs), 'document')} not in repository** — "
                 f"these are flagged as gaps below: "
                 + ", ".join(missing_docs)
             )
@@ -604,9 +606,7 @@ if history:
     for rec in history:
         try:
             raw = rec.get("created_at","")
-            dt = _dt.fromisoformat(raw.replace("Z","+00:00")) \
-                    .astimezone(ZoneInfo("Europe/Brussels")) \
-                    .strftime("%Y-%m-%d %H:%M")
+            dt = fmt_datetime(raw)
         except Exception:
             dt = raw[:16]
 

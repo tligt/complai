@@ -174,23 +174,29 @@ def document_status(
     }
 
 
-def status_note(status: dict[str, Any], multilingual: bool = True) -> str:
+def status_note(status: dict[str, Any], multilingual: bool = True,
+                include_unavailable: bool = True) -> str:
     """One line naming the gaps and whose they are. '' when there are none.
 
     Single-language clients get nothing: naming the language when there is
     only one is noise, and the state label already says everything.
+
+    include_unavailable=False leaves out the languages we have no template
+    for — pages that list many documents say that once, in a banner
+    (unavailable_banner), instead of on every row (usability audit H7).
     """
     if not multilingual:
         return ""
+    unavailable = status["not_available"] if include_unavailable else []
     parts = []
     if status["in_force"] and (status["drafts"] or status["not_generated"]
-                               or status["not_available"]):
+                               or unavailable):
         parts.append("in force in " + _langs(status["in_force"]))
     if status["drafts"]:
         parts.append("generated but not in force in " + _langs(status["drafts"]))
     if status["not_generated"]:
         parts.append("not generated in " + _langs(status["not_generated"]))
-    if status["not_available"]:
+    if unavailable:
         # Said plainly, and owned. A client reading "not available in NL" with
         # no explanation reasonably assumes it is something they failed to do.
         parts.append(
@@ -198,6 +204,18 @@ def status_note(status: dict[str, Any], multilingual: bool = True) -> str:
             + " — no template yet, on us"
         )
     return " · ".join(parts)
+
+
+def unavailable_banner(statuses) -> str:
+    """The once-per-page sentence for languages we have no template for yet,
+    across all the documents shown. '' when there are none."""
+    from translate import LANGUAGE_NAMES
+    codes = sorted({c for st in statuses for c in (st.get("not_available") or [])})
+    if not codes:
+        return ""
+    names = " and ".join(LANGUAGE_NAMES.get(c, c.upper()) for c in codes)
+    return (f"Some documents are not yet available in {names}: the templates "
+            "are still being written on our side. Nothing is missing on yours.")
 
 
 def _langs(codes: list[str]) -> str:

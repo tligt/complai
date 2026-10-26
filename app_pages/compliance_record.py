@@ -41,6 +41,7 @@ A module in pages/ must not share a name with a root module it imports.
 import streamlit as st
 
 import register as REG
+from display import fmt_date, plural
 from auth import get_user_id
 from active_client import get_active_client
 from database import (
@@ -53,7 +54,7 @@ from database import (
 from cached_reads import get_register_status, get_template_languages
 from obligations import DOC_CATALOG, REGULATION_LABELS
 
-st.title("🗄️ Compliance record")
+st.title("Compliance Record")
 st.caption(
     "What your organisation operates under, and since when. This is the view "
     "to share with an auditor."
@@ -116,10 +117,13 @@ if cov["partly_blocked"]:
     # Said out loud so the figure above is not mistaken for a claim that every
     # language is covered.
     st.caption(
-        f":gray[{cov['partly_blocked']} document(s) counted as in force are "
-        "still missing a language RECOSA has no template for yet. Those are "
-        "listed below and are not outstanding on your side.]"
+        f":gray[{plural(cov['partly_blocked'], 'document')} counted as in force "
+        + ("is" if cov['partly_blocked'] == 1 else "are")
+        + " still missing a language RECOSA has no template for yet.]"
     )
+if len(doc_languages) > 1 and REG.unavailable_banner(statuses.values()):
+    # H7: once here, not on every document below.
+    st.info(REG.unavailable_banner(statuses.values()))
 
 st.caption(
     f"{company_name} · document languages "
@@ -142,7 +146,8 @@ for doc_type, meta in relevant.items():
         continue
 
     st.markdown(f"### {meta['label']}")
-    note = REG.status_note(status, multilingual=len(doc_languages) > 1)
+    note = REG.status_note(status, multilingual=len(doc_languages) > 1,
+                           include_unavailable=False)
     if note:
         st.caption(note.capitalize())
 
@@ -199,7 +204,7 @@ for doc_type, meta in relevant.items():
             if current.get("hold_reason"):
                 _msg += f": {current['hold_reason']}"
             if current.get("hold_set_on"):
-                _msg += f" (since {str(current['hold_set_on'])[:10]})"
+                _msg += f" (since {fmt_date(str(current['hold_set_on']))})"
             st.warning(_msg)
 
         fpath = current.get("file_path")
@@ -317,7 +322,7 @@ for doc_type, meta in relevant.items():
                             # whether it still should be.
                             _hl += f" · {old['hold_reason']}"
                         if old.get("hold_set_on"):
-                            _hl += f" · since {str(old['hold_set_on'])[:10]}"
+                            _hl += f" · since {fmt_date(str(old['hold_set_on']))}"
                         ocols[2].caption(_hl)
                         # The consequence of releasing, sized to the risk.
                         if effect["state"] == REG.HOLD_RELEASE_EXPIRED:

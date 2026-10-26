@@ -17,7 +17,9 @@ st.set_page_config(
     page_title="RECOSA",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    # "auto": open on desktop, closed on a phone. "expanded" opened the menu
+    # over the page on every load on a phone (usability audit C4, 26 Oct).
+    initial_sidebar_state="auto",
 )
 
 # ── Global CSS ────────────────────────────────────────────────
@@ -58,12 +60,36 @@ html, body, [class*="css"] {
     border-left: 3px solid #14C7D5 !important;
     color: white !important;
 }
-/* Nav section labels */
-[data-testid="stSidebarNavSeparator"] p {
-    color: #475569 !important;
-    font-size: 0.68rem !important;
+/* Nav section labels. stNavSectionHeader is the element Streamlit 1.61
+   renders; the old stSidebarNavSeparator rule matched nothing, so the
+   group titles came out dark grey on dark blue (usability audit C3). */
+[data-testid="stNavSectionHeader"],
+[data-testid="stNavSectionHeader"] * {
+    color: #94A3B8 !important;
+    visibility: visible !important;
+    font-size: 0.7rem !important;
+    font-weight: 600 !important;
     text-transform: uppercase !important;
     letter-spacing: 0.08em !important;
+}
+/* "View N more" — was dark grey on dark blue (audit C2). */
+[data-testid="stSidebarNavViewButton"],
+[data-testid="stSidebarNavViewButton"] * {
+    color: #E2E8F0 !important;
+    font-weight: 600 !important;
+}
+/* Sidebar buttons (Log out, New chat…): the text rule above made their
+   label pale grey on Streamlit's near-white button, 1.4:1 (audit C1). */
+[data-testid="stSidebar"] .stButton > button {
+    background: transparent !important;
+    border: 1px solid rgba(255,255,255,0.45) !important;
+}
+[data-testid="stSidebar"] .stButton > button,
+[data-testid="stSidebar"] .stButton > button * {
+    color: #FFFFFF !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255,255,255,0.10) !important;
 }
 /* Sidebar inputs */
 [data-testid="stSidebar"] .stSelectbox > div > div {
@@ -76,16 +102,35 @@ html, body, [class*="css"] {
 }
 
 /* ── Buttons ── */
-.stButton > button[kind="primary"] {
+/* Brand teal with dark blue text: white on #14C7D5 was 2.1:1, dark blue is
+   6.1:1 (audit M12). Form submit and link buttons get the same look — they
+   were Streamlit's default red. */
+.stButton > button[kind="primary"],
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"],
+[data-testid="stBaseLinkButton-primary"] {
     background: #14C7D5 !important;
     border: none !important;
-    color: white !important;
     font-weight: 600 !important;
     border-radius: 6px !important;
     transition: background 0.2s;
 }
-.stButton > button[kind="primary"]:hover {
-    background: #0F9FB5 !important;
+.stButton > button[kind="primary"],
+.stButton > button[kind="primary"] *,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"],
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] *,
+[data-testid="stBaseLinkButton-primary"],
+[data-testid="stBaseLinkButton-primary"] * {
+    color: #003366 !important;
+}
+.stButton > button[kind="primary"]:hover,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:hover,
+[data-testid="stBaseLinkButton-primary"]:hover {
+    background: #0E7C86 !important;
+}
+.stButton > button[kind="primary"]:hover *,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:hover *,
+[data-testid="stBaseLinkButton-primary"]:hover * {
+    color: #FFFFFF !important;
 }
 
 /* ── Content width ── */
