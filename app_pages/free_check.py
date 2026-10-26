@@ -130,23 +130,36 @@ else:
 # The emailed copy (S49 part 2): sent once, to a confirmed account whose
 # free check came from the public form — here or by monitor_funnel.py,
 # whichever comes first.
+#
+# In a background thread, not in the page run: re-checking the site, the PDF
+# and the send take 10–15 s, and a rerun in that time (any click) stopped
+# the script silently — no error, no log, no email (found in the live test,
+# 26 Oct). The thread finishes regardless and logs its result.
+import threading
 import funnel_delivery as FD
-_res = None
-if FD.eligible(st.session_state.user.email, pending if pending["tool"] == funnel.TOOL_QUIZ
-               else {**pending, "site_verified": FD.site_proven(st.session_state.user.email, pending)}):
+
+
+def _deliver_in_background(uid: str) -> None:
     try:
         from database import get_supabase_admin
-        _user = get_supabase_admin().auth.admin.get_user_by_id(user_id).user
-        if FD.pending_of(_user.user_metadata):
-            with st.spinner("Sending your copy by email…"):
-                _res = FD.deliver(_user)
+        u = get_supabase_admin().auth.admin.get_user_by_id(uid).user
+        if FD.pending_of(u.user_metadata):
+            print(f"free check delivery {uid}: {FD.deliver(u)}")
     except Exception as e:
-        print(f"free check delivery: {e}")
-if _res == "sent":
-    st.success("A copy has been emailed to you" + (" — the full report as a PDF."
-               if pending["tool"] == funnel.TOOL_WEBSITE else "."))
-elif _res == "already":
-    st.caption("A copy has already been emailed to you.")
+        print(f"free check delivery {uid}: failed — {e}")
+
+
+if FD.eligible(st.session_state.user.email, pending if pending["tool"] == funnel.TOOL_QUIZ
+               else {**pending, "site_verified": FD.site_proven(st.session_state.user.email, pending)}):
+    _meta = getattr(st.session_state.user, "user_metadata", None) or {}
+    if _meta.get("recosa_pending"):
+        _flag = f"delivery_started_{user_id}"
+        if not st.session_state.get(_flag):
+            st.session_state[_flag] = True
+            threading.Thread(target=_deliver_in_background, args=(user_id,), daemon=True).start()
+        st.success("A copy is on its way to your inbox" + (" — the full report as a PDF."
+                   if pending["tool"] == funnel.TOOL_WEBSITE else ".")
+                   + " If it doesn't arrive within a few minutes, check your spam folder.")
 
 st.divider()
 render_trial_cta(profile)
