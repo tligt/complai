@@ -3,7 +3,7 @@ import re
 from datetime import datetime
 import streamlit as st
 
-from display import fmt_date, fmt_datetime, plural
+from display import dates_in_text, fmt_date, fmt_datetime, plural
 from auth import get_user_id
 from database import (
     get_signed_url, upload_file,
@@ -376,7 +376,7 @@ with tab2:
             col_i.markdown(f"**{label}**")
             col_i.caption(f"v{current.get('version',1)} · {src} · {ts}")
             if current.get("change_comment"):
-                col_i.caption(f"_{current['change_comment']}_")
+                col_i.caption(f"_{dates_in_text(current['change_comment'])}_")
         else:
             col_s.markdown("⬜")
             col_i.markdown(f"**{label}**")

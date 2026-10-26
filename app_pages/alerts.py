@@ -114,7 +114,7 @@ def _alerts_panel(user_id: str):
                     update.get("alert_ref") or "",
                     source,
                     regulations_text(regs),
-                    ", ".join(country_label(c) for c in countries),
+                    ", ".join("EU" if c == "EU" else country_label(c) for c in countries),
                     dt,
                 ]))
                 st.caption(tags)

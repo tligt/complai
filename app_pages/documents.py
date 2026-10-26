@@ -1,7 +1,7 @@
 import os
 import streamlit as st
 
-from display import fmt_date, fmt_datetime, plural
+from display import dates_in_text, fmt_date, fmt_datetime, plural
 from auth import get_user_id
 from active_client import get_active_client
 from cached_reads import load_accessible_clients
@@ -1163,7 +1163,7 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
         badge += " · :gray[Files discarded]"
     c0.markdown(badge)
     if reg and reg.get("change_comment"):
-        c0.caption(reg["change_comment"])
+        c0.caption(dates_in_text(reg["change_comment"]))
 
     for col, path_key, flabel in [
         (c1, "file_path_xlsx", "XLSX"),

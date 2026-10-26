@@ -41,7 +41,7 @@ A module in pages/ must not share a name with a root module it imports.
 import streamlit as st
 
 import register as REG
-from display import fmt_date, plural
+from display import dates_in_text, fmt_date, plural
 from auth import get_user_id
 from active_client import get_active_client
 from database import (
@@ -194,7 +194,7 @@ for doc_type, meta in relevant.items():
             )
 
         if current.get("change_comment"):
-            st.caption(f"“{current['change_comment']}”")
+            st.caption(f"“{dates_in_text(current['change_comment'])}”")
 
         # Retention and hold. Shown on in-force rows too, because the question
         # "how long will you keep the old ones" is one an auditor asks about
@@ -244,7 +244,7 @@ for doc_type, meta in relevant.items():
                     st.markdown(line)
 
                     if old.get("change_comment"):
-                        st.caption(f"“{old['change_comment']}”")
+                        st.caption(f"“{dates_in_text(old['change_comment'])}”")
                     if old.get("retain_until"):
                         st.caption(f":gray[Retained until {fmt_date(old['retain_until'])}]")
 
