@@ -236,8 +236,13 @@ if not _profile.get("pending_result"):
     _meta_pending = pending_of(_meta)
     if _meta_pending and save_pending_result(user_id, _meta_pending):
         _profile["pending_result"] = _meta_pending
-        from database import save_signup_source
-        save_signup_source(user_id, _meta.get("recosa_source"))
+        # getattr, not a from-import: Streamlit Cloud can serve a new app.py
+        # against an older database module still in memory (D-116, and again
+        # on 26 Oct), and the source is not worth failing a login over.
+        import database as _db
+        _save_source = getattr(_db, "save_signup_source", None)
+        if _save_source:
+            _save_source(user_id, _meta.get("recosa_source"))
 limited_access = (
     _profile.get("role") != "admin"
     and (_profile.get("subscription_status") or "active") in ("registered", "expired")
