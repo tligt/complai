@@ -5208,6 +5208,49 @@ fixes into batch 1: C1, C2, C4, C5, H6, H7, M1, M3, M5, M6, M12, L1.
 
 ---
 
+### D-121 — Usability audit, batch 2 (navigation), 26 Oct
+
+Issues C3, H1, H2, H3, H4, H9, H11, M9.
+
+- **The menu is drawn by app.py** (`st.navigation(position="hidden")` +
+  `st.page_link`), because st.navigation always renders above anything the
+  app puts in the sidebar and the company switcher belongs on top. Groups:
+  Home, Action plan · Assess (Obligations, Gap Assessment, Risk
+  assessments) · Records (Systems, Documents) · Respond (Incidents) · Tools
+  (Web Audit, Assistant) · Account (Company profile, Account, Team, Alerts,
+  Activity Log, Support, Log out). Compliance Record and Incident wording
+  are `visibility="hidden"` pages, reached from Documents and from a tab on
+  Incidents.
+- **One company switcher (H1)** at the top of the menu, multi-company
+  accounts only (`active_client.render_company_switcher`). The per-page
+  "Select client" box and Chat's two pickers are gone. With nothing chosen,
+  the first company is used — reversing the 30 Sept rule, because the choice
+  is now visible on every page and each page names its company.
+- **Home (H2)** is the old Dashboard, default page, with a "What to do next"
+  box: the three most urgent tasks (incident deadlines excluded, they have
+  their own box), links to the action plan, unread alerts and support
+  replies. Filled at the end of the script so the status does not wait.
+- **Action plan (H3)**: the task list moved off Obligations to its own page.
+  The register and tasks are computed in `obligation_view.load_state`,
+  shared by Obligations, Action plan and Home.
+- **Company profile (H9)**: one page to edit a company — identity,
+  regulations, document languages (not editable anywhere before), website,
+  contacts; NIS2 scope stays on Obligations, linked. `database.update_client_fields`
+  writes only `CLIENT_PROFILE_FIELDS`.
+- **Profile split (M9)**: Account (name, interface language, password,
+  plan) and Team (invitations).
+- **Assistant (H11)**: country, language and depth under "Advanced
+  settings", explained; country defaults to the company's.
+- **Not as proposed:** gap and risk stay two pages, not tabs (each page can
+  `st.stop()`, which would stop the other tab too); the account items are a
+  menu group, not an avatar menu (Streamlit has no slot for one).
+- **Speed:** `database.get_supabase()` built a new client — a new HTTPS
+  connection — on every call. It now reuses one per session and token, and
+  `get_supabase_admin()` one per process. Measured locally: Home 35 s → 6 s,
+  Action plan ~17 s → ~3 s.
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.

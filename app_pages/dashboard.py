@@ -18,8 +18,8 @@ from obligations import (
     split_by_force, applies_from_label,
 )
 
-st.title("Dashboard")
-st.caption("Your compliance status at a glance.")
+st.title("Home")
+st.caption("What to do next, then where you stand.")
 
 user_id = get_user_id()
 if not user_id:
@@ -41,6 +41,13 @@ if _inc_tasks:
     (st.error if _due else st.warning)(_msg, icon="🚨")
     if st.button("Open incidents", key="dash_incidents"):
         st.switch_page("app_pages/incidents.py")
+
+# ── What to do next (usability audit batch 2, H2) ─────────────
+# A slot at the top, filled at the END of the script: building the action
+# plan takes several seconds, and the status below should not wait for it.
+_next_slot = st.empty()
+_next_slot.caption("Working out what to do next…")
+
 
 company_name = client.get("company_name", "Your company")
 client_id    = client.get("id")
@@ -482,3 +489,37 @@ with col3:
     st.info("Ask any compliance question")
     if st.button("Open chat →"):
         st.switch_page("app_pages/chat.py")
+
+# ── Fill the "What to do next" slot (see the top of the page) ──
+import obligation_view as _OV
+from database import count_unread_replies as _unread_replies
+try:
+    _tasks = _OV.load_state(user_id, client)["open_tasks"]
+except Exception:
+    _tasks = []
+_next = [f for f in _tasks if f.get("link") != "incidents"][:3]
+_alerts_n = count_unread_alerts(user_id)
+_replies_n = _unread_replies(user_id)
+
+with _next_slot.container(border=True):
+    st.markdown("**What to do next**")
+    if not _next:
+        st.success("Nothing outstanding on the action plan.")
+    _sev_icon = {"blocking": "🔴", "due": "🟠", "open": "⚪"}
+    for _i, _f in enumerate(_next):
+        _c1, _c2 = st.columns([5, 1])
+        _c1.markdown(f"{_sev_icon.get(_f['severity'], '⚪')} **{_f['title']}**"
+                     + (f"  \n:gray[{_f['detail']}]" if _f.get("detail") else ""))
+        _page = _OV.TASK_LINK_PAGES.get(_f.get("link") or "")
+        if _page and _c2.button("Fix it", key=f"home_fix_{_i}", use_container_width=True):
+            st.switch_page(_page)
+    _b1, _b2, _b3 = st.columns(3)
+    if _tasks and _b1.button(f"Action plan ({len(_tasks)})", key="home_plan",
+                             use_container_width=True):
+        st.switch_page("app_pages/action_plan.py")
+    if _alerts_n and _b2.button(f"Alerts ({_alerts_n} unread)", key="home_alerts",
+                                use_container_width=True):
+        st.switch_page("app_pages/alerts.py")
+    if _replies_n and _b3.button(plural(_replies_n, "support reply", "support replies"),
+                                 key="home_support", use_container_width=True):
+        st.switch_page("app_pages/support.py")

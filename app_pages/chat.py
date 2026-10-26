@@ -285,39 +285,17 @@ if st.query_params.get("logout"):
 
 # ── Sidebar — client selector + settings ──────────────────────
 with st.sidebar:
-    st.markdown("**My clients**")
-
-    # Load clients. S38: accessible, not just owned — includes clients
-    # this account has been granted access to as a workspace member.
+    # Audit batch 2 (H1): the company comes from the one switcher at the top
+    # of the sidebar (active_client.render_company_switcher); Chat no longer
+    # has pickers of its own. A change there starts a new conversation.
     try:
         clients = load_accessible_clients(user_id)
     except Exception:
         clients = []
-
-    client_options = {c["company_name"]: c for c in clients}
-
-    # Show the current client when arriving here, e.g. after switching it
-    # on another page's picker (active_client.py). Only when the widget has
-    # no state yet: after a change made here, its own value must win.
-    _current = (st.session_state.get("selected_client") or {}).get("company_name")
-    if "client_selector" not in st.session_state and _current in client_options:
-        st.session_state.client_selector = _current
-
-    # Client selector
-    selected_name = st.selectbox(
-        "Active client",
-        options=["— Select client —"] + list(client_options.keys()),
-        key="client_selector",
-        label_visibility="collapsed",
-    )
-
-    if selected_name != "— Select client —":
-        selected = client_options[selected_name]
-        if st.session_state.selected_client != selected:
-            st.session_state.selected_client = selected
-            st.session_state.history_loaded = False
-            # Switching client starts a new conversation.
-            start_new_session()
+    if clients and not st.session_state.selected_client:
+        from active_client import _current
+        _current(clients)
+        st.session_state.history_loaded = False
 
     # Chat tools under client selector
     if st.session_state.selected_client:
@@ -428,50 +406,41 @@ with st.sidebar:
         except Exception as e:
             st.error(f"Could not load: {e}")
 
-    # Add new client
-    with st.expander("➕ New client"):
-        if client_limit_reached(user_id):
-            st.caption(
-                "Professional includes one client. Upgrade to Advisory "
-                "to add more."
-            )
-            if st.button("Upgrade to add another client",
-                          use_container_width=True, key="btn_nc_upsell"):
-                upsell_dialog(
-                    "Professional accounts manage one client. Upgrade "
-                    "to Advisory to add more."
-                )
-        else:
-            # S48: shared form (client_setup.py), with lookup and website scan
-            from client_setup import render_new_client_form
-            if render_new_client_form(user_id, key="nc"):
-                st.rerun()
-
-    st.divider()
-
-    # Query settings
-    st.markdown("**Query settings**")
-    st.session_state.chat_country = st.selectbox(
-        "Country context",
-        options=list(COUNTRY_OPTIONS.keys()),
-        format_func=lambda x: COUNTRY_OPTIONS[x],
-        key="country_sel",
-    )
-    st.session_state.chat_language = st.selectbox(
-        "Language",
-        options=["en", "fr", "nl"],
-        format_func=lambda x: LANG_LABELS[x],
-        key="lang_sel",
-    )
-    st.session_state.chat_top_k = st.slider(
-        "Context depth", min_value=2, max_value=20, value=6, key="topk_sel"
-    )
+    # Audit batch 2 (H11): settings most people never change, folded away and
+    # explained. The defaults follow the company: its country, English.
+    with st.expander("Advanced settings"):
+        st.caption("How the assistant searches the regulations. The defaults "
+                   "suit most questions.")
+        _country_keys = list(COUNTRY_OPTIONS.keys())
+        _client_country = (st.session_state.selected_client or {}).get("country")
+        st.session_state.chat_country = st.selectbox(
+            "Country context",
+            options=_country_keys,
+            index=_country_keys.index(_client_country) if _client_country in _country_keys else 0,
+            format_func=lambda x: COUNTRY_OPTIONS[x],
+            key="country_sel",
+            help="Whose national guidance to include: the data protection "
+                 "authority and laws of this country.",
+        )
+        st.session_state.chat_language = st.selectbox(
+            "Answer language",
+            options=["en", "fr", "nl"],
+            format_func=lambda x: LANG_LABELS[x],
+            key="lang_sel",
+        )
+        st.session_state.chat_top_k = st.slider(
+            "Sources per answer", min_value=2, max_value=20, value=6, key="topk_sel",
+            help="How many passages of regulation the answer is built from. "
+                 "More is slower and not always better.",
+        )
 
     st.divider()
 
     # Company document upload
-    st.markdown("**Company documents**")
-    st.caption("Upload documents to check for compliance.")
+    st.markdown("**Ask about your own documents**")
+    st.caption("Add a policy or contract (PDF, Word or text) and the assistant "
+               "will take it into account in this conversation. It is not "
+               "stored or added to your documents.")
     uploaded_files = st.file_uploader(
         "Upload", type=["txt", "pdf", "docx"],
         accept_multiple_files=True, label_visibility="collapsed",
@@ -499,39 +468,14 @@ with st.sidebar:
 # ── Main area ─────────────────────────────────────────────────
 selected_client = st.session_state.selected_client
 
-# ── No client selected ────────────────────────────────────────
-# The sidebar's own client selector is real, but it renders below
-# Streamlit's automatic page navigation and the Log out button — twelve-plus
-# rows a new visitor has to scroll past before reaching it. Rather than
-# fight that ordering (st.navigation always renders first in the sidebar,
-# ahead of anything a page adds to it), the picker is repeated here, where
-# the "select a client" message already is and the user is already looking.
+# ── No client ─────────────────────────────────────────────────
+# Audit batch 2 (H2): no "pick a company and press Continue" step any more —
+# the company comes from the sidebar switcher, or is the only one.
 if not selected_client:
-    st.markdown("""
-    <div class="empty-chat-wrapper">
-        <div style="font-size:2.5rem;margin-bottom:1rem;">🛡️</div>
-        <h2 style="color:#003366;font-weight:700;margin-bottom:0.5rem;">RECOSA Compliance Chat</h2>
-        <p style="color:#64748B;max-width:400px;">Select a client to start a compliance conversation about GDPR, NIS2, or the EU AI Act.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if client_options:
-        _pick_name = st.selectbox(
-            "Client",
-            options=list(client_options.keys()),
-            key="chat_main_client_pick",
-            label_visibility="collapsed",
-        )
-        if st.button("Continue", type="primary"):
-            st.session_state.selected_client = client_options[_pick_name]
-            st.session_state.history_loaded = False
-            start_new_session()
-            st.rerun()
-    else:
-        st.info(
-            "You don't have a company profile yet. Open **➕ New client** in "
-            "the sidebar (below the page list) to set one up."
-        )
+    st.info(
+        "You don't have a company profile yet. Set one up on the "
+        "**Company profile** page (Account, in the menu)."
+    )
     st.stop()
 
 # ── Client header ─────────────────────────────────────────────

@@ -1,47 +1,26 @@
 """
-pages/profile.py — Account, password, plan and client management.
+app_pages/profile.py — the Account page: your name, interface language,
+password and plan.
 
-The first page in the "Account" nav group, and the first thing on this page
-is deliberately account-level, not client-level: your own name, your own
-password, your own plan. Client management sits below it because a client is
-something an account HAS, not something it IS — same distinction the sidebar
-"My clients" selector on Chat already draws, just given a permanent home
-instead of a collapsed expander two screens down.
+Usability audit batch 2 (M9): this page also held the client list, the new-
+client form and team invitations. Companies moved to Company profile
+(app_pages/company.py), invitations to Team (app_pages/team.py).
 """
 
 import streamlit as st
-
-from display import COUNTRY_LABELS, country_label, regulations_text
 
 import inventory as INV
 from auth import get_user_id, change_password
 from database import (
     get_user_profile, update_user_profile,
     SUBSCRIPTION_TIERS, set_user_tier,
-    invite_workspace_member, list_workspace_members, remove_workspace_member,
 )
-from cached_reads import load_accessible_clients
-from tier_gates import client_limit_reached, upsell_dialog
-
-# Kept local rather than imported from pages/chat.py — pages are scripts,
-# not a module surface meant to be imported from, and these are small
-# enough that duplicating them is cheaper than making one page reach into
-# another's internals.
-# L1 (audit): names, not flag emoji — Windows shows flags as bare letters.
-COUNTRY_OPTIONS = COUNTRY_LABELS
-SECTOR_OPTIONS = [
-    "SaaS / Technology", "Professional services", "Healthcare / Medtech",
-    "Manufacturing", "Finance / Fintech", "Logistics / Transport",
-    "Retail / E-commerce", "Education", "Other",
-]
-SIZE_OPTIONS = ["1-10", "11-50", "51-150", "150+"]
-REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT"]
 
 LANGUAGE_LABELS = {
     "en": "English", "fr": "Français", "nl": "Nederlands", "de": "Deutsch",
 }
 
-st.title("Profile")
+st.title("Account")
 
 user_id = get_user_id()
 profile = get_user_profile(user_id)
@@ -73,7 +52,7 @@ with st.form("profile_account"):
         key="profile_ui_language",
         help="The language labels, captions and menus are shown in — not "
              "the language your documents are produced in, which is set "
-             "per client below.",
+             "per company on Company profile.",
     )
 
     if st.form_submit_button("Save", type="primary"):
@@ -138,92 +117,3 @@ else:
         "Need to move to Professional? Get in touch through Support — "
         "downgrading isn't self-serve."
     )
-
-st.divider()
-
-# ── Your clients ─────────────────────────────────────────────────────────
-st.subheader("Your clients")
-st.caption(
-    "The companies this account can work on — your own, or shared with "
-    "you by another team."
-)
-
-clients = load_accessible_clients(user_id)
-if clients:
-    for c in clients:
-        with st.container(border=True):
-            st.markdown(
-                f"**{c['company_name']}**  ·  "
-                + ("Owner" if c.get("role") == "owner" else "Member")
-            )
-            st.caption(
-                " · ".join(p for p in (
-                    c.get("sector", ""), country_label(c.get("country")),
-                    regulations_text(c.get("regulations")),
-                ) if p)
-            )
-else:
-    st.info("No clients yet. Add one below.")
-
-with st.expander("➕ New client"):
-    if client_limit_reached(user_id):
-        st.info(
-            "Professional includes one client. Upgrade to Advisory to "
-            "add more."
-        )
-        if st.button("Upgrade to add another client"):
-            upsell_dialog(
-                "Professional accounts manage one client. Upgrade to "
-                "Advisory to add more."
-            )
-    else:
-        # S48: shared form (client_setup.py), with lookup and website scan
-        from client_setup import render_new_client_form
-        if render_new_client_form(user_id, key="pnc"):
-            st.rerun()
-
-st.divider()
-
-# ── Team (S38) ───────────────────────────────────────────────────────────
-# Not tier-gated. D-90's reasoning against inventing gates ahead of a
-# billing model that actually checks them applies here too — there is no
-# seat pricing yet, and "Multi-user for Professional" is the sprint's own
-# name for a reason: a one-client Professional account benefits from this
-# exactly as much as an Advisory one does.
-st.subheader("Team")
-
-owned_clients = [c for c in clients if c.get("role") == "owner"]
-if not owned_clients:
-    st.caption("Own a client to invite people to work on it with you.")
-else:
-    for c in owned_clients:
-        with st.container(border=True):
-            st.markdown(f"**{c['company_name']}**")
-            members = list_workspace_members(c["id"])
-            if members:
-                for m in members:
-                    mc1, mc2, mc3 = st.columns([3, 2, 1])
-                    mc1.write(m["display_name"])
-                    mc2.caption("Active" if m["status"] == "active" else "Invited — not signed up yet")
-                    if mc3.button("Remove", key=f"rm_member_{m['id']}"):
-                        if remove_workspace_member(m["id"], user_id):
-                            st.rerun()
-            else:
-                st.caption("No one else has access yet.")
-
-            with st.form(f"invite_form_{c['id']}", clear_on_submit=True):
-                inv_col1, inv_col2 = st.columns([3, 1])
-                inv_email = inv_col1.text_input(
-                    "Email", key=f"inv_email_{c['id']}", label_visibility="collapsed",
-                    placeholder="colleague@company.com",
-                )
-                if inv_col2.form_submit_button("Invite", use_container_width=True):
-                    if inv_email.strip():
-                        ok, err = invite_workspace_member(c["id"], user_id, inv_email)
-                        if ok:
-                            st.success(f"Invited {inv_email.strip()}.")
-                            st.rerun()
-                        else:
-                            st.error(err or "Could not send the invite.")
-                    else:
-                        st.warning("Enter an email address.")

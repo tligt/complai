@@ -77,7 +77,20 @@ def _contact_line(c) -> str:
     return " · ".join(bits)
 
 
-tab_inc, tab_team = st.tabs(["Incidents", "Incident team"])
+tab_inc, tab_team, tab_wording = st.tabs(["Incidents", "Incident team", "Incident wording"])
+
+# ══ Incident wording (usability audit batch 2, H4) ═══════════════════════
+# Its own page, no longer in the menu: five text sections that only feed the
+# incident and continuity documents belong with the incident team.
+with tab_wording:
+    st.caption(
+        "Five short sections that go into your incident response plan and your "
+        "business continuity plan: how you detect and contain an incident, who "
+        "does what, how you keep running, and how you test it. RECOSA drafts "
+        "each one; you correct it."
+    )
+    if st.button("Edit the incident wording", key="inc_to_wording", type="primary"):
+        st.switch_page("app_pages/wording.py")
 
 # ══ Incident team ═════════════════════════════════════════════════════════
 with tab_team:

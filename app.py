@@ -97,6 +97,12 @@ html, body, [class*="css"] {
     border-color: rgba(255,255,255,0.15) !important;
     color: white !important;
 }
+/* Streamlit 1.61's select box is a text input inside; the company switcher's
+   value was dark grey on dark blue. */
+[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
+    color: #FFFFFF !important;
+    -webkit-text-fill-color: #FFFFFF !important;
+}
 [data-testid="stSidebar"] .stSelectbox svg {
     fill: #94A3B8 !important;
 }
@@ -222,9 +228,25 @@ user_id = get_user_id()
 # Sidebar: logo above nav (injected via CSS top position)
 st.markdown("""
 <style>
-/* Push nav items down to make room for logo */
-[data-testid="stSidebarNav"] {
-    margin-top: 70px !important;
+/* Room for the logo. The menu is drawn by this script (st.page_link), so
+   it is user content, not stSidebarNav (usability audit batch 2). */
+[data-testid="stSidebarUserContent"] {
+    padding-top: 1.25rem !important;
+}
+/* Menu group titles */
+.nav-group {
+    color: #94A3B8 !important;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 0.9rem 0 0.15rem 0.75rem;
+}
+[data-testid="stSidebar"] [data-testid="stPageLink"] {
+    margin: 0 !important;
+}
+[data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] span {
+    color: #E2E8F0 !important;
 }
 /* Logo overlay at top of sidebar */
 [data-testid="stSidebar"]::before {
@@ -244,12 +266,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-
-with st.sidebar:
-    st.markdown("<div style='height:0.5rem'></div>", unsafe_allow_html=True)
-    from auth import logout
-    if st.button("Log out", use_container_width=True, key="btn_logout"):
-        logout()
 
 # ── Claim any pending workspace invites ───────────────────────────
 # S38. Runs on every authenticated load, before the zero-client gate below
@@ -316,6 +332,10 @@ with st.sidebar:
 _came_with_check = limited_access and bool(_profile.get("pending_result"))
 if (not load_accessible_clients(user_id) and not st.session_state.get("skip_onboarding")
         and not _came_with_check):
+    with st.sidebar:
+        from auth import logout
+        if st.button("Log out", use_container_width=True, key="btn_logout"):
+            logout()
     st.title("Welcome to RECOSA")
     st.caption("Set up your first client to get started.")
     # S48: the shared form (client_setup.py) — company-number lookup and
@@ -336,20 +356,28 @@ if (not load_accessible_clients(user_id) and not st.session_state.get("skip_onbo
 # in the sidebar list shown during login and onboarding — executed the page
 # file directly, skipping this script and with it the login check and the
 # subscribe gate below. Only a crash on the missing session stopped it.
-chat      = st.Page("app_pages/chat.py",      title="Chat",           icon="💬", default=True)
-dashboard = st.Page("app_pages/dashboard.py", title="Dashboard",      icon="📊")
+# Usability audit batch 2 (26 Oct): grouped by what the user is trying to do,
+# Home first. Pages reached from another page rather than the menu are
+# registered with visibility="hidden" (Compliance Record from Documents,
+# Incident wording from Incidents) so links and switch_page still work.
+home      = st.Page("app_pages/dashboard.py", title="Home",           icon="🏠", default=True)
+plan      = st.Page("app_pages/action_plan.py", title="Action plan",  icon="📋")
+oblig     = st.Page("app_pages/obligations.py", title="Obligations",  icon="✅")
 gap       = st.Page("app_pages/gap.py",       title="Gap Assessment", icon="🔍")
+risk      = st.Page("app_pages/risk.py",      title="Risk assessments", icon="⚖️")
 inventory = st.Page("app_pages/inventory.py", title="Systems",        icon="🗂️")
 documents = st.Page("app_pages/documents.py", title="Documents",      icon="📄")
+record    = st.Page("app_pages/compliance_record.py", title="Compliance Record",
+                    icon="🗄️", visibility="hidden")
+incidents = st.Page("app_pages/incidents.py", title="Incidents",      icon="🚨")
+wording   = st.Page("app_pages/wording.py",   title="Incident wording",
+                    icon="✍️", visibility="hidden")
 audit     = st.Page("app_pages/audit.py",     title="Web Audit",      icon="🌐")
-alerts    = st.Page("app_pages/alerts.py",    title="Alerts",         icon="🔔")
+chat      = st.Page("app_pages/chat.py",      title="Assistant",      icon="💬")
+company   = st.Page("app_pages/company.py",   title="Company profile", icon="🏢")
+profile   = st.Page("app_pages/profile.py",   title="Account",        icon="👤")
+team      = st.Page("app_pages/team.py",      title="Team",           icon="👥")
 activity  = st.Page("app_pages/activity.py",  title="Activity Log",   icon="🕐")
-record    = st.Page("app_pages/compliance_record.py", title="Compliance Record", icon="🗄️")
-oblig     = st.Page("app_pages/obligations.py", title="Obligations", icon="✅")
-wording   = st.Page("app_pages/wording.py", title="Incident wording", icon="✍️")
-risk      = st.Page("app_pages/risk.py", title="Risk assessments", icon="⚖️")
-incidents = st.Page("app_pages/incidents.py", title="Incidents", icon="🚨")
-profile   = st.Page("app_pages/profile.py", title="Profile", icon="👤")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -357,25 +385,35 @@ profile   = st.Page("app_pages/profile.py", title="Profile", icon="👤")
 # link. One missing from PAGE_CONTEXT falls through to "other" and mis-routes
 # any support ticket raised on it.
 
-# Support carries an unread badge. st.navigation has no badge slot, so the
-# count goes in the title — without it, a support inbox nobody is prompted
-# to check is the main way replies go unread.
+# Support and Alerts carry an unread count. st.page_link has no badge slot,
+# so the count goes in the title — without it, a support inbox nobody is
+# prompted to check is the main way replies go unread.
 _unread = count_unread_replies(user_id)
 support   = st.Page(
     "app_pages/support.py",
     title=f"Support ({_unread})" if _unread else "Support",
-    icon="💬",
+    icon="🛟",
 )
+from cached_reads import count_unread_alerts as _count_alerts
+_alerts_n = _count_alerts(user_id)
+alerts    = st.Page("app_pages/alerts.py",
+                    title=f"Alerts ({_alerts_n})" if _alerts_n else "Alerts", icon="🔔")
+
+
+def _logout_page():
+    from auth import logout
+    logout()
+
+
+logout_pg = st.Page(_logout_page, title="Log out", icon="🚪", url_path="logout")
 
 _sections = {
-    "":           [chat],
-    "Compliance": [dashboard, oblig, incidents, risk, gap],
-    # S27. `record` is read-only and sits next to the pages that write what it
-    # reports: Documents produces, Systems supplies the data, this reports what
-    # the organisation actually operates under.
-    "Tools":      [inventory, documents, wording, record, audit],
-    "Account":    [profile, activity, support],
-    "Updates":    [alerts],
+    "":         [home, plan],
+    "Assess":   [oblig, gap, risk],
+    "Records":  [inventory, documents, record],
+    "Respond":  [incidents, wording],
+    "Tools":    [audit, chat],
+    "Account":  [company, profile, team, alerts, activity, support],
 }
 
 if limited_access:
@@ -385,16 +423,36 @@ if limited_access:
     from subscribe_view import render_subscribe
 
     def _locked(page):
-        # Chat is the full app's default page, so its url_path is "".
+        # Home is the full app's default page, so its url_path is "".
         return st.Page(render_subscribe, title=page.title, icon=page.icon,
-                       url_path=page.url_path or "chat")
+                       url_path=page.url_path or "home", visibility=page.visibility)
 
     free_check = st.Page("app_pages/free_check.py", title="Your free check",
                          icon="🎯", default=True)
     _sections = {name: [_locked(p) for p in pages] for name, pages in _sections.items()}
     _sections[""] = [free_check] + _sections[""]
 
-pg = st.navigation(_sections)
+_sections["Account"] = _sections["Account"] + [logout_pg]
+
+pg = st.navigation(_sections, position="hidden")
+
+# ── Menu ──────────────────────────────────────────────────────
+# Drawn here rather than by st.navigation, which always renders above
+# anything the app puts in the sidebar: the company switcher belongs at the
+# top (audit H1), and a page's own sidebar tools (Assistant's history) below
+# the menu.
+from active_client import render_company_switcher
+with st.sidebar:
+    if not limited_access:
+        render_company_switcher(user_id)
+    for _header, _pages in _sections.items():
+        _shown = [p for p in _pages if p.visibility != "hidden"]
+        if not _shown:
+            continue
+        if _header:
+            st.markdown(f'<div class="nav-group">{_header}</div>', unsafe_allow_html=True)
+        for _p in _shown:
+            st.page_link(_p, width="stretch")
 
 # A ticket deep link bypasses everything else and goes straight to the
 # thread. Reading a ticket needs no client context — the ticket carries its
@@ -435,10 +493,13 @@ PAGE_CONTEXT = {
     "support":   "account",
     "free_check": "account",
     "incidents": "incidents",
+    "action_plan": "obligations",
+    "company":   "account",
+    "team":      "account",
 }
 
 # The default page is served at the root, so its url_path is empty.
-_ctx = PAGE_CONTEXT.get(pg.url_path or "chat", "other")
+_ctx = PAGE_CONTEXT.get(pg.url_path or "dashboard", "other")
 _client = st.session_state.get("selected_client") or {}
 
 render_help_widget(

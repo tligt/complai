@@ -22,36 +22,67 @@ import streamlit as st
 from cached_reads import load_accessible_clients
 
 
+def render_company_switcher(user_id: str) -> None:
+    """The one company switcher, at the top of the sidebar (usability audit
+    batch 2, H1). Shown only to accounts with several companies; a
+    one-company account never sees a choice that does not exist.
+
+    Replaces the "Select client" box that sat at the top of every page
+    (30 Sept 2026 – 26 Oct 2026) and Chat's own two pickers. The choice goes
+    into st.session_state.selected_client, read by get_active_client().
+    """
+    clients = load_accessible_clients(user_id) or []
+    if len(clients) < 2:
+        return
+    current = _current(clients)
+    ids = [c["id"] for c in clients]
+    by_id = {c["id"]: c for c in clients}
+    # Keyed on the current client, so a change made elsewhere (a new client
+    # just created) recreates the widget showing it.
+    widget_key = f"company_switcher_{current['id']}"
+    st.selectbox(
+        "Company", options=ids, index=ids.index(current["id"]),
+        format_func=lambda i: by_id[i]["company_name"],
+        key=widget_key, on_change=_switch_client, args=(widget_key, clients),
+    )
+
+
+def _current(clients: list) -> dict:
+    """The selected client, re-read from the list (the stored dict may be
+    stale, or no longer accessible); the first one when nothing is selected.
+
+    Picking the first used to be refused (30 Sept 2026): with the picker at
+    the top of each page, a silent default attached work to a company the
+    user had not looked at. The switcher now sits in the sidebar on every
+    page and each page names the company it works on, so the default is
+    visible wherever work is done."""
+    by_id = {c["id"]: c for c in clients}
+    current = by_id.get((st.session_state.get("selected_client") or {}).get("id"))
+    current = current or clients[0]
+    st.session_state.selected_client = current
+    return current
+
+
 def get_active_client(user_id: str) -> dict | None:
     """The client this page should operate on.
 
     Returns None only after already calling st.stop() — the caller does
     not need its own stop handling in that case.
 
-    0 clients: tells the client to create one, stops.
-    1 client: returned directly, no UI shown — the Starter/Professional
-      case, where the user IS the company, and asking would be friction
-      over a choice that does not exist.
-    2+ clients: renders "Select client" at the top of the page, EVERY
-      time, showing the current client and letting the user switch right
-      there (30 Sept 2026: it used to show only until a first choice,
-      then disappeared, leaving Chat's picker as the only way to switch).
-      Nothing is preselected until a first choice is made; the page waits.
-      The choice goes into st.session_state.selected_client, so it carries
-      into every other page for the rest of the session.
+    0 clients: points to the Company profile page, stops.
+    1 client: returned directly, no UI shown.
+    2+ clients: the one chosen in the sidebar switcher (render_company_switcher),
+      the first until a choice is made; the page shows its name.
 
     S38: "clients" here means accessible clients — owned, or granted via
-    workspace_members — not only owned ones. A workspace member with
-    access to exactly one client gets the same silent auto-select an
-    owner with one client always has; 2+ accessible clients (owner with
-    several, or a member added to more than one) gets the same picker.
+    workspace_members — not only owned ones.
     """
     clients = load_accessible_clients(user_id) or []
 
     if not clients:
         st.info(
-            "You don't have a company profile yet. Open **➕ New client** in "
-            "the sidebar (below the page list) to set one up."
+            "You don't have a company profile yet. Set one up on the "
+            "**Company profile** page (Account, in the menu)."
         )
         st.stop()
         return None
@@ -60,45 +91,17 @@ def get_active_client(user_id: str) -> dict | None:
         st.session_state.selected_client = clients[0]
         return clients[0]
 
-    # More than one client — the Advisory case. Guessing would silently
-    # attach this page's work to the wrong company (support.py and
-    # activity.py did exactly that before this module existed), so nothing
-    # is preselected until the user has chosen once. Found 30 Sept 2026:
-    # preselecting the first client stored it on the very first run and
-    # then ignored whatever the user picked next.
-    by_id = {c["id"]: c for c in clients}
-    current = st.session_state.get("selected_client") or {}
-    # Re-read from the list: the stored dict may be stale (e.g. regulations
-    # edited since), or no longer accessible (workspace access revoked).
-    current = by_id.get(current.get("id"))
-    names = [c["company_name"] for c in clients]
-
-    # Keyed on the current client: when the client changes anywhere (here,
-    # or Chat's own picker) the widget is recreated showing it, instead of
-    # keeping a stale value in its own widget state.
-    widget_key = f"active_client_select_{current['id'] if current else 'none'}"
-    chosen = st.selectbox(
-        "Select client", options=names, key=widget_key,
-        index=names.index(current["company_name"]) if current else None,
-        placeholder="Choose a client",
-        on_change=_switch_client, args=(widget_key, clients),
-    )
-    picked = next((c for c in clients if c["company_name"] == chosen), None)
-    if not picked:
-        st.stop()
-        return None
-
-    st.session_state.selected_client = picked
-    return picked
+    current = _current(clients)
+    st.caption(f"🏢 {current['company_name']} · change company in the menu")
+    return current
 
 
 def _switch_client(widget_key: str, clients: list) -> None:
-    """on_change for the picker: store the new client before the rerun, and
-    start a fresh chat conversation, as Chat's own picker does when the
-    client changes. Otherwise Chat would show the previous client's
-    conversation under the new client."""
-    name = st.session_state.get(widget_key)
-    picked = next((c for c in clients if c["company_name"] == name), None)
+    """on_change for the switcher: store the new client before the rerun, and
+    start a fresh chat conversation. Otherwise the Assistant would show the
+    previous client's conversation under the new client."""
+    chosen = st.session_state.get(widget_key)
+    picked = next((c for c in clients if c["id"] == chosen), None)
     if not picked:
         return
     st.session_state.selected_client = picked

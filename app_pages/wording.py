@@ -31,6 +31,8 @@ from database import get_supabase, log_audit_event
 from active_client import get_active_client
 from template_nis2 import INSERTS
 
+if st.button("← Incidents", key="wording_back"):
+    st.switch_page("app_pages/incidents.py")
 st.title("Incident wording")
 st.caption(
     "Five short sections that go into your incident response plan and your "

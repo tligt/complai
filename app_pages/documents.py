@@ -48,7 +48,14 @@ TEMPLATE_DOC_TYPES = {
 user_id = get_user_id()
 
 st.title("Documents")
-st.caption("Generate compliance documents tailored to your client's profile.")
+_dc1, _dc2 = st.columns([3, 1])
+_dc1.caption("Generate compliance documents tailored to your client's profile. "
+             "Which version of each is in force, and since when, is on the "
+             "Compliance record.")
+# Usability audit batch 2: the Compliance record is reached from here, not
+# from the menu.
+if _dc2.button("Compliance record", key="docs_to_record", use_container_width=True, icon="🗄️"):
+    st.switch_page("app_pages/compliance_record.py")
 st.divider()
 
 # ── Session state init ────────────────────────────────────────

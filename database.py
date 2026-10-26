@@ -20,13 +20,27 @@ SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 
 
 def get_supabase() -> Client:
+    # Pass the user's session token so RLS policies are applied correctly
+    token = _st().session_state.get("access_token")
+    # One client per browser session and token, reused (26 Oct, audit batch
+    # 2). A new client per call opened a new HTTPS connection per query —
+    # about a second each from Belgium, 17 s for the action plan's ~15 reads.
+    # Keyed on the token, so a refreshed token gets a fresh client.
+    try:
+        cached = _st().session_state.get("_sb_client")
+        if cached and cached[0] == token:
+            return cached[1]
+    except Exception:
+        cached = None
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     client = create_client(url, key)
-    # Pass the user's session token so RLS policies are applied correctly
-    token = _st().session_state.get("access_token")
     if token:
         client.postgrest.auth(token)
+    try:
+        _st().session_state["_sb_client"] = (token, client)
+    except Exception:
+        pass
     return client
 
 
@@ -94,6 +108,28 @@ def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
         return True
     except Exception as e:
         _st().error(f"Could not update client: {e}")
+        return False
+
+
+# The company-profile fields a user may edit (usability audit batch 2, H9).
+# Anything else on clients is written by the page that owns it (NIS2 scope on
+# Obligations, wording inserts on Incident wording, breach hours on Incidents).
+CLIENT_PROFILE_FIELDS = (
+    "company_name", "legal_name", "legal_form", "enterprise_number",
+    "registered_address", "country", "sector", "company_size", "regulations",
+    "document_languages", "website_url", "contact_email", "dpo_name", "dpo_email",
+)
+
+
+def update_client_fields(client_id: str, fields: dict) -> bool:
+    """Write company-profile fields. Filtered on id alone (S38) — see
+    update_client_record's note; RLS decides who may."""
+    clean = {k: v for k, v in fields.items() if k in CLIENT_PROFILE_FIELDS}
+    try:
+        get_supabase().table("clients").update(clean).eq("id", client_id).execute()
+        return True
+    except Exception as e:
+        _st().error(f"Could not save the company profile: {e}")
         return False
 
 
@@ -306,11 +342,19 @@ def build_client_context(client: dict) -> str:
 
 # ── Supabase Storage ──────────────────────────────────────────────────────────
 
+_ADMIN_CLIENT = None
+
+
 def get_supabase_admin() -> Client:
     """Get Supabase client with service role for storage operations."""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
-    return create_client(url, key)
+    # Reused across calls for the same reason as get_supabase(); the service
+    # key carries no per-user state, so one per process is enough.
+    global _ADMIN_CLIENT
+    if _ADMIN_CLIENT is None:
+        url = os.environ.get("SUPABASE_URL")
+        key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
+        _ADMIN_CLIENT = create_client(url, key)
+    return _ADMIN_CLIENT
 
 
 def upload_file(bucket: str, path: str, file_bytes: bytes,

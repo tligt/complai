@@ -24,23 +24,18 @@ have already dealt with.
 
 from datetime import date
 
-import incident_store as INC
 import streamlit as st
 
 from display import fmt_date
 
 import obligation_register as OR
 import obligation_store as STORE
-import tasks as T
-from template_nis2 import INSERTS
 from auth import get_user_id
 from database import get_supabase
 from active_client import get_active_client
-from cached_reads import get_register_status, get_in_force_template_versions
 from obligations import (
-    OBLIGATIONS, OBLIGATION_BY_ID, REGULATION_LABELS, DOCUMENT_TYPES,
+    REGULATION_LABELS, DOCUMENT_TYPES,
 )
-from gap_assessment import load_latest_gap_results
 
 st.title("Obligations")
 st.caption(
@@ -60,70 +55,13 @@ regulations = client.get("regulations") or ["GDPR"]
 doc_languages = [l.lower() for l in (client.get("document_languages") or ["en"])]
 
 # ── Load ──────────────────────────────────────────────────────────────────
-try:
-    import inventory_store as INVS
-    activities = INVS.load_activities(user_id, client_id)
-    systems = INVS.load_systems(user_id, client_id)
-    links = INVS.load_links(user_id, client_id)
-    readiness = INVS.readiness(
-        activities, systems, links,
-        INVS.load_counterparty_links(user_id, client_id), client_id,
-    )
-except Exception as e:
-    st.warning(f"Could not read the inventory: {e}")
-    activities, systems, links, readiness = [], [], [], None
-
-responses = STORE.load_responses(client_id, user_id)
-register = get_register_status(client_id, user_id)
-
-# get_register_status is per language; the obligation only needs to know
-# whether a document is in force at all.
-doc_status = {
-    dt: ("in_force" if any(r.get("status") == "in_force" for r in per_lang.values())
-         else "draft")
-    for dt, per_lang in register.items()
-}
-
-applicable = [o for o in OBLIGATIONS if o.get("regulation") in regulations]
-
-# S45. evaluate()'s gap_results parameter has existed since the register was
-# written but was never actually passed here — a gap assessment's findings
-# never reached the action plan until now. See gap_assessment.py's docstring.
-gap_results = load_latest_gap_results(user_id, client_id)
-
-verdicts = OR.evaluate(
-    applicable,
-    {"client": client, "activities": activities, "systems": systems,
-     "links": links},
-    document_status=doc_status,
-    gap_results=gap_results,
-    responses=responses,
-)
-
-# ── Outstanding work ──────────────────────────────────────────────────────
-# Derived on every read; nothing stores that a task is open. See tasks.py.
-_reg_rows = [r for per_lang in register.values() for r in per_lang.values()]
-findings = T.collect(
-    T.obligations_due(verdicts, responses, OBLIGATION_BY_ID),
-    T.translations_outstanding(activities, doc_languages),
-    T.documents_outstanding(_reg_rows, DOCUMENT_TYPES),
-    # S36. Compares against the shared template catalogue, not per-client data.
-    T.template_updates_available(
-        _reg_rows, get_in_force_template_versions(), DOCUMENT_TYPES,
-    ),
-    T.inventory_gaps(readiness),
-    # S30. Insert sections that are missing, unconfirmed, or two words long.
-    # Surfaced here rather than only on the wording page: a warning on a form
-    # is seen once, by someone who has decided to type "By looking" and move
-    # on.
-    T.wording_missing(client, INSERTS, doc_languages),
-    T.wording_too_short(client, INSERTS, doc_languages),
-    # S53. Every open notification deadline of an incident not yet closed.
-    INC.open_findings(user_id, client),
-)
-events = STORE.load_events(client_id, user_id)
-STORE.reconcile(user_id, client_id, findings, events)
-open_tasks = T.apply_history(findings, events)
+# Audit batch 2: computed in obligation_view, shared with Action plan and Home.
+import obligation_view as OV
+_state = OV.load_state(user_id, client)
+activities, systems, links = _state["activities"], _state["systems"], _state["links"]
+readiness, responses, register = _state["readiness"], _state["responses"], _state["register"]
+doc_status, applicable, verdicts = _state["doc_status"], _state["applicable"], _state["verdicts"]
+open_tasks = _state["open_tasks"]
 
 counts = OR.counts(verdicts)
 c1, c2, c3, c4 = st.columns(4)
@@ -231,154 +169,17 @@ if "NIS2" in regulations:
 st.divider()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────
-# Summary table with two real per-row actions — Go fix it and Dismiss — via
-# st.column_config.ButtonColumn, which renders actual clickable buttons
-# inside a cell and fires a Python callback with the clicked row's index.
-# Every finding already carries `link`, the page that actually fixes the
-# underlying thing; "obligations" is this page, so those rows get no
-# fix-it button — everything else does.
-#
-# A single narrow icon column measured right in testing and then rendered
-# far too wide in a real browser window: st.dataframe distributes any
-# leftover row width EVENLY across every column once the sum of configured
-# widths is less than the table's own width, including a column pinned at
-# 36px — confirmed in the installed column_config source, not assumed. The
-# icon is folded into the Task text instead, so there is no narrow column
-# for that redistribution to inflate. Due is narrowed the same way, though
-# a normal text column being stretched somewhat is far less visually broken
-# than a one-character column was.
-_TASK_LINK_PAGES = {
-    "inventory":          "app_pages/inventory.py",
-    "documents":          "app_pages/documents.py",
-    "wording":            "app_pages/wording.py",
-    "compliance_record":  "app_pages/compliance_record.py",
-    "incidents":          "app_pages/incidents.py",
-}
-_FIX_LABEL = "Fix it"
-_DISMISS_LABEL = "Dismiss"
-
-
-def _task_actions(f: dict) -> list[str]:
-    acts = []
-    if _TASK_LINK_PAGES.get(f.get("link") or ""):
-        acts.append(_FIX_LABEL)
-    acts.append(_DISMISS_LABEL)
-    return acts
-
-
-def _handle_task_action():
-    """ButtonColumn callback. Runs before the rerun it triggers, so it only
-    sets state for the main script body to act on — switch_page itself
-    stays out of the callback, since callbacks execute in their own partial
-    run and are not the documented place to call it.
-    """
-    click = st.session_state.get("ob_task_action_click")
-    if not click:
-        return
-    idx = click.get("row")
-    if idx is None or idx >= len(open_tasks):
-        return
-    f = open_tasks[idx]
-    label = click.get("label") or ""
-    if _DISMISS_LABEL in label:
-        st.session_state["ob_task_dismiss_select"] = f["finding_key"]
-    elif _FIX_LABEL in label:
-        page = _TASK_LINK_PAGES.get(f.get("link") or "")
-        if page:
-            st.session_state["_ob_pending_navigate"] = page
-
-
+# Audit batch 2 (H3): the task list has its own page, Action plan. Here only
+# the count and the way there, so the register is not pushed below the fold.
 if open_tasks:
-    st.subheader(f"To do ({len(open_tasks)})")
-    _icon = {T.BLOCKING: "🔴", T.DUE: "🟠", T.OPEN: "⚪"}
-
-    st.dataframe(
-        [
-            {
-                "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}",
-                "Detail": f.get("detail") or "",
-                "Due": fmt_date(f["due"]) if f.get("due") else "",
-                "Actions": _task_actions(f),
-            }
-            for f in open_tasks
-        ],
-        hide_index=True,
-        # stretch (matches every other table on this page) fills the parent
-        # container and spreads whatever is left over EVENLY across every
-        # column. Task and Detail are given a bigger starting width than Due
-        # and Actions specifically so that, after that even split, they are
-        # still the two columns actually getting the space.
-        width="stretch",
-        column_config={
-            "Task": st.column_config.TextColumn(width=430),
-            "Detail": st.column_config.TextColumn(width=620),
-            "Due": st.column_config.TextColumn(width=90),
-            # A single Dismiss renders directly at this width; two actions
-            # collapse into a "..." menu rather than both showing inline —
-            # kept deliberately, not a compromise: familiar pattern, and it
-            # means Actions does not need to fight Task/Detail for width.
-            "Actions": st.column_config.ButtonColumn(
-                width=100,
-                on_click=_handle_task_action,
-                key="ob_task_action_click",
-            ),
-        },
-    )
-
-    # Set by the Go fix it button's callback, above. Done here rather than
-    # inside the callback itself — st.switch_page's own docs describe it as
-    # stopping the CURRENT page's execution, which is the main script body,
-    # not the separate partial run a column-button callback executes in.
-    _pending_nav = st.session_state.pop("_ob_pending_navigate", None)
-    if _pending_nav:
-        st.switch_page(_pending_nav)
-
-    # Still a real selector, not just a Dismiss-button landing spot — either
-    # path sets the same key, so clicking Dismiss in the table and picking a
-    # task here do the same thing.
-    _tasks_by_key = {f["finding_key"]: f for f in open_tasks}
-    _select_options = [None] + list(_tasks_by_key.keys())
-    _selected_key = st.selectbox(
-        "Dismiss a task",
-        options=_select_options,
-        format_func=lambda k: (
-            "— Select a task to dismiss —" if k is None else _tasks_by_key[k]["title"]
-        ),
-        key="ob_task_dismiss_select",
-    )
-
-    if _selected_key:
-        f = _tasks_by_key[_selected_key]
-        with st.container(border=True):
-            # A reason is required — the CHECK constraint enforces it, and
-            # this is what an auditor asks about.
-            why = st.text_input(
-                "Why is this not something you need to do?",
-                key=f"dis_why_{f['finding_key']}",
-                placeholder="e.g. accepted risk, reviewed and not applicable",
-            )
-            d1, d2 = st.columns(2)
-            if d1.button("Dismiss it", key=f"dis_go_{f['finding_key']}",
-                         type="primary", disabled=not (why or "").strip()):
-                STORE.dismiss(user_id, client_id, f["producer"],
-                              f["finding_key"], why)
-                # The dismissed task drops out of open_tasks on the next
-                # load, so its key would no longer be a valid option —
-                # cleared here rather than left to raise on rerun.
-                st.session_state.pop("ob_task_dismiss_select", None)
-                st.rerun()
-            if d2.button("Cancel", key=f"dis_no_{f['finding_key']}"):
-                st.session_state.pop("ob_task_dismiss_select", None)
-                st.rerun()
-            st.caption(
-                "It comes back if the situation changes — a dismissal "
-                "applies to this finding, not to any future one that looks "
-                "like it."
-            )
-    st.divider()
+    _ac1, _ac2 = st.columns([3, 1])
+    _ac1.info(f"**{len(open_tasks)} {'task' if len(open_tasks) == 1 else 'tasks'} outstanding** "
+              "— listed by urgency on the Action plan.")
+    if _ac2.button("Open the action plan", key="ob_to_plan", use_container_width=True):
+        st.switch_page("app_pages/action_plan.py")
 else:
     st.success("Nothing outstanding.")
-    st.divider()
+st.divider()
 
 # ── The register ──────────────────────────────────────────────────────────
 # Same table-plus-detail-panel shape as the To-do list above: a compact
