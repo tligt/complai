@@ -154,8 +154,12 @@ def _account_form(key: str, pending: dict, note: str = "") -> None:
                    f"[Privacy policy]({PRIVACY_POLICY_URL})")
         go = st.form_submit_button("Get my full report" if pending["tool"] == funnel.TOOL_WEBSITE
                                    else "Get my full result", type="primary")
+    # The login link carries the check, so an existing account keeps it.
+    login_url = funnel.signup_url(APP_BASE_URL, pending["tool"],
+                                  answers=funnel.decode_answers(pending.get("answers")),
+                                  site=pending.get("site"))
     if not go:
-        st.caption(f"Already have an account? [Log in to RECOSA]({APP_BASE_URL}/)")
+        st.caption(f"Already have an account? [Log in to RECOSA]({login_url})")
         return
     email = email.strip()
     if "@" not in email or "." not in email.split("@")[-1]:
@@ -182,7 +186,12 @@ def _account_form(key: str, pending: dict, note: str = "") -> None:
                    if own else
                    f"Your email is not at **{pending['site']}**, so after confirming, log in to "
                    f"RECOSA and prove the site is yours — one line on its homepage or in its DNS. "
-                   f"The report is sent as soon as it's verified."))
+                   f"The report is sent as soon as it's verified.")
+                # Supabase answers an existing address exactly like a new
+                # one and sends nothing (so the form can't reveal who has an
+                # account) — say so, and give the way in.
+                + f"\n\nAlready have a RECOSA account with this address? No new email is "
+                  f"sent: [log in instead]({login_url}) to see your report.")
         st.session_state[f"{key}_done"] = done
         st.rerun()
 

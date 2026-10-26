@@ -265,7 +265,12 @@ with st.sidebar:
 # work against. Intercepted here, once, before st.navigation even builds,
 # rather than patching each page's own empty state — Log out above still
 # works since the sidebar block already rendered.
-if not load_accessible_clients(user_id) and not st.session_state.get("skip_onboarding"):
+# S49 part 2: a free account that arrived with a free check sees its result
+# first — that is what the form promised. Setting up the company comes after
+# (the free check page and the trial work without one).
+_came_with_check = limited_access and bool(_profile.get("pending_result"))
+if (not load_accessible_clients(user_id) and not st.session_state.get("skip_onboarding")
+        and not _came_with_check):
     st.title("Welcome to RECOSA")
     st.caption("Set up your first client to get started.")
     # S48: the shared form (client_setup.py) — company-number lookup and
