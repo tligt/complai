@@ -377,7 +377,7 @@ the only sprint that *is* the gate.
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
-| **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). Open: the CNIL channel, counsel review of the procedure and the draft texts. Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
+| **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Open: counsel review of the procedure and the draft texts; one real reminder email. Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before |
 | S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
 | S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
@@ -2484,8 +2484,8 @@ without judging); subscribed and trial accounts only (S49's gate).
   +32 2 501 05 60; `incident@ccb.belgium.be`; guide on
   `ccb.belgium.be/cert/report-incident/nis2-notifications-howto`.
 - FR, NIS2/incident: ANSSI's "Incident" link → `club.ssi.gouv.fr/#/declarations`.
-- FR, GDPR: **not verified** — the CNIL site was in maintenance. Shown as
-  unverified in the app until checked.
+- FR, GDPR: the CNIL's online service, `notifications.cnil.fr/notifications/`
+  — confirmed 26 Oct (in maintenance on 22 Oct); `migration_s53_cnil.sql`.
 
 #### Part 2 — incident team, documented flow, legal gaps (23 October 2026, D-118)
 
