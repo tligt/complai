@@ -1,0 +1,45 @@
+<!--
+  Supabase → Authentication → Emails → Templates → "Confirm signup" (S49 part 2, D-119).
+  Subject:  Confirm your email to get your RECOSA report
+  Same look as email_sender.email_layout(): dark blue #003366, teal rule #14C7D5.
+  {{ .Data.recosa_source }} is set by the public app's form (nis2_quiz / website_check);
+  `with` skips the block when it is absent (a signup from the app itself).
+-->
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:20px;background:#ffffff">
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+  <div style="background:#003366;padding:20px 24px;border-radius:8px 8px 0 0;border-bottom:4px solid #14C7D5">
+    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+    <p style="color:#c9d6e3;margin:6px 0 0;font-size:13px">Confirm your email address</p>
+  </div>
+  <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2;line-height:1.55">
+    <p style="margin-top:0">Hello,</p>
+    {{ with .Data.recosa_source }}
+      {{ if eq . "website_check" }}
+    <p>Thanks for checking your website with RECOSA. Confirm your email address and we'll send you
+       the <strong>full report as a PDF</strong>. You can also see it straight away in RECOSA.</p>
+      {{ else }}
+    <p>Thanks for taking the NIS2 Quick Check. Confirm your email address and we'll send you your
+       <strong>full result</strong>, area by area. You can also see it straight away in RECOSA.</p>
+      {{ end }}
+    {{ else }}
+    <p>Confirm your email address to finish creating your RECOSA account.</p>
+    {{ end }}
+    <p style="margin:22px 0 4px;text-align:center">
+      <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#003366;color:#fff;
+         padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:bold;
+         font-size:15px">Confirm my email &rarr;</a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin:18px 0 0">
+      Your account is free, with no card. If you didn't ask for this, ignore this email —
+      no account will be activated for {{ .Email }}.
+    </p>
+  </div>
+  <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;text-align:center">
+    <p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+  </div>
+</div>
+</body>
+</html>
