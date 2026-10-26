@@ -15,21 +15,24 @@ A SEPARATE entry point, not a page inside app.py: app.py gates every page
 behind is_logged_in() before st.navigation even builds (D-104), and a public
 lead magnet does not get a hole punched in that boundary (D-107).
 
-THE FUNNEL (S49, D-115). Free to check; the full result is the reward for an
-email (sent by email) or an account (shown in the app); everything else in
-the app sits behind the trial.
+THE FUNNEL (S49 D-115, part 2 D-119). Free to check; one form for the full
+result: it creates the free account, and the result is emailed once the
+address is confirmed (and shown in the app at first login). Everything else
+in the app sits behind the trial.
   - Score and band, or the website's score and counts per regulation: free.
-  - The breakdown / findings: locked here. Sent in full by email, or shown
-    after signup — the CTA carries the answers or the site, never the email.
+  - The breakdown / findings: locked here until the account is confirmed.
+  - The website report only for the visitor's own site (S43): an address at
+    its domain, or the site proven theirs after signup (funnel_delivery).
 
-WHAT THIS APP CAN WRITE. Only through three SECURITY DEFINER functions, with
-the anon key (migration_s49_funnel.sql): submit_lead, start_website_check,
-record_funnel_event. No service-role key here, no table access, no reads.
-The Brevo key sends the result emails.
+WHAT THIS APP CAN WRITE. With the anon key only: Supabase sign-up (the new
+account, its free check in user metadata) and two SECURITY DEFINER functions
+(migration_s49_funnel.sql): start_website_check, record_funnel_event. No
+service-role key here, no table access, no reads. It sends no email itself:
+the result goes out once the address is confirmed (funnel_delivery.py).
 
 Secrets (Streamlit Cloud, top level): APP_BASE_URL, SUPABASE_URL,
-SUPABASE_KEY (the anon key), BREVO_API_KEY, BREVO_FROM_EMAIL, BREVO_FROM_NAME,
-optionally PRIVACY_POLICY_URL.
+SUPABASE_KEY (the anon key), optionally PRIVACY_POLICY_URL. The BREVO_*
+secrets are no longer used here since D-119 and can be removed.
 
 NOT A COMPLIANCE AUDIT. The quiz questions and weights in funnel.py are draft
 marketing copy, not reviewed legal text — reviewed before launch (D-115).
@@ -92,53 +95,96 @@ def _rpc(fn: str, params: dict):
         return None
 
 
-def _submit_lead(tool, email, *, answers=None, site=None, score=None, marketing=False):
-    return _rpc("submit_lead", {
-        "p_tool": tool, "p_email": email.strip(),
-        "p_answers": funnel.encode_answers(answers) if answers else None,
-        "p_site_domain": site, "p_score": score,
-        "p_marketing_consent": bool(marketing),
-        "p_consent_version": funnel.CONSENT_VERSION,
-        "p_source": st.query_params.get("utm_source") or "direct",
-        "p_ip": st.context.ip_address,
-    })
-
-
-_LEAD_REFUSED = {
-    "invalid": "Please enter a valid email address.",
-    "rate_limited": "A result was already sent to this address recently. "
-                    "Check your inbox, or try again tomorrow.",
-    "already_sent": "The full report for this site has already been sent. "
-                    "Create a free account to see it in RECOSA.",
-    None: "We couldn't record your request just now. Please try again later.",
-}
-
-
-def _email_form(key: str, button: str) -> tuple[str, bool] | None:
-    """The optional email step. Returns (email, marketing_consent) when
-    submitted with an address, else None."""
-    with st.form(key, border=True):
-        st.markdown("**📧 Email me the full result**")
-        email = st.text_input("Your email", placeholder="you@company.com",
-                              key=f"{key}_email", label_visibility="collapsed")
-        marketing = st.checkbox(funnel.CONSENT_TEXT, value=False, key=f"{key}_mkt")
-        st.caption(
-            f"We use your email to send this result. Updates only if you tick the box. "
-            f"[Privacy policy]({PRIVACY_POLICY_URL})"
+def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[bool, str]:
+    """S49 part 2 (D-119). Create the free account with the anon key, carrying
+    the free check on the account itself (user metadata) — the client app
+    and monitor_funnel.py pick it up from there. (ok, message)."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
+        return False, "Sign-up is not available just now. Please try again later."
+    try:
+        r = requests.post(
+            f"{url.rstrip('/')}/auth/v1/signup",
+            params={"redirect_to": APP_BASE_URL + "/"},
+            headers={"apikey": key, "Content-Type": "application/json"},
+            json={"email": email, "password": password, "data": {
+                "recosa_pending": pending,
+                "recosa_source": pending["tool"],
+                "recosa_marketing": bool(marketing),
+                "recosa_consent_version": funnel.CONSENT_VERSION if marketing else None,
+            }},
+            timeout=15,
         )
-        sent = st.form_submit_button(button)
-    if not sent:
-        return None
+    except Exception as e:
+        print(f"signup failed: {e}")
+        return False, "We couldn't create your account just now. Please try again later."
+    if r.status_code == 429:
+        return False, "Too many sign-ups just now. Please try again in a few minutes."
+    if r.status_code >= 300:
+        print(f"signup refused: {r.status_code} {r.text[:200]}")
+        msg = (r.json().get("msg") or r.json().get("error_description") or "") if r.text else ""
+        return False, f"We couldn't create your account: {msg or 'please check your details'}."
+    # An address that already has an account gets the same answer as a new
+    # one (Supabase does not say which, so the form cannot be used to find
+    # out who has an account).
+    return True, ""
+
+
+def _account_form(key: str, pending: dict, note: str = "") -> None:
+    """The one step: complete the form, get the full report in the app and as
+    a PDF by email once the address is confirmed."""
+    if st.session_state.get(f"{key}_done"):
+        st.success(st.session_state[f"{key}_done"])
+        return
+    with st.form(key, border=True):
+        st.markdown("**Complete the form below and you'll get access to the full report, "
+                    "including a PDF version sent to you.**" if pending["tool"] == funnel.TOOL_WEBSITE
+                    else "**Complete the form below and you'll get access to your full result, "
+                         "also sent to you by email.**")
+        if note:
+            st.caption(note)
+        email = st.text_input("Work email", placeholder="you@company.com", key=f"{key}_email")
+        c1, c2 = st.columns(2)
+        pw = c1.text_input("Choose a password (min. 8 characters)", type="password", key=f"{key}_pw")
+        pw2 = c2.text_input("Repeat the password", type="password", key=f"{key}_pw2")
+        marketing = st.checkbox(funnel.CONSENT_TEXT, value=False, key=f"{key}_mkt")
+        st.caption(f"This creates your free RECOSA account — no card. We use your email to send "
+                   f"the result and to log you in; updates only if you tick the box. "
+                   f"[Privacy policy]({PRIVACY_POLICY_URL})")
+        go = st.form_submit_button("Get my full report" if pending["tool"] == funnel.TOOL_WEBSITE
+                                   else "Get my full result", type="primary")
+    if not go:
+        st.caption(f"Already have an account? [Log in to RECOSA]({APP_BASE_URL}/)")
+        return
+    email = email.strip()
     if "@" not in email or "." not in email.split("@")[-1]:
         st.error("Please enter a valid email address.")
-        return None
-    return email.strip(), marketing
-
-
-def _signup_cta(url: str) -> None:
-    st.link_button("See your full result in RECOSA — create a free account →",
-                   url, type="primary", use_container_width=True)
-    st.caption("Free account, no card. A 14-day trial unlocks the full assessment.")
+    elif len(pw) < 8:
+        st.error("The password needs at least 8 characters.")
+    elif pw != pw2:
+        st.error("The passwords don't match.")
+    else:
+        ok, msg = _signup(email, pw, pending, marketing)
+        if not ok:
+            st.error(msg)
+            return
+        _rpc("record_funnel_event", {"p_event": "signup", "p_tool": pending["tool"],
+                                     "p_source": "public_form"})
+        own = (pending["tool"] == funnel.TOOL_QUIZ
+               or funnel.domains_match(email, pending.get("site") or ""))
+        done = (f"Almost there — we've sent a confirmation link to **{email}**. "
+                + ("Confirm your address and the full report comes to you by email, as a PDF; "
+                   "log in to RECOSA to see it straight away."
+                   if own and pending["tool"] == funnel.TOOL_WEBSITE else
+                   "Confirm your address and your full result comes to you by email; "
+                   "log in to RECOSA to see it straight away."
+                   if own else
+                   f"Your email is not at **{pending['site']}**, so after confirming, log in to "
+                   f"RECOSA and prove the site is yours — one line on its homepage or in its DNS. "
+                   f"The report is sent as soon as it's verified."))
+        st.session_state[f"{key}_done"] = done
+        st.rerun()
 
 
 # ── Page ──────────────────────────────────────────────────────────────────
@@ -160,6 +206,7 @@ with tab_quiz:
     answers = render_quiz_form("nis2_quiz")
     if answers is not None:
         st.session_state.quiz_answers = answers
+        st.session_state.pop("quiz_account_done", None)
         _rpc("record_funnel_event", {"p_event": "quiz_completed",
                                      "p_tool": funnel.TOOL_QUIZ, "p_source": None})
 
@@ -169,29 +216,8 @@ with tab_quiz:
         render_quiz_score(answers)
         render_quiz_breakdown(answers, locked=True)
         st.write("")
-
-        submitted = _email_form("quiz_email", "Send my full result")
-        if submitted:
-            email, marketing = submitted
-            status = _submit_lead(funnel.TOOL_QUIZ, email, answers=answers,
-                                  score=funnel.score(answers), marketing=marketing)
-            if status == "ok":
-                try:
-                    from email_sender import send_quiz_result
-                    ok = send_quiz_result(email, answers, funnel.signup_url(
-                        APP_BASE_URL, funnel.TOOL_QUIZ, answers=answers))
-                except Exception as e:
-                    print(f"quiz email failed: {e}")
-                    ok = False
-                if ok:
-                    st.success(f"Sent to **{email}** — check your inbox.")
-                else:
-                    st.warning("We couldn't send the email just now. "
-                               "You can see your full result by creating a free account below.")
-            else:
-                st.warning(_LEAD_REFUSED.get(status, _LEAD_REFUSED[None]))
-
-        _signup_cta(funnel.signup_url(APP_BASE_URL, funnel.TOOL_QUIZ, answers=answers))
+        _account_form("quiz_account", {"tool": funnel.TOOL_QUIZ,
+                                       "answers": funnel.encode_answers(answers)})
 
 # ── GDPR website check ────────────────────────────────────────────────────
 with tab_site:
@@ -199,6 +225,14 @@ with tab_site:
         "We read your homepage and its privacy, cookie, terms and contact pages, "
         "and check them against GDPR, ePrivacy, accessibility and consumer rules. "
         "About 30 seconds."
+    )
+    st.info(
+        "**For your own website.** The full report goes to an email address at the "
+        "site's domain — you@yourcompany.com for yourcompany.com. Is your email on another "
+        "domain, for a brand or product site? You can prove the site is yours after signing "
+        "up, with one line on its homepage or in its DNS. Paid plans check any number of "
+        "sites: your other brands, or the companies you work for.",
+        icon="🔒",
     )
     with st.form("site_check"):
         url = st.text_input("Website", placeholder="https://yourcompany.com")
@@ -212,8 +246,8 @@ with tab_site:
             # Only an explicit refusal blocks; an unconfigured or failed call
             # fails open, as S41's check does.
             st.warning("You've reached today's limit of free website checks from "
-                       "this connection. Create a free account to keep checking.")
-            _signup_cta(funnel.signup_url(APP_BASE_URL, funnel.TOOL_WEBSITE))
+                       "this connection. Try again tomorrow, or start a free trial in "
+                       f"[RECOSA]({APP_BASE_URL}/) to check your sites without limit.")
         else:
             with st.spinner("Reading your website and running the checks…"):
                 result = crawl(url.strip())
@@ -226,6 +260,7 @@ with tab_site:
                     "domain": extract_domain(normalise_url(url.strip())),
                     "url": normalise_url(url.strip()),
                 }
+                st.session_state.pop("site_account_done", None)
 
     check = st.session_state.get("site_result")
     if check:
@@ -234,45 +269,5 @@ with tab_site:
         st.subheader(f"Your result for {check['domain']}")
         render_results(check["audit"], locked=True)
         st.write("")
-
-        submitted = _email_form("site_email", "Send my full report")
-        if submitted:
-            email, marketing = submitted
-            from email_sender import is_free_email
-            if is_free_email(email):
-                st.error("Please use your work email address, at your company's own domain.")
-            elif not funnel.domains_match(email, check["domain"]):
-                st.warning(
-                    f"The full report goes to an address at **{check['domain']}** — "
-                    f"e.g. you@{check['domain']}. It is for checking your own website."
-                )
-            else:
-                audit = check["audit"]
-                status = _submit_lead(funnel.TOOL_WEBSITE, email, site=check["domain"],
-                                      score=audit.score, marketing=marketing)
-                if status == "ok":
-                    try:
-                        from report import generate_pdf
-                        from email_sender import send_audit_report
-                        ok = send_audit_report(
-                            to_email=email, website_url=check["url"],
-                            pdf_bytes=generate_pdf(audit), score=audit.score,
-                            risk_level=audit.risk_level, ok_count=audit.ok_count,
-                            warn_count=audit.warn_count, fail_count=audit.fail_count,
-                            cta_url=funnel.signup_url(APP_BASE_URL, funnel.TOOL_WEBSITE,
-                                                      site=check["domain"]),
-                        )
-                    except Exception as e:
-                        print(f"website report email failed: {e}")
-                        ok = False
-                    if ok:
-                        st.success(f"Report sent to **{email}** — check your inbox.")
-                    else:
-                        st.warning("We couldn't send the report just now. "
-                                   "You can see it by creating a free account below.")
-                elif status == "domain":
-                    st.warning(f"The full report goes to an address at **{check['domain']}**.")
-                else:
-                    st.warning(_LEAD_REFUSED.get(status, _LEAD_REFUSED[None]))
-
-        _signup_cta(funnel.signup_url(APP_BASE_URL, funnel.TOOL_WEBSITE, site=check["domain"]))
+        _account_form("site_account", {"tool": funnel.TOOL_WEBSITE, "site": check["domain"]},
+                      note=f"Use your email at {check['domain']} to receive the report directly.")

@@ -365,7 +365,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
-| **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built 26 Oct — D-119.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
@@ -2373,6 +2373,35 @@ check (a crawl costs real time even without an email), and S43's
 domain match and per-site reuse block cover the emailed report. The
 public app gains the crawler's dependencies; its `requirements.txt` stays
 separate from the product's.
+
+#### Part 2 — one step, confirmed email, own site (26 October 2026, D-119)
+
+After using it, the user's review: two calls to action on one page (email
+me the report / create an account) is one too many, and the report can be
+emailed without anyone registering. Agreed with the user:
+
+1. **One form, one promise.** *"Complete the form below and you'll get
+   access to the full report, including a PDF version sent to you."* Email,
+   password, marketing consent (unticked), privacy link. It creates the free
+   account. The separate email-only form goes.
+2. **The report follows confirmation.** The PDF (website check) or the full
+   breakdown (quiz) is emailed once the address is confirmed — confirmation
+   proves the address is the person's own, which the domain match alone did
+   not. Also shown in full in the app on first login.
+3. **Own site only, said on the page.** The free check is for your own
+   website: the full report goes to an address at the site's domain. Paid
+   plans check any number of sites (other brands, companies you work for) —
+   the Web Audit page already has no domain rule.
+4. **Brand sites on another domain** (iphone.com, email at apple.com):
+   after signup, the site can be proven yours with a meta tag on its
+   homepage or a DNS TXT record; the report then unlocks and is sent.
+5. **Emails in the brand colours** — one layout for all of them, dark blue
+   #003366 with teal #14C7D5, replacing the S6 navy/purple.
+
+**No database change.** What the form collects rides on the new account as
+Supabase user metadata (pending result, source, consent); the app copies it
+to the profile on first login, and a scheduled job sends the report to
+confirmed accounts that have not logged in yet.
 
 #### Data
 
@@ -5083,6 +5112,57 @@ sector regimes (DORA, telecom, trust services) stay out.
 procedure, but with no written text it is filled from the team: the
 incident lead and deputy with their phone or email. Written text wins; a
 team with no lead or deputy still blocks, and says so.
+
+### D-119 — S49 part 2: one form, the result after confirmation, own site only, one email layout
+
+*26 October 2026. From the user's review of the live public app.* Scope in
+3b, S49 part 2.
+
+**Revises D-115's "email OR account".** One form creates the free account;
+the full result is emailed once the address is confirmed and shown in the
+app at first login. *Why:* two calls to action on one page, and an emailed
+report anyone could have sent to a colleague's address — the domain match
+proved the domain, not the person. Confirmation proves the person.
+
+**Built — with no database change** (the Supabase connector was down):
+- `quiz/quiz_app.py` — the email-only forms and the separate signup button
+  are gone; one form per check ("Complete the form below and you'll get
+  access to the full report, including a PDF version sent to you"): email,
+  password, marketing consent, privacy link. Supabase sign-up with the anon
+  key; the free check, source and consent ride on the account as user
+  metadata. The website tab says, up front, that the free check is for your
+  own site, how the email domain proves it, how a brand site on another
+  domain can be proven, and that paid plans check any site. The public app
+  no longer sends email and no longer needs the Brevo secrets.
+- `funnel_delivery.py` — validates the metadata (visitor-controlled), the
+  own-site rule (same domain, or proven), site proof by meta tag on the
+  homepage or DNS TXT record (`recosa-site-verification`), and `deliver()`:
+  sends the quiz result or the website report with a fresh PDF, once, flags
+  the account, records the lead with the consent given at signup.
+- Client app — first login copies the metadata to the profile; the free
+  check page locks a website report until the site is proven (token, the
+  two ways to place it, Verify), then unlocks it and sends the copy.
+- `monitor_funnel.py` + `.github/workflows/funnel_delivery.yml`, every 15
+  minutes — sends to confirmed accounts that have not logged in yet; an
+  unproven site waits.
+- `email_sender.email_layout()` — one shell for every email in the brand
+  colours (dark blue #003366, teal rule; red rule for incident alerts and
+  missed deadlines). The S6 navy/purple is gone from the report and quiz
+  emails; regulatory alerts and incident emails moved onto it too.
+
+**Verified:** the rules and the meta-tag proof (fetch stubbed); the public
+form in AppTest with sign-up stubbed (payload, redirect, consent, the
+confirmation message, the old forms gone); the free check page's proof
+flow in AppTest (locked, token shown, verified, unlocked); the scheduled
+sender on the live database with three throwaway accounts — confirmed quiz
+sent once and flagged with its lead, unproven site held, unconfirmed held,
+second run silent; accounts deleted. Every email rendered offline.
+
+**For the user:** check Supabase Auth's email settings — the confirmation
+email now carries the funnel, so its sender should be the custom SMTP
+(Brevo) rather than Supabase's rate-limited default, and the app's address
+must be an allowed redirect URL. The `leads` table now records confirmed
+sign-ups only; `submit_lead` is unused.
 
 ---
 

@@ -227,6 +227,17 @@ if _funnel_state and _funnel_state.get("pending") and not _profile.get("pending_
     # Already logged in when the free check's link was opened.
     save_pending_result(user_id, _funnel_state["pending"])
     _profile["pending_result"] = _funnel_state["pending"]
+if not _profile.get("pending_result"):
+    # S49 part 2 (D-119): an account made by the public app's one form
+    # carries its free check in user metadata. First login copies it to the
+    # profile, where the free check page reads it.
+    from funnel_delivery import pending_of
+    _meta = getattr(st.session_state.user, "user_metadata", None) or {}
+    _meta_pending = pending_of(_meta)
+    if _meta_pending and save_pending_result(user_id, _meta_pending):
+        _profile["pending_result"] = _meta_pending
+        from database import save_signup_source
+        save_signup_source(user_id, _meta.get("recosa_source"))
 limited_access = (
     _profile.get("role") != "admin"
     and (_profile.get("subscription_status") or "active") in ("registered", "expired")

@@ -1390,6 +1390,19 @@ def save_pending_result(user_id: str, pending_result: dict | None) -> bool:
         return False
 
 
+def save_signup_source(user_id: str, source: str | None) -> None:
+    """Where an account came from, when it was created outside the app's own
+    signup form (S49 part 2: the public app's one form)."""
+    if not source:
+        return
+    try:
+        get_supabase_admin().table("profiles").update(
+            {"signup_source": str(source)[:40]}
+        ).eq("id", user_id).is_("signup_source", "null").execute()
+    except Exception as e:
+        print(f"Could not save signup source: {e}")
+
+
 def mark_leads_converted(email: str, user_id: str) -> None:
     """Link leads given with this email to the account that signed up."""
     try:

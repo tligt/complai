@@ -74,7 +74,12 @@ if pending["tool"] == funnel.TOOL_QUIZ:
 
 # ── Website check result ──────────────────────────────────────────────────
 else:
+    import funnel_delivery as FD
     site = pending.get("site")
+    email = st.session_state.user.email
+    # S49 part 2 (D-119): own site only — an address at its domain, or the
+    # site proven this account's (meta tag or DNS TXT).
+    proven = FD.site_proven(email, pending)
     key = f"free_check_{site}"
     if key not in st.session_state:
         from crawler import crawl
@@ -84,19 +89,64 @@ else:
         if crawl_result.error:
             st.error(crawl_result.error)
             st.stop()
-        audit = run_checklist(crawl_result)
-        st.session_state[key] = audit
+        st.session_state[key] = (run_checklist(crawl_result), crawl_result.url)
+    audit, site_url = st.session_state[key]
+    st.subheader(f"Website check — {site}")
+
+    if not proven:
+        render_results(audit, locked=True)
+        token = pending.get("site_token")
+        if not token:
+            token = FD.new_token()
+            pending = {**pending, "site_token": token}
+            save_pending_result(user_id, pending)
+        with st.container(border=True):
+            st.markdown(f"**Prove that {site} is yours to unlock the full report**")
+            st.caption(f"Your email ({email}) is not at {site}. Free checks are for your own "
+                       "website, so add one of these, then verify. Paid plans check any site.")
+            st.markdown("**Either** a meta tag in the `<head>` of the homepage:")
+            st.code(f'<meta name="{FD.META_NAME}" content="{token}">', language="html")
+            st.markdown(f"**or** a DNS TXT record on {site}:")
+            st.code(f"{FD.META_NAME}={token}", language="text")
+            if st.button("Verify the site", type="primary", key="verify_site"):
+                with st.spinner("Looking for it…"):
+                    ok, how = FD.check_site(site, token)
+                if ok:
+                    save_pending_result(user_id, {**pending, "site_verified": True, "verified_by": how})
+                    st.rerun()
+                st.error("Not found yet. Check the tag is on the homepage itself, or wait for the "
+                         "DNS record to spread (it can take an hour), then try again.")
+    else:
         if not pending.get("audited"):
-            email = st.session_state.user.email
             save_audit(
                 email=email, email_domain=email.split("@")[-1].lower(),
-                website_url=crawl_result.url, audit_result=audit,
+                website_url=site_url, audit_result=audit,
                 user_id=user_id, client_id=(client or {}).get("id"),
                 site_domain=site,
             )
             save_pending_result(user_id, {**pending, "audited": True})
-    st.subheader(f"Website check — {site}")
-    render_results(st.session_state[key], locked=False)
+        render_results(audit, locked=False)
+
+# The emailed copy (S49 part 2): sent once, to a confirmed account whose
+# free check came from the public form — here or by monitor_funnel.py,
+# whichever comes first.
+import funnel_delivery as FD
+_res = None
+if FD.eligible(st.session_state.user.email, pending if pending["tool"] == funnel.TOOL_QUIZ
+               else {**pending, "site_verified": FD.site_proven(st.session_state.user.email, pending)}):
+    try:
+        from database import get_supabase_admin
+        _user = get_supabase_admin().auth.admin.get_user_by_id(user_id).user
+        if FD.pending_of(_user.user_metadata):
+            with st.spinner("Sending your copy by email…"):
+                _res = FD.deliver(_user)
+    except Exception as e:
+        print(f"free check delivery: {e}")
+if _res == "sent":
+    st.success("A copy has been emailed to you" + (" — the full report as a PDF."
+               if pending["tool"] == funnel.TOOL_WEBSITE else "."))
+elif _res == "already":
+    st.caption("A copy has already been emailed to you.")
 
 st.divider()
 render_trial_cta(profile)

@@ -2,6 +2,46 @@ import os
 import base64
 import requests
 
+# ── One layout for every RECOSA email (S49 part 2, D-119) ─────────────────
+# The brand: dark blue #003366, teal #14C7D5 as the accent. The S6 audit
+# email's navy/purple and the incident emails' own reds had drifted apart;
+# everything now goes through email_layout(). Buttons are dark blue, not
+# teal: white text on teal fails contrast.
+BRAND_DARK = "#003366"
+BRAND_ACCENT = "#14C7D5"
+
+
+def email_layout(subtitle: str, body_html: str, cta_label: str | None = None,
+                 cta_url: str | None = None, footer_note: str = "",
+                 alert: bool = False) -> str:
+    """The shared shell. alert=True adds a red rule under the header for the
+    emails that mean "act now" (incident alerts and missed deadlines)."""
+    import html as _h
+    rule = "#993C1D" if alert else BRAND_ACCENT
+    cta = (f'''<p style="margin:22px 0 4px;text-align:center">
+      <a href="{cta_url}" style="display:inline-block;background:{BRAND_DARK};color:#fff;
+         padding:12px 26px;border-radius:6px;text-decoration:none;font-weight:bold;
+         font-size:15px">{_h.escape(cta_label)} &rarr;</a></p>''' if cta_label and cta_url else "")
+    note = (f'<p style="color:#6b7280;font-size:11px;margin:0 0 6px">{footer_note}</p>'
+            if footer_note else "")
+    return f'''<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:20px;background:#ffffff">
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
+  <div style="background:{BRAND_DARK};padding:20px 24px;border-radius:8px 8px 0 0;border-bottom:4px solid {rule}">
+    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+    <p style="color:#c9d6e3;margin:6px 0 0;font-size:13px">{_h.escape(subtitle)}</p>
+  </div>
+  <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2;line-height:1.55">
+    {body_html}
+    {cta}
+  </div>
+  <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;text-align:center">
+    {note}<p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+  </div>
+</div>
+</body></html>'''
+
 
 def send_audit_report(
     to_email: str,
@@ -39,69 +79,31 @@ def send_audit_report(
         + ".pdf"
     )
 
-    html_body = f"""
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-
-  <div style="background:#1B2A4A;padding:24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:white;margin:0;font-size:24px;">RECOSA ⚖️</h1>
-    <p style="color:#ccc;margin:4px 0 0;">Your Website Compliance Audit Report</p>
-  </div>
-
-  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;">
-    <h2 style="color:#1B2A4A;margin-top:0;">
-      {risk_emoji} Compliance Score: {score}/100 — {risk_level} Risk
-    </h2>
-    <p>We completed the compliance audit for <strong>{website_url}</strong>.</p>
-
-    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+    import html as _h
+    counts = f'''
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;text-align:center">
       <tr>
-        <td style="padding:10px;background:#0F6E56;color:white;text-align:center;border-radius:4px;width:30%;">
-          <strong style="font-size:20px;">{ok_count}</strong><br>
-          <span style="font-size:12px;">Compliant</span>
-        </td>
-        <td style="width:5%;"></td>
-        <td style="padding:10px;background:#BA7517;color:white;text-align:center;border-radius:4px;width:30%;">
-          <strong style="font-size:20px;">{warn_count}</strong><br>
-          <span style="font-size:12px;">Needs attention</span>
-        </td>
-        <td style="width:5%;"></td>
-        <td style="padding:10px;background:#993C1D;color:white;text-align:center;border-radius:4px;width:30%;">
-          <strong style="font-size:20px;">{fail_count}</strong><br>
-          <span style="font-size:12px;">Missing</span>
-        </td>
+        <td style="padding:10px;background:#0F6E56;color:white;border-radius:4px;width:31%">
+          <strong style="font-size:20px">{ok_count}</strong><br><span style="font-size:12px">Compliant</span></td>
+        <td style="width:3%"></td>
+        <td style="padding:10px;background:#BA7517;color:white;border-radius:4px;width:31%">
+          <strong style="font-size:20px">{warn_count}</strong><br><span style="font-size:12px">Needs attention</span></td>
+        <td style="width:3%"></td>
+        <td style="padding:10px;background:#993C1D;color:white;border-radius:4px;width:31%">
+          <strong style="font-size:20px">{fail_count}</strong><br><span style="font-size:12px">Missing</span></td>
       </tr>
-    </table>
-
-    <p>Your full audit report is attached to this email as a PDF.</p>
-  </div>
-
-  <div style="background:#4A3B8C;padding:20px;border-radius:0 0 8px 8px;text-align:center;">
-    <h3 style="color:white;margin-top:0;">Ready to fix these gaps?</h3>
-    <p style="color:#ccc;font-size:14px;">
-      RECOSA shows you exactly how to remediate each issue, generates the required documents,
-      and monitors your compliance continuously.
-    </p>
-    <a href="{cta_url}"
-       style="display:inline-block;background:#0F6E56;color:white;
-              padding:12px 28px;border-radius:6px;text-decoration:none;
-              font-weight:bold;font-size:15px;margin-top:8px;">
-      Start your free 14-day trial →
-    </a>
-    <p style="color:#aaa;font-size:12px;margin-top:12px;">No credit card required.</p>
-  </div>
-
-  <p style="color:#999;font-size:11px;text-align:center;margin-top:16px;">
-    This audit was generated automatically by RECOSA based on publicly accessible website content.
-    It does not constitute legal advice.<br>
-    RECOSA · recosa.eu
-  </p>
-
-</body>
-</html>
-"""
+    </table>'''
+    html_body = email_layout(
+        "Your website compliance report",
+        f'''<h2 style="color:{BRAND_DARK};margin-top:0">{risk_emoji} Compliance score: {score}/100 — {_h.escape(risk_level)} risk</h2>
+    <p>We checked <strong>{_h.escape(website_url)}</strong>. Your full report is attached as a PDF,
+       and it is in your RECOSA account.</p>
+    {counts}
+    <p>RECOSA shows you how to fix each issue, generates the documents you are missing and
+       keeps checking your site.</p>''',
+        "Open RECOSA", cta_url,
+        footer_note="Generated automatically from your website's public pages. Not legal advice.",
+    )
 
     payload = {
         "sender": {"name": from_name, "email": from_email},
@@ -165,42 +167,19 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
         for r in funnel.breakdown(answers)
     )
 
-    html_body = f"""
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-  <div style="background:#1B2A4A;padding:24px;border-radius:8px 8px 0 0;">
-    <h1 style="color:white;margin:0;font-size:24px;">RECOSA</h1>
-    <p style="color:#ccc;margin:4px 0 0;">Your NIS2 Quick Check result</p>
-  </div>
-  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;">
-    <h2 style="color:#1B2A4A;margin-top:0;">{total}/{funnel.MAX_SCORE} — {html.escape(label)}</h2>
+    html_body = email_layout(
+        "Your NIS2 Quick Check result",
+        f'''<h2 style="color:{BRAND_DARK};margin-top:0">{total}/{funnel.MAX_SCORE} — {html.escape(label)}</h2>
     <p>{html.escape(blurb)}</p>
-    <h3 style="color:#1B2A4A;">Your ten areas, weakest first</h3>
-    <table style="width:100%;border-collapse:collapse;background:white;">{rows}
+    <h3 style="color:{BRAND_DARK}">Your ten areas, weakest first</h3>
+    <table style="width:100%;border-collapse:collapse;background:white">{rows}
     </table>
-  </div>
-  <div style="background:#4A3B8C;padding:20px;border-radius:0 0 8px 8px;text-align:center;">
-    <h3 style="color:white;margin-top:0;">Turn this into a plan</h3>
-    <p style="color:#ccc;font-size:14px;">
-      Create a free account to see this result in RECOSA, then start a 14-day trial
-      to run the full assessment against every NIS2 obligation.
-    </p>
-    <a href="{cta_url}"
-       style="display:inline-block;background:#0F6E56;color:white;padding:12px 28px;
-              border-radius:6px;text-decoration:none;font-weight:bold;font-size:15px;">
-      See my result in RECOSA →
-    </a>
-  </div>
-  <p style="color:#999;font-size:11px;text-align:center;margin-top:16px;">
-    A lightweight self-check based on your own answers — not a certified NIS2 audit,
-    and not legal advice. You received this because you asked for your result on
-    recosa.eu.<br>RECOSA · recosa.eu
-  </p>
-</body>
-</html>
-"""
+    <p>The full assessment in RECOSA scores you against every NIS2 obligation and turns the
+       gaps into an action plan — included in the 14-day free trial.</p>''',
+        "Open RECOSA", cta_url,
+        footer_note="A lightweight self-check based on your own answers — not a certified NIS2 "
+                    "audit, and not legal advice.",
+    )
     response = requests.post(
         "https://api.brevo.com/v3/smtp/email",
         headers={"api-key": api_key, "Content-Type": "application/json"},
@@ -241,25 +220,16 @@ def send_incident_alert(to_emails: list[str], company: str, incident_title: str,
         found = R.when(discovered_at)
     except Exception:
         found = str(discovered_at or "")
-    html_body = f"""
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-  <div style="background:#993C1D;padding:18px 22px;border-radius:8px 8px 0 0;">
-    <h2 style="color:white;margin:0;">Incident open — {html.escape(company)}</h2>
-  </div>
-  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;border-radius:0 0 8px 8px;">
-    <p><strong>{html.escape(incident_title)}</strong><br>Found out: {html.escape(found)}</p>
+    html_body = email_layout(
+        f"Incident open — {company}",
+        f'''<p><strong>{html.escape(incident_title)}</strong><br>Found out: {html.escape(found)}</p>
     <p>{html.escape(why)}</p>
-    <p>Reporting deadlines may already be running. Open the incident for the steps, the deadlines
-       and who does what. Do not forward this email outside the team.</p>
-    <a href="{base_url}/incidents" style="display:inline-block;background:#003366;color:white;
-       padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:bold;">Open the incident</a>
-  </div>
-  <p style="color:#999;font-size:11px;text-align:center;margin-top:14px;">
-    Sent by RECOSA because you are on this company's incident team. RECOSA · recosa.eu</p>
-</body></html>
-"""
+    <p>Reporting deadlines may already be running. Open the incident for the steps, the
+       deadlines and who does what. Do not forward this email outside the team.</p>''',
+        "Open the incident", f"{base_url}/incidents",
+        footer_note="Sent because you are on this company's incident team.",
+        alert=True,
+    )
     response = requests.post(
         "https://api.brevo.com/v3/smtp/email",
         headers={"api-key": api_key, "Content-Type": "application/json"},
@@ -292,25 +262,17 @@ def send_incident_reminder(to_emails: list[str], company: str, incident_title: s
     lines = "".join(
         f'<li style="margin:6px 0;"><strong>{html.escape(l)}</strong> — '
         f'<span style="color:{colour};">{html.escape(w)}</span></li>' for l, w in items)
-    html_body = f"""
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#333;">
-  <div style="background:{colour};padding:18px 22px;border-radius:8px 8px 0 0;">
-    <h2 style="color:white;margin:0;">{'Incident deadline missed' if overdue else 'Incident deadline approaching'}</h2>
-  </div>
-  <div style="background:#F4F3F0;padding:20px;border:1px solid #D3D1C7;border-radius:0 0 8px 8px;">
-    <p><strong>{html.escape(company)}</strong> — {html.escape(incident_title)}</p>
-    <ul style="padding-left:18px;">{lines}</ul>
-    <p>Send what you know now and follow up later: a late complete notification is worse than an
-       early incomplete one. If a notification was already sent, record it in RECOSA to stop the clock.</p>
-    <a href="{base_url}/incidents" style="display:inline-block;background:#003366;color:white;
-       padding:10px 22px;border-radius:6px;text-decoration:none;font-weight:bold;">Open the incident</a>
-  </div>
-  <p style="color:#999;font-size:11px;text-align:center;margin-top:14px;">
-    Sent because an incident is open in RECOSA for this company. RECOSA · recosa.eu</p>
-</body></html>
-"""
+    html_body = email_layout(
+        "Incident deadline missed" if overdue else "Incident deadline approaching",
+        f'''<p><strong>{html.escape(company)}</strong> — {html.escape(incident_title)}</p>
+    <ul style="padding-left:18px">{lines}</ul>
+    <p>Send what you know now and follow up later: a late complete notification is worse
+       than an early incomplete one. If a notification was already sent, record it in RECOSA
+       to stop the clock.</p>''',
+        "Open the incident", f"{base_url}/incidents",
+        footer_note="Sent because an incident is open in RECOSA for this company.",
+        alert=overdue,
+    )
     response = requests.post(
         "https://api.brevo.com/v3/smtp/email",
         headers={"api-key": api_key, "Content-Type": "application/json"},
@@ -410,7 +372,7 @@ def send_regulatory_alert(update: dict) -> dict:
         ) if update.get("action_description") else ""
         link_html = (
             '<p><a href="' + update.get("url", "")
-            + '" style="color:#1B2A4A;font-weight:bold">Read full document →</a></p>'
+            + '" style="color:#003366;font-weight:bold">Read full document →</a></p>'
         ) if update.get("url") else ""
 
         for user_id, alert_ids in alert_ids_by_user.items():
@@ -419,26 +381,16 @@ def send_regulatory_alert(update: dict) -> dict:
                 result["failed"].append((f"user {user_id}", "no email on profile"))
                 continue
 
-            html = f"""
-<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-  <div style="background:#1B2A4A;padding:20px;border-radius:8px 8px 0 0">
-    <h1 style="color:white;margin:0;font-size:24px">RECOSA</h1>
-    <p style="color:#ccc;margin:8px 0 0">Regulatory Alert</p>
-  </div>
-  <div style="background:#f9f9f9;padding:24px;border:1px solid #eee">
-    <p style="color:#666;font-size:12px;margin:0 0 12px">{ref_prefix}{severity_label} ·{update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
-    <h2 style="color:#1B2A4A;font-size:18px;margin:0 0 12px">{update.get('title','')}</h2>
-    <p style="color:#444;line-height:1.6">{update.get('summary','')}</p>
+            html = email_layout(
+                "Regulatory alert",
+                f'''<p style="color:#666;font-size:12px;margin:0 0 12px">{ref_prefix}{severity_label} · {update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
+    <h2 style="color:{BRAND_DARK};font-size:18px;margin:0 0 12px">{update.get('title','')}</h2>
+    <p style="color:#444">{update.get('summary','')}</p>
     {action_html}
-    {link_html}
-  </div>
-  <div style="background:#eee;padding:16px;border-radius:0 0 8px 8px;text-align:center">
-    <p style="color:#888;font-size:11px;margin:0">
-      RECOSA · recosa.eu · EU-native compliance for SMEs<br>
-      <a href="{base_url}/alerts" style="color:#0F6E56">View all alerts in RECOSA</a>
-    </p>
-  </div>
-</div>"""
+    {link_html}''',
+                "View all alerts in RECOSA", f"{base_url}/alerts",
+                footer_note="EU-native compliance for SMEs.",
+            )
 
             try:
                 r = requests.post(
