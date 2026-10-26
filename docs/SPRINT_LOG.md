@@ -277,7 +277,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48, S49, S53.
 
 **Cancelled:** S11, S31, S35, S39, S40.
 
@@ -377,7 +377,7 @@ the only sprint that *is* the gate.
 | S46 | Stripe + credits + annual billing | was S43. Meters shipped in S27 |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
-| **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Open: one real reminder email. Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
+| **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before |
 | S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
 | S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
@@ -5238,6 +5238,10 @@ Hard-won. Each cost real debugging time.
   boundaries.
 
 ### Added Oct 2026
+- **Brevo's IP blocking came back three times** (22 and 26 Oct). Approving
+  one address in Brevo is not the same as switching the blocking off; only
+  the main switch on Security → Authorised IPs fixes it. Every refusal is
+  logged as "Brevo refused …: 401 … unrecognised IP address".
 - **Brevo's "authorised IPs" must stay off** while the apps run on
   Streamlit Cloud, which has no fixed outbound IP. With it on, every send
   fails with 401 "unrecognised IP address" (D-116).
