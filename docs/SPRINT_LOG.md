@@ -5382,6 +5382,42 @@ development machine. The runbook's Part B is written as a sequence of checks
 for that reason, and step B5 verifies the port bindings, which depend on
 Supabase's service names at the pinned commit.
 
+
+### D-126 — Sign-up from the website, with a plan, 27 Oct
+
+The waitlist on recosa.eu was deliberate for the MVP; the site will link
+straight to sign-up, so that path now works end to end. Decided with the
+user: **the website's plans** (Starter, Professional; Enterprise is
+"contact us"), and **the trial starts at sign-up**.
+
+- **Links:** `<app>/?signup=starter` or `?signup=professional` opens the
+  Sign up tab with that plan chosen; `?signup=1` opens it on Professional.
+  Add `&src=<page>` to count where sign-ups come from (default "website").
+  Unknown plan values are ignored.
+- **Sign-up form:** plan choice with price and one line each (from the
+  pricing page — `auth.PLAN_INFO`, keep in step), "14-day free trial, no
+  card", Enterprise contact link. The button reads "Start my 14-day free
+  trial". A free check sign-up is unchanged: free account, result first.
+- **After the button:** the form is replaced by "Check your inbox" with the
+  address, the trial line, "Send the email again" (Supabase resend) and
+  "Use another address". An address that already has an account gets the
+  same screen and nothing is written (Supabase hides which addresses exist).
+- **Trial:** `start_trial(user, tier)` at sign-up, on the chosen plan. The
+  free-check path's trial button keeps the profile's tier.
+- **Plans:** `starter` and `enterprise` added to `SUBSCRIPTION_TIERS` and the
+  profiles check constraint (`migration_signup_plans.sql`, applied 27 Oct).
+  Advisory stays, by request. The unlock page offers Starter and
+  Professional trials, Enterprise contact and the Advisory request. Account
+  → Plan: Starter can upgrade to Professional itself; Enterprise is by
+  contact. Plan limits (credits, users, audits) are still S46.
+- **First run:** "Tell us about your company" instead of "Set up your first
+  client" (Advisory keeps the client wording); the button is "Create
+  company".
+
+Tested locally 27 Oct: links, plan preselection and switching, the empty
+fields warning; the inbox screen and the unlock page rendered in AppTest.
+Not tested: a real sign-up (it would create an account in production), the
+confirmation email's landing page.
 ---
 
 ## 5. Constraints and gotchas

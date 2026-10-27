@@ -99,6 +99,11 @@ _tier = profile.get("subscription_tier") or "professional"
 _status = profile.get("subscription_status") or "active"
 
 PLAN_INCLUDES = {
+    "starter": "One company · GDPR, NIS2 and the EU AI Act · obligations and "
+               "action plan, systems, the core documents, incidents, web audit, "
+               "assistant and regulatory alerts",
+    "enterprise": "Everything in Professional · custom templates · a dedicated "
+                  "contact · terms agreed with you",
     "professional": "One company · every module: obligations and action plan, "
                     "systems, documents, incidents, risk assessments, web audit, "
                     "assistant and regulatory alerts · your team as members",
@@ -130,6 +135,18 @@ if _status in ("registered", "expired"):
     st.caption("To subscribe, write to us through Support.")
     if st.button("Contact support", key="plan_support"):
         st.switch_page("app_pages/support.py")
+elif _tier == "starter":
+    # Upgrade only, same reasoning as below: Starter's shape is a subset of
+    # Professional's, so gaining room cannot invalidate anything.
+    st.caption("Professional adds several users, unlimited website audits and the "
+               "full document library.")
+    if st.button("Upgrade to Professional", type="primary", key="plan_up_pro"):
+        ok, err = set_user_tier(user_id, "professional")
+        if ok:
+            st.success("You're on Professional now.")
+            st.rerun()
+        else:
+            st.error(err or "Could not upgrade.")
 elif _tier == "professional":
     # Upgrade only. Self-serve DOWNGRADE stays out of this page on
     # purpose — it's a support conversation, not a button, both for the
@@ -146,6 +163,8 @@ elif _tier == "professional":
             st.rerun()
         else:
             st.error(err or "Could not upgrade.")
+elif _tier == "enterprise":
+    st.caption("Your terms are agreed with us: write to us through Support for any change.")
 else:
     st.caption(
         "Moving back to Professional keeps one company, so we do it with you: "

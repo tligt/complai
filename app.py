@@ -181,14 +181,24 @@ if "ticket" in st.query_params:
 # ?site= (a domain) — never the email. Parked in session state for the
 # signup form (auth.login_ui), which stores it on the new profile, and
 # removed from the URL at once, as the ticket link is above.
-if any(k in st.query_params for k in ("src", "quiz", "site")):
+#
+# D-126: the website's sign-up links add ?signup=<plan> (starter,
+# professional) or ?signup=1, which opens the sign-up form with that plan
+# chosen. Anything else is ignored: the link is visitor-controlled.
+if any(k in st.query_params for k in ("src", "quiz", "site", "signup")):
     import funnel as _funnel
+    from database import SIGNUP_PLANS as _PLANS
     _src = (st.query_params.get("src") or "")[:40] or None
     _pending = _funnel.pending_from_params(
         st.query_params.get("quiz"), st.query_params.get("site"))
-    st.session_state.funnel = {"src": _src, "pending": _pending}
+    _signup = (st.query_params.get("signup") or "").strip().lower()
+    st.session_state.funnel = {
+        "src": _src, "pending": _pending,
+        "signup": bool(_signup),
+        "plan": _signup if _signup in _PLANS else None,
+    }
     record_funnel_event("app_landing", (_pending or {}).get("tool"), _src)
-    for _k in ("src", "quiz", "site"):
+    for _k in ("src", "quiz", "site", "signup"):
         if _k in st.query_params:
             del st.query_params[_k]
 
@@ -337,7 +347,14 @@ if (not load_accessible_clients(user_id) and not st.session_state.get("skip_onbo
         if st.button("Log out", use_container_width=True, key="btn_logout"):
             logout()
     st.title("Welcome to RECOSA")
-    st.caption("Set up your first client to get started.")
+    # D-126: most sign-ups are the company itself; only Advisory manages
+    # clients.
+    if _profile.get("subscription_tier") == "advisory":
+        st.caption("Set up your first client company to get started.")
+    else:
+        st.caption("Tell us about your company to get started — a company number "
+                   "or website fills most of it in. Everything can be changed later "
+                   "on Company profile.")
     # S48: the shared form (client_setup.py) — company-number lookup and
     # website scan included. It clears the client caches itself, so the
     # rerun lands straight in the app.

@@ -14,6 +14,7 @@ import streamlit as st
 
 from database import (
     TRIAL_DAYS, start_trial, create_ticket, get_user_profile, record_funnel_event,
+    SIGNUP_PLANS, SUBSCRIPTION_TIERS,
 )
 
 
@@ -33,39 +34,29 @@ def render_subscribe() -> None:
             f"**{TRIAL_DAYS}-day free trial** to use all of it — no card needed."
         )
 
-    col_pro, col_adv = st.columns(2)
-    with col_pro:
-        with st.container(border=True):
-            st.subheader("Professional")
-            st.caption("For a company managing its own compliance.")
-            st.markdown(
-                "- Full GDPR, NIS2 and AI Act assessment\n"
-                "- Documents generated from your own systems\n"
-                "- Obligations register and action plan\n"
-                "- Regulatory updates and website monitoring"
-            )
+    # D-126: the website's plans, as on the sign-up form. Advisory stays a
+    # request, for consultants.
+    from auth import PLAN_INFO, ENTERPRISE_URL
+    cols = st.columns(len(SIGNUP_PLANS))
+    for col, plan in zip(cols, SIGNUP_PLANS):
+        with col, st.container(border=True):
+            st.subheader(SUBSCRIPTION_TIERS[plan])
+            st.markdown(f"**{PLAN_INFO[plan][0]}** excl. VAT")
+            st.caption(PLAN_INFO[plan][1])
             if status == "registered":
-                if st.button(f"Start {TRIAL_DAYS}-day free trial", type="primary",
-                             use_container_width=True, key="sub_trial"):
-                    if start_trial(user_id):
+                if st.button(f"Start {TRIAL_DAYS}-day free trial", type="primary" if plan == "professional" else "secondary",
+                             use_container_width=True, key=f"sub_trial_{plan}"):
+                    if start_trial(user_id, plan):
                         record_funnel_event("trial_started", None,
                                             profile.get("signup_source"))
                         st.rerun()
                     else:
                         st.error("Could not start the trial. Please try again.")
             else:
-                _request_plan("professional", user_id)
-    with col_adv:
-        with st.container(border=True):
-            st.subheader("Advisory")
-            st.caption("For consultants managing several client companies.")
-            st.markdown(
-                "- Everything in Professional\n"
-                "- Several client companies in one account\n"
-                "- Switch between clients on every page\n"
-                "- Invite your team"
-            )
-            _request_plan("advisory", user_id)
+                _request_plan(plan, user_id)
+    st.caption(f"Larger organisation? [Contact us]({ENTERPRISE_URL}) about Enterprise. "
+               "Consultant managing several client companies? Ask for Advisory:")
+    _request_plan("advisory", user_id)
 
 
 def render_trial_cta(profile: dict) -> None:

@@ -107,12 +107,12 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
     regs = st.multiselect("Regulations", REGULATION_OPTIONS, default=["GDPR"], key=k("regs"))
     website = st.text_input(
         "Website (optional)", key=k("website"), placeholder="yourcompany.com",
-        help="Scanned when the client is created, to suggest the tools you use. "
+        help="Scanned when the company is created, to suggest the tools you use. "
              "Nothing is added to your inventory until you confirm it.",
     )
 
     # ── 3. Create ───────────────────────────────────────────────────────
-    if not st.button("Create client", type="primary", use_container_width=True,
+    if not st.button("Create company", type="primary", use_container_width=True,
                      key=k("create")):
         return None
     if not name.strip():

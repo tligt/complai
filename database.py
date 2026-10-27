@@ -1372,16 +1372,20 @@ SUBSCRIPTION_STATUSES = {
 }
 
 
-def start_trial(user_id: str) -> bool:
-    """Start the one free trial: Professional, TRIAL_DAYS days. Only from
-    'registered' — an expired trial does not restart."""
+def start_trial(user_id: str, tier: str | None = None) -> bool:
+    """Start the one free trial, TRIAL_DAYS days. Only from 'registered' —
+    an expired trial does not restart.
+
+    `tier`: the plan chosen at sign-up (D-126). Without one — the free
+    check's "Start free trial" button — the tier already on the profile
+    is kept, Professional by default."""
     try:
         ends = datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)
-        res = get_supabase_admin().table("profiles").update({
-            "subscription_status": "trial",
-            "trial_ends_at": ends.isoformat(),
-            "subscription_tier": "professional",
-        }).eq("id", user_id).eq("subscription_status", "registered").execute()
+        row = {"subscription_status": "trial", "trial_ends_at": ends.isoformat()}
+        if tier in SUBSCRIPTION_TIERS:
+            row["subscription_tier"] = tier
+        res = get_supabase_admin().table("profiles").update(row) \
+            .eq("id", user_id).eq("subscription_status", "registered").execute()
         return bool(res.data)
     except Exception as e:
         print(f"Could not start trial: {e}")
@@ -1546,7 +1550,15 @@ def update_user_profile(
 SUBSCRIPTION_TIERS = {
     "professional": "Professional",
     "advisory":     "Advisory",
+    # D-126: the website's plans. Starter and Professional are chosen at
+    # sign-up; Enterprise is set by an admin after "contact us".
+    "starter":      "Starter",
+    "enterprise":   "Enterprise",
 }
+
+# What the sign-up form offers, in the website's order (D-126). Advisory is
+# not here: consultants ask for it from inside the app.
+SIGNUP_PLANS = ("starter", "professional")
 
 ROLES = {
     # "client", not "user" — matches the column's actual default in the
@@ -1597,7 +1609,7 @@ def set_user_tier(target_user_id: str, tier: str) -> tuple[bool, str | None]:
             .single().execute().data or {}
         was_advisory = (current.get("subscription_tier") or "professional") == "advisory"
 
-        if was_advisory and tier == "professional":
+        if was_advisory and tier != "advisory":
             n = get_supabase_admin().table("clients") \
                 .select("id", count="exact") \
                 .eq("user_id", target_user_id).execute().count or 0
