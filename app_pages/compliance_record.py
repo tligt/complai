@@ -88,6 +88,8 @@ show_drafts = st.toggle(
         "applies."
     ),
 )
+st.caption("Off: only the documents in force. On: also the versions generated "
+           "but not adopted yet, marked as drafts.")
 
 # ── Summary ───────────────────────────────────────────────────────────────
 relevant = {

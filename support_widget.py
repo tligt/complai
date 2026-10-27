@@ -103,7 +103,7 @@ def render_help_widget(user_id: str,
 
 def _render_form(user_id, context, context_ref, client_id, label):
     unread = count_unread_replies(user_id)
-    button_label = f"💬 {label}" + (f" ({unread})" if unread else "")
+    button_label = f"🛟 {label}" + (f" ({unread})" if unread else "")
 
     with st.popover(button_label, use_container_width=True):
         if unread:

@@ -95,6 +95,12 @@ def _alerts_panel(user_id: str):
 
     _LANG = {"fr": "French", "nl": "Dutch", "de": "German"}
 
+    # One alert row per company: an account with two companies sees the same
+    # update twice, so each card names the company it was sent for.
+    from cached_reads import load_accessible_clients
+    _co_names = {c["id"]: c["company_name"] for c in (load_accessible_clients(user_id) or [])}
+    _many = len(_co_names) > 1
+
     def _card(alert, full: bool):
         update = _upd(alert)
         is_read = bool(alert.get("read_at"))
@@ -117,6 +123,7 @@ def _alerts_panel(user_id: str):
                     st.info(f"**What to do:** {update['action_description']}")
                 countries = update.get("countries") or []
                 st.caption(" · ".join(filter(None, [
+                    f"🏢 {_co_names.get(alert.get('client_id'), '')}" if _many else "",
                     update.get("alert_ref") or "",
                     update.get("source", ""),
                     regulations_text(update.get("regulations") or []),

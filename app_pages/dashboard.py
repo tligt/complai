@@ -475,9 +475,9 @@ with col2:
             st.switch_page("app_pages/gap.py")
 
 with col3:
-    st.markdown("**💬 AI Compliance Chat**")
+    st.markdown("**💬 Assistant**")
     st.info("Ask any compliance question")
-    if st.button("Open chat →"):
+    if st.button("Open the assistant →"):
         st.switch_page("app_pages/chat.py")
 
 # ── Fill the "What to do next" slot (see the top of the page) ──

@@ -8,7 +8,7 @@ followed, replied to and closed. Brevo reply notifications link here.
 
 import streamlit as st
 
-from display import fmt_date
+from display import fmt_date, fmt_datetime
 from auth import get_user_id
 from database import (
     load_my_tickets, get_ticket, load_thread_messages,
@@ -57,7 +57,9 @@ def init():
 
 init()
 
-st.markdown("## Support")
+st.title("Support")
+st.caption("Questions and problems, and our replies. We answer here, in the app, "
+           "on working days.")
 
 # Deep links are normally consumed in app.py, which captures the param
 # before the auth stop can discard it. This is a fallback for the case where
@@ -103,7 +105,7 @@ if st.session_state.support_open_ticket:
         with st.chat_message("assistant" if is_admin else "user"):
             st.caption("RECOSA" if is_admin else "You")
             st.markdown(m["body"])
-            st.caption(m["created_at"][:16].replace("T", " "))
+            st.caption(fmt_datetime(m["created_at"]))
 
     st.divider()
 

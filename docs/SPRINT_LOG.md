@@ -5316,6 +5316,25 @@ Issues C6, H5, H8, M10, M11.
   <date> found", one line of counts instead of five metrics, so they read as
   a dated snapshot rather than a second score.
 
+### D-124 — Usability audit leftovers, unused files, test data, 27 Oct
+
+- **Audit leftovers:** Help uses Support's 🛟 (💬 is the Assistant's only);
+  Support has a page title and says when we answer, message times readable;
+  "Include drafts" says what it changes; Home's chat box says Assistant.
+  Already done earlier: M4 (short metric labels, batch 4), M14 (Help is in
+  the menu), L2 (readable company line in the Assistant, batch 1).
+- **Alerts name the company** when an account has several: RA-2026-0050 was
+  not a duplicate but one alert per company (creagent, Vantora Cloud).
+- **Unused files parked in `_unused/`**, not deleted: the two old monitoring
+  pages, three other unrouted admin pages, one-off scripts and the stale
+  sprint-log copies. `_unused/README.md` lists each and why. Tracked
+  `__pycache__` files removed from git (already in .gitignore).
+- **Test data:** test incidents "Hacked" (creagent) and "Crap Hacked"
+  (Inventory Analytics) of 26 Oct deleted; test support request
+  "ddvdvdvdsv" closed. The duplicate "Internal collaboration and messaging"
+  activity is left for the owner: the two rows differ (purpose, retention,
+  systems), so which one is right is a content decision.
+
 ---
 
 ## 5. Constraints and gotchas
