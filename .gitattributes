@@ -1,0 +1,3 @@
+# S50: these run on Linux — a CRLF ending breaks bash scripts and cron.
+deploy/** text eol=lf
+*.sh text eol=lf
