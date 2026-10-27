@@ -163,10 +163,15 @@ def _dismissed() -> set:
 
 
 def page_tip(key: str) -> None:
-    """The page's tip, unless this user closed it."""
-    if key not in TIPS or key in _dismissed():
+    """The page's tip, or — once closed — a small line that shows it on
+    hover, so a closed tip can still be read."""
+    if key not in TIPS:
         return
     title, text = TIPS[key]
+    if key in _dismissed():
+        # Streamlit draws the small (?) icon; hovering it shows the tip.
+        st.caption("What is this page for?", help=text)
+        return
     with st.container(border=True):
         c1, c2 = st.columns([6, 1])
         c1.markdown(f"💡 **What is this page for?** {text}")
