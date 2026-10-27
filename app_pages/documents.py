@@ -48,6 +48,8 @@ TEMPLATE_DOC_TYPES = {
 user_id = get_user_id()
 
 st.title("Documents")
+from guide import page_tip
+page_tip("documents")
 _dc1, _dc2 = st.columns([3, 1])
 _dc1.caption("Generate compliance documents tailored to your client's profile. "
              "Which version of each is in force, and since when, is on the "

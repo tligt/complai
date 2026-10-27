@@ -46,6 +46,8 @@ STATE_ICON = {R.OVERDUE: "🔴", R.DUE_SOON: "🟠", R.TO_DECIDE: "🟡", R.RUNN
 STATUS_LABEL = {"open": "Open", "contained": "Contained", "closed": "Closed"}
 
 st.title("Incidents")
+from guide import page_tip
+page_tip("incidents")
 st.caption(
     "Log a security incident or data breach the moment you know about it — the "
     "reporting deadlines run from that moment. RECOSA alerts your incident team, tracks "
@@ -249,14 +251,35 @@ with tab_inc:
             st.switch_page("app_pages/obligations.py")
     with st.container(border=True):
         st.markdown("**Deadlines**")
-        for d in dls:
-            if d["state"] == R.NOT_REQUIRED and d["required"] is False:
-                continue
+
+        def _dl_line(d):
             due = (f" — due {fmt_datetime(d['due'].astimezone(tz))}"
                    if d["due"] and d["state"] != R.DONE else "")
-            extra = " (decide in step 3)" if d["state"] == R.TO_DECIDE else ""
             st.markdown(f"{STATE_ICON[d['state']]} {R.label(d['kind'], 'en', contact_by_id)} · "
-                        f"**{R.describe_left(d)}**{due}{extra}")
+                        f"**{R.describe_left(d)}**{due}")
+
+        shown_dls = [d for d in dls if not (d["state"] == R.NOT_REQUIRED and d["required"] is False)]
+        undecided = [d for d in shown_dls if d["state"] == R.TO_DECIDE]
+        decided = [d for d in shown_dls if d["state"] != R.TO_DECIDE]
+        # Usability audit H10: the deadlines that depend on the assessment are
+        # one clock and one instruction, not a list of apparent emergencies.
+        if undecided:
+            first = min(undecided, key=lambda d: d["due"] or datetime.max.replace(tzinfo=timezone.utc))
+            st.warning(
+                f"⏱️ **Assess this incident in step 3.** Until you do, RECOSA cannot tell which "
+                f"{'other ' if decided else ''}notifications apply. The earliest of them — "
+                f"{R.label(first['kind'], 'en', contact_by_id)} — is due "
+                f"**{R.describe_left(first)}**"
+                + (f" ({fmt_datetime(first['due'].astimezone(tz))})." if first["due"] else ".")
+            )
+        for d in decided:
+            _dl_line(d)
+        if undecided:
+            with st.expander(f"{len(undecided)} possible "
+                             f"{'deadline depends' if len(undecided) == 1 else 'deadlines depend'} "
+                             "on the assessment"):
+                for d in undecided:
+                    _dl_line(d)
         if all(d["state"] in (R.DONE, R.NOT_REQUIRED) for d in dls):
             st.caption("Nothing is due.")
 

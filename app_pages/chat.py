@@ -478,6 +478,9 @@ if not selected_client:
     )
     st.stop()
 
+from guide import page_tip
+page_tip("chat")
+
 # ── Client header ─────────────────────────────────────────────
 regs = selected_client.get("regulations") or []
 st.caption(" · ".join(p for p in (

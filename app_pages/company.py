@@ -25,6 +25,8 @@ from tier_gates import client_limit_reached, upsell_dialog
 DOC_LANGUAGES = {"en": "English", "fr": "French", "nl": "Dutch", "de": "German"}
 
 st.title("Company profile")
+from guide import page_tip
+page_tip("company")
 st.caption("Who the company is and what applies to it. Documents, obligations "
            "and the assistant all read from here.")
 

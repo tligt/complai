@@ -378,6 +378,7 @@ company   = st.Page("app_pages/company.py",   title="Company profile", icon="�
 profile   = st.Page("app_pages/profile.py",   title="Account",        icon="👤")
 team      = st.Page("app_pages/team.py",      title="Team",           icon="👥")
 activity  = st.Page("app_pages/activity.py",  title="Activity Log",   icon="🕐")
+glossary  = st.Page("app_pages/glossary.py",  title="Glossary",       icon="📖")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -413,7 +414,7 @@ _sections = {
     "Records":  [inventory, documents, record],
     "Respond":  [incidents, wording],
     "Tools":    [audit, chat],
-    "Account":  [company, profile, team, alerts, activity, support],
+    "Account":  [company, profile, team, alerts, activity, glossary, support],
 }
 
 if limited_access:
@@ -496,6 +497,7 @@ PAGE_CONTEXT = {
     "action_plan": "obligations",
     "company":   "account",
     "team":      "account",
+    "glossary":  "other",
 }
 
 # The default page is served at the root, so its url_path is empty.

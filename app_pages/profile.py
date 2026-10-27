@@ -117,3 +117,11 @@ else:
         "Need to move to Professional? Get in touch through Support — "
         "downgrading isn't self-serve."
     )
+
+st.divider()
+st.subheader("Page tips")
+st.caption("The \"What is this page for?\" panels you closed with Got it.")
+if st.button("Show page tips again", key="tips_reset"):
+    from guide import reset_tips
+    reset_tips()
+    st.success("Tips are back on every page.")

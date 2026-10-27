@@ -18,6 +18,8 @@ from auth import get_user_id
 from display import fmt_date, plural
 
 st.title("Action plan")
+from guide import page_tip
+page_tip("action_plan")
 st.caption(
     "What is outstanding, most urgent first. 🔴 blocks a document, 🟠 is "
     "past its date, ⚪ is open with no deadline. **Fix it** takes you to the "

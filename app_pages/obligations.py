@@ -38,6 +38,8 @@ from obligations import (
 )
 
 st.title("Obligations")
+from guide import page_tip
+page_tip("obligations")
 st.caption(
     "Everything the regulations you are subject to require of you, and what "
     "you have recorded against each."
@@ -107,13 +109,24 @@ if "NIS2" in regulations:
             + ("" if _cls else "  ·  :orange[not answered]"),
             expanded=not _cls,
         ):
-            st.caption(
-                "Annex I sectors are **essential** entities, Annex II **important** "
-                "ones. The difference is how you are supervised, not what you owe: "
-                "both are subject to Art. 21 measures and Art. 23 reporting. "
-                "Essential entities are supervised proactively; important ones "
-                "after the fact."
+            st.markdown(
+                "NIS2 applies to medium and large companies (50+ staff or "
+                "€10 million turnover) in the sectors it lists, and to some "
+                "smaller ones regardless of size, such as DNS and trust-service "
+                "providers. If it applies, you are one of two kinds:\n\n"
+                "- **Essential** — large companies (250+ staff, or €50 million "
+                "turnover) in the most critical sectors (energy, transport, "
+                "banking, health, digital infrastructure…), and a few named "
+                "regardless of size. Checked by the authority without waiting "
+                "for a problem.\n"
+                "- **Important** — medium-sized companies in those sectors, and "
+                "companies in the other listed sectors (postal, waste, food, "
+                "manufacturing, digital providers…). Checked after an incident or "
+                "a complaint.\n\n"
+                "Both owe the same things: security measures and incident reporting."
             )
+            st.caption("Legal reference: NIS2 Art. 2–3, Annexes I and II. Your country's "
+                       "law can add entities. Not sure? Ask the Assistant, or Support.")
             with st.form("nis2_scope"):
                 _opts = [None, "essential", "important", "out_of_scope"]
                 new_cls = st.selectbox(
@@ -221,58 +234,52 @@ search = f2.text_input("Search", placeholder="Article, keyword…")
 _filter_sig = (tuple(sorted(only)), search)
 if st.session_state.get("_ob_filter_sig") != _filter_sig:
     st.session_state["_ob_filter_sig"] = _filter_sig
-    for _reg in regulations:
-        st.session_state.pop(f"ob_reg_select_{_reg}", None)
+    st.session_state.pop("ob_select", None)
 
-for reg in regulations:
-    rows = [o for o in applicable if o["regulation"] == reg]
-    if not rows:
-        continue
-    shown = [
-        o for o in rows
-        if (not only or verdicts[o["id"]]["status"] in only)
-        and (not search or search.lower() in
-             f"{o['title']} {o.get('article','')} {o.get('description','')}".lower())
-    ]
-    if not shown:
-        continue
-
-    st.subheader(f"{REGULATION_LABELS.get(reg, reg)} ({len(shown)})")
-
+# Usability audit batch 2→3 (M8): one list across all regulations, what
+# needs attention first, the plain title before the legal reference. It used
+# to be one table and one selector per regulation, read one at a time.
+_ORDER = {OR.MISSING: 0, OR.UNKNOWN: 1, OR.PARTIAL: 2, OR.COMPLIANT: 3, OR.NOT_APPLICABLE: 4}
+shown = sorted(
+    (o for o in applicable
+     if (not only or verdicts[o["id"]]["status"] in only)
+     and (not search or search.lower() in
+          f"{o['title']} {o.get('article','')} {o.get('description','')}".lower())),
+    key=lambda o: (_ORDER.get(verdicts[o["id"]]["status"], 9),
+                   regulations.index(o["regulation"]) if o["regulation"] in regulations else 9),
+)
+if not shown:
+    st.info("Nothing matches these filters.")
+else:
     st.dataframe(
         [
             {
-                # Icon folded into the text rather than its own column — a
-                # narrow pinned-width column gets inflated by st.dataframe's
-                # even redistribution of unused row width, the same issue
-                # fixed in the To-do table above.
-                "Obligation": (
-                    f"{_STATUS_ICON[verdicts[o['id']]['status']]}  {o['title']}"
-                ),
-                "Article": o.get("article", ""),
-                "Status": _STATUS_LABEL[verdicts[o["id"]]["status"]],
+                "Status": f"{_STATUS_ICON[verdicts[o['id']]['status']]} {_STATUS_LABEL[verdicts[o['id']]['status']]}",
+                "Obligation": o["title"],
+                "Regulation": REGULATION_LABELS.get(o["regulation"], o["regulation"]),
+                "Legal reference": o.get("article", ""),
             }
             for o in shown
         ],
-        hide_index=True,
-        # stretch, same as the To-do table — Obligation given a large
-        # starting width so it is still the column that ends up dominant
-        # after stretch's even split of leftover space.
-        width="stretch",
+        hide_index=True, width="stretch",
         column_config={
-            "Obligation": st.column_config.TextColumn(width=560),
-            "Article": st.column_config.TextColumn(width=90),
-            "Status": st.column_config.TextColumn(width=110),
+            "Status": st.column_config.TextColumn(width=150),
+            "Obligation": st.column_config.TextColumn(width=520),
+            "Regulation": st.column_config.TextColumn(width=110),
+            "Legal reference": st.column_config.TextColumn(width=110),
         },
     )
 
+if shown:
     _shown_by_id = {o["id"]: o for o in shown}
+    if st.session_state.get("ob_select") not in _shown_by_id:
+        st.session_state.pop("ob_select", None)
     _sel_id = st.selectbox(
-        f"Select a {REGULATION_LABELS.get(reg, reg)} obligation",
+        "Open an obligation",
         options=list(_shown_by_id.keys()),
-        format_func=lambda i: _shown_by_id[i]["title"],
-        key=f"ob_reg_select_{reg}",
-        label_visibility="collapsed",
+        format_func=lambda i: (f"{_STATUS_ICON[verdicts[i]['status']]} {_shown_by_id[i]['title']}"
+                               f" · {REGULATION_LABELS.get(_shown_by_id[i]['regulation'], '')}"),
+        key="ob_select",
     )
     ob = _shown_by_id[_sel_id]
     v = verdicts[ob["id"]]
@@ -280,11 +287,11 @@ for reg in regulations:
     kind = OR.response_kind(ob)
 
     with st.container(border=True):
-        st.markdown(
-            f"**{_STATUS_ICON[v['status']]}  {ob['title']}**"
-            + (f"  ·  {ob['article']}" if ob.get("article") else "")
-        )
-        st.caption(ob.get("description") or "")
+        st.markdown(f"**{_STATUS_ICON[v['status']]}  {ob['title']}**")
+        st.markdown(ob.get("description") or "")
+        if ob.get("article"):
+            st.caption(f"Legal reference: {REGULATION_LABELS.get(ob['regulation'], ob['regulation'])} "
+                       f"{ob['article']}")
         note = _SOURCE_NOTE.get(v["source"], "")
         st.markdown(
             f"**{_STATUS_LABEL[v['status']]}**"
@@ -394,7 +401,7 @@ for reg in regulations:
                             # previously-Missing item Compliant while
                             # filtered to Missing) — same stale-option risk
                             # as a changed filter, cleared the same way.
-                            st.session_state.pop(f"ob_reg_select_{reg}", None)
+                            st.session_state.pop("ob_select", None)
                             st.rerun()
                         else:
                             st.error("Could not save.")

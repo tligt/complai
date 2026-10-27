@@ -21,6 +21,8 @@ FREQUENCY_OPTIONS = {"Weekly": 7, "Monthly": 30, "Quarterly": 90}
 # ── Page header ───────────────────────────────────────────────────────────────
 
 st.title("Web Audit")
+from guide import page_tip
+page_tip("audit")
 st.markdown(
     "Check a website against **GDPR, ePrivacy, Accessibility, Consumer Rights, NIS2, and the EU AI Act** "
     "in minutes."

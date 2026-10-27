@@ -37,6 +37,8 @@ from auth import get_user_id
 from active_client import get_active_client
 
 st.title("Risk assessments")
+from guide import page_tip
+page_tip("risk")
 st.caption(
     "Data protection impact assessments, and the cybersecurity risk "
     "assessment NIS2 asks for."

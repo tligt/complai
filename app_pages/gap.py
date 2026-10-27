@@ -51,6 +51,8 @@ def _profile_radio(q_key: str, widget_key: str) -> str:
     )
 
 st.title("Gap Assessment")
+from guide import page_tip
+page_tip("gap")
 st.divider()
 
 # ── Client selection ──────────────────────────────────────────

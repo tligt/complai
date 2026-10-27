@@ -34,6 +34,8 @@ from template_nis2 import INSERTS
 if st.button("← Incidents", key="wording_back"):
     st.switch_page("app_pages/incidents.py")
 st.title("Incident wording")
+from guide import page_tip
+page_tip("wording")
 st.caption(
     "Five short sections that go into your incident response plan and your "
     "business continuity plan. RECOSA drafts each one; you correct it. What "

@@ -1501,6 +1501,17 @@ def get_all_profiles() -> list[dict]:
         return []
 
 
+def set_dismissed_tips(user_id: str, tips: list[str]) -> bool:
+    """The page tips this user has closed (usability audit batch 3). Service
+    role, like update_user_profile below; the caller passes its own id."""
+    try:
+        get_supabase_admin().table("profiles")             .update({"dismissed_tips": sorted(set(tips))}).eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not save dismissed tips: {e}")
+        return False
+
+
 def update_user_profile(
     user_id: str, full_name: str | None = None, ui_language: str | None = None,
 ) -> bool:

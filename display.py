@@ -80,3 +80,17 @@ def dates_in_text(text: str) -> str:
     shown as '10 Sep 2026'. The stored text is left as written."""
     import re
     return re.sub(r"\b(\d{4}-\d{2}-\d{2})\b", lambda m: fmt_date(m.group(1)), text or "")
+
+
+def duration_label(minutes) -> str:
+    """'4 hours', '1 day', '30 min', 'none' (0), '' (not decided)."""
+    if minutes is None or minutes != minutes:  # None or NaN
+        return ""
+    m = int(minutes)
+    if m == 0:
+        return "none"
+    if m % 1440 == 0:
+        return plural(m // 1440, "day")
+    if m % 60 == 0:
+        return plural(m // 60, "hour")
+    return f"{m} min"

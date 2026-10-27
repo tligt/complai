@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import datetime, timezone
 
 from display import fmt_date, plural
 import register as REG
@@ -19,6 +20,8 @@ from obligations import (
 )
 
 st.title("Home")
+from guide import page_tip
+page_tip("dashboard")
 st.caption("What to do next, then where you stand.")
 
 user_id = get_user_id()
@@ -34,17 +37,33 @@ client = get_active_client(user_id)
 import incident_store as _INC
 _inc_tasks = _INC.open_findings(user_id, client)
 if _inc_tasks:
+    # Usability audit H10: one line per incident. Deadlines that depend on
+    # the assessment are not listed one by one — "assess it, the earliest
+    # possible one is in 20 h" instead of eight apparent emergencies.
+    _by_inc: dict = {}
+    for _f in _inc_tasks:
+        _by_inc.setdefault(_f.get("incident_title") or _f["title"], []).append(_f)
+    _lines = []
+    for _title, _fs in _by_inc.items():
+        _decided = [f for f in _fs if f.get("deadline_state") != "to_decide"]
+        _open = [f for f in _fs if f.get("deadline_state") == "to_decide"]
+        if _decided:
+            _first = min(_decided, key=lambda f: f.get("due_at") or datetime.max.replace(tzinfo=timezone.utc))
+            _lines.append(f"**{_title}**: {_first.get('deadline_label') or _first['title']} — {_first['detail']}"
+                          + (f" (+{len(_decided) - 1} more)" if len(_decided) > 1 else ""))
+        if _open:
+            _first = min(_open, key=lambda f: f.get("due_at") or datetime.max.replace(tzinfo=timezone.utc))
+            _lines.append(f"**{_title}**: assess it to know which notifications apply — the "
+                          f"earliest possible one ({_first.get('deadline_label')}) is due {_first['detail']}.")
     _due = [f for f in _inc_tasks if f["severity"] == "due"]
-    _msg = (f"**{len(_inc_tasks)} incident deadline{'s' if len(_inc_tasks) != 1 else ''} open**"
-            + (f" — {len(_due)} due now or overdue" if _due else "")
-            + ". " + "; ".join(f"{f['title']} ({f['detail']})" for f in _inc_tasks[:3]))
-    (st.error if _due else st.warning)(_msg, icon="🚨")
+    (st.error if _due else st.warning)("  \n".join(_lines), icon="🚨")
     if st.button("Open incidents", key="dash_incidents"):
         st.switch_page("app_pages/incidents.py")
 
 # ── What to do next (usability audit batch 2, H2) ─────────────
 # A slot at the top, filled at the END of the script: building the action
 # plan takes several seconds, and the status below should not wait for it.
+_start_slot = st.container()
 _next_slot = st.empty()
 _next_slot.caption("Working out what to do next…")
 
@@ -498,6 +517,46 @@ try:
 except Exception:
     _tasks = []
 _next = [f for f in _tasks if f.get("link") != "incidents"][:3]
+
+# ── Getting started (usability audit batch 3) ─────────────────
+# The five steps in the order the product works: each one feeds the next.
+# Shown until all five are done; each is worked out from the data, nothing
+# to tick by hand.
+_in_force_any = any(r.get("status") == "in_force"
+                    for per_lang in (register or {}).values() for r in per_lang.values())
+_generated_any = bool(docs_by_type) or bool(register)
+try:
+    import inventory_store as _INVS
+    _has_inventory = bool(_INVS.load_systems(user_id, client_id)) and bool(
+        _INVS.load_activities(user_id, client_id))
+except Exception:
+    _has_inventory = True
+_steps = [
+    ("Complete the company profile", bool(client.get("contact_email") and client.get("legal_name")),
+     "app_pages/company.py", "Legal name and a contact email are what documents need most."),
+    ("Add your systems and activities", _has_inventory, "app_pages/inventory.py",
+     "The tools you use and what you do with personal data."),
+    ("Run a gap assessment", bool(last_gap), "app_pages/gap.py",
+     "A first score per regulation, and findings for the action plan."),
+    ("Generate your documents", _generated_any, "app_pages/documents.py",
+     "Privacy policy, register of processing, and the rest your regulations require."),
+    ("Adopt them (mark in force)", _in_force_any, "app_pages/compliance_record.py",
+     "A document counts once your company operates under it."),
+]
+if not all(done for _, done, _, _ in _steps):
+    with _start_slot.container(border=True):
+        _n_done = sum(1 for _, done, _, _ in _steps if done)
+        st.markdown(f"**Getting started** · {_n_done} of {len(_steps)} done")
+        st.progress(_n_done / len(_steps))
+        _next_step = next(i for i, (_, done, _, _) in enumerate(_steps) if not done)
+        for _i, (_label, _done, _page, _why) in enumerate(_steps):
+            _c1, _c2 = st.columns([5, 1])
+            _c1.markdown(("✅ ~~" + _label + "~~") if _done else
+                         (f"**{_i + 1}. {_label}**  \n:gray[{_why}]" if _i == _next_step
+                          else f"{_i + 1}. {_label}"))
+            if _i == _next_step and _c2.button("Start", key="home_start", type="primary",
+                                               use_container_width=True):
+                st.switch_page(_page)
 _alerts_n = count_unread_alerts(user_id)
 _replies_n = _unread_replies(user_id)
 

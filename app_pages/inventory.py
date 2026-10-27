@@ -55,6 +55,8 @@ import translate as TR
 import detection
 
 st.title("Systems")
+from guide import page_tip
+page_tip("inventory")
 st.caption(
     "Your systems, processing activities and controllers. This inventory is the source for your Record of Processing Activities, "
     "your Data Processing Agreements and your Cookie Policy. Filling it in "
@@ -400,7 +402,7 @@ with tab_systems:
     st.divider()
 
     if not systems:
-        st.info("No systems yet. Add one from the list above, or type directly into the table.")
+        st.info("No systems yet. Add one from the list above, or with the form below.")
 
     cat_codes, cat_labels = INV.options_for("system_category", lang, client_id)
     tm_codes, tm_labels = INV.options_for("transfer_mechanism", lang, client_id)
@@ -408,99 +410,152 @@ with tab_systems:
     crit_codes, crit_labels = INV.options_for("criticality", lang, client_id)
     ai_codes, ai_labels = INV.options_for("ai_role", lang, client_id)
 
-    grid_cols = ["id"] + list(STORE.SYSTEM_EDITABLE)
-    base_df = pd.DataFrame(
-        [{c: s.get(c) for c in grid_cols} for s in systems],
-        columns=grid_cols,
+    # ── Overview, then one system at a time (usability audit M7) ─────────
+    # The wide editable grid needed sideways scrolling, minutes typed by
+    # hand and three paragraphs of explanation. Now: a read-only overview of
+    # the columns that matter, and a short form for one system, recovery
+    # times picked as a number and a unit. Saving still goes through
+    # STORE.commit_systems, so validation is unchanged.
+    from display import duration_label
+
+    def _lbl(labels, code):
+        return labels.get(code, code) if code else ""
+
+    if systems:
+        st.dataframe(
+            [{
+                "System": s.get("name") or "",
+                "Category": _lbl(cat_labels, s.get("category")),
+                "What you use it for": s.get("purpose") or "",
+                "DPA": _lbl(dpa_labels, s.get("dpa_status")),
+                "Criticality": _lbl(crit_labels, s.get("criticality")),
+                "May be down": duration_label(s.get("rto_minutes")),
+                "Data that may be lost": duration_label(s.get("rpo_minutes")),
+            } for s in systems],
+            hide_index=True, width="stretch",
+        )
+
+    _sys_by_id = {s["id"]: s for s in systems}
+    _NEW = "__new__"
+    _pick = st.selectbox(
+        "Edit a system",
+        options=([_NEW] + list(_sys_by_id)),
+        index=1 if systems else 0,
+        format_func=lambda i: "➕ Add a system" if i == _NEW else (_sys_by_id[i].get("name") or "(unnamed)"),
+        key=f"inv_sys_pick_{client_id}",
     )
+    cur = {} if _pick == _NEW else _sys_by_id[_pick]
+    _fk = lambda n: f"inv_sys_{n}_{_pick}"
 
-    edited = st.data_editor(
-        base_df,
-        key="inv_systems_editor",
-        num_rows="dynamic",
-        hide_index=True,
-        width="stretch",
-        column_config={
-            # None hides the column while keeping it in the returned frame.
-            # The id is what makes the diff immune to sorting and filtering.
-            "id": None,
-            "name": st.column_config.TextColumn("System", required=True, width="medium"),
-            "vendor_legal_name": st.column_config.TextColumn("Vendor legal entity", width="medium"),
-            "category": st.column_config.SelectboxColumn("Category", options=cat_codes),
-            "purpose": st.column_config.TextColumn("What you use it for", width="large"),
-            "processing_country": st.column_config.TextColumn("Country", width="small",
-                                                              help="ISO code, or EU for multi-state EEA processing."),
-            "transfer_mechanism": st.column_config.SelectboxColumn("Transfer basis", options=tm_codes),
-            "dpa_status": st.column_config.SelectboxColumn("DPA", options=dpa_codes),
-            "dpa_signed_on": st.column_config.DateColumn("DPA signed"),
-            "dpa_url": st.column_config.LinkColumn("DPA link"),
-            "criticality": st.column_config.SelectboxColumn("Criticality", options=crit_codes),
-            # S29A. Minutes, as a number — "4 hours", "240 minutes" and "half a
-            # day" are the same figure, and a continuity plan that orders
-            # systems by urgency cannot sort prose.
-            #
-            # NULL means not decided. 0 is a real and demanding answer: an RPO
-            # of zero says no data loss is acceptable.
-            "rto_minutes": st.column_config.NumberColumn(
-                "RTO (min)", min_value=0, step=15, width="small",
-                help="How long this system may be UNAVAILABLE before it has to "
-                     "be back. 240 = four hours. Blank if not decided; 0 if it "
-                     "may not go down at all.",
-            ),
-            "rpo_minutes": st.column_config.NumberColumn(
-                "RPO (min)", min_value=0, step=15, width="small",
-                help="How much WORK may be lost, measured as time — if the "
-                     "last backup was an hour ago, you lose an hour. 60 = one "
-                     "hour of entries. Blank if not decided; 0 for none.",
-            ),
-            "recovery_note": st.column_config.TextColumn(
-                "How it is recovered", width="large",
-                help="Where the backup is, who restores it, anything a person "
-                     "following the continuity plan would need.",
-            ),
-            "ai_role": st.column_config.SelectboxColumn("AI role", options=ai_codes),
-            "sets_cookies": st.column_config.CheckboxColumn("Sets cookies"),
-            "privacy_policy_url": st.column_config.LinkColumn("Privacy policy"),
-            "notes": st.column_config.TextColumn("Notes", width="large"),
-        },
-    )
+    _UNITS = {"minutes": 1, "hours": 60, "days": 1440}
 
-    st.caption(
-        "**RTO** is how long a system may be down. **RPO** is how much work may "
-        "be lost — a backup taken hourly means an RPO of 60 minutes. Both in "
-        "minutes: 240 is four hours, 480 a working day. A system can have a "
-        "fast RTO and a poor RPO — back within ten minutes, but on yesterday's "
-        "data."
-    )
-    st.caption(
-        "Scroll the table sideways to reach *Sets cookies*, *AI role*, the "
-        "recovery objectives and *Notes*."
-    )
+    def _duration_input(label, minutes, key, help_text):
+        st.markdown(f"**{label}**", help=help_text)
+        d1, d2, d3 = st.columns([2, 2, 3])
+        decided = d1.checkbox("Decided", value=minutes is not None, key=f"{key}_set")
+        if minutes is None:
+            unit, amount = "hours", 4
+        else:
+            unit = ("days" if minutes and minutes % 1440 == 0 else
+                    "hours" if minutes and minutes % 60 == 0 else "minutes")
+            amount = minutes // _UNITS[unit]
+        amount = d2.number_input("Amount", min_value=0, value=int(amount), step=1,
+                                 key=f"{key}_n", label_visibility="collapsed",
+                                 disabled=not decided)
+        unit = d3.selectbox("Unit", list(_UNITS), index=list(_UNITS).index(unit),
+                            key=f"{key}_u", label_visibility="collapsed", disabled=not decided)
+        return int(amount) * _UNITS[unit] if decided else None
 
-    if st.button("Save changes", type="primary", key="inv_systems_save"):
-        result = STORE.commit_systems(systems, edited, user_id, client_id)
+    def _sel(where, label, codes, labels, value, key, **kw):
+        opts = [None] + codes
+        return where.selectbox(label, opts, index=opts.index(value) if value in opts else 0,
+                               format_func=lambda c: "—" if c is None else labels.get(c, c),
+                               key=key, **kw)
 
-        parts = []
-        if result["inserted"]:
-            parts.append(f"{result['inserted']} added")
-        if result["updated"]:
-            parts.append(f"{result['updated']} updated")
-        if result["deleted"]:
-            parts.append(f"{result['deleted']} removed")
+    with st.container(border=True):
+        st.markdown("**The tool**")
+        c1, c2 = st.columns(2)
+        f_name = c1.text_input("System ✱", value=cur.get("name") or "", key=_fk("name"))
+        f_vendor = c2.text_input("Vendor legal entity", value=cur.get("vendor_legal_name") or "",
+                                 key=_fk("vendor"))
+        c1, c2 = st.columns(2)
+        f_cat = _sel(c1, "Category", cat_codes, cat_labels, cur.get("category"), _fk("cat"))
+        f_crit = _sel(c2, "Criticality", crit_codes, crit_labels, cur.get("criticality"), _fk("crit"))
+        f_purpose = st.text_input("What you use it for", value=cur.get("purpose") or "", key=_fk("purpose"))
 
-        if parts:
-            st.success(", ".join(parts).capitalize() + ".")
-        elif not result["errors"]:
-            st.info("Nothing to save.")
+        st.markdown("**Data protection**")
+        c1, c2, c3 = st.columns(3)
+        f_country = c1.text_input("Where data is processed", value=cur.get("processing_country") or "",
+                                  key=_fk("country"), help="ISO code (BE, US…), or EU for several EEA countries.")
+        f_tm = _sel(c2, "Transfer basis", tm_codes, tm_labels, cur.get("transfer_mechanism"), _fk("tm"),
+                    help="Only needed when data leaves the EU.")
+        f_dpa = _sel(c3, "Processing agreement (DPA)", dpa_codes, dpa_labels, cur.get("dpa_status"), _fk("dpa"))
+        c1, c2, c3 = st.columns(3)
+        _signed = cur.get("dpa_signed_on")
+        if isinstance(_signed, str) and _signed:
+            from datetime import date as _date
+            _signed = _date.fromisoformat(_signed[:10])
+        f_signed = c1.date_input("DPA signed on", value=_signed or None, key=_fk("signed"),
+                                 format="DD/MM/YYYY")
+        f_dpa_url = c2.text_input("DPA link", value=cur.get("dpa_url") or "", key=_fk("dpaurl"))
+        f_pp = c3.text_input("Vendor privacy policy", value=cur.get("privacy_policy_url") or "", key=_fk("pp"))
+        c1, c2 = st.columns(2)
+        f_ai = _sel(c1, "AI role", ai_codes, ai_labels, cur.get("ai_role"), _fk("ai"))
+        f_cookies = c2.checkbox("Sets cookies on your website", value=bool(cur.get("sets_cookies")),
+                                key=_fk("cookies"))
 
-        for e in result["errors"]:
-            st.error(e)
+        st.markdown("**If it stops working**")
+        f_rto = _duration_input("How long it may be down", cur.get("rto_minutes"), _fk("rto"),
+                                "Recovery time objective (RTO): how long this system may be "
+                                "unavailable before it has to be back.")
+        f_rpo = _duration_input("How much recent data you can afford to lose", cur.get("rpo_minutes"),
+                                _fk("rpo"),
+                                "Recovery point objective (RPO): with a nightly backup, up to 1 day "
+                                "of data. 0 means none may be lost.")
+        f_recovery = st.text_input("How it is recovered", value=cur.get("recovery_note") or "",
+                                   key=_fk("recovery"), help="Where the backup is and who restores it.")
+        f_notes = st.text_input("Notes", value=cur.get("notes") or "", key=_fk("notes"))
 
-        if not result["errors"]:
-            # Dropping the widget state stops a delta from an earlier render
-            # replaying against the freshly-loaded rows on the next rerun.
-            st.session_state.pop("inv_systems_editor", None)
-            st.rerun()
+        b1, b2, b3 = st.columns([1, 2, 1])
+        _save = b1.button("Save" if cur else "Add system", type="primary", key=_fk("save"),
+                          use_container_width=True)
+        _del = False
+        if cur:
+            _really = b2.checkbox("I want to remove this system", key=_fk("delchk"))
+            _del = b3.button("Remove", key=_fk("del"), disabled=not _really, use_container_width=True)
+
+    if _save or _del:
+        row = {
+            "id": cur.get("id"), "name": f_name.strip(), "vendor_legal_name": f_vendor.strip() or None,
+            "category": f_cat, "purpose": f_purpose.strip() or None,
+            "processing_country": f_country.strip().upper() or None, "transfer_mechanism": f_tm,
+            "dpa_status": f_dpa, "dpa_signed_on": f_signed.isoformat() if f_signed else None,
+            "dpa_url": f_dpa_url.strip() or None, "criticality": f_crit, "ai_role": f_ai,
+            "sets_cookies": f_cookies, "privacy_policy_url": f_pp.strip() or None,
+            "notes": f_notes.strip() or None, "rto_minutes": f_rto, "rpo_minutes": f_rpo,
+            "recovery_note": f_recovery.strip() or None,
+        }
+        grid_cols = ["id"] + list(STORE.SYSTEM_EDITABLE)
+        rows = [{c: s.get(c) for c in grid_cols} for s in systems]
+        if _del:
+            rows = [r for r in rows if r["id"] != cur.get("id")]
+        elif cur:
+            # Fields the form does not show (purpose translations) keep their value.
+            rows = [({c: (row[c] if c in row else r.get(c)) for c in grid_cols}
+                     if r["id"] == cur["id"] else r) for r in rows]
+        else:
+            rows.append({c: row.get(c) for c in grid_cols})
+        if _save and not f_name.strip():
+            st.warning("Give the system a name.")
+        else:
+            result = STORE.commit_systems(systems, pd.DataFrame(rows, columns=grid_cols),
+                                          user_id, client_id)
+            for e in result["errors"]:
+                st.error(e)
+            if not result["errors"]:
+                for k in [k for k in st.session_state if k.startswith("inv_sys_")]:
+                    st.session_state.pop(k, None)
+                st.rerun()
 
     if ready["dpa_gaps"]:
         st.warning(

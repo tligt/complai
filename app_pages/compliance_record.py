@@ -57,6 +57,8 @@ from obligations import DOC_CATALOG, REGULATION_LABELS
 if st.button("← Documents", key="record_back"):
     st.switch_page("app_pages/documents.py")
 st.title("Compliance Record")
+from guide import page_tip
+page_tip("compliance_record")
 st.caption(
     "What your organisation operates under, and since when. This is the view "
     "to share with an auditor."

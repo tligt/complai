@@ -5251,6 +5251,37 @@ Issues C3, H1, H2, H3, H4, H9, H11, M9.
 
 ---
 
+### D-122 — Usability audit, batch 3 (guidance), 27 Oct
+
+Issues H10, M7, M8 and missing items 1–3 (getting-started checklist, user
+tips, glossary).
+
+- **Page tips** (`guide.py`): a "What is this page for?" panel on 13 pages,
+  closed for good with Got it — stored in `profiles.dismissed_tips`
+  (`migration_audit_tips.sql`, applied 27 Oct). Account has "Show page tips
+  again".
+- **Glossary** page (Account group): 18 terms in plain language with the
+  legal reference, searchable. Content in `guide.GLOSSARY`.
+- **Getting started** on Home: company profile → systems and activities →
+  gap assessment → documents → adopted, each worked out from the data, with
+  Start on the next step. Hidden once all five are done.
+- **Incidents (H10):** deadlines whose regime is not decided are one line —
+  assess in step 3, the earliest of them is due in N h — with the list
+  folded. Home's incident box says the same, one line per incident.
+  `incident_rules.findings` now carries `deadline_state`, `due_at` and the
+  labels for that.
+- **Obligations (M8):** one list across all regulations, what needs
+  attention first, regulation and legal reference as columns; one selector
+  opens the detail, plain description first. The NIS2 scope box explains
+  essential and important in plain words (large companies in Annex I
+  sectors are essential; medium ones there, and Annex II, important).
+- **Systems (M7):** a read-only overview and a form per system; recovery
+  objectives as a number plus minutes/hours/days, shown as "4 hours".
+  Saving still goes through `commit_systems` (checked: an untouched save
+  writes nothing; fields the form does not show keep their value).
+
+---
+
 ## 5. Constraints and gotchas
 
 Hard-won. Each cost real debugging time.

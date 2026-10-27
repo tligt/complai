@@ -303,7 +303,9 @@ def describe_left(d: Mapping[str, Any], lang: str = "en") -> str:
     """'in 5 h', '3 h overdue', 'without undue delay', 'sent 22/10 14:05'."""
     fr = lang == "fr"
     if d["state"] == DONE:
-        return (("envoyé le " if fr else "sent ") + d["done_at"].astimezone(DISPLAY_TZ).strftime("%d/%m %H:%M"))
+        _at = d["done_at"].astimezone(DISPLAY_TZ)
+        return (f"envoyé le {_at:%d/%m %H:%M}" if fr
+                else f"sent {_at.day} {_at:%b %H:%M}")
     if d["state"] == NOT_REQUIRED:
         return "non requis" if fr else "not required"
     if d["due"] is None:
@@ -739,11 +741,17 @@ def findings(incidents: Iterable[Mapping[str, Any]], client: Mapping[str, Any],
         for d in dls:
             if d["state"] not in OPEN_STATES:
                 continue
-            out.append(_finding(
+            f = _finding(
                 "incident", f"{inc['id']}:{d['kind']}",
                 f"{label(d['kind'], 'en', by_id)} — {inc['title']}",
                 DUE if d["state"] in (OVERDUE, DUE_SOON) else OPEN,
                 describe_left(d), d["due"].date() if d["due"] else None,
                 link="incidents",
-            ))
+            )
+            # For Home (usability audit H10): a deadline whose regime is not
+            # decided yet reads as "assess first", not as one more emergency.
+            f.update(incident_title=inc["title"], incident_id=inc["id"],
+                     deadline_state=d["state"], deadline_label=label(d["kind"], "en", by_id),
+                     due_at=d["due"])
+            out.append(f)
     return out
