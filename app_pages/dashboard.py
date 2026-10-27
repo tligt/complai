@@ -336,80 +336,76 @@ st.divider()
 # scores: a complete privacy policy was marked Partial because it could not
 # satisfy obligations that were never about the policy. They are surfaced
 # here on their own terms instead of being hidden or mis-attributed.
-st.subheader("⚙️ Operational obligations")
-
+# Usability audit C6 follow-up: these counts come from the last gap
+# assessment, not from today's data, so they sit folded under a dated title
+# instead of beside the headline figure as a second score.
 operational = operational_for_regulations(regulations)
 
-if not last_gap:
-    st.caption(
-        f"{len(operational)} obligations in scope that no document can satisfy. "
-        "Run a gap assessment to see where you stand on them."
-    )
-else:
-    st.caption(
-        "Practices and procedures rather than documents. These do not affect "
-        f"your document scores. Assessed on {gap_date}."
-    )
-
-    # Obligations that do not bind yet are reported but never counted as
-    # failures. Marking a client red today for a duty arriving in December
-    # 2027 is a false alarm, and false alarms are how a compliance tool
-    # loses the client's attention for the alarms that matter.
-    operational, forthcoming = split_by_force(operational)
-
-    op_rows = []
-    for ob in operational:
-        res = gap_by_id.get(ob["id"])
-        # No result at all means the obligation postdates the last assessment
-        # — which happens every time Compliance Pulse adds a requirement.
-        # Defaulting that to "missing" would report an untested obligation as
-        # a failure.
-        status = (res or {}).get("status", "not_assessed")
-        op_rows.append((ob, status, res or {}))
-
-    n_ok      = sum(1 for _, s, _ in op_rows if s == "compliant")
-    n_partial = sum(1 for _, s, _ in op_rows if s == "partial")
-    n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
-    n_unknown = sum(1 for _, s, _ in op_rows if s == "not_assessed")
-    n_open    = len(op_rows) - n_ok - n_partial - n_na - n_unknown
-
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("In place", n_ok)
-    m2.metric("Partial", n_partial)
-    m3.metric("Not in place", n_open)
-    m4.metric("Not assessed", n_unknown)
-    m5.metric("Not yet in force", len(forthcoming))
-
-    if n_unknown:
+if last_gap:
+    with st.expander(f"⚙️ Your practices — what the gap assessment of {gap_date} found",
+                     expanded=False):
         st.caption(
-            f"{plural(n_unknown, 'obligation')} {'was' if n_unknown == 1 else 'were'} not covered by the assessment on "
-            f"{gap_date} — most likely added since. Re-run to include them."
+            "Practices and procedures no document can satisfy, as assessed on "
+            f"{gap_date}. A snapshot of that day: the figure at the top is today's."
         )
 
-    ICONS = {"compliant": "✅", "partial": "🟡", "not_applicable": "⚪",
-             "not_assessed": "🔍", "missing": "❌"}
+        # Obligations that do not bind yet are reported but never counted as
+        # failures. Marking a client red today for a duty arriving in December
+        # 2027 is a false alarm, and false alarms are how a compliance tool
+        # loses the client's attention for the alarms that matter.
+        operational, forthcoming = split_by_force(operational)
 
-    # Highest priority first — an operational gap on access control matters
-    # more than one on penetration testing.
-    PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
-    op_rows.sort(key=lambda r: (
-        0 if r[1] in ("missing", "partial") else 1,
-        PRIORITY_RANK.get(r[0]["priority"], 9),
-    ))
+        op_rows = []
+        for ob in operational:
+            res = gap_by_id.get(ob["id"])
+            # No result at all means the obligation postdates the last assessment
+            # — which happens every time Compliance Pulse adds a requirement.
+            # Defaulting that to "missing" would report an untested obligation as
+            # a failure.
+            status = (res or {}).get("status", "not_assessed")
+            op_rows.append((ob, status, res or {}))
 
-    for reg in regulations:
-        reg_rows = [r for r in op_rows
-                    if REG_LABELS.get(r[0]["regulation"]) and
-                    (r[0]["regulation"] == reg or
-                     (reg == "GDPR" and r[0]["regulation"] == "EPRIVACY"))]
-        if not reg_rows:
-            continue
-        with st.expander(
-            f"{REG_LABELS.get(reg, reg)} — "
-            f"{sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial'))} "
-            f"of {len(reg_rows)} need attention",
-            expanded=False,
-        ):
+        n_ok      = sum(1 for _, s, _ in op_rows if s == "compliant")
+        n_partial = sum(1 for _, s, _ in op_rows if s == "partial")
+        n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
+        n_unknown = sum(1 for _, s, _ in op_rows if s == "not_assessed")
+        n_open    = len(op_rows) - n_ok - n_partial - n_na - n_unknown
+
+        st.markdown(" · ".join(filter(None, [
+            f"{n_ok} in place", f"{n_partial} partly", f"{n_open} not in place",
+            f"{n_unknown} not assessed" if n_unknown else "",
+            f"{len(forthcoming)} not yet in force" if forthcoming else "",
+        ])))
+
+        if n_unknown:
+            st.caption(
+                f"{plural(n_unknown, 'obligation')} {'was' if n_unknown == 1 else 'were'} not covered by the assessment on "
+                f"{gap_date} — most likely added since. Re-run to include them."
+            )
+
+        ICONS = {"compliant": "✅", "partial": "🟡", "not_applicable": "⚪",
+                 "not_assessed": "🔍", "missing": "❌"}
+
+        # Highest priority first — an operational gap on access control matters
+        # more than one on penetration testing.
+        PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+        op_rows.sort(key=lambda r: (
+            0 if r[1] in ("missing", "partial") else 1,
+            PRIORITY_RANK.get(r[0]["priority"], 9),
+        ))
+
+        for reg in regulations:
+            reg_rows = [r for r in op_rows
+                        if REG_LABELS.get(r[0]["regulation"]) and
+                        (r[0]["regulation"] == reg or
+                         (reg == "GDPR" and r[0]["regulation"] == "EPRIVACY"))]
+            if not reg_rows:
+                continue
+            st.markdown(
+                f"##### {REG_LABELS.get(reg, reg)} — "
+                f"{sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial'))} "
+                f"of {len(reg_rows)} need attention"
+            )
             for ob, status, res in reg_rows:
                 st.markdown(
                     f"{ICONS.get(status, '❔')} **{ob['title']}**  "
@@ -423,10 +419,8 @@ else:
                 if res.get("recommendation") and status != "compliant":
                     st.caption(f"→ {res['recommendation']}")
 
-    if forthcoming:
-        with st.expander(
-            f"🕓 Not yet in force ({len(forthcoming)})", expanded=False
-        ):
+        if forthcoming:
+            st.markdown(f"##### 🕓 Not yet in force ({len(forthcoming)})")
             st.caption(
                 "Already law, but not yet binding. Nothing to do today — "
                 "shown so the dates are not a surprise."

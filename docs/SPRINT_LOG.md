@@ -5311,8 +5311,10 @@ Issues C6, H5, H8, M10, M11.
   compliant unasked); answers prefilled from the last assessment and kept
   across pages in the session. Not kept across logout — that needs a column.
 
-Still open: Home's "Operational obligations" section shows the 6 Aug gap
-assessment's own counts beside the headline.
+- **Home's operational obligations** (the gap assessment's own counts for
+  practices) are folded under "Your practices — what the gap assessment of
+  <date> found", one line of counts instead of five metrics, so they read as
+  a dated snapshot rather than a second score.
 
 ---
 
