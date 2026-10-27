@@ -53,8 +53,9 @@ if _inc_tasks:
                           + (f" (+{len(_decided) - 1} more)" if len(_decided) > 1 else ""))
         if _open:
             _first = min(_open, key=lambda f: f.get("due_at") or datetime.max.replace(tzinfo=timezone.utc))
-            _lines.append(f"**{_title}**: assess it to know which notifications apply — the "
-                          f"earliest possible one ({_first.get('deadline_label')}) is due {_first['detail']}.")
+            _lines.append(f"**{_title}**: assess it to know which {'other ' if _decided else ''}"
+                          f"notifications apply — the earliest of them ({_first.get('deadline_label')}) "
+                          f"is due {_first['detail']}.")
     _due = [f for f in _inc_tasks if f["severity"] == "due"]
     (st.error if _due else st.warning)("  \n".join(_lines), icon="🚨")
     if st.button("Open incidents", key="dash_incidents"):
