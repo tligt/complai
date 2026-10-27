@@ -5418,6 +5418,40 @@ Tested locally 27 Oct: links, plan preselection and switching, the empty
 fields warning; the inbox screen and the unlock page rendered in AppTest.
 Not tested: a real sign-up (it would create an account in production), the
 confirmation email's landing page.
+
+### D-127 — Login page redesigned after recosa.eu; forgot password, 27 Oct
+
+The login/sign-up page looked like a bare Streamlit form ("the design is
+horrible"). It is RECOSA's own page, not Supabase's — Supabase only stores
+accounts, checks passwords and sends the emails — so it was redesigned in the
+app, after a mockup the user approved.
+
+- **`login_page.py`:** recosa.eu's look — Public Sans, navy #003366, slate
+  #31506D text, turquoise #14C7D5 for small labels only, #E8EDF2 panels,
+  white card with soft corners. Top bar with the R mark and "Back to
+  recosa.eu"; a short pitch and the form card side by side, the form first
+  on a phone. Styles are scoped to this page and loaded with `st.html`
+  (`st.markdown` printed the stylesheet as text: a blank line ends its HTML
+  block).
+- **`auth.login_ui`:** a Log in / Sign up switch (segmented control) instead
+  of tabs; the plans as two clickable cards (the chosen one's container key
+  ends in `_on`, which the CSS reads); "Work email" and one password field
+  (the eye icon replaces "Confirm password"); the button says "Start my free
+  trial — <plan>"; a consent line linking the site's Terms and Privacy
+  Policy. Login errors in plain words.
+- **Forgot your password?** — pulled ahead from S51. The request answers the
+  same whether or not the address has an account. The email's link must come
+  back as `<app>/?token_hash={{ .TokenHash }}&type=recovery`: Streamlit cannot
+  read the `#access_token` fragment of Supabase's default link. app.py
+  verifies the token (`verify_otp`, type recovery), and the person chooses a
+  new password before anything else. **Needs the Supabase "Reset password"
+  email template changed** (dashboard → Authentication → Emails); on the
+  self-hosted stack after S50, the same template through GoTrue's
+  `MAILER_TEMPLATES_RECOVERY`.
+
+Tested locally 27 Oct at 1280 px and 375 px: the layout, plan cards, the
+switch, the forgot-password view and back. Not tested: a real reset email
+(needs the template change), wrong-password message, a real sign-up.
 ---
 
 ## 5. Constraints and gotchas

@@ -206,30 +206,28 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "signup")):
 init_auth()
 
 # ── Login screen ──────────────────────────────────────────────
+# D-127: a password-reset link (Supabase "Reset password" template) lands
+# here with ?token_hash=…&type=recovery. It logs the person in once; they
+# then choose a new password before anything else.
+if st.query_params.get("type") == "recovery" and st.query_params.get("token_hash"):
+    from auth import start_password_recovery
+    _th = st.query_params["token_hash"]
+    del st.query_params["token_hash"]
+    del st.query_params["type"]
+    if not start_password_recovery(_th):
+        st.session_state.auth_mode = "Forgot"
+        st.session_state.recovery_failed = True
+
 if not is_logged_in():
-    # Narrow centered layout for login — use width:0 not display:none
-    # display:none causes Streamlit to remember sidebar as collapsed in localStorage
-    st.markdown("""
-    <style>
-    [data-testid="stSidebar"] { width: 0 !important; min-width: 0 !important; overflow: hidden !important; }
-    [data-testid="stSidebarCollapsedControl"] { display: none !important; }
-    .main .block-container {
-        max-width: 420px !important;
-        padding: 3rem 1.5rem 2rem !important;
-        margin: 8vh auto 0 !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+    import login_page
+    if st.session_state.pop("recovery_failed", False):
+        st.warning("That reset link has expired or was already used. Ask for a new one below.")
+    login_page.render()
+    st.stop()
 
-    st.markdown("""
-    <div style="text-align:center;margin-bottom:2rem;">
-        <div style="font-size:2rem;font-weight:800;color:#003366;letter-spacing:-1px;">🛡️ RECOSA</div>
-        <div style="color:#64748B;font-size:0.9rem;margin-top:6px;">EU Regulatory Compliance for SMEs</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    from auth import login_ui
-    login_ui()
+if st.session_state.get("password_recovery"):
+    import login_page
+    login_page.render_password_reset()
     st.stop()
 
 # ── Authenticated ─────────────────────────────────────────────
