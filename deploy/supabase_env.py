@@ -87,6 +87,9 @@ def main(stack_dir: str) -> None:
         "ENABLE_ANONYMOUS_USERS": "false",
         "ENABLE_PHONE_SIGNUP": "false",
         "DISABLE_SIGNUP": "false",
+        # compliance-pulse is a public feed (verify_jwt was off on Supabase
+        # Cloud too); it is the only function.
+        "FUNCTIONS_VERIFY_JWT": "false",
     }
     for k in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_ADMIN_EMAIL",
               "SMTP_SENDER_NAME", "ENABLE_EMAIL_AUTOCONFIRM"):

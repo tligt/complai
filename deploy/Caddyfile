@@ -26,11 +26,12 @@
 	reverse_proxy quiz:8503
 }
 
-# Supabase API. Only the three services RECOSA uses are routed; everything
-# else Kong serves — Studio in particular — is not reachable from outside
-# (use an SSH tunnel to 127.0.0.1:8000, see the runbook).
+# Supabase API. Only what RECOSA uses is routed — auth, data and files for the
+# apps, and the Compliance Pulse function the recosa.eu site reads (S19/S20).
+# Everything else Kong serves, Studio in particular, is not reachable from
+# outside (use an SSH tunnel to 127.0.0.1:8000, see the runbook).
 {$API_HOST} {
-	@api path /auth/v1/* /rest/v1/* /storage/v1/*
+	@api path /auth/v1/* /rest/v1/* /storage/v1/* /functions/v1/compliance-pulse*
 	handle @api {
 		reverse_proxy kong:8000
 	}

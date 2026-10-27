@@ -5370,6 +5370,13 @@ group, bucket, DNS, Brevo SMTP key, deploy key).
   service keys (signatures checked offline); it refuses to overwrite an
   existing `.env`.
 
+- **Added the same day:** the recosa.eu site's Compliance Pulse feed is a
+  Supabase Edge Function (`compliance-pulse`, S19/S20) whose source was in
+  no repository. Copied from deployed version 4 into
+  `supabase/functions/compliance-pulse/index.ts`; the self-hosted stack
+  serves it, Caddy routes it, and the cutover changes the Framer AnySync
+  URL. `cookie_consents` (S19) is empty, so nothing writes to it today.
+
 **Not tested:** nothing has been built or started — no Docker on the
 development machine. The runbook's Part B is written as a sequence of checks
 for that reason, and step B5 verifies the port bindings, which depend on

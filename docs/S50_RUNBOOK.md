@@ -17,6 +17,12 @@ changes, and what doesn't:
 
 GitHub keeps hosting the **code** only; no client data passes through it.
 
+The recosa.eu site (Framer) also depends on Supabase: its Compliance Pulse
+pages read the `compliance-pulse` Edge Function through the AnySync plugin
+(S19/S20). The function moves too — its source is now in the repository,
+`supabase/functions/compliance-pulse/index.ts`, copied from the deployed
+version 4 on 27 Oct — and the plugin's URL changes at cutover (C5).
+
 What it moves today (measured 27 Oct): a 19 MB database, 148 files (6.3 MB),
 1 user account, 4,890 knowledge-base points. Small — the work is in getting
 the stack right, not in the copy.
@@ -183,6 +189,8 @@ Then:
   SMTP), the link works, the free check starts.
 - Account → "forgot password" email, if enabled in S51.
 - `https://admin.<domain>` loads; `https://check.<domain>` runs a free check.
+- `https://api.<domain>/functions/v1/compliance-pulse?limit=3` returns the
+  same items as the old URL (`https://<ref>.supabase.co/functions/v1/compliance-pulse?limit=3`).
 - Jobs, one at a time (they write to the new database only; until cutover
   its data is a copy, so the only person they can email is you):
   `docker compose run --rm -T jobs python monitor_incidents.py`, then
@@ -220,7 +228,9 @@ knowledge base since).
 **C4. Switch the jobs on.** `mv /etc/cron.d/recosa.disabled /etc/cron.d/recosa`
 
 **C5. Links.** On the Framer site, point the app, sign-up and free-check
-links to the new names. Brevo templates and `APP_BASE_URL` already use the
+links to the new names, and change the **AnySync** collections' source URL
+(both of them, including the `articles_only=true` one) to
+`https://api.<domain>/functions/v1/compliance-pulse`. Brevo templates and `APP_BASE_URL` already use the
 new app name.
 
 **C6. Check.** B11's list, briefly. Then announce.

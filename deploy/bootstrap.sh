@@ -57,6 +57,10 @@ git -C "$SUPA" fetch -q origin
 git -C "$SUPA" checkout -q "${SUPABASE_REF:-origin/master}"
 echo "   Supabase commit: $(git -C "$SUPA" rev-parse HEAD)   <- record this as SUPABASE_REF"
 cp "$APP/deploy/supabase.override.yml" "$SUPA/docker/docker-compose.override.yml"
+# Edge Functions: the self-hosted runtime serves every folder in
+# volumes/functions. RECOSA has one, the public Compliance Pulse feed.
+mkdir -p "$SUPA/docker/volumes/functions"
+cp -r "$APP/supabase/functions/compliance-pulse" "$SUPA/docker/volumes/functions/"
 if [ ! -f "$SUPA/docker/.env" ]; then
     python3 "$APP/deploy/supabase_env.py" "$SUPA/docker"
     echo "   ^ copy SUPABASE_KEY and SUPABASE_SERVICE_KEY into $APP/deploy/.env"
