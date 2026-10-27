@@ -1,0 +1,97 @@
+# RECOSA on one Scaleway instance (S50, D-67/D-68).
+#
+# Two compose projects on the same host:
+#   supabase  — the official self-hosted Supabase stack, cloned by
+#               bootstrap.sh into /opt/recosa/supabase/docker, with
+#               supabase.override.yml on top (nothing published but Kong
+#               behind Caddy).
+#   recosa    — this file: the three Streamlit apps, Qdrant and Caddy.
+#
+# Caddy terminates TLS for every public name and joins the supabase network to
+# reach Kong. The apps call Supabase through its PUBLIC URL (SUPABASE_URL),
+# not the internal one, because signed download URLs built from it are handed
+# to the browser (database.get_signed_url).
+#
+# Scheduled jobs (monitor*.py) are not services: the host crontab runs them
+# with `docker compose run --rm jobs python <script>` — see crontab.
+
+name: recosa
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  image: recosa-app:latest
+  env_file: .env
+  restart: unless-stopped
+  networks: [recosa]
+  healthcheck:
+    test: ["CMD-SHELL", "curl -fsS http://localhost:$${PORT}/_stcore/health || exit 1"]
+    interval: 30s
+    timeout: 5s
+    retries: 3
+    start_period: 40s
+
+services:
+  app:
+    <<: *app
+    command: ["streamlit", "run", "app.py", "--server.port", "8501"]
+    environment: { PORT: "8501" }
+
+  admin:
+    <<: *app
+    command: ["streamlit", "run", "admin_app.py", "--server.port", "8502"]
+    environment: { PORT: "8502" }
+
+  quiz:
+    <<: *app
+    command: ["streamlit", "run", "quiz/quiz_app.py", "--server.port", "8503"]
+    environment: { PORT: "8503" }
+
+  # Run on demand only (profile): `docker compose run --rm jobs python monitor.py`
+  jobs:
+    <<: *app
+    profiles: ["jobs"]
+    restart: "no"
+    healthcheck: { disable: true }
+    command: ["python", "--version"]
+
+  # Replaces Qdrant Cloud (AWS eu-central-1). Not published: only the apps
+  # and jobs reach it, on the internal network.
+  qdrant:
+    image: qdrant/qdrant:${QDRANT_IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY}
+    volumes:
+      - qdrant_data:/qdrant/storage
+      - qdrant_snapshots:/qdrant/snapshots
+    networks: [recosa]
+
+  caddy:
+    image: caddy:${CADDY_IMAGE_TAG}
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    env_file: .env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [recosa, supabase]
+    depends_on: [app, admin, quiz]
+
+networks:
+  recosa: {}
+  # Created by the supabase compose project (project name "supabase").
+  supabase:
+    name: supabase_default
+    external: true
+
+volumes:
+  qdrant_data: {}
+  qdrant_snapshots: {}
+  caddy_data: {}
+  caddy_config: {}

@@ -5335,6 +5335,46 @@ Issues C6, H5, H8, M10, M11.
   activity is left for the owner: the two rows differ (purpose, retention,
   systems), so which one is right is a content decision.
 
+### D-125 — S50 prepared: Scaleway, one instance in Paris, 27 Oct
+
+**Provider: Scaleway** (decided by the user 27 Oct), over Hetzner, OVHcloud
+and Clever Cloud — French, Paris region, and Object Storage for backups in
+the same place. Everything account-free is ready in `deploy/`; the runbook
+is `docs/S50_RUNBOOK.md` (Part A is the user's: account, instance, security
+group, bucket, DNS, Brevo SMTP key, deploy key).
+
+- **One image** (`deploy/Dockerfile`, Python 3.12, LibreOffice Writer
+  headless, Liberation fonts for Arial) runs the client app, admin, free
+  check and the jobs. Secrets stay environment variables, as on Streamlit
+  Cloud: no application code changed.
+- **Two compose projects:** the official self-hosted Supabase at a pinned
+  commit (fetched by `bootstrap.sh`), and `deploy/docker-compose.yml` with
+  the three apps, Qdrant and Caddy (TLS). Only Caddy is public; it routes
+  `api.` to Kong for `/auth`, `/rest` and `/storage` only, so Studio is
+  reached over an SSH tunnel. `supabase.override.yml` binds everything else
+  to 127.0.0.1 (Docker bypasses ufw; the Scaleway security group is the
+  perimeter). The apps use the public API URL because signed download URLs
+  go to the browser.
+- **Jobs** move from GitHub Actions to the host crontab, installed disabled
+  until cutover so the two never both send emails.
+- **Backups**, new: nightly pg_dump, storage archive and Qdrant snapshot to
+  a Paris bucket, expired by a bucket lifecycle rule, not by the script.
+- **Migration scripts**, each ending in a count comparison:
+  `migrate/migrate_db.sh` (Supabase CLI dump of roles, schema, data),
+  `copy_storage.py` (files; the rows come with the database),
+  `copy_qdrant.py` (collection settings, indexes, points). The Qdrant copy
+  was run 27 Oct against the live collection into a local in-memory Qdrant:
+  4,890 of 4,890 points. The storage listing was checked against Supabase:
+  141 + 7 files, as in the database.
+- `supabase_env.py` generates the Supabase secrets and signs the anon and
+  service keys (signatures checked offline); it refuses to overwrite an
+  existing `.env`.
+
+**Not tested:** nothing has been built or started — no Docker on the
+development machine. The runbook's Part B is written as a sequence of checks
+for that reason, and step B5 verifies the port bindings, which depend on
+Supabase's service names at the pinned commit.
+
 ---
 
 ## 5. Constraints and gotchas

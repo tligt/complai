@@ -1,0 +1,17 @@
+# Kept out of the RECOSA image (deploy/Dockerfile builds from the repo root).
+.git
+.github
+.claude
+.venv
+venv
+__pycache__
+*.pyc
+.env
+.env.*
+_unused
+_to_delete
+docs
+scope
+deploy
+*.zip
+*.sql

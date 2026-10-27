@@ -1,0 +1,28 @@
+# Applied on top of the official self-hosted Supabase compose file
+# (bootstrap.sh copies it next to it as docker-compose.override.yml).
+#
+# The official file publishes Kong (8000/8443), the pooler (5432/6543) and
+# Logflare (4000) on every interface. Docker writes its own iptables rules, so
+# a host firewall (ufw) does NOT stop that — the Scaleway security group is the
+# real perimeter, and this file is the second lock: everything is bound to
+# 127.0.0.1, reachable over an SSH tunnel, and the public path is Caddy → Kong
+# on the internal network only.
+#
+# `!override` replaces the list instead of appending to it (Docker Compose
+# 2.24.4+). After `docker compose up`, the runbook checks with `ss -tlnp` that
+# nothing but 22, 80 and 443 listens publicly — service names drift between
+# Supabase versions, and that check is what proves this file still matches.
+
+services:
+  kong:
+    ports: !override
+      - "127.0.0.1:8000:8000"
+
+  supavisor:
+    ports: !override
+      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:6543:6543"
+
+  analytics:
+    ports: !override
+      - "127.0.0.1:4000:4000"

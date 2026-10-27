@@ -1,0 +1,25 @@
+# RECOSA scheduled jobs (S50) — replaces the GitHub Actions schedules.
+# Installed by bootstrap.sh as /etc/cron.d/recosa. Times are UTC, as they were
+# on GitHub. Each run is a throwaway container from the same image as the app.
+#
+# Do NOT enable these until the cutover: until then the GitHub Actions jobs
+# still run against the old Supabase project, and both would send the same
+# emails. bootstrap.sh installs it as /etc/cron.d/recosa.disabled, which cron
+# ignores (Debian's cron skips file names containing a dot); the cutover step
+# in the runbook renames it to /etc/cron.d/recosa.
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN=cd /opt/recosa/app/deploy && docker compose run --rm -T jobs
+
+# Regulatory monitoring, then marketing monitoring (they ran in sequence on
+# GitHub to stay under Mistral's rate limit)
+0 7 * * *     root  $RUN python monitor.py >> /var/log/recosa/monitor.log 2>&1 && $RUN python monitor_marketing.py >> /var/log/recosa/monitor_marketing.log 2>&1
+# Website audit subscriptions — the script decides which are due
+0 8 * * *     root  $RUN python monitor_audits.py >> /var/log/recosa/monitor_audits.log 2>&1
+# Free-check results, once the email is confirmed
+*/15 * * * *  root  $RUN python monitor_funnel.py >> /var/log/recosa/monitor_funnel.log 2>&1
+# Incident deadline reminders — hourly, the NIS2 24-hour clock needs it
+7 * * * *     root  $RUN python monitor_incidents.py >> /var/log/recosa/monitor_incidents.log 2>&1
+# Nightly backup to Scaleway Object Storage
+30 2 * * *    root  /opt/recosa/app/deploy/backup.sh >> /var/log/recosa/backup.log 2>&1
