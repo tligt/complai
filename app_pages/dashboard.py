@@ -183,65 +183,32 @@ gap_date = fmt_date(str(last_gap.get("created_at", ""))) if last_gap else None
 # SECTION 1 — Regulation Status
 # ═══════════════════════════════════════════════════════════════
 st.subheader(f"Compliance status — {company_name}")
-st.caption(
-    "Based on your last gap assessment and the documents in force. "
-    "Documents waiting on a RECOSA template are not counted against you."
-)
 
-def reg_status(reg: str):
-    required = REG_DOCS.get(reg, [])
-    if not required:
-        return "🔵", "Not yet assessed"
-    if not doc_gap_status:
-        # No gap assessment — fall back to the register (S27).
-        #
-        # This used to count "is the doc_type present anywhere", which cannot
-        # tell a document the client OPERATES UNDER from one that was merely
-        # produced, and counted a language RECOSA has no template for against
-        # the client. register.coverage() answers both: only in-force documents
-        # count, and documents blocked solely on a missing RECOSA template are
-        # excluded from the denominator rather than scored as failures.
-        _sts = [
-            REG.document_status(
-                doc_type=d,
-                languages=doc_languages,
-                register_rows=register.get(d),
-                template_languages=(template_langs.get(d) if template_langs else None),
-            )
-            for d in required
-        ]
-        _cov = REG.coverage(_sts)
-        if not _cov["required"]:
-            # Every required document is waiting on a RECOSA template. Not the
-            # client's failure and not scored as one.
-            return "🔵", "Awaiting templates"
-        ratio = _cov["covered"] / _cov["required"]
-        if ratio >= 0.8:
-            return "🟢", "On track"
-        elif ratio >= 0.4:
-            return "🟡", "In progress"
-        else:
-            return "🔴", "Action needed"
-    # Use gap assessment results
-    statuses = [doc_gap_status.get(d, {}).get("status", "missing") for d in required]
-    if all(s == "compliant" for s in statuses):
-        return "🟢", "On track"
-    elif any(s == "compliant" for s in statuses) or any(s == "partial" for s in statuses):
-        return "🟡", "In progress"
-    else:
-        return "🔴", "Action needed"
-
-cols = st.columns(len(regulations))
-for col, reg in zip(cols, regulations):
-    emoji, label = reg_status(reg)
-    with col:
-        st.markdown(f"**{REG_LABELS.get(reg, reg)}**")
-        st.markdown(f"### {emoji} {label}")
-
-if gap_date:
-    st.caption(f"Last gap assessment: {gap_date}")
-else:
-    st.caption("No gap assessment run yet — status based on document presence only.")
+# Usability audit C6 (D-123): the one headline figure, the same as on
+# Obligations and the Compliance record. It replaces the On track / In progress
+# words, which came from document coverage or the gap assessment depending on
+# what existed. Loaded once here and reused for "What to do next" below.
+import obligation_view as _OV
+try:
+    _ob_state = _OV.load_state(user_id, client)
+except Exception as e:
+    st.warning(f"Could not work out your obligations: {e}")
+    _ob_state = None
+if _ob_state:
+    from guide import notice
+    notice("headline_v2",
+           "Your status is now one figure per regulation: the share of your "
+           "obligations that are in place. It counts practices as well as "
+           "documents, so it may be lower than the document figure you saw "
+           "before — but it is more complete, and it moves as soon as you fix "
+           "something.")
+    _OV.render_headline(_ob_state)
+    _doc_bits = []
+    if gap_date:
+        _doc_bits.append(f"Last gap assessment: {gap_date}")
+    st.caption(" · ".join(_doc_bits + ["Details per obligation on the Obligations page."]))
+    if st.button("Open obligations", key="home_open_obligations"):
+        st.switch_page("app_pages/obligations.py")
 
 st.divider()
 
@@ -495,8 +462,17 @@ with col2:
         score_gdpr    = last_gap.get("score_gdpr", "—")
         score_nis2    = last_gap.get("score_nis2", "—")
         score_overall = last_gap.get("score_overall", "—")
-        st.info(f"Run on {gap_date}")
+        # C6: named for what it measures — the quality of your documents on
+        # the day of the run — so it no longer competes with the headline.
+        st.info(f"Document quality, assessed {gap_date}")
         st.caption(f"GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100")
+        try:
+            _gap_age = (datetime.now(timezone.utc) - datetime.fromisoformat(
+                str(last_gap.get("created_at")).replace("Z", "+00:00"))).days
+        except Exception:
+            _gap_age = 0
+        if _gap_age > 30:
+            st.caption(f":orange[{_gap_age} days old — rerun it to refresh.]")
         if st.button("Run new assessment →"):
             st.switch_page("app_pages/gap.py")
     else:
@@ -511,12 +487,8 @@ with col3:
         st.switch_page("app_pages/chat.py")
 
 # ── Fill the "What to do next" slot (see the top of the page) ──
-import obligation_view as _OV
 from database import count_unread_replies as _unread_replies
-try:
-    _tasks = _OV.load_state(user_id, client)["open_tasks"]
-except Exception:
-    _tasks = []
+_tasks = _ob_state["open_tasks"] if _ob_state else []
 _next = [f for f in _tasks if f.get("link") != "incidents"][:3]
 
 # ── Getting started (usability audit batch 3) ─────────────────

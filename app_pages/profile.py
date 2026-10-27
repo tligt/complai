@@ -90,13 +90,47 @@ with st.form("profile_password"):
 
 st.divider()
 
-# ── Plan ─────────────────────────────────────────────────────────────────
+# ── Plan (usability audit M10) ────────────────────────────────────────────
+# What you have, what it includes, trial days left, and how to change — the
+# old section showed the plan name and "downgrading isn't self-serve" only.
 st.subheader("Plan")
 
 _tier = profile.get("subscription_tier") or "professional"
-st.markdown(f"**{SUBSCRIPTION_TIERS.get(_tier, _tier.title())}**")
+_status = profile.get("subscription_status") or "active"
 
-if _tier == "professional":
+PLAN_INCLUDES = {
+    "professional": "One company · every module: obligations and action plan, "
+                    "systems, documents, incidents, risk assessments, web audit, "
+                    "assistant and regulatory alerts · your team as members",
+    "advisory": "Everything in Professional · several companies from one account, "
+                "switched from the menu · documents for an outside company",
+}
+
+with st.container(border=True):
+    p1, p2 = st.columns([3, 2])
+    if _status in ("registered", "expired"):
+        p1.markdown("**Free account**")
+        p1.caption("The free compliance check and your company profile. The rest "
+                   "of RECOSA opens with a subscription.")
+        if _status == "expired":
+            p2.warning("Your free trial has ended.")
+    else:
+        p1.markdown(f"**{SUBSCRIPTION_TIERS.get(_tier, _tier.title())}**")
+        p1.caption(PLAN_INCLUDES.get(_tier, ""))
+        if _status == "trial" and profile.get("trial_ends_at"):
+            from datetime import datetime, timezone
+            from display import fmt_date, plural
+            _ends = datetime.fromisoformat(profile["trial_ends_at"].replace("Z", "+00:00"))
+            _left = max((_ends - datetime.now(timezone.utc)).days + 1, 0)
+            p2.info(f"Free trial — **{plural(_left, 'day')} left**, "
+                    f"until {fmt_date(profile['trial_ends_at'])}.")
+
+st.markdown("**Changing plan**")
+if _status in ("registered", "expired"):
+    st.caption("To subscribe, write to us through Support.")
+    if st.button("Contact support", key="plan_support"):
+        st.switch_page("app_pages/support.py")
+elif _tier == "professional":
     # Upgrade only. Self-serve DOWNGRADE stays out of this page on
     # purpose — it's a support conversation, not a button, both for the
     # revenue reason (don't make it easy to pay less) and the technical
@@ -104,7 +138,7 @@ if _tier == "professional":
     # can't, and nothing here should decide which one survives). Upgrade
     # carries neither risk: Professional's shape is a strict subset of
     # what Advisory allows, so gaining room can't invalidate anything.
-    st.caption("Manage more than one client from this account.")
+    st.caption("Advisory adds: " + PLAN_INCLUDES["advisory"].split(" · ", 1)[1] + ".")
     if st.button("Upgrade to Advisory", type="primary"):
         ok, err = set_user_tier(user_id, "advisory")
         if ok:
@@ -114,9 +148,11 @@ if _tier == "professional":
             st.error(err or "Could not upgrade.")
 else:
     st.caption(
-        "Need to move to Professional? Get in touch through Support — "
-        "downgrading isn't self-serve."
+        "Moving back to Professional keeps one company, so we do it with you: "
+        "write to us through Support and say which company to keep."
     )
+    if st.button("Contact support", key="plan_support"):
+        st.switch_page("app_pages/support.py")
 
 st.divider()
 st.subheader("Page tips")

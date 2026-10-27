@@ -107,9 +107,20 @@ statuses = {
 
 cov = REG.coverage(statuses.values())
 
-c1, c2, c3 = st.columns(3)
-c1.metric("Documents in force", f"{cov['covered']} / {cov['required']}")
-c2.metric("Coverage", f"{cov['percent']}%")
+# Usability audit C6 (D-123): the headline is the share of obligations in
+# place, as on Home and Obligations. The document count below is one part of
+# it, and no longer shown as a percentage of its own ("73% coverage" read as
+# the answer to "how compliant am I?").
+try:
+    import obligation_view as OV
+    OV.render_headline(OV.load_state(user_id, client), explain=False)
+    st.caption("% in place counts every obligation that applies to you, documents "
+               "and practices alike. This page lists the documents part of it.")
+except Exception as e:
+    st.warning(f"Could not work out your obligations: {e}")
+
+c1, c3 = st.columns(2)
+c1.metric("Documents in force", f"{cov['covered']} of {cov['required']}")
 if cov["blocked_on_us"]:
     # Counted separately and never against the client (D-59): a coverage figure
     # that falls because RECOSA has not written a template yet is billing the

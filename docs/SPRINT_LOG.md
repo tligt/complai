@@ -5280,6 +5280,40 @@ tips, glossary).
   Saving still goes through `commit_systems` (checked: an untouched save
   writes nothing; fields the form does not show keep their value).
 
+### D-123 — Usability audit, batch 4: one headline figure, and flows, 27 Oct
+
+Issues C6, H5, H8, M10, M11.
+
+- **One answer to "how compliant am I?" (C6).** Decided 27 Oct: the headline
+  is **% in place per regulation** — `obligation_register.score()`, the gap
+  assessment's own formula (partly = half) applied to the live verdicts.
+  Not applicable leaves the denominator; unknown counts as not in place;
+  obligations not yet in force are not counted. Self-declared verdicts count
+  fully and are shown as a count next to the figure. Rendered by
+  `obligation_view.render_headline` on Home, Obligations and the Compliance
+  record, identically. The others stay as named details: "Documents in force
+  N of M" (the old 73% coverage), "Document quality, assessed <date>" (the
+  gap score, with a rerun hint after 30 days). Home's On track / In progress
+  words are gone; a one-time note (`guide.notice`) explains the lower figure.
+  Obligations' counts now cover in-force obligations only, so they add up to
+  the headline. For creagent: GDPR 68%, NIS2 40%, EU AI Act 6%.
+- **Documents (H5):** two views — Your documents (default) and Generate a
+  document. For your own company the company details are folded under
+  "from your company profile", open only when a required field is missing.
+  "An external company" is offered on Advisory only.
+- **Alerts (H8):** mark all as read at the top, in one update
+  (`database.mark_all_alerts_read`); filters by regulation and importance;
+  "in French" label from `regulatory_updates.language`; read alerts folded.
+- **Account plan panel (M10):** what the plan includes, trial days left,
+  how to change.
+- **Gap assessment (M11):** time per mode; progress bar per questionnaire;
+  no option preselected (the first option, usually "Yes", used to score as
+  compliant unasked); answers prefilled from the last assessment and kept
+  across pages in the session. Not kept across logout — that needs a column.
+
+Still open: Home's "Operational obligations" section shows the 6 Aug gap
+assessment's own counts beside the headline.
+
 ---
 
 ## 5. Constraints and gotchas

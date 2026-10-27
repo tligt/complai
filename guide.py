@@ -51,9 +51,10 @@ TIPS = {
     ),
     "documents": (
         "Documents",
-        "Generate a document from your company profile and systems, review it, then "
-        "mark it **in force** when you adopt it. The Compliance record shows which "
-        "version applies and since when.",
+        "**Your documents** lists what you have: review each one, download it, and "
+        "mark it **in force** when you adopt it. **Generate a document** makes a new "
+        "one from your company profile and systems. The Compliance record shows "
+        "which version applies and since when.",
     ),
     "compliance_record": (
         "Compliance record",
@@ -182,3 +183,19 @@ def reset_tips() -> None:
     from auth import get_user_id
     st.session_state.dismissed_tips = set()
     set_dismissed_tips(get_user_id(), [])
+
+
+def notice(key: str, text: str) -> None:
+    """A one-time note about a change, closed for good with "Got it" — same
+    storage as the page tips, so "Show page tips again" brings it back too."""
+    if key in _dismissed():
+        return
+    with st.container(border=True):
+        c1, c2 = st.columns([6, 1])
+        c1.markdown(f"ℹ️ {text}")
+        if c2.button("Got it", key=f"tip_ok_{key}", use_container_width=True):
+            from database import set_dismissed_tips
+            from auth import get_user_id
+            st.session_state.dismissed_tips = _dismissed() | {key}
+            set_dismissed_tips(get_user_id(), list(st.session_state.dismissed_tips))
+            st.rerun()

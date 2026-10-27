@@ -1,8 +1,8 @@
 import streamlit as st
 
-from display import country_label, fmt_datetime, plural, regulations_text
+from display import country_label, fmt_datetime, plural, regulation_label, regulations_text
 from auth import get_user_id
-from database import load_client_alerts, mark_alert_read, get_supabase, get_supabase_admin
+from database import load_client_alerts, mark_alert_read, mark_all_alerts_read, get_supabase, get_supabase_admin
 from database import count_unread_alerts as _count_unread_alerts_fresh
 from zoneinfo import ZoneInfo
 from datetime import datetime as _dt
@@ -25,120 +25,120 @@ def _alerts_panel(user_id: str):
     rows it reads, in the same rerun, and cached_reads' TTL would show
     the pre-mark-read count for a few seconds otherwise.
     """
-    # ── Header ────────────────────────────────────────────────────
+    # ── Header: count and mark all read, at the top (usability audit H8) ──
     unread = _count_unread_alerts_fresh(user_id)
 
+    h1, h2 = st.columns([3, 1])
     if unread:
-        st.warning(f"You have **{plural(unread, 'unread alert')}**.")
+        h1.warning(f"You have **{plural(unread, 'unread alert')}**.")
+        if h2.button("✓ Mark all as read", use_container_width=True, key="alerts_mark_all"):
+            mark_all_alerts_read(user_id)
+            st.rerun(scope="fragment")
     else:
-        st.caption("You're up to date — no unread alerts.")
+        h1.caption("You're up to date — no unread alerts.")
 
-    st.divider()
-
-    # ── Filter ────────────────────────────────────────────────────
-    show_unread_only = st.toggle("Show unread only", value=False, key="alerts_unread_toggle")
-
-    # ── Alerts list ───────────────────────────────────────────────
-    # Load alerts with manual join
+    # ── Load ──────────────────────────────────────────────────────
     try:
         # Not filtered by user_id (S38) — see database.load_client_alerts's
         # note; RLS's has_client_access(client_id, user_id) already scopes
         # this to alerts for clients the account owns or is a member of.
         supabase = get_supabase()
-        q = supabase.table("client_alerts")         .select("*, regulatory_updates(id, alert_ref, title, summary, url, severity, source, regulations, countries, published_at, action_description)")         .order("notified_at", desc=True)         .limit(50)
-        if show_unread_only:
-            q = q.is_("read_at", "null")
-        alerts = q.execute().data or []
+        alerts = (supabase.table("client_alerts")
+                  .select("*, regulatory_updates(id, alert_ref, title, summary, url, severity, "
+                          "source, regulations, countries, published_at, action_description, language)")
+                  .order("notified_at", desc=True)
+                  .limit(300)
+                  .execute().data) or []
     except Exception as e:
         st.error(f"Could not load alerts: {e}")
         alerts = []
 
     if not alerts:
-        if show_unread_only:
-            st.success("✅ No unread alerts.")
-        else:
-            st.info("No regulatory alerts yet. Check back soon — we monitor EU regulatory sources daily.")
+        st.info("No regulatory alerts yet. Check back soon — we monitor EU regulatory sources daily.")
         return
 
+    # ── Filters ───────────────────────────────────────────────────
     severity_icons = {"urgent": "🔴", "important": "🟡", "info": "🔵"}
+    severity_labels = {"urgent": "Urgent", "important": "Important", "info": "For information"}
     severity_order = {"urgent": 0, "important": 1, "info": 2}
+    _upd = lambda a: a.get("regulatory_updates") or {}
 
-    # Sort: unread first, then by severity, then by date
-    alerts.sort(key=lambda a: (
-        1 if a.get("read_at") else 0,
-        severity_order.get(
-            (a.get("regulatory_updates") or {}).get("severity", "info"), 2
-        )
-    ))
+    all_regs = sorted({r for a in alerts for r in (_upd(a).get("regulations") or [])})
+    f1, f2, f3 = st.columns([2, 2, 1])
+    pick_regs = f1.multiselect("Regulation", all_regs, format_func=regulation_label,
+                               placeholder="All regulations", key="alerts_f_reg")
+    pick_sev = f2.multiselect("Importance", list(severity_labels), format_func=severity_labels.get,
+                              placeholder="Any importance", key="alerts_f_sev")
+    f3.markdown("<div style='height:1.9rem'></div>", unsafe_allow_html=True)
+    show_unread_only = f3.toggle("Unread only", value=False, key="alerts_unread_toggle")
 
-    for alert in alerts:
-        update = alert.get("regulatory_updates") or {}
+    def _keep(a):
+        u = _upd(a)
+        if show_unread_only and a.get("read_at"):
+            return False
+        if pick_regs and not set(pick_regs) & set(u.get("regulations") or []):
+            return False
+        if pick_sev and u.get("severity", "info") not in pick_sev:
+            return False
+        return True
+
+    shown = [a for a in alerts if _keep(a)]
+    if not shown:
+        st.info("No alert matches these filters.")
+        return
+
+    # Unread first, then by importance; each group newest first (the query order).
+    shown.sort(key=lambda a: (1 if a.get("read_at") else 0,
+                              severity_order.get(_upd(a).get("severity", "info"), 2)))
+    fresh = [a for a in shown if not a.get("read_at")]
+    older = [a for a in shown if a.get("read_at")]
+
+    _LANG = {"fr": "French", "nl": "Dutch", "de": "German"}
+
+    def _card(alert, full: bool):
+        update = _upd(alert)
         is_read = bool(alert.get("read_at"))
-
-        severity = update.get("severity", "info")
-        icon = severity_icons.get(severity, "🔵")
-
-        # Format timestamp
+        icon = severity_icons.get(update.get("severity", "info"), "🔵")
+        raw = alert.get("notified_at", "")
         try:
-            raw = alert.get("notified_at", "")
             dt = fmt_datetime(raw)
         except Exception:
             dt = raw[:10] if raw else ""
-
-        # Card styling — dimmed if read
+        title = update.get("title", "Regulatory update")
+        lang = _LANG.get((update.get("language") or "en").lower()[:2])
         with st.container(border=True):
-            col_icon, col_content, col_action = st.columns([1, 7, 2])
-
-            col_icon.markdown(f"### {icon}")
-            if not is_read:
-                col_icon.markdown("🆕")
-
+            col_content, col_action = st.columns([8, 2])
             with col_content:
-                title = update.get("title", "Regulatory Update")
-                if not is_read:
-                    st.markdown(f"**{title}**")
-                else:
-                    st.markdown(f"{title}")
-
-                if update.get("summary"):
+                st.markdown(f"{icon} " + (f"**{title}**" if not is_read else title)
+                            + (f"  :gray[· in {lang}]" if lang else ""))
+                if full and update.get("summary"):
                     st.caption(update["summary"])
-
-                if update.get("action_description"):
+                if full and update.get("action_description"):
                     st.info(f"**What to do:** {update['action_description']}")
-
-                # Tags
-                regs = update.get("regulations") or []
                 countries = update.get("countries") or []
-                source = update.get("source", "")
-                tags = " · ".join(filter(None, [
+                st.caption(" · ".join(filter(None, [
                     update.get("alert_ref") or "",
-                    source,
-                    regulations_text(regs),
+                    update.get("source", ""),
+                    regulations_text(update.get("regulations") or []),
                     ", ".join("EU" if c == "EU" else country_label(c) for c in countries),
                     dt,
-                ]))
-                st.caption(tags)
-
+                ])))
             with col_action:
                 if update.get("url"):
                     st.link_button("🔗 Read more", update["url"], use_container_width=True)
-
                 if not is_read:
                     if st.button("✓ Mark read", key=f"read_{alert['id']}",
                                  use_container_width=True):
                         mark_alert_read(alert["id"], user_id)
                         st.rerun(scope="fragment")
-                else:
-                    st.caption("✓ Read")
 
-    # ── Mark all read ─────────────────────────────────────────────
-    if unread > 0:
-        st.divider()
-        if st.button("✓ Mark all as read", use_container_width=True):
-            for alert in alerts:
-                if not alert.get("read_at"):
-                    mark_alert_read(alert["id"], user_id)
-            st.rerun(scope="fragment")
+    # Unread alerts in full; the ones already read folded away, one line each.
+    for alert in fresh:
+        _card(alert, full=True)
+    if older:
+        with st.expander(f"Read alerts ({len(older)})", expanded=not fresh):
+            for alert in older:
+                _card(alert, full=False)
 
 
 _alerts_panel(user_id)

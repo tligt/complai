@@ -1963,6 +1963,19 @@ def mark_alert_read(alert_id: str, user_id: str) -> bool:
         return False
 
 
+def mark_all_alerts_read(user_id: str) -> bool:
+    """Mark every unread alert read in one update (usability audit H8). RLS
+    scopes it to the clients this account can see, as for the reads."""
+    try:
+        get_supabase().table("client_alerts") \
+            .update({"read_at": datetime.now(timezone.utc).isoformat()}) \
+            .is_("read_at", "null") \
+            .execute()
+        return True
+    except Exception:
+        return False
+
+
 def count_unread_alerts(user_id: str) -> int:
     """Count unread alerts for a user. Not filtered by user_id (S38) —
     see load_client_alerts's note."""

@@ -492,15 +492,43 @@ def evaluate(
 
 
 def counts(verdicts: Mapping[str, Mapping[str, Any]]) -> dict[str, int]:
-    """Counts by status. Deliberately NOT a percentage.
-
-    The dashboard publishes a coverage figure computed a different way. Two
-    numbers claiming to measure the same thing, differing, in one product is
-    worse than one honest low number — so this reports states and the two are
-    reconciled in a single later sprint, with the explanation shipped alongside.
-    """
+    """Counts by status. The headline percentage is score(), below."""
     out = {k: 0 for k in
            (COMPLIANT, PARTIAL, MISSING, NOT_APPLICABLE, UNKNOWN)}
     for v in verdicts.values():
         out[v["status"]] = out.get(v["status"], 0) + 1
     return out
+
+
+def score(verdicts: Mapping[str, Mapping[str, Any]],
+          obligations: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
+    """The one headline figure (usability audit C6, D-123): the share of the
+    applicable obligations that are in place, partly in place counting half.
+
+    The gap assessment's own formula, applied to the live verdicts, so the two
+    cannot disagree in method — only in date. Not applicable is left out of the
+    denominator; unknown counts as not in place, because nothing recorded is
+    not evidence of anything. The caller passes only obligations already in
+    force: one arriving next year is reported, never scored.
+
+    `declared` is how many of the in-place and partly-in-place verdicts rest
+    on the client's word alone, shown next to the figure rather than
+    discounted from it.
+    """
+    in_place = partly = declared = applicable = 0
+    for ob in obligations:
+        v = verdicts.get(ob["id"])
+        if not v or v["status"] == NOT_APPLICABLE:
+            continue
+        applicable += 1
+        if v["status"] == COMPLIANT:
+            in_place += 1
+        elif v["status"] == PARTIAL:
+            partly += 1
+        else:
+            continue
+        if v["source"] == SOURCE_DECLARED:
+            declared += 1
+    pct = round((in_place + 0.5 * partly) * 100 / applicable) if applicable else None
+    return {"percent": pct, "in_place": in_place, "partly": partly,
+            "applicable": applicable, "declared": declared}

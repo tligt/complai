@@ -34,21 +34,59 @@ STATUS_LABELS = {
 }
 
 
-def _profile_radio(q_key: str, widget_key: str) -> str:
+def _answers() -> dict:
+    """Profile answers kept as you go (usability audit M11). Started from the
+    last assessment's answers, so a rerun asks only what changed; updated on
+    every click, and kept outside the widgets so they survive leaving the
+    page. Shared by both tabs — it is the same questions."""
+    key = f"gap_answers_{client_id}"
+    if key not in st.session_state:
+        saved = {}
+        try:
+            from database import get_supabase
+            rows = (get_supabase().table("gap_assessments").select("profile_answers")
+                    .eq("client_id", client_id).order("created_at", desc=True)
+                    .limit(1).execute().data) or []
+            saved = (rows[0].get("profile_answers") if rows else None) or {}
+        except Exception:
+            pass
+        st.session_state[key] = dict(saved)
+    return st.session_state[key]
+
+
+def _profile_radio(q_key: str, widget_key: str) -> str | None:
     """One profile question: the question, its help note (S45) where it has
     one, then the options. The note sits between question and options so it
-    is read before answering, not discovered after in a tooltip."""
+    is read before answering, not discovered after in a tooltip.
+
+    No option is preselected unless you answered before (M11): a preselected
+    first option was usually "Yes", which scored as compliant without anyone
+    having said so."""
     q_config = PROFILE_QUESTIONS[q_key]
+    store = _answers()
     st.markdown(f"**{q_config['question']}**")
     if q_config.get("help"):
         st.caption(q_config["help"])
+    prev = store.get(q_key)
     return st.radio(
         q_config["question"],
         options=q_config["options"],
+        index=q_config["options"].index(prev) if prev in q_config["options"] else None,
         key=widget_key,
         horizontal=True,
         label_visibility="collapsed",
+        on_change=lambda: store.__setitem__(q_key, st.session_state.get(widget_key)),
     )
+
+
+def _progress(answers: dict) -> None:
+    done = sum(1 for v in answers.values() if v)
+    if answers:
+        st.progress(done / len(answers),
+                    text=f"{done} of {plural(len(answers), 'question')} answered — "
+                         "kept as you go, and filled in from your last assessment.")
+        if done < len(answers):
+            st.caption(":orange[A question left unanswered counts as not in place.]")
 
 st.title("Gap Assessment")
 from guide import page_tip
@@ -62,9 +100,13 @@ client_id = selected_client["id"]
 st.divider()
 
 # ── Two tabs ──────────────────────────────────────────────────
+# M11: say what each mode takes before you start.
+st.caption("**Review a document** — one document against the obligations it should "
+           "cover: about 1 minute.  \n**Full compliance check** — all your documents "
+           "and a short questionnaire: about 5 minutes, then 30–60 seconds to run.")
 tab1, tab2 = st.tabs([
-    "📄 Review a document",
-    "🏢 Full compliance check"
+    "📄 Review a document · ~1 min",
+    "🏢 Full compliance check · ~5 min"
 ])
 
 # ═══════════════════════════════════════════════════════════════
@@ -116,6 +158,8 @@ with tab1:
         # Asking order (grouped by regulation), not set order
         for q_key in [k for k in PROFILE_QUESTIONS if k in relevant_profile_qs]:
             profile_answers_review[q_key] = _profile_radio(q_key, f"rev_q_{q_key}")
+        _progress(profile_answers_review)
+        profile_answers_review = {k: v or "Not answered" for k, v in profile_answers_review.items()}
 
     run_review = st.button(
         f"🔍 Review {DOCUMENT_TYPES[doc_type_review]}",
@@ -436,12 +480,14 @@ with tab2:
         st.markdown(f"##### {group_label}")
         for q_key in q_keys:
             profile_answers[q_key] = _profile_radio(q_key, f"full_q_{q_key}")
+    _progress(profile_answers)
+    profile_answers = {k: v or "Not answered" for k, v in profile_answers.items()}
 
     st.divider()
     st.caption(
         f"Scores reflect quality of the **{plural(n_provided, 'document')}** provided. "
         "Missing documents are flagged as gaps but don't lower the quality score. "
-        "~30-60 seconds to complete."
+        "Takes 30–60 seconds to run."
     )
 
     run_full = st.button(

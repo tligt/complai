@@ -106,3 +106,55 @@ def load_state(user_id: str, client: dict) -> dict:
         "applicable": applicable, "verdicts": verdicts, "open_tasks": open_tasks,
         "counts": OR.counts(verdicts),
     }
+
+
+# ── The headline figure (usability audit C6, D-123) ───────────────────────
+# One answer to "how compliant am I?", the same on Home, Obligations and the
+# Compliance record. Documents in force and the gap assessment's score are
+# shown as details under it, named for what they measure.
+
+HEADLINE_EXPLAINER = (
+    "**% in place** counts every obligation that applies to you and is already "
+    "in force; partly in place counts as half. It combines what RECOSA works out "
+    "from your systems, the documents you adopted, your last gap assessment and "
+    "what you recorded yourself — and rises as you complete the action plan."
+)
+
+
+def headline(state: dict) -> dict:
+    """{regulation: OR.score(...)} for the client's regulations, in force only."""
+    from obligations import split_by_force
+    live, _ = split_by_force(state["applicable"])
+    return {
+        reg: OR.score(state["verdicts"], [o for o in live if o.get("regulation") == reg])
+        for reg in state["regulations"]
+    }
+
+
+def band(pct) -> str:
+    if pct is None:
+        return "⚪"
+    return "🟢" if pct >= 80 else "🟡" if pct >= 40 else "🔴"
+
+
+def render_headline(state: dict, explain: bool = True) -> None:
+    from display import regulation_label, plural
+    scores = headline(state)
+    cols = st.columns(max(len(scores), 1))
+    for col, (reg, sc) in zip(cols, scores.items()):
+        with col:
+            st.markdown(f"**{regulation_label(reg)}**")
+            if sc["percent"] is None:
+                st.markdown("### ⚪ —")
+                st.caption("No obligation in force applies yet.")
+                continue
+            st.markdown(f"### {band(sc['percent'])} {sc['percent']}% in place")
+            st.progress(sc["percent"] / 100)
+            bits = [f"{sc['in_place']} of {sc['applicable']} obligations in place"]
+            if sc["partly"]:
+                bits.append(f"{sc['partly']} partly")
+            if sc["declared"]:
+                bits.append(f"{sc['declared']} self-declared")
+            st.caption(" · ".join(bits))
+    if explain:
+        st.caption(HEADLINE_EXPLAINER)

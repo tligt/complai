@@ -26,7 +26,7 @@ from datetime import date
 
 import streamlit as st
 
-from display import fmt_date
+from display import fmt_date, plural
 
 import obligation_register as OR
 import obligation_store as STORE
@@ -65,17 +65,22 @@ readiness, responses, register = _state["readiness"], _state["responses"], _stat
 doc_status, applicable, verdicts = _state["doc_status"], _state["applicable"], _state["verdicts"]
 open_tasks = _state["open_tasks"]
 
-counts = OR.counts(verdicts)
+# Usability audit C6 (D-123): the headline figure, as on Home, then the counts
+# it is made of.
+OV.render_headline(_state)
+# Counted over the same obligations as the headline: those in force. The ones
+# arriving later are named under the metrics, not counted as not in place.
+from obligations import split_by_force as _split
+_live, _later = _split(applicable)
+counts = OR.counts({o["id"]: verdicts[o["id"]] for o in _live if o["id"] in verdicts})
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Recorded as in place", counts["compliant"])
-c2.metric("Partly addressed", counts["partial"])
-c3.metric("Not addressed", counts["missing"] + counts["unknown"])
+c1.metric("In place", counts["compliant"])
+c2.metric("Partly in place", counts["partial"])
+c3.metric("Not in place", counts["missing"] + counts["unknown"])
 c4.metric("Outstanding tasks", len(open_tasks))
-
-# No percentage, deliberately. The dashboard publishes a coverage figure
-# computed a different way; two numbers claiming to measure the same thing and
-# disagreeing, in one product, is worse than one honest low number. They are
-# reconciled in a single later sprint with the explanation shipped alongside.
+if _later:
+    st.caption(f"Not counted yet: {plural(len(_later), 'obligation')} that "
+               + ("applies" if len(_later) == 1 else "apply") + " from a later date.")
 
 # ── NIS2 scope ────────────────────────────────────────────────────────────
 # Here rather than in the inventory: "am I in scope, and as what" is an
