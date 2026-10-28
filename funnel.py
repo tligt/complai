@@ -354,12 +354,30 @@ def domains_match(email: str, site_domain: str) -> bool:
     return bool(e and s) and (e == s or e.endswith("." + s) or s.endswith("." + e))
 
 
+def merge_pending(old: dict | None, new: dict) -> dict:
+    """A new free check brought to an account that already has one: the new
+    checks replace the old, a check not retaken is kept, and the site's proof
+    survives when the site is the same."""
+    old = old or {}
+    out = {k: v for k, v in old.items()
+           if k in ("answers", "site", "scope", "site_verified", "verified_by", "site_token")}
+    if "site" in new and new["site"] != old.get("site"):
+        for k in ("site_verified", "verified_by", "site_token"):
+            out.pop(k, None)
+    out.update(new)
+    out["tool"] = new.get("tool") or old.get("tool")
+    return out
+
+
 def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None,
-               site: str | None = None, scope: str | None = None) -> str:
+               site: str | None = None, scope: str | None = None,
+               login: bool = False) -> str:
     """The CTA link into the client app's signup. Carries the answers, the
     checked site, the scope answers and the source — never the email or
-    anything personal."""
+    anything personal. login=True opens the log-in form instead."""
     params = {"src": tool}
+    if login:
+        params["login"] = "1"
     if answers is not None:
         params["quiz"] = encode_answers(answers)
     if site:

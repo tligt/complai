@@ -517,7 +517,8 @@ def _account_form(pending: dict) -> None:
     # The login link carries the checks, so an existing account keeps them.
     login_url = funnel.signup_url(APP_BASE_URL, ss.get("src") or pending["tool"],
                                   answers=funnel.decode_answers(pending.get("answers")),
-                                  site=pending.get("site"), scope=pending.get("scope"))
+                                  site=pending.get("site"), scope=pending.get("scope"),
+                                  login=True)
     if not go:
         st.markdown(f'<div class="fc-fine">Already have an account? '
                     f'<a href="{login_url}" target="_self">Log in to RECOSA</a></div>',

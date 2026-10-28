@@ -186,7 +186,7 @@ if "ticket" in st.query_params:
 # D-126: the website's sign-up links add ?signup=<plan> (starter,
 # professional) or ?signup=1, which opens the sign-up form with that plan
 # chosen. Anything else is ignored: the link is visitor-controlled.
-if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "signup")):
+if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "signup", "login")):
     import funnel as _funnel
     from database import SIGNUP_PLANS as _PLANS
     _src = (st.query_params.get("src") or "")[:40] or None
@@ -198,9 +198,11 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "signup"))
         "src": _src, "pending": _pending,
         "signup": bool(_signup),
         "plan": _signup if _signup in _PLANS else None,
+        # The public app's "Log in instead" link: an existing account.
+        "login": st.query_params.get("login") == "1",
     }
     record_funnel_event("app_landing", (_pending or {}).get("tool"), _src)
-    for _k in ("src", "quiz", "site", "scope", "signup"):
+    for _k in ("src", "quiz", "site", "scope", "signup", "login"):
         if _k in st.query_params:
             del st.query_params[_k]
 
@@ -303,10 +305,15 @@ if not st.session_state.get("signin_logged"):
 # fails open, as before S49.
 _profile = expire_trial_if_due(get_user_profile(user_id))
 _funnel_state = st.session_state.pop("funnel", None)
-if _funnel_state and _funnel_state.get("pending") and not _profile.get("pending_result"):
-    # Already logged in when the free check's link was opened.
-    save_pending_result(user_id, _funnel_state["pending"])
-    _profile["pending_result"] = _funnel_state["pending"]
+if _funnel_state and _funnel_state.get("pending"):
+    # Logged in from the free check's link, or already logged in when it
+    # was opened: the check just taken replaces an older one (the account
+    # may have taken one before), and the result page opens.
+    import funnel as _funnel
+    _merged = _funnel.merge_pending(_profile.get("pending_result"), _funnel_state["pending"])
+    save_pending_result(user_id, _merged)
+    _profile["pending_result"] = _merged
+    st.session_state.open_free_check = True
 if not _profile.get("pending_result"):
     # S49 part 2 (D-119): an account made by the public app's one form
     # carries its free check in user metadata. First login copies it to the
@@ -464,6 +471,11 @@ if limited_access:
                          icon="🎯", default=True)
     _sections = {name: [_locked(p) for p in pages] for name, pages in _sections.items()}
     _sections[""] = [free_check] + _sections[""]
+elif _profile.get("pending_result"):
+    # A full account that took a free check (already a client, or logged in
+    # from the public app's "Log in instead"): the result is under Account.
+    free_check = st.Page("app_pages/free_check.py", title="Your free check", icon="🎯")
+    _sections["Account"].append(free_check)
 
 _sections["Account"] = _sections["Account"] + [logout_pg]
 
@@ -494,6 +506,10 @@ _pending = st.session_state.pop("pending_ticket", None)
 if _pending and not limited_access:
     st.session_state.support_open_ticket = _pending
     st.switch_page(support)
+
+# Arrived with a free check: straight to its result, whatever the account.
+if st.session_state.pop("open_free_check", False) and not limited_access:
+    st.switch_page(free_check)
 
 pg.run()
 

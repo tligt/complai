@@ -2,7 +2,7 @@ import os
 import streamlit as st
 from supabase import create_client, Client
 from database import (
-    create_user_profile, get_user_profile, save_pending_result,
+    create_user_profile,
     mark_leads_converted, record_funnel_event,
     SIGNUP_PLANS, SUBSCRIPTION_TIERS, TRIAL_DAYS, start_trial,
 )
@@ -100,11 +100,13 @@ def login_ui():
     it, D-127): a Log in / Sign up switch, then the form. Forgot password is
     a third state of the same switch, reached from the log-in form."""
     # S49: arriving from a free check or a website sign-up link (app.py
-    # parks it in session state), the visitor is new — open on Sign up.
+    # parks it in session state), the visitor is new — open on Sign up,
+    # unless the link is the free check's "Log in instead".
     funnel = st.session_state.get("funnel") or {}
     if "auth_mode" not in st.session_state:
         st.session_state.auth_mode = (
-            "Sign up" if (funnel.get("pending") or funnel.get("signup")) else "Log in")
+            "Sign up" if (funnel.get("pending") or funnel.get("signup"))
+            and not funnel.get("login") else "Log in")
     if st.session_state.auth_mode == "Forgot":
         _forgot_form()
         return
@@ -154,10 +156,9 @@ def _login_form(funnel: dict) -> None:
         st.session_state.user          = res.user
         st.session_state.access_token  = res.session.access_token
         st.session_state.refresh_token = res.session.refresh_token
-        # S49: an existing account that just took a free check keeps that
-        # result, unless it already has one.
-        if funnel.get("pending") and not get_user_profile(res.user.id).get("pending_result"):
-            save_pending_result(res.user.id, funnel["pending"])
+        # S49: the free check the link carried is saved by app.py after the
+        # rerun (funnel stays in session state until then), and its result
+        # page opens.
         st.rerun()
     st.markdown('<div class="auth-fine">New to RECOSA? Switch to <b>Sign up</b> above '
                 'for a free trial.</div>', unsafe_allow_html=True)
