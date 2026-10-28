@@ -46,6 +46,13 @@ def check_url_reachable(url: str, timeout: int = 8) -> dict:
 
         if 200 <= resp.status_code < 300:
             return {"ok": True, "status": resp.status_code, "reason": None}
+        # Cloudflare's bot challenge (28 Oct 2026): the page exists and opens
+        # in a browser, but every automated request gets 403 + cf-mitigated.
+        # AP News answers this way, and it is most of what the marketing
+        # monitor's news search returns — so every AP find was flagged as a
+        # broken link. A real 404 or 410 still fails below.
+        if resp.headers.get("cf-mitigated", "").lower() == "challenge":
+            return {"ok": True, "status": resp.status_code, "reason": "bot_protected"}
         else:
             return {"ok": False, "status": resp.status_code, "reason": f"http_{resp.status_code}"}
 

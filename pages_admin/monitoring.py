@@ -1027,15 +1027,36 @@ with tab_runs:
                     started = "—"
             except Exception:
                 started = run.get("started_at", "")[:16].replace("T", " ") if run.get("started_at") else "—"
-            duration = f"{run.get('duration_seconds', 0)}s" if run.get("duration_seconds") else "—"
+            # 0 s is a real duration (an audit run with nothing due), not a
+            # missing one: only None means the run never recorded its end.
+            duration = (f"{run['duration_seconds']}s"
+                        if run.get("duration_seconds") is not None else "—")
             monitor_label = run.get("monitor_type", "").capitalize()
+            source_stats = run.get("source_stats") or []
+            flagged_total = sum(stat.get("flagged", 0) for stat in source_stats)
+            fetched = run.get("total_fetched") or 0
+            saved = run.get("total_saved") or 0
+            dupes = run.get("total_skipped") or 0
+            # What the analysis judged off-topic: neither saved, flagged nor a
+            # duplicate. Without it, "Fetched 6, Saved 0" read as a failure.
+            not_relevant = max(fetched - saved - flagged_total - dupes, 0)
+
+            # The outcome in the title, so the list answers "did it find
+            # anything?" without opening each run (28 Oct 2026).
+            if run.get("monitor_type") == "audit":
+                outcome = (f"{saved} audit{'s' if saved != 1 else ''} run" if saved
+                           else "nothing due" if not fetched
+                           else f"{fetched} checked, none due")
+            else:
+                found = saved + flagged_total
+                outcome = (f"{found} new" + (f", {flagged_total} with a link to check"
+                                             if flagged_total else "")
+                           if found else "nothing new")
 
             with st.expander(
-                f"{status_icon} {trigger_icon} {monitor_label} — {started} ({duration})",
+                f"{status_icon} {trigger_icon} {monitor_label} — {started} ({duration}) · {outcome}",
                 expanded=False,
             ):
-                source_stats = run.get("source_stats") or []
-                flagged_total = sum(stat.get("flagged", 0) for stat in source_stats)
 
                 if run.get("monitor_type") == "audit":
                     # monitor_audits.py reuses the counters: fetched = scheduled
@@ -1046,12 +1067,17 @@ with tab_runs:
                     col_s3.metric("Not due",  run.get("total_skipped", 0))
                     col_s4.metric("Errors",   run.get("total_errors", 0))
                 else:
-                    col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
-                    col_s1.metric("Fetched",    run.get("total_fetched", 0))
-                    col_s2.metric("Saved",      run.get("total_saved", 0))
-                    col_s3.metric("Flagged",    flagged_total)
-                    col_s4.metric("Duplicates", run.get("total_skipped", 0))
-                    col_s5.metric("Errors",     run.get("total_errors", 0))
+                    col_s1, col_s2, col_s3, col_s4, col_s5, col_s6 = st.columns(6)
+                    col_s1.metric("Fetched",      fetched)
+                    col_s2.metric("Saved",        saved)
+                    col_s3.metric("Flagged",      flagged_total,
+                                  help="Saved with a link to check: in the queue "
+                                       "under the url_flagged filter.")
+                    col_s4.metric("Duplicates",   dupes)
+                    col_s5.metric("Not relevant", not_relevant,
+                                  help="Fetched, then judged off-topic by the analysis "
+                                       "(or could not be analysed).")
+                    col_s6.metric("Errors",       run.get("total_errors", 0))
 
                 token_usage = run.get("token_usage") or {}
                 if token_usage:

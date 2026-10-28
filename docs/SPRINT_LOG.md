@@ -5653,6 +5653,35 @@ account), the deployed app (deploys from main on Streamlit Cloud). The NIS2
 scope rules are draft copy, like the quiz (D-115): to review before
 promoting them.
 
+### D-130 — Marketing monitor: its finds were all flagged, not missing, 28 Oct
+
+Reported as "Marketing never finds anything". It did: every relevant find
+since early September was saved as `url_flagged` (55 rows, latest 23 Oct —
+Google's location-data fine, the French supermarket cyberattacks, the EU's
+fine against X), and the run log said "Saved 0". Mistral's premium search
+returns almost only AP News and AFP. AP News sits behind Cloudflare, which
+answers every automated request — browser-like or not — with 403 and
+`cf-mitigated: challenge`; the article opens in a browser. AFP is on
+`KNOWN_UNRELIABLE_DOMAINS`, or comes back as an internal id.
+
+- `url_validation.check_url_reachable`: a Cloudflare challenge counts as
+  reachable (`reason: bot_protected`). Trade-off: a non-existent AP link
+  passes too, since the challenge comes before the page; items still go to
+  the approval queue, and a real 404 elsewhere still fails. Applies to the
+  regulatory monitor as well.
+- Run log (`pages_admin/monitoring.py`): the outcome in each run's title
+  ("3 new, 1 with a link to check", "nothing new", "nothing due"); a
+  "Not relevant" figure (fetched, then judged off-topic), so Fetched 6 /
+  Saved 0 no longer reads as a failure; 0 s shown as 0 s — the audit monitor
+  has no subscriptions, so it ends at once, and the page printed "—" for 0.
+- Not changed: the 55 rows already flagged stay flagged (mostly weeks old);
+  the low yield — most of the nine searches return nothing in most runs, and
+  the prompt asks for the past 48 hours only — is a separate tuning step.
+
+Tested 28 Oct: the checker against a live AP article (passes, bot_protected),
+afp.com (blocked), a 404 on recosa.eu (fails); the Monitoring page in AppTest
+against the real run history.
+
 ---
 
 ## 5. Constraints and gotchas
