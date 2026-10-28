@@ -199,17 +199,150 @@ def declared_responses(answers: list[int]) -> dict[str, str]:
 _DOMAIN_RE = re.compile(r"^(?=.{4,253}$)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$")
 
 
-def pending_from_params(quiz: str | None, site: str | None) -> dict | None:
+# ── Which rules apply (28 Oct 2026, D-129) ────────────────────────────────
+# Four questions before any check, so a visitor is sent to the checks that
+# matter for them, not to two tabs that each end the visit. A FIRST
+# INDICATION, said so on the page: NIS2 scope in particular depends on the
+# national law and on facts four questions cannot ask.
+
+SIZES = {
+    "small":  "Fewer than 50 people, and under €10 million turnover",
+    "medium": "50 to 249 people, or €10 to 50 million turnover",
+    "large":  "250 people or more, or over €50 million turnover",
+}
+
+# NIS2 Annexes I and II, grouped as a visitor would name their business.
+# "named": the few kinds of entity NIS2 covers whatever their size (Art. 2(2)).
+NIS2_SECTORS = {
+    "energy":        ("Energy (electricity, oil, gas, heating, hydrogen)", "I"),
+    "transport":     ("Transport (air, rail, water, road)", "I"),
+    "finance":       ("Banking or financial market infrastructure", "I"),
+    "health":        ("Health care, medical labs, pharmaceuticals", "I"),
+    "water":         ("Drinking water or waste water", "I"),
+    "digital_infra": ("Digital infrastructure (data centres, cloud, hosting, CDN)", "I"),
+    "named":         ("DNS, domain registry, trust services or public telecom networks", "I"),
+    "ict_services":  ("Managed IT or security services for other businesses", "I"),
+    "public":        ("Public administration", "I"),
+    "space":         ("Space", "I"),
+    "postal":        ("Postal or courier services", "II"),
+    "waste":         ("Waste management", "II"),
+    "chemicals":     ("Chemicals", "II"),
+    "food":          ("Food production, processing or distribution", "II"),
+    "manufacturing": ("Manufacturing (medical devices, electronics, machinery, vehicles)", "II"),
+    "digital_prov":  ("Online marketplace, search engine or social network", "II"),
+    "research":      ("Research organisation", "II"),
+}
+SECTOR_NONE = "none"
+SECTOR_UNSURE = "unsure"
+SECTOR_OPTIONS = {**{k: v[0] for k, v in NIS2_SECTORS.items()},
+                  SECTOR_NONE: "None of these",
+                  SECTOR_UNSURE: "Not sure"}
+
+YES, NO, UNSURE = "yes", "no", "unsure"
+
+# Verdicts per regulation, as shown on the page.
+APPLIES, LIKELY, POSSIBLE, UNLIKELY = "applies", "likely", "possible", "unlikely"
+
+
+def applicable_rules(scope: dict) -> dict[str, tuple[str, str]]:
+    """{regulation: (verdict, why)} from the four answers. Pure; the page
+    words it, this decides it."""
+    size, sector = scope.get("size"), scope.get("sector")
+    website, ai = scope.get("website"), scope.get("ai")
+    out: dict[str, tuple[str, str]] = {
+        "GDPR": (APPLIES, "Every company that handles personal data — customers, staff, "
+                          "suppliers' contacts — which is practically every company."),
+    }
+    if website == YES:
+        out["ePrivacy"] = (APPLIES, "Your website: cookies, trackers and what it must tell "
+                                    "visitors. The website check reads it for you.")
+    if sector == "named":
+        out["NIS2"] = (LIKELY, "NIS2 covers these services whatever the company's size.")
+    elif sector in NIS2_SECTORS:
+        if size in ("medium", "large"):
+            kind = "essential" if (size == "large" and NIS2_SECTORS[sector][1] == "I") else "important"
+            out["NIS2"] = (LIKELY, f"Your sector is listed in NIS2 and your size is over the "
+                                   f"threshold — probably as an {kind} entity.")
+        else:
+            out["NIS2"] = (POSSIBLE, "Your sector is listed in NIS2. Companies under 50 people "
+                                     "are usually out, unless your country names them or you "
+                                     "supply a company that is in scope.")
+    elif sector == SECTOR_UNSURE:
+        out["NIS2"] = (POSSIBLE, "Depends on your sector. The quick check shows where you would "
+                                 "stand if it applies.")
+    else:
+        out["NIS2"] = (UNLIKELY, "Your sector is not one NIS2 lists. Your clients may still ask "
+                                 "for its security measures in their contracts.")
+    if ai == YES:
+        out["EU AI Act"] = (APPLIES, "Companies that use AI tools have duties too: AI literacy "
+                                     "for the staff who use them, and telling people when they "
+                                     "deal with AI.")
+    elif ai == UNSURE:
+        out["EU AI Act"] = (POSSIBLE, "If anyone uses AI tools at work — chatbots, writing or "
+                                      "recruitment tools — some duties apply.")
+    return out
+
+
+def checks_for(rules: dict[str, tuple[str, str]]) -> list[str]:
+    """The free checks worth taking, in the order they are run: the website
+    first (30 seconds, no typing), then the NIS2 questions."""
+    out = []
+    if "ePrivacy" in rules:
+        out.append(TOOL_WEBSITE)
+    if rules.get("NIS2", (UNLIKELY,))[0] in (LIKELY, POSSIBLE):
+        out.append(TOOL_QUIZ)
+    return out
+
+
+def encode_scope(scope: dict) -> str:
+    """size.sector.website.ai — short enough for a link, nothing personal."""
+    return ".".join(str(scope.get(k) or "") for k in ("size", "sector", "website", "ai"))
+
+
+def decode_scope(code: str | None) -> dict | None:
+    """The four answers, or None. Visitor-controlled: validated, never trusted."""
+    parts = (code or "").split(".")
+    if len(parts) != 4:
+        return None
+    size, sector, website, ai = parts
+    if (size not in SIZES or sector not in SECTOR_OPTIONS
+            or website not in (YES, NO) or ai not in (YES, NO, UNSURE)):
+        return None
+    return {"size": size, "sector": sector, "website": website, "ai": ai}
+
+
+# ── The result an account carries ─────────────────────────────────────────
+# Since D-129 one free account can carry both checks: the quiz answers, the
+# checked site, or both, and the four scope answers when given. "tool" stays
+# as the label of the first check (events, the lead's source); code asks
+# has_quiz / has_site, never tool, what the result contains.
+
+def pending_from_params(quiz: str | None, site: str | None,
+                        scope: str | None = None) -> dict | None:
     """What the signup link carried, as stored on the profile
     (profiles.pending_result). Validated: the link is visitor-controlled."""
+    out: dict = {}
     answers = decode_answers(quiz)
     if answers is not None:
-        return {"tool": TOOL_QUIZ, "answers": encode_answers(answers)}
+        out["answers"] = encode_answers(answers)
     if site:
         site = site.strip().lower()
         if _DOMAIN_RE.match(site):
-            return {"tool": TOOL_WEBSITE, "site": site}
-    return None
+            out["site"] = site
+    if not out:
+        return None
+    out["tool"] = TOOL_WEBSITE if "site" in out else TOOL_QUIZ
+    if decode_scope(scope):
+        out["scope"] = scope
+    return out
+
+
+def has_quiz(pending: dict | None) -> bool:
+    return bool((pending or {}).get("answers"))
+
+
+def has_site(pending: dict | None) -> bool:
+    return bool((pending or {}).get("site"))
 
 
 def domains_match(email: str, site_domain: str) -> bool:
@@ -222,12 +355,15 @@ def domains_match(email: str, site_domain: str) -> bool:
 
 
 def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None,
-               site: str | None = None) -> str:
-    """The CTA link into the client app's signup. Carries the answers or the
-    checked site and the source — never the email or anything personal."""
+               site: str | None = None, scope: str | None = None) -> str:
+    """The CTA link into the client app's signup. Carries the answers, the
+    checked site, the scope answers and the source — never the email or
+    anything personal."""
     params = {"src": tool}
     if answers is not None:
         params["quiz"] = encode_answers(answers)
     if site:
         params["site"] = site
+    if scope:
+        params["scope"] = scope
     return f"{app_base_url.rstrip('/')}/?{urlencode(params)}"

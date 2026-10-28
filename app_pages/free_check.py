@@ -1,11 +1,12 @@
 """
 pages/free_check.py — S49 (D-115). A free account's own page: the full
-result of the free check it signed up with, and the way to the trial.
+result of the free checks it signed up with, and the way to the trial.
 
 The result comes from profiles.pending_result, written at signup from the
-link the public app's CTA carried (?quiz= / ?site=), so it survives email
-confirmation and a different browser. An account that signed up without a
-check can take either one here.
+link the public app's CTA carried (?quiz= / ?site= / ?scope=), so it
+survives email confirmation and a different browser. Since D-129 it may hold
+both checks, and the scope answers; a check not taken yet can be taken
+here, and is added to the same result.
 
 The quiz answers are also written to the obligation register as DECLARED
 answers — the lowest precedence (obligation_register.py), so any analysis,
@@ -16,7 +17,8 @@ recorded nothing for that obligation yet.
 import streamlit as st
 
 import funnel
-from funnel_ui import render_quiz_form, render_quiz_score, render_quiz_breakdown
+from funnel_ui import (render_quiz_form, render_quiz_score, render_quiz_breakdown,
+                       render_rules)
 from audit_view import render_results
 from auth import get_user_id
 from cached_reads import load_accessible_clients
@@ -28,72 +30,74 @@ profile = get_user_profile(user_id)
 pending = profile.get("pending_result") or {}
 clients = load_accessible_clients(user_id) or []
 client = st.session_state.get("selected_client") or (clients[0] if clients else None)
+email = st.session_state.user.email
 
 st.title("Your free check")
 
 
-def _store(result: dict) -> None:
+def _store(result: dict | None) -> None:
     save_pending_result(user_id, result)
     st.rerun()
 
 
+def _add_quiz(key: str) -> None:
+    answers = render_quiz_form(key)
+    if answers is not None:
+        _store({**pending, "tool": pending.get("tool") or funnel.TOOL_QUIZ,
+                "answers": funnel.encode_answers(answers)})
+
+
+def _add_site(key: str) -> None:
+    with st.form(key):
+        url = st.text_input("Website", value=(client or {}).get("website_url") or "",
+                            placeholder="https://yourcompany.com")
+        if st.form_submit_button("Check my website", type="primary"):
+            from crawler import extract_domain, normalise_url
+            pend = funnel.pending_from_params(None, extract_domain(normalise_url(url)))
+            if pend:
+                _store({**pending, "tool": pending.get("tool") or funnel.TOOL_WEBSITE,
+                        "site": pend["site"]})
+            else:
+                st.error("Please enter a valid website address.")
+
+
 # ── No check yet: take one here ───────────────────────────────────────────
-if pending.get("tool") not in (funnel.TOOL_QUIZ, funnel.TOOL_WEBSITE):
+if not (funnel.has_quiz(pending) or funnel.has_site(pending)):
     st.caption("Take one of the two free checks to see where you stand.")
-    tab_quiz, tab_site = st.tabs(["🛡️ NIS2 Quick Check", "🌐 GDPR website check"])
-    with tab_quiz:
-        answers = render_quiz_form("app_quiz")
-        if answers is not None:
-            _store({"tool": funnel.TOOL_QUIZ, "answers": funnel.encode_answers(answers)})
+    tab_site, tab_quiz = st.tabs(["🌐 Website check", "🛡️ NIS2 Quick Check"])
     with tab_site:
-        with st.form("app_site"):
-            url = st.text_input("Website", value=(client or {}).get("website_url") or "",
-                                placeholder="https://yourcompany.com")
-            if st.form_submit_button("Check my website", type="primary"):
-                from crawler import extract_domain, normalise_url
-                pend = funnel.pending_from_params(None, extract_domain(normalise_url(url)))
-                if pend:
-                    _store(pend)
-                else:
-                    st.error("Please enter a valid website address.")
+        _add_site("app_site")
+    with tab_quiz:
+        _add_quiz("app_quiz")
     st.stop()
 
-# ── NIS2 Quick Check result ───────────────────────────────────────────────
-if pending["tool"] == funnel.TOOL_QUIZ:
-    answers = funnel.decode_answers(pending.get("answers"))
-    if answers is None:
-        _store(None)
-    render_quiz_score(answers)
-    render_quiz_breakdown(answers, locked=False)
-
-    if client:
-        st.caption(
-            f"Your answers are recorded in **{client['company_name']}**'s obligations "
-            "register as your own declarations. A full assessment replaces them."
-        )
+scope = funnel.decode_scope(pending.get("scope"))
+if scope:
+    with st.container(border=True):
+        st.markdown("**The rules that apply to you** — a first indication from your answers")
+        render_rules(funnel.applicable_rules(scope))
 
 # ── Website check result ──────────────────────────────────────────────────
-else:
+answers = funnel.decode_answers(pending.get("answers"))
+if funnel.has_site(pending):
     import funnel_delivery as FD
-    site = pending.get("site")
-    email = st.session_state.user.email
+    site = pending["site"]
     # S49 part 2 (D-119): own site only — an address at its domain, or the
     # site proven this account's (meta tag or DNS TXT).
     proven = FD.site_proven(email, pending)
     key = f"free_check_{site}"
+    st.subheader(f"Website check — {site}")
     if key not in st.session_state:
         from crawler import crawl
         from checklist import run_checklist
         with st.spinner(f"Checking {site}…"):
             crawl_result = crawl(site)
-        if crawl_result.error:
-            st.error(crawl_result.error)
-            st.stop()
-        st.session_state[key] = (run_checklist(crawl_result), crawl_result.url)
+        st.session_state[key] = ((run_checklist(crawl_result), crawl_result.url)
+                                 if not crawl_result.error else (None, crawl_result.error))
     audit, site_url = st.session_state[key]
-    st.subheader(f"Website check — {site}")
-
-    if not proven:
+    if audit is None:
+        st.error(site_url)
+    elif not proven:
         render_results(audit, locked=True)
         token = pending.get("site_token")
         if not token:
@@ -124,11 +128,33 @@ else:
                 user_id=user_id, client_id=(client or {}).get("id"),
                 site_domain=site,
             )
-            save_pending_result(user_id, {**pending, "audited": True})
+            pending = {**pending, "audited": True}
+            save_pending_result(user_id, pending)
         render_results(audit, locked=False)
 
-# The emailed copy (S49 part 2): sent once, to a confirmed account whose
-# free check came from the public form — here or by monitor_funnel.py,
+# ── NIS2 Quick Check result ───────────────────────────────────────────────
+if answers is not None:
+    if funnel.has_site(pending):
+        st.divider()
+    st.subheader("NIS2 Quick Check")
+    render_quiz_score(answers)
+    render_quiz_breakdown(answers, locked=False)
+    if client:
+        st.caption(
+            f"Your answers are recorded in **{client['company_name']}**'s obligations "
+            "register as your own declarations. A full assessment replaces them."
+        )
+
+# ── The check not taken yet ───────────────────────────────────────────────
+if not funnel.has_site(pending):
+    with st.expander("🌐 Also check your website — 30 seconds"):
+        _add_site("app_site_more")
+elif answers is None:
+    with st.expander("🛡️ Also take the NIS2 Quick Check — 2 minutes"):
+        _add_quiz("app_quiz_more")
+
+# The emailed copy (S49 part 2): sent once per check, to a confirmed account
+# whose free check came from the public form — here or by monitor_funnel.py,
 # whichever comes first.
 #
 # In a background thread, not in the page run: re-checking the site, the PDF
@@ -149,16 +175,15 @@ def _deliver_in_background(uid: str) -> None:
         print(f"free check delivery {uid}: failed — {e}")
 
 
-if FD.eligible(st.session_state.user.email, pending if pending["tool"] == funnel.TOOL_QUIZ
-               else {**pending, "site_verified": FD.site_proven(st.session_state.user.email, pending)}):
+if FD.eligible(email, {**pending, "site_verified": FD.site_proven(email, pending)}):
     _meta = getattr(st.session_state.user, "user_metadata", None) or {}
     if _meta.get("recosa_pending"):
         _flag = f"delivery_started_{user_id}"
         if not st.session_state.get(_flag):
             st.session_state[_flag] = True
             threading.Thread(target=_deliver_in_background, args=(user_id,), daemon=True).start()
-        st.success("A copy is on its way to your inbox" + (" — the full report as a PDF."
-                   if pending["tool"] == funnel.TOOL_WEBSITE else ".")
+        st.success("A copy is on its way to your inbox" + (" — the website report as a PDF."
+                   if funnel.has_site(pending) and FD.site_proven(email, pending) else ".")
                    + " If it doesn't arrive within a few minutes, check your spam folder.")
 
 st.divider()
@@ -167,7 +192,7 @@ render_trial_cta(profile)
 # Last, so the result and the next step are on screen first: each response
 # is a few round trips. Idempotent — an interrupted run is finished on the
 # next visit, and nothing the client already recorded is overwritten.
-if pending["tool"] == funnel.TOOL_QUIZ and client and pending.get("applied_to") != client["id"]:
+if answers is not None and client and pending.get("applied_to") != client["id"]:
     import obligation_store as STORE
     existing = STORE.load_responses(client["id"], user_id)
     for ob_id, status in funnel.declared_responses(answers).items():

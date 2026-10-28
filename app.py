@@ -177,20 +177,22 @@ if "ticket" in st.query_params:
     del st.query_params["ticket"]
 
 # ── Free check carry-over (S49, D-115) ───────────────────────
-# The public app's CTA links here with ?src= and ?quiz= (ten digits) or
-# ?site= (a domain) — never the email. Parked in session state for the
+# The public app's CTA links here with ?src= and ?quiz= (ten digits) and/or
+# ?site= (a domain), and ?scope= (the four scope answers, D-129) — never the
+# email. Parked in session state for the
 # signup form (auth.login_ui), which stores it on the new profile, and
 # removed from the URL at once, as the ticket link is above.
 #
 # D-126: the website's sign-up links add ?signup=<plan> (starter,
 # professional) or ?signup=1, which opens the sign-up form with that plan
 # chosen. Anything else is ignored: the link is visitor-controlled.
-if any(k in st.query_params for k in ("src", "quiz", "site", "signup")):
+if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "signup")):
     import funnel as _funnel
     from database import SIGNUP_PLANS as _PLANS
     _src = (st.query_params.get("src") or "")[:40] or None
     _pending = _funnel.pending_from_params(
-        st.query_params.get("quiz"), st.query_params.get("site"))
+        st.query_params.get("quiz"), st.query_params.get("site"),
+        st.query_params.get("scope"))
     _signup = (st.query_params.get("signup") or "").strip().lower()
     st.session_state.funnel = {
         "src": _src, "pending": _pending,
@@ -198,7 +200,7 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "signup")):
         "plan": _signup if _signup in _PLANS else None,
     }
     record_funnel_event("app_landing", (_pending or {}).get("tool"), _src)
-    for _k in ("src", "quiz", "site", "signup"):
+    for _k in ("src", "quiz", "site", "scope", "signup"):
         if _k in st.query_params:
             del st.query_params[_k]
 

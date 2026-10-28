@@ -62,3 +62,19 @@ def render_quiz_breakdown(answers: list[int], locked: bool) -> None:
         with st.container(border=True):
             st.markdown(f"{icon[r['answer']]} **{r['category']}** — {r['level']}")
             st.caption(r["advice"])
+
+
+# D-129. How each verdict reads, beside the regulation's name.
+_VERDICT = {
+    funnel.APPLIES:  ("✅", "Applies"),
+    funnel.LIKELY:   ("✅", "Likely applies"),
+    funnel.POSSIBLE: ("🟡", "May apply"),
+    funnel.UNLIKELY: ("⚪", "Unlikely"),
+}
+
+
+def render_rules(rules: dict) -> None:
+    """The regulations from funnel.applicable_rules(), one line each."""
+    for reg, (verdict, why) in rules.items():
+        icon, label = _VERDICT[verdict]
+        st.markdown(f"{icon} **{reg}** — {label}  \n:gray[{why}]")

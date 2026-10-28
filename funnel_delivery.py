@@ -5,12 +5,16 @@ delivered once the address is confirmed.
 The public app's one form creates the free account and puts what it knows on
 the account itself, as Supabase user metadata (no database change):
 
-    recosa_pending           {"tool": "nis2_quiz", "answers": "0123…"} or
-                             {"tool": "website_check", "site": "acme.be"}
-    recosa_source            nis2_quiz / website_check
+    recosa_pending           {"tool": …, "answers": "0123…", "site": "acme.be",
+                             "scope": "medium.food.yes.no"} — the checks taken,
+                             one or both (D-129), and the scope answers
+    recosa_source            where the visitor came from (the link's src, or
+                             the first check)
     recosa_marketing         True if the box was ticked
     recosa_consent_version   funnel.CONSENT_VERSION when it was
-    recosa_report_sent       set here once the result has been emailed
+    recosa_quiz_sent /       set here once that result has been emailed
+    recosa_site_sent
+    recosa_report_sent       set once everything carried has been emailed
 
 Two callers, whichever comes first, and the flag stops a second email:
   - the client app, on first login (the account is confirmed by then);
@@ -42,13 +46,9 @@ META_NAME = "recosa-site-verification"
 
 def pending_of(metadata: dict | None) -> dict | None:
     """The validated pending result from user metadata (visitor-controlled
-    at signup, so re-validated here)."""
+    at signup, so re-validated here). Since D-129 it may hold both checks."""
     p = (metadata or {}).get("recosa_pending") or {}
-    if p.get("tool") == funnel.TOOL_QUIZ:
-        return funnel.pending_from_params(p.get("answers"), None)
-    if p.get("tool") == funnel.TOOL_WEBSITE:
-        return funnel.pending_from_params(None, p.get("site"))
-    return None
+    return funnel.pending_from_params(p.get("answers"), p.get("site"), p.get("scope"))
 
 
 def site_proven(email: str, pending: dict) -> bool:
@@ -57,11 +57,11 @@ def site_proven(email: str, pending: dict) -> bool:
 
 
 def eligible(email: str, pending: dict | None) -> bool:
+    """Something can be sent now: the quiz result always, the website report
+    once the site is proven."""
     if not pending:
         return False
-    if pending["tool"] == funnel.TOOL_QUIZ:
-        return True
-    return site_proven(email, pending)
+    return funnel.has_quiz(pending) or (funnel.has_site(pending) and site_proven(email, pending))
 
 
 # ── Proving a site is yours ───────────────────────────────────────────────
@@ -94,15 +94,29 @@ def check_site(site: str, token: str) -> tuple[bool, str]:
 
 
 # ── Sending ───────────────────────────────────────────────────────────────
+# One email per check: the quiz breakdown, the website report with its PDF.
+# Each has its own flag on the account, so a quiz result goes out at
+# confirmation while the website report waits for the site to be proven.
+# recosa_report_sent is set once everything the account carries has gone
+# (monitor_funnel.py skips the account from then on); an account flagged
+# before D-129 carried one check, so that flag alone still means "all sent".
 
-def send_result(email: str, pending: dict) -> bool:
-    """Email the full result: the quiz breakdown, or the website report with
-    its PDF (the site is checked again now, so the report is current)."""
+QUIZ_SENT, SITE_SENT, ALL_SENT = "recosa_quiz_sent", "recosa_site_sent", "recosa_report_sent"
+
+
+def _base_url() -> str:
     import os
-    base = (os.environ.get("APP_BASE_URL") or "").rstrip("/") + "/"
-    if pending["tool"] == funnel.TOOL_QUIZ:
-        from email_sender import send_quiz_result
-        return send_quiz_result(email, funnel.decode_answers(pending["answers"]), base)
+    return (os.environ.get("APP_BASE_URL") or "").rstrip("/") + "/"
+
+
+def send_quiz(email: str, pending: dict) -> bool:
+    from email_sender import send_quiz_result
+    return send_quiz_result(email, funnel.decode_answers(pending["answers"]), _base_url())
+
+
+def send_site(email: str, pending: dict) -> bool:
+    """The website report with its PDF (the site is checked again now, so the
+    report is current)."""
     from crawler import crawl
     from checklist import run_checklist
     from report import generate_pdf
@@ -115,17 +129,17 @@ def send_result(email: str, pending: dict) -> bool:
     return send_audit_report(
         to_email=email, website_url=result.url, pdf_bytes=generate_pdf(audit),
         score=audit.score, risk_level=audit.risk_level, ok_count=audit.ok_count,
-        warn_count=audit.warn_count, fail_count=audit.fail_count, cta_url=base,
+        warn_count=audit.warn_count, fail_count=audit.fail_count, cta_url=_base_url(),
     )
 
 
 def deliver(user) -> str:
-    """Send the result to this confirmed account if it is due. Returns what
-    happened: 'sent', 'already', 'not_confirmed', 'none', 'not_proven',
-    'failed'. `user` is a Supabase admin User object."""
+    """Send this confirmed account whatever is due. Returns what happened:
+    'sent', 'already', 'not_confirmed', 'none', 'not_proven', 'failed'.
+    `user` is a Supabase admin User object."""
     from database import get_supabase_admin, record_funnel_event
     meta = dict(user.user_metadata or {})
-    if meta.get("recosa_report_sent"):
+    if meta.get(ALL_SENT):
         return "already"
     if not getattr(user, "email_confirmed_at", None):
         return "not_confirmed"
@@ -138,23 +152,49 @@ def deliver(user) -> str:
             .execute().data or [{}])[0]
     if (prof.get("pending_result") or {}).get("site_verified"):
         pending["site_verified"] = True
-    if not eligible(user.email, pending):
-        return "not_proven"
-    if not send_result(user.email, pending):
+
+    now = datetime.now(timezone.utc).isoformat()
+    sent, failed, waiting = [], False, False
+    parts = []
+    if funnel.has_quiz(pending):
+        parts.append((QUIZ_SENT, funnel.TOOL_QUIZ, send_quiz, True))
+    if funnel.has_site(pending):
+        parts.append((SITE_SENT, funnel.TOOL_WEBSITE, send_site,
+                      site_proven(user.email, pending)))
+    for flag, tool, send, due in parts:
+        if meta.get(flag):
+            continue
+        if not due:
+            waiting = True
+            continue
+        if send(user.email, pending):
+            meta[flag] = now
+            sent.append(tool)
+        else:
+            failed = True
+    if all(meta.get(flag) for flag, *_ in parts):
+        meta[ALL_SENT] = now
+    if sent:
+        admin.auth.admin.update_user_by_id(user.id, {"user_metadata": meta})
+
+    # The lead record, one per check sent: consent as given at signup,
+    # linked to the account.
+    for tool in sent:
+        try:
+            admin.table("leads").insert({
+                "tool": tool, "email": user.email.lower(),
+                "answers": pending.get("answers") if tool == funnel.TOOL_QUIZ else None,
+                "site_domain": pending.get("site") if tool == funnel.TOOL_WEBSITE else None,
+                "marketing_consent": bool(meta.get("recosa_marketing")),
+                "consent_version": meta.get("recosa_consent_version") if meta.get("recosa_marketing") else None,
+                "source": meta.get("recosa_source") or "direct",
+                "converted_profile_id": user.id,
+            }).execute()
+        except Exception as e:
+            print(f"lead record failed: {e}")
+        record_funnel_event("signup", tool, "confirmed")
+    if sent:
+        return "sent"
+    if failed:
         return "failed"
-    admin.auth.admin.update_user_by_id(user.id, {"user_metadata": {
-        **meta, "recosa_report_sent": datetime.now(timezone.utc).isoformat()}})
-    # The lead record: consent as given at signup, linked to the account.
-    try:
-        admin.table("leads").insert({
-            "tool": pending["tool"], "email": user.email.lower(),
-            "answers": pending.get("answers"), "site_domain": pending.get("site"),
-            "marketing_consent": bool(meta.get("recosa_marketing")),
-            "consent_version": meta.get("recosa_consent_version") if meta.get("recosa_marketing") else None,
-            "source": meta.get("recosa_source") or "direct",
-            "converted_profile_id": user.id,
-        }).execute()
-    except Exception as e:
-        print(f"lead record failed: {e}")
-    record_funnel_event("signup", pending["tool"], "confirmed")
-    return "sent"
+    return "not_proven" if waiting else "already"

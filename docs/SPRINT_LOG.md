@@ -5593,6 +5593,66 @@ companies (slow with many: it computes each company's register).
 Buttons are still not hidden for read-only users: the notice at the top of
 each page says why changes will not save, and the actions above say so
 when clicked.
+### D-129 — The free check starts with "which rules apply", carries both checks, and takes deep links, 28 Oct
+
+The public app (recosa-checklist.streamlit.app) had two tabs, NIS2 Quick
+Check and GDPR website check, each ending in its own sign-up form: the
+account carried exactly one result (`pending["tool"]`), so whoever signed up
+after one check never took the other, and an out-of-scope company was asked
+ten NIS2 questions. Both checks stay — they test different rules with
+different inputs — but the visitor is now sent to the ones that apply.
+
+- **Flow** (`quiz/quiz_app.py`): 1. *Which rules apply* — company size,
+  sector (NIS2 Annexes I/II grouped as a visitor names their business, plus
+  "None" and "Not sure"), website yes/no, AI tools yes/no/not sure.
+  `funnel.applicable_rules()` gives GDPR (always), ePrivacy (website),
+  NIS2 likely / possible / unlikely (sector × size, the size-independent
+  services as likely; essential vs important named), EU AI Act. A first
+  indication, said on the page. 2. *The checks* that fit
+  (`funnel.checks_for`): website first, then NIS2; each skippable. 3. *One
+  result page and one form.* The checks not taken are offered above the form,
+  so taking one later keeps the other's result. Nothing fits (small, no NIS2
+  sector, no website): the trial link, and the NIS2 check offered anyway.
+- **Deep links:** `?check=website` (straight to the scan; `?tool=website`
+  kept), `?check=nis2`, `?site=acme.be` (field filled in), `?src=homepage`
+  (on every funnel event and as the account's `recosa_source`). A direct link
+  skips step 1; its result page offers the other check and "Not sure which
+  rules apply? Four questions".
+- **One account, both checks.** `pending_result` / `recosa_pending` now hold
+  `answers` and/or `site` and the scope code (`size.sector.website.ai`);
+  `tool` stays as the first check's label. Code asks `funnel.has_quiz` /
+  `has_site`, never `tool`. The sign-up link carries `?scope=` too (app.py).
+  **Delivery** (`funnel_delivery.deliver`): one email per check, each with its
+  own flag (`recosa_quiz_sent`, `recosa_site_sent`) — the NIS2 result goes at
+  confirmation, the website report once the site is proven, as before;
+  `recosa_report_sent` is set when everything carried has gone, so
+  `monitor_funnel.py` is unchanged and accounts flagged before today stay
+  done. One lead row per check sent.
+- **Client app, Your free check:** the rules that apply (from the scope), the
+  website report and the NIS2 breakdown on one page, the check not taken yet
+  offered in place and added to the same result. A website the crawler cannot
+  read no longer stops the page before the NIS2 result.
+- **Look:** recosa.eu's, as the login page (D-127) — Public Sans, navy, the
+  top bar with "Back to recosa.eu", white cards, a step indicator. The styles
+  are the public app's own copy: it cannot import `login_page` (which needs
+  the full product's dependencies).
+- **Database:** `record_funnel_event` accepts `check_landing` and
+  `scope_completed` (`migration_d129_free_check_events.sql`).
+
+Tested 28 Oct: AppTest end to end with the crawl stubbed — the four
+questions, an in-scope company through both checks to one form, nothing
+fits, `?check=website&site=&src=` then NIS2 added from the results,
+`?tool=website`, `?check=nis2`; delivery (NIS2 at once, website report when
+proven, one lead each, no repeat, old accounts untouched); the client page
+with both checks, an unproven site, a website-only result. In the browser:
+the four questions, the rules step, a real website check of recosa.eu
+through to the form. The test runs wrote a few real funnel events
+(check_landing, scope_completed, quiz_completed — `.env` is loaded by the
+app). **Not tested:** a real sign-up and the two emails (it would create an
+account), the deployed app (deploys from main on Streamlit Cloud). The NIS2
+scope rules are draft copy, like the quiz (D-115): to review before
+promoting them.
+
 ---
 
 ## 5. Constraints and gotchas
