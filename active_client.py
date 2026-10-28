@@ -106,6 +106,17 @@ def can_edit_active() -> bool:
     return can_edit((st.session_state.get("selected_client") or {}).get("role"))
 
 
+def require_edit(action: str) -> bool:
+    """S54: stop an action a read-only person cannot complete before any
+    work is done — an AI call, a conversion, a file upload — instead of
+    letting the database refuse the result at the end."""
+    if can_edit_active():
+        return True
+    st.warning(f"You have read-only access to this company, so you cannot {action}. "
+               "Ask an admin of the company if you need to.")
+    return False
+
+
 def _read_only_notice(client: dict) -> None:
     """S54: a read-only person sees everything; the database refuses their
     changes. Said once, at the top of every page, so a refused save is not a

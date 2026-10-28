@@ -248,3 +248,36 @@ drop trigger if exists audit_log_no_change on audit_log;
 create trigger audit_log_no_change before update or delete on audit_log
   for each row execute function public.audit_log_immutable();
 alter function public.audit_log_immutable() set search_path = public;
+
+-- ── Refused deletes fail loudly (s54_delete_refuses_loudly) ───────────
+-- With edit access in a DELETE policy's USING, a read-only user's delete
+-- matched no row and the page reported success. USING now grants read
+-- access and a trigger refuses the row with 42501 and a plain sentence.
+-- Only for the API's authenticated role: the service role and cascades
+-- (run as the table owner) are not affected.
+create or replace function public.enforce_client_edit_on_delete()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if current_user = 'authenticated' and not can_edit_client(old.client_id, old.user_id) then
+    raise exception using errcode = '42501',
+      message = 'You have read-only access to this company: changes are not saved.';
+  end if;
+  return old;
+end;
+$$;
+
+do $$
+declare p record;
+begin
+  for p in
+    select tablename, policyname, qual from pg_policies
+     where schemaname = 'public' and cmd = 'DELETE'
+       and coalesce(qual, '') like '%can_edit_client(%'
+  loop
+    execute format('alter policy %I on public.%I using (%s)', p.policyname, p.tablename,
+                   replace(p.qual, 'can_edit_client(', 'has_client_access('));
+    execute format('drop trigger if exists %I on public.%I', p.tablename || '_edit_on_delete', p.tablename);
+    execute format('create trigger %I before delete on public.%I for each row execute function public.enforce_client_edit_on_delete()',
+                   p.tablename || '_edit_on_delete', p.tablename);
+  end loop;
+end $$;

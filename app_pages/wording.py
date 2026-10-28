@@ -28,7 +28,7 @@ import streamlit as st
 import draft_inserts
 from auth import get_user_id
 from database import get_supabase, log_audit_event
-from active_client import get_active_client
+from active_client import get_active_client, require_edit
 from template_nis2 import INSERTS
 
 if st.button("← Incidents", key="wording_back"):
@@ -184,7 +184,7 @@ for key, spec in INSERTS.items():
                 )
 
                 if st.button("Draft it for me", key=f"gen_{key}_{lang}",
-                             use_container_width=True, disabled=bool(pending)):
+                             use_container_width=True, disabled=bool(pending))                         and require_edit("draft wording"):
                     with st.spinner(f"Drafting in {lang.upper()}…"):
                         out = draft_inserts.draft(
                             key, client, language=lang,

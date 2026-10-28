@@ -9,6 +9,24 @@ from datetime import datetime, timedelta, timezone
 # and is unambiguous. Rows written before this fix cannot be reliably
 # corrected: the offset they were meant to carry was never recorded.
 from supabase import create_client, Client
+from postgrest.exceptions import APIError
+
+# S54: a read-only person's change is refused by the database with 42501
+# ("new row violates row-level security policy for table ...", or the delete
+# trigger's own sentence). Pages show errors as f"Could not save: {e}", so
+# the plain sentence is given here, once, rather than at every one of them.
+READ_ONLY_MESSAGE = ("you have read-only access to this company, so changes are "
+                     "not saved. Ask an admin of the company if you need to edit.")
+_api_error_str = APIError.__str__
+
+
+def _api_error_plain(self) -> str:
+    if getattr(self, "code", None) == "42501":
+        return READ_ONLY_MESSAGE
+    return _api_error_str(self)
+
+
+APIError.__str__ = _api_error_plain
 
 # Lazy Streamlit import — only available in Streamlit UI context.
 # GitHub Actions cron scripts must not trigger this import.

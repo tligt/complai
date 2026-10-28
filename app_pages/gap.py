@@ -11,7 +11,7 @@ from database import (
     register_client_document,
     adopt_client_document, set_document_comment,
 )
-from active_client import get_active_client
+from active_client import get_active_client, require_edit
 from cached_reads import get_current_client_documents
 from obligations import DOC_CATALOG, RETIRED_DOC_TYPES, profile_questions_for
 from gap_assessment import (
@@ -169,7 +169,7 @@ with tab1:
         disabled=not uploaded_review
     )
 
-    if run_review and uploaded_review:
+    if run_review and uploaded_review and require_edit("review documents"):
         doc_text = extract_text_from_upload(uploaded_review)
         if not doc_text.strip():
             st.error("Could not extract text from this file.")
@@ -346,7 +346,7 @@ with tab1:
 
                 # Show saved status
                 st.success(
-                    f"✅ **{DOCUMENT_TYPES[doc_type_review]} saved** to {chosen}'s repository. "
+                    f"✅ **{DOCUMENT_TYPES[doc_type_review]} saved** to {(selected_client or {}).get('company_name') or 'the company'}'s repository. "
                     f"Add a note about what changed (optional):"
                 )
 
@@ -435,7 +435,7 @@ with tab2:
             key=f"full_upload_{doc_type}",
             label_visibility="collapsed",
         )
-        if new_file:
+        if new_file and require_edit("upload documents"):
             text = extract_text_from_upload(new_file)
             if text.strip():
                 uploaded_texts[doc_type] = text
@@ -497,7 +497,7 @@ with tab2:
         key="btn_run_full"
     )
 
-    if run_full:
+    if run_full and require_edit("run a compliance check"):
         with st.spinner("Running compliance check..."):
             assessment = run_gap_assessment(
                 current_docs=current_docs,

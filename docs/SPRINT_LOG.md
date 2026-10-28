@@ -5565,11 +5565,34 @@ live trail, which can no longer be cleaned. **Not tested:** a real second
 account signing in, the invite email, the group overview against real
 companies (slow with many: it computes each company's register).
 
-**Known gaps, declared:** a read-only user's refused save shows the raw
-database error, not a sentence; a refused DELETE matches no row and the page
-says it worked (nothing is deleted); document generation uploads its files
-(service role) before the register insert is refused. Buttons are not
-hidden for read-only users — the notice says why changes will not save.
+**Read-only rough edges, fixed the same day:**
+
+- *Refused deletes now fail loudly.* A DELETE policy with edit access in
+  USING matched no row, and the page said it worked. USING now grants read
+  access and a trigger (`enforce_client_edit_on_delete`, on all 11 tables
+  with such a policy) refuses the row with 42501 and a plain sentence. Only
+  the API's `authenticated` role is checked: the service role and cascades
+  are not affected. Tested by impersonation: read-only delete and update
+  refused (42501), contributor delete goes through.
+- *Plain sentence instead of the database error.* `database.py` gives
+  postgrest's `APIError` a `__str__` that turns any 42501 into "you have
+  read-only access to this company, so changes are not saved…", so every
+  page's existing `f"Could not save: {e}"` reads correctly without touching
+  each page. Other errors print exactly as before.
+- *Heavy actions stop before the work.* `active_client.require_edit(action)`
+  warns and returns False for read-only users, used before document
+  generation (AI call and conversions), the gap review and full check, both
+  gap upload paths (which upload with the service role), and "Draft it for
+  me" on Incident wording. Correction to the first draft of this entry:
+  document generation never uploaded before being refused — the documents
+  insert is refused first — but the generation work itself ran.
+- In passing: `app_pages/gap.py` named an undefined `chosen` in the message
+  after a reviewed document was saved — a NameError on every successful
+  review upload. Now names the active company.
+
+Buttons are still not hidden for read-only users: the notice at the top of
+each page says why changes will not save, and the actions above say so
+when clicked.
 ---
 
 ## 5. Constraints and gotchas

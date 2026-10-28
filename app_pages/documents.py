@@ -3,7 +3,7 @@ import streamlit as st
 
 from display import dates_in_text, fmt_date, fmt_datetime, plural
 from auth import get_user_id
-from active_client import get_active_client
+from active_client import get_active_client, require_edit
 from cached_reads import load_accessible_clients
 from document_generator import (
     DOCUMENT_TYPES, LEGAL_FORMS, DPA_CONTACTS,
@@ -826,6 +826,8 @@ if _view == "generate":
         key=f"btn_gen_{context_key}",
         disabled=_register_blocked or _dpa_blocked,
     )
+    if generate and not require_edit("generate documents"):
+        generate = False
 
     # ── Adoption (S27) — lives in the history section, not here ──────────────
     #
