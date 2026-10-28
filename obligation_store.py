@@ -225,7 +225,13 @@ def dismiss(
     """
     if not (note or "").strip():
         return False
-    return record_events(user_id, client_id, [{
+    ok = record_events(user_id, client_id, [{
         "producer": producer, "finding_key": finding_key,
         "event": "dismissed", "actor": user_id, "note": note.strip(),
     }]) == 1
+    if ok:
+        # S54: a task decision is someone's call; the trail names who.
+        log_audit_event(client_id, "task", "Dismissed a task", user_id=user_id,
+                        event_subtype="dismissed",
+                        metadata={"finding_key": finding_key, "reason": note.strip()})
+    return ok

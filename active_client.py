@@ -89,11 +89,31 @@ def get_active_client(user_id: str) -> dict | None:
 
     if len(clients) == 1:
         st.session_state.selected_client = clients[0]
+        _read_only_notice(clients[0])
         return clients[0]
 
     current = _current(clients)
     st.caption(f"🏢 {current['company_name']} · change company in the menu")
+    _read_only_notice(current)
     return current
+
+
+def can_edit_active() -> bool:
+    """S54: may this session change the active company's data? The
+    database decides (can_edit_client); pages use this only to say so
+    before a click, never as the guard itself."""
+    from database import can_edit
+    return can_edit((st.session_state.get("selected_client") or {}).get("role"))
+
+
+def _read_only_notice(client: dict) -> None:
+    """S54: a read-only person sees everything; the database refuses their
+    changes. Said once, at the top of every page, so a refused save is not a
+    surprise."""
+    if client.get("role") == "read_only":
+        st.info(f"👁️ You have **read-only** access to {client['company_name']}: "
+                "you can see everything, but changes will not be saved. "
+                "Ask an admin of the company if you need to edit.")
 
 
 def _switch_client(widget_key: str, clients: list) -> None:

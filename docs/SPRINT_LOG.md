@@ -277,7 +277,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48, S49, S53.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48, S49, S53, S54.
 
 **Cancelled:** S11, S31, S35, S39, S40.
 
@@ -378,7 +378,7 @@ the only sprint that *is* the gate.
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
-| S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before. Group of entities, people per entity, roles (admin, contributor, read-only), group overview, full audit trail — scope note in 3b (28 Oct) |
+| ~~S54~~ | ~~Enterprise multi-seat/multi-division~~ | **Delivered 28 Oct, ahead of its After-beta position, by request.** Groups, roles (admin, contributor, read-only) enforced in RLS, group overview, full audit trail. D-128, scope note in 3b. was S53 until D-115; was S51, S48 before |
 | S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
 | S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
 | S57 | Monitoring sources + competitive monitoring | was S56 until D-115; was S54, S51 before. Merged — both touch the same admin pages |
@@ -2541,7 +2541,7 @@ trust services); counsel's review, which this does not replace.
 across several clients at once (S54), sector-specific regimes (DORA, eIDAS
 trust services' 24 h).
 
-### S54 — Enterprise multi-seat/multi-division — SCOPE NOTE (28 Oct)
+### S54 — Enterprise multi-seat/multi-division — SCOPE NOTE (28 Oct) — DELIVERED 28 OCT (D-128)
 
 Not a scope lock yet: what it adds, agreed with the user 28 Oct. Kept
 simple on purpose.
@@ -5503,6 +5503,73 @@ app, after a mockup the user approved.
 Tested locally 27 Oct at 1280 px and 375 px: the layout, plan cards, the
 switch, the forgot-password view and back. Not tested: a real reset email
 (needs the template change), wrong-password message, a real sign-up.
+
+### D-128 — S54 delivered: groups, three roles, and an audit trail nobody can edit, 28 Oct
+
+Built the day it was scoped, by request, ahead of S50/S51. Migration
+`migration_s54_groups_roles.sql` (applied as `s54_groups_roles` and
+`s54_update_refuses_loudly`).
+
+- **Roles in the database.** `client_role(client)` returns the caller's
+  strongest role through ownership (always admin), a company membership
+  (`workspace_members.role`, existing members became contributors — what
+  they could already do) or a group membership. `has_client_access` (read)
+  keeps its signature, so every SELECT policy is unchanged; every INSERT and
+  DELETE policy on compliance data now uses `can_edit_client` (admin or
+  contributor), and every UPDATE policy reads with `has_client_access` and
+  checks with `can_edit_client`. That split matters: with edit access in
+  USING, a read-only user's update matched no row, succeeded, and the page
+  said "Saved". Now it fails with 42501 and the page shows the error.
+  **Left on read access on purpose:** chat, answer feedback, alerts read,
+  support tickets — a read-only user may still ask the Assistant.
+  `task_events`: anyone with access writes `opened`/`closed` (the register
+  reconciles on every read, D-78), decisions need edit. Team management
+  (`workspace_members` insert/update/delete) needs admin; anyone with access
+  sees who else has it; anyone can leave. Deleting a company stays the
+  owner's alone.
+- **Groups.** `client_groups` (one per Enterprise owner) and `group_members`
+  (role per person, invite/claim like S38). A group is the owner's account:
+  every company the owner owns is in it, including later ones — no
+  `group_id` on `clients`, so nothing can drift. Enterprise owns unlimited
+  companies (`tier_gates`). Invites by email, claimed at login with company
+  invites (`claim_pending_invites`).
+- **Audit trail.** Readable by everyone with access to the company (group
+  members: every company of the group). Append-only for everyone, the
+  service role included: a trigger refuses UPDATE and DELETE. **S51 must
+  change that trigger deliberately** when it decides how a deleted
+  company's trail ends (the FK from `audit_log` already blocked deleting a
+  company with a trail). Newly recorded, with who did it: sign-ins (once per
+  browser session, on every company the account reaches), team changes
+  (invite, role change, removal, leaving; group ones on every company of
+  the group), company profile edits (with the fields), company created,
+  inventory (systems grid, activities, controllers, catalogue seeding, scan
+  additions), task dismissals (with the reason), plan and subscription
+  changes. Activity Log gained a **By** column (also in the CSV) and labels
+  for the new events.
+- **Pages.** Team: your role per company, role per person, invite with a
+  role; non-admins see the list and can leave. New **Group** page (Account
+  menu, shown to Enterprise accounts and group members): create/rename the
+  group, the companies side by side with the headline figure per regulation
+  and open tasks, open one, people across the group. Read-only users get one
+  notice at the top of every page (`active_client._read_only_notice`).
+
+Tested 28 Oct: RLS by impersonation in rolled-back transactions — a
+contributor edits and dismisses but cannot invite; a read-only member
+reads clients and the trail, writes `opened` task events, is refused
+dismissals and audit inserts; a group read-only member sees all five
+companies and cannot edit or invite; a group contributor edits; the owner
+changes roles; UPDATE on `audit_log` refused even as table owner. App
+logic and the Team, Group and Activity pages in AppTest with stand-in data
+(role merging, refusals, read-only notice, By column) — no test wrote to the
+live trail, which can no longer be cleaned. **Not tested:** a real second
+account signing in, the invite email, the group overview against real
+companies (slow with many: it computes each company's register).
+
+**Known gaps, declared:** a read-only user's refused save shows the raw
+database error, not a sentence; a refused DELETE matches no row and the page
+says it worked (nothing is deleted); document generation uploads its files
+(service role) before the register insert is refused. Buttons are not
+hidden for read-only users — the notice says why changes will not save.
 ---
 
 ## 5. Constraints and gotchas

@@ -3,7 +3,7 @@ import streamlit as st
 from display import plural
 from datetime import datetime, timezone
 from auth import get_user_id
-from database import get_supabase
+from database import get_supabase, load_user_emails
 from active_client import get_active_client
 
 # Timestamps are stored in UTC. Streamlit runs server-side, so there is no
@@ -49,6 +49,16 @@ EVENT_ICONS = {
     "gap_assessment_run": "📊",
     "audit_run": "🔍",
     "document": "📄",
+    # S54
+    "team": "👥",
+    "company": "🏢",
+    "inventory": "🗂️",
+    "plan": "💳",
+    "task": "✅",
+    "sign_in": "🔑",
+    "incident": "🚨",
+    "assessment": "⚖️",
+    "obligation": "✅",
 }
 
 EVENT_LABELS = {
@@ -56,6 +66,16 @@ EVENT_LABELS = {
     "gap_assessment_run": "Gap assessment",
     "audit_run":          "Website audit",
     "document":           "Document",
+    # S54
+    "team":               "Team",
+    "company":            "Company profile",
+    "inventory":          "Inventory",
+    "plan":               "Plan",
+    "task":               "Task",
+    "sign_in":            "Sign-in",
+    "incident":           "Incident",
+    "assessment":         "Risk assessment",
+    "obligation":         "Obligation",
 }
 
 SUBTYPE_LABELS = {
@@ -64,6 +84,15 @@ SUBTYPE_LABELS = {
     "draft_deleted": "Draft discarded",
     "hold_set":      "Legal hold placed",
     "hold_released": "Legal hold released",
+    # S54, team changes
+    "member_invited":            "Person invited",
+    "member_role_changed":       "Role changed",
+    "member_removed":            "Person removed",
+    "group_created":             "Group created",
+    "group_renamed":             "Group renamed",
+    "group_member_invited":      "Person invited to the group",
+    "group_member_role_changed": "Group role changed",
+    "group_member_removed":      "Person removed from the group",
 }
 
 SUBTYPE_ICONS = {
@@ -110,7 +139,7 @@ def _detail(row: dict) -> str:
     return " · ".join(parts)
 
 
-ACTION_IN_SUBTYPE = {"document"}
+ACTION_IN_SUBTYPE = {"document", "team"}
 
 
 def _action(row: dict) -> str:
@@ -155,6 +184,8 @@ if not rows:
     st.info("No activity recorded yet.")
     st.stop()
 
+by_email = load_user_emails({r["user_id"] for r in rows if r.get("user_id")})
+
 
 # event_subtype carries two different things depending on event_type, and
 # reading it as one produced "Dpa" in the Action column.
@@ -181,7 +212,8 @@ filtered = [
     and (
         not search
         or search.lower() in (
-            f"{r.get('summary', '')} {_detail(r)} {_action(r)}".lower()
+            f"{r.get('summary', '')} {_detail(r)} {_action(r)} "
+            f"{by_email.get(r.get('user_id'), '')}".lower()
         )
     )
 ]
@@ -199,6 +231,8 @@ table = [
             + "  " + _action(r)
         ),
         "What": r.get("summary", ""),
+        # S54: several people work on one company; the trail says who.
+        "By": by_email.get(r.get("user_id"), "RECOSA" if not r.get("user_id") else "—"),
         # Reasons live in metadata, which is why a log rendering only the
         # summary showed that something happened and never why. For a legal
         # hold that is the interesting half: releasing one is what allows the
@@ -221,6 +255,7 @@ st.dataframe(
         "When": st.column_config.TextColumn(width="small"),
         "Action": st.column_config.TextColumn(width="medium"),
         "What": st.column_config.TextColumn(width="large"),
+        "By": st.column_config.TextColumn(width="medium"),
         "Details": st.column_config.TextColumn(width="medium"),
     },
 )
@@ -231,10 +266,10 @@ import csv
 import io
 
 _buf = io.StringIO()
-_w = csv.DictWriter(_buf, fieldnames=["When", "Action", "What", "Details"])
+_w = csv.DictWriter(_buf, fieldnames=["When", "Action", "What", "By", "Details"])
 _w.writeheader()
 for _r in table:
-    _w.writerow({k: _r[k] for k in ("When", "Action", "What", "Details")})
+    _w.writerow({k: _r[k] for k in ("When", "Action", "What", "By", "Details")})
 
 st.download_button(
     "Download as CSV",

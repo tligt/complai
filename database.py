@@ -79,7 +79,12 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
             "regulations": profile.get("regulations", ["GDPR"]),
             **{f: profile[f] for f in optional if profile.get(f)},
         }).execute()
-        return res.data[0] if res.data else None
+        created = res.data[0] if res.data else None
+        if created:
+            log_audit_event(created["id"], "company",
+                            f"Created the company {created['company_name']}",
+                            user_id=user_id, event_subtype="created")
+        return created
     except Exception as e:
         _st().error(f"Could not create client: {e}")
         return None
@@ -105,6 +110,10 @@ def update_client_record(client_id: str, user_id: str, profile: dict) -> bool:
             "company_size": profile.get("company_size", ""),
             "regulations": profile.get("regulations", ["GDPR"]),
         }).eq("id", client_id).execute()
+        log_audit_event(client_id, "company", "Updated the company profile",
+                        user_id=session_user_id() or user_id, event_subtype="updated",
+                        metadata={"fields": ["company_name", "company_size", "country",
+                                             "regulations", "sector"]})
         return True
     except Exception as e:
         _st().error(f"Could not update client: {e}")
@@ -127,6 +136,9 @@ def update_client_fields(client_id: str, fields: dict) -> bool:
     clean = {k: v for k, v in fields.items() if k in CLIENT_PROFILE_FIELDS}
     try:
         get_supabase().table("clients").update(clean).eq("id", client_id).execute()
+        log_audit_event(client_id, "company", "Updated the company profile",
+                        user_id=session_user_id(), event_subtype="updated",
+                        metadata={"fields": sorted(clean)})
         return True
     except Exception as e:
         _st().error(f"Could not save the company profile: {e}")
@@ -1386,6 +1398,11 @@ def start_trial(user_id: str, tier: str | None = None) -> bool:
             row["subscription_tier"] = tier
         res = get_supabase_admin().table("profiles").update(row) \
             .eq("id", user_id).eq("subscription_status", "registered").execute()
+        if res.data:
+            log_account_event(user_id, "plan", f"Started the {TRIAL_DAYS}-day free trial",
+                              event_subtype="trial_started",
+                              metadata={"tier": res.data[0].get("subscription_tier")},
+                              owned_only=True)
         return bool(res.data)
     except Exception as e:
         print(f"Could not start trial: {e}")
@@ -1420,6 +1437,11 @@ def set_subscription_status(target_user_id: str, status: str) -> bool:
         get_supabase_admin().table("profiles").update(
             {"subscription_status": status}
         ).eq("id", target_user_id).execute()
+        log_account_event(target_user_id, "plan",
+                          f"Subscription set to {SUBSCRIPTION_STATUSES[status]}",
+                          event_subtype="status_changed",
+                          metadata={"status": status, "by": session_user_id()},
+                          owned_only=True)
         return True
     except Exception as e:
         print(f"Could not set subscription status: {e}")
@@ -1622,6 +1644,11 @@ def set_user_tier(target_user_id: str, tier: str) -> tuple[bool, str | None]:
 
         get_supabase_admin().table("profiles") \
             .update({"subscription_tier": tier}).eq("id", target_user_id).execute()
+        log_account_event(target_user_id, "plan",
+                          f"Plan changed to {SUBSCRIPTION_TIERS[tier]}",
+                          event_subtype="tier_changed",
+                          metadata={"tier": tier, "by": session_user_id()},
+                          owned_only=True)
         return True, None
     except Exception as e:
         print(f"Could not set tier for {target_user_id}: {e}")
@@ -1648,18 +1675,84 @@ def set_user_role(target_user_id: str, role: str) -> bool:
         return False
 
 
-# ── Workspace members (S38) ─────────────────────────────────────
-# Real multi-user access: a second person gets read/write on a client's
-# data, not just a name in a list. The RLS half (has_client_access(),
-# and every client-owned table's policies) lives in the database, applied
-# via the Supabase MCP server rather than a file in this repo — see
-# docs/SPRINT_LOG.md's S38 entry for the migration. This section is the
-# app-layer half: who gets invited, and how an invite turns into access.
+# ── Workspace members (S38) and roles (S54) ─────────────────────
+# Real multi-user access: a second person gets access to a client's data,
+# not just a name in a list. The RLS half lives in the database —
+# client_role(), has_client_access() (read), can_edit_client() (write),
+# is_client_admin() (people and roles); see migration_s54_groups_roles.sql.
+# This section is the app-layer half: who gets invited, with which role,
+# and how an invite turns into access.
+#
+# S54 roles, one per person per company: admin (people, roles, settings and
+# everything a contributor does), contributor (the compliance work),
+# read_only (sees everything, changes nothing). The company's owner is
+# always admin. Every change to who has access is written to audit_log.
+
+CLIENT_ROLES = {
+    "admin":       "Admin",
+    "contributor": "Contributor",
+    "read_only":   "Read-only",
+}
+CLIENT_ROLE_HELP = {
+    "admin":       "Manages people, roles and settings, and does everything a contributor does.",
+    "contributor": "Does the compliance work: edits data, generates and adopts documents, handles tasks and incidents.",
+    "read_only":   "Sees everything, changes nothing — for an auditor, the DPO, a manager or the board.",
+}
+_ROLE_RANK = {"owner": 0, "admin": 1, "contributor": 2, "read_only": 3}
+
+
+def role_label(role: str | None) -> str:
+    return "Owner" if role == "owner" else CLIENT_ROLES.get(role or "", "—")
+
+
+def can_edit(role: str | None) -> bool:
+    """The app-side mirror of can_edit_client(): owner, admin, contributor."""
+    return role in ("owner", "admin", "contributor")
+
+
+def can_manage_people(role: str | None) -> bool:
+    """The app-side mirror of is_client_admin()."""
+    return role in ("owner", "admin")
+
+
+def _role_on_client(user_id: str, client_id: str) -> str | None:
+    """This user's role on one company, through owner, company membership or
+    group membership — the strongest wins. Service role, so it answers for
+    any user; it is the same rule as client_role() in the database."""
+    admin = get_supabase_admin()
+    c = admin.table("clients").select("user_id").eq("id", client_id).limit(1).execute().data
+    if not c:
+        return None
+    if c[0]["user_id"] == user_id:
+        return "owner"
+    roles = [r["role"] for r in (admin.table("workspace_members").select("role")
+             .eq("client_id", client_id).eq("member_user_id", user_id)
+             .eq("status", "active").execute().data or [])]
+    g = admin.table("client_groups").select("id").eq("owner_user_id", c[0]["user_id"]) \
+        .limit(1).execute().data
+    if g:
+        roles += [r["role"] for r in (admin.table("group_members").select("role")
+                  .eq("group_id", g[0]["id"]).eq("member_user_id", user_id)
+                  .eq("status", "active").execute().data or [])]
+    return min(roles, key=_ROLE_RANK.get) if roles else None
+
+
+def _email_of(user_id: str | None) -> str:
+    if not user_id:
+        return "someone"
+    try:
+        p = get_supabase_admin().table("profiles").select("email") \
+            .eq("id", user_id).limit(1).execute().data
+        return p[0]["email"] if p else "someone"
+    except Exception:
+        return "someone"
+
 
 def invite_workspace_member(
-    client_id: str, invited_by: str, email: str,
+    client_id: str, invited_by: str, email: str, role: str = "contributor",
 ) -> tuple[bool, str | None]:
-    """Grant a client to another person by email. Returns (ok, error).
+    """Grant a client to another person by email, with a role. Returns
+    (ok, error).
 
     If that email already has a profiles row, access is immediate
     (status='active', member_user_id set) — no separate accept step.
@@ -1672,7 +1765,7 @@ def invite_workspace_member(
     exists to attach it to.
 
     Service-role: RLS's workspace_members_insert policy already refuses
-    this for anyone who is not the client's owner, but a member being
+    this for anyone who is not an admin of the client, but a member being
     told "you don't have permission" by a raw PostgREST error is worse
     than this function checking the same thing and returning a plain
     string. Not double-guessing RLS — trusting it, and translating its
@@ -1681,13 +1774,15 @@ def invite_workspace_member(
     email = email.strip().lower()
     if not email:
         return False, "Enter an email address."
+    if role not in CLIENT_ROLES:
+        return False, "Unknown role."
     try:
         admin = get_supabase_admin()
-        owner_rows = admin.table("clients").select("id, company_name") \
-            .eq("id", client_id).eq("user_id", invited_by).execute().data
-        if not owner_rows:
-            return False, "You can only invite people to a client you own."
-        client_name = owner_rows[0].get("company_name") or "your account"
+        if not can_manage_people(_role_on_client(invited_by, client_id)):
+            return False, "Only an admin of this company can invite people."
+        client_rows = admin.table("clients").select("company_name") \
+            .eq("id", client_id).limit(1).execute().data
+        client_name = (client_rows[0].get("company_name") if client_rows else None) or "your account"
 
         existing = admin.table("profiles").select("id") \
             .ilike("email", email).limit(1).execute().data
@@ -1698,17 +1793,21 @@ def invite_workspace_member(
             "invited_email": email,
             "invited_by": invited_by,
             "member_user_id": member_user_id,
+            "role": role,
             "status": "active" if member_user_id else "pending",
             "activated_at": (
                 datetime.now(timezone.utc).isoformat() if member_user_id else None
             ),
         }, on_conflict="client_id,invited_email").execute()
 
-        inviter = admin.table("profiles").select("email") \
-            .eq("id", invited_by).limit(1).execute().data
-        inviter_email = inviter[0]["email"] if inviter else "A RECOSA user"
+        log_audit_event(
+            client_id, "team", f"Invited {email} as {CLIENT_ROLES[role]}",
+            user_id=invited_by, event_subtype="member_invited",
+            metadata={"email": email, "role": role},
+        )
+
         from email_sender import send_workspace_invite
-        send_workspace_invite(email, client_name, inviter_email)
+        send_workspace_invite(email, client_name, _email_of(invited_by))
 
         return True, None
     except Exception as e:
@@ -1727,38 +1826,77 @@ def list_workspace_members(client_id: str) -> list[dict]:
         rows = get_supabase_admin().table("workspace_members") \
             .select("*").eq("client_id", client_id) \
             .order("created_at").execute().data or []
-        ids = [r["member_user_id"] for r in rows if r.get("member_user_id")]
-        profiles = {}
-        if ids:
-            for p in (get_supabase_admin().table("profiles")
-                      .select("id, email, full_name").in_("id", ids)
-                      .execute().data or []):
-                profiles[p["id"]] = p
-        for r in rows:
-            p = profiles.get(r.get("member_user_id")) or {}
-            r["display_name"] = p.get("full_name") or r["invited_email"]
+        _add_display_names(rows)
         return rows
     except Exception as e:
         print(f"Could not load members for {client_id}: {e}")
         return []
 
 
+def _add_display_names(rows: list[dict]) -> None:
+    ids = [r["member_user_id"] for r in rows if r.get("member_user_id")]
+    profiles = {}
+    if ids:
+        for p in (get_supabase_admin().table("profiles")
+                  .select("id, email, full_name").in_("id", ids)
+                  .execute().data or []):
+            profiles[p["id"]] = p
+    for r in rows:
+        p = profiles.get(r.get("member_user_id")) or {}
+        r["display_name"] = p.get("full_name") or r["invited_email"]
+
+
+def set_workspace_member_role(
+    member_row_id: str, role: str, acting_user_id: str,
+) -> tuple[bool, str | None]:
+    """Change someone's role on one company. RLS (is_client_admin) decides
+    whether the caller may; the update returns no row when it may not."""
+    if role not in CLIENT_ROLES:
+        return False, "Unknown role."
+    try:
+        res = get_supabase().table("workspace_members").update({"role": role}) \
+            .eq("id", member_row_id).execute()
+        if not res.data:
+            return False, "Only an admin of this company can change roles."
+        row = res.data[0]
+        log_audit_event(
+            row["client_id"], "team",
+            f"Changed {row['invited_email']}'s role to {CLIENT_ROLES[role]}",
+            user_id=acting_user_id, event_subtype="member_role_changed",
+            metadata={"email": row["invited_email"], "role": role},
+        )
+        return True, None
+    except Exception as e:
+        print(f"Could not change role on {member_row_id}: {e}")
+        return False, "Only an admin of this company can change roles."
+
+
 def remove_workspace_member(member_row_id: str, acting_user_id: str) -> bool:
     """Revoke access, or leave. RLS decides which of those this actually
-    is — the owner can remove anyone on their own clients, a member can
-    remove only their own row — this just issues the delete and lets the
+    is — an admin can remove anyone on the company, a member can remove
+    only their own row — this just issues the delete and lets the
     database refuse it if the caller has neither right."""
     try:
-        get_supabase().table("workspace_members") \
+        res = get_supabase().table("workspace_members") \
             .delete().eq("id", member_row_id).execute()
-        return True
+        for row in res.data or []:
+            left = row.get("member_user_id") == acting_user_id
+            log_audit_event(
+                row["client_id"], "team",
+                f"{row['invited_email']} left" if left
+                else f"Removed {row['invited_email']}",
+                user_id=acting_user_id, event_subtype="member_removed",
+                metadata={"email": row["invited_email"]},
+            )
+        return bool(res.data)
     except Exception as e:
         print(f"Could not remove membership {member_row_id}: {e}")
         return False
 
 
 def claim_pending_invites(user_id: str, email: str) -> int:
-    """Turn every pending invite to this email into active access.
+    """Turn every pending invite to this email — to a company or to a group
+    (S54) — into active access.
 
     Called once per login (app.py), right after the session is
     established and before the S37 zero-client welcome gate — a member
@@ -1769,49 +1907,301 @@ def claim_pending_invites(user_id: str, email: str) -> int:
     the only fact being asserted is "this email belongs to this user_id,"
     which only Supabase Auth actually knows.
     """
-    try:
-        res = get_supabase_admin().table("workspace_members").update({
-            "member_user_id": user_id,
-            "status": "active",
-            "activated_at": datetime.now(timezone.utc).isoformat(),
-        }).ilike("invited_email", email.strip()).is_("member_user_id", "null").execute()
-        return len(res.data or [])
-    except Exception as e:
-        print(f"Could not claim invites for {email}: {e}")
-        return 0
+    claimed = 0
+    row = {
+        "member_user_id": user_id,
+        "status": "active",
+        "activated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    for table in ("workspace_members", "group_members"):
+        try:
+            res = get_supabase_admin().table(table).update(row) \
+                .ilike("invited_email", email.strip()) \
+                .is_("member_user_id", "null").execute()
+            claimed += len(res.data or [])
+        except Exception as e:
+            print(f"Could not claim {table} invites for {email}: {e}")
+    return claimed
 
 
 def load_accessible_clients(user_id: str) -> list[dict]:
-    """Every client this account can work on: owned, or via membership.
+    """Every client this account can work on: owned, through a company
+    membership, or through a group (S54).
 
     NOT a replacement for load_clients(), which stays owned-only on
     purpose — tier_gates.client_limit_reached() must keep counting only
     what this account owns, never what it has been given access to.
     This is the broader question the UI needs answered instead: which
-    clients show up to work on at all. Each row carries role: "owner" or
-    "member" so the UI can label it.
+    clients show up to work on at all. Each row carries role: "owner",
+    "admin", "contributor" or "read_only" — the strongest this account
+    holds on it.
     """
     try:
         supabase = get_supabase()
         owned = supabase.table("clients").select("*") \
             .eq("user_id", user_id).order("company_name").execute().data or []
-        for c in owned:
-            c["role"] = "owner"
+        by_id = {c["id"]: {**c, "role": "owner"} for c in owned}
 
-        member_rows = supabase.table("workspace_members").select("client_id") \
+        def _grant(client: dict, role: str):
+            cur = by_id.get(client["id"])
+            if cur is None or _ROLE_RANK[role] < _ROLE_RANK[cur["role"]]:
+                by_id[client["id"]] = {**client, "role": role}
+
+        member_rows = supabase.table("workspace_members").select("client_id, role") \
             .eq("member_user_id", user_id).eq("status", "active").execute().data or []
-        member_client_ids = [r["client_id"] for r in member_rows]
-        member_clients = []
-        if member_client_ids:
-            member_clients = supabase.table("clients").select("*") \
-                .in_("id", member_client_ids).order("company_name").execute().data or []
-            for c in member_clients:
-                c["role"] = "member"
+        role_by_client = {r["client_id"]: r["role"] for r in member_rows}
+        if role_by_client:
+            for c in supabase.table("clients").select("*") \
+                    .in_("id", list(role_by_client)).execute().data or []:
+                _grant(c, role_by_client[c["id"]])
 
-        return owned + member_clients
+        for gm in supabase.table("group_members").select("group_id, role") \
+                .eq("member_user_id", user_id).eq("status", "active").execute().data or []:
+            g = supabase.table("client_groups").select("owner_user_id") \
+                .eq("id", gm["group_id"]).limit(1).execute().data
+            if not g:
+                continue
+            for c in supabase.table("clients").select("*") \
+                    .eq("user_id", g[0]["owner_user_id"]).execute().data or []:
+                _grant(c, gm["role"])
+
+        return sorted(by_id.values(), key=lambda c: (
+            c["role"] != "owner", (c.get("company_name") or "").lower()))
     except Exception as e:
         _st().error(f"Could not load accessible clients: {e}")
         return []
+
+
+# ── Groups (S54) ──────────────────────────────────────────────────
+# A group is one Enterprise owner's account: every company that owner owns
+# belongs to it, including companies added later. A group member gets their
+# role on all of them. Group changes are audited on every company of the
+# group, so each company's trail is complete on its own.
+
+def get_owned_group(user_id: str) -> dict | None:
+    try:
+        rows = get_supabase().table("client_groups").select("*") \
+            .eq("owner_user_id", user_id).limit(1).execute().data
+        return rows[0] if rows else None
+    except Exception as e:
+        print(f"Could not load group for {user_id}: {e}")
+        return None
+
+
+def load_member_groups(user_id: str) -> list[dict]:
+    """Groups this account belongs to, owned first. Each carries role
+    ("owner" or the member role)."""
+    out = []
+    owned = get_owned_group(user_id)
+    if owned:
+        out.append({**owned, "role": "owner"})
+    try:
+        supabase = get_supabase()
+        for gm in supabase.table("group_members").select("group_id, role") \
+                .eq("member_user_id", user_id).eq("status", "active").execute().data or []:
+            g = supabase.table("client_groups").select("*") \
+                .eq("id", gm["group_id"]).limit(1).execute().data
+            if g and not (owned and g[0]["id"] == owned["id"]):
+                out.append({**g[0], "role": gm["role"]})
+    except Exception as e:
+        print(f"Could not load groups for {user_id}: {e}")
+    return out
+
+
+def group_companies(group: dict) -> list[dict]:
+    """The companies of a group: everything its owner owns."""
+    try:
+        return get_supabase().table("clients").select("*") \
+            .eq("user_id", group["owner_user_id"]).order("company_name") \
+            .execute().data or []
+    except Exception as e:
+        print(f"Could not load the group's companies: {e}")
+        return []
+
+
+def _group_company_ids(group_id: str) -> list[str]:
+    """Service role: the group's companies, for audit rows."""
+    admin = get_supabase_admin()
+    g = admin.table("client_groups").select("owner_user_id").eq("id", group_id) \
+        .limit(1).execute().data
+    if not g:
+        return []
+    return [c["id"] for c in admin.table("clients").select("id")
+            .eq("user_id", g[0]["owner_user_id"]).execute().data or []]
+
+
+def _audit_group(group: dict, summary: str, user_id: str, subtype: str,
+                 metadata: dict | None = None) -> None:
+    for cid in _group_company_ids(group["id"]):
+        log_audit_event(cid, "team", summary, user_id=user_id,
+                        event_subtype=subtype, metadata=metadata)
+
+
+def create_group(user_id: str, name: str) -> tuple[dict | None, str | None]:
+    name = (name or "").strip()
+    if not name:
+        return None, "Give the group a name."
+    try:
+        res = get_supabase().table("client_groups").insert(
+            {"owner_user_id": user_id, "name": name}).execute()
+        group = res.data[0] if res.data else None
+        if group:
+            _audit_group(group, f"Created the group {name}", user_id, "group_created")
+        return group, None
+    except Exception as e:
+        print(f"Could not create group: {e}")
+        return None, "Could not create the group."
+
+
+def rename_group(group: dict, name: str, user_id: str) -> bool:
+    name = (name or "").strip()
+    if not name or name == group["name"]:
+        return False
+    try:
+        res = get_supabase().table("client_groups").update({"name": name}) \
+            .eq("id", group["id"]).execute()
+        if res.data:
+            _audit_group(group, f"Renamed the group to {name}", user_id, "group_renamed",
+                         {"from": group["name"], "to": name})
+        return bool(res.data)
+    except Exception as e:
+        print(f"Could not rename group: {e}")
+        return False
+
+
+def list_group_members(group_id: str) -> list[dict]:
+    try:
+        rows = get_supabase_admin().table("group_members").select("*") \
+            .eq("group_id", group_id).order("created_at").execute().data or []
+        _add_display_names(rows)
+        return rows
+    except Exception as e:
+        print(f"Could not load group members: {e}")
+        return []
+
+
+def invite_group_member(
+    group: dict, invited_by: str, email: str, role: str = "contributor",
+) -> tuple[bool, str | None]:
+    """Give someone a role on every company of the group. Same shape as
+    invite_workspace_member; RLS (group_role = admin) is the guard."""
+    email = email.strip().lower()
+    if not email:
+        return False, "Enter an email address."
+    if role not in CLIENT_ROLES:
+        return False, "Unknown role."
+    try:
+        existing = get_supabase_admin().table("profiles").select("id") \
+            .ilike("email", email).limit(1).execute().data
+        member_user_id = existing[0]["id"] if existing else None
+        get_supabase().table("group_members").upsert({
+            "group_id": group["id"],
+            "invited_email": email,
+            "invited_by": invited_by,
+            "member_user_id": member_user_id,
+            "role": role,
+            "status": "active" if member_user_id else "pending",
+            "activated_at": (
+                datetime.now(timezone.utc).isoformat() if member_user_id else None
+            ),
+        }, on_conflict="group_id,invited_email").execute()
+        _audit_group(group, f"Invited {email} to the group as {CLIENT_ROLES[role]}",
+                     invited_by, "group_member_invited", {"email": email, "role": role})
+        from email_sender import send_workspace_invite
+        send_workspace_invite(email, group["name"], _email_of(invited_by))
+        return True, None
+    except Exception as e:
+        print(f"Could not invite {email} to group {group['id']}: {e}")
+        return False, "Only an admin of the group can invite people."
+
+
+def set_group_member_role(
+    group: dict, member_row_id: str, role: str, acting_user_id: str,
+) -> tuple[bool, str | None]:
+    if role not in CLIENT_ROLES:
+        return False, "Unknown role."
+    try:
+        res = get_supabase().table("group_members").update({"role": role}) \
+            .eq("id", member_row_id).execute()
+        if not res.data:
+            return False, "Only an admin of the group can change roles."
+        email = res.data[0]["invited_email"]
+        _audit_group(group, f"Changed {email}'s group role to {CLIENT_ROLES[role]}",
+                     acting_user_id, "group_member_role_changed",
+                     {"email": email, "role": role})
+        return True, None
+    except Exception as e:
+        print(f"Could not change group role on {member_row_id}: {e}")
+        return False, "Only an admin of the group can change roles."
+
+
+def remove_group_member(group: dict, member_row_id: str, acting_user_id: str) -> bool:
+    try:
+        res = get_supabase().table("group_members").delete() \
+            .eq("id", member_row_id).execute()
+        for row in res.data or []:
+            left = row.get("member_user_id") == acting_user_id
+            _audit_group(group,
+                         f"{row['invited_email']} left the group" if left
+                         else f"Removed {row['invited_email']} from the group",
+                         acting_user_id, "group_member_removed",
+                         {"email": row["invited_email"]})
+        return bool(res.data)
+    except Exception as e:
+        print(f"Could not remove group membership {member_row_id}: {e}")
+        return False
+
+
+# ── Audit helpers (S54) ───────────────────────────────────────────
+# Account-level events (sign-in, plan) have no single company; they are
+# written on every company the account can reach, so each company's trail
+# says who came in and when.
+
+def log_account_event(user_id: str, event_type: str, summary: str,
+                      event_subtype: str | None = None,
+                      metadata: dict | None = None,
+                      owned_only: bool = False) -> None:
+    try:
+        admin = get_supabase_admin()
+        ids = {c["id"] for c in admin.table("clients").select("id")
+               .eq("user_id", user_id).execute().data or []}
+        if not owned_only:
+            ids |= {r["client_id"] for r in admin.table("workspace_members")
+                    .select("client_id").eq("member_user_id", user_id)
+                    .eq("status", "active").execute().data or []}
+            for gm in admin.table("group_members").select("group_id") \
+                    .eq("member_user_id", user_id).eq("status", "active").execute().data or []:
+                ids |= set(_group_company_ids(gm["group_id"]))
+        for cid in ids:
+            log_audit_event(cid, event_type, summary, user_id=user_id,
+                            event_subtype=event_subtype, metadata=metadata)
+    except Exception as e:
+        print(f"Could not log account event: {e}")
+
+
+def load_user_emails(user_ids) -> dict[str, str]:
+    """{user_id: email} for the Activity Log's "By" column. Service role:
+    profiles is readable only by its own user, and the trail must name
+    everyone who acted on the company."""
+    ids = [i for i in user_ids if i]
+    if not ids:
+        return {}
+    try:
+        return {p["id"]: p["email"] for p in get_supabase_admin().table("profiles")
+                .select("id, email").in_("id", ids).execute().data or []}
+    except Exception as e:
+        print(f"Could not load user emails: {e}")
+        return {}
+
+
+def session_user_id() -> str | None:
+    """The logged-in user, for audit rows written by functions that are not
+    given one. None outside Streamlit (cron scripts)."""
+    try:
+        user = _st().session_state.get("user")
+        return getattr(user, "id", None)
+    except Exception:
+        return None
 
 
 # ── Regulatory updates ────────────────────────────────────────

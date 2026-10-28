@@ -284,6 +284,15 @@ if claim_pending_invites(user_id, st.session_state.user.email):
     load_clients.clear()
     load_accessible_clients.clear()
 
+# ── Sign-in on the audit trail (S54) ─────────────────────────────
+# Once per browser session: on every company this account can reach, so each
+# company's trail says who came in and when.
+if not st.session_state.get("signin_logged"):
+    st.session_state.signin_logged = True
+    import database as _db_audit
+    _db_audit.log_account_event(user_id, "sign_in", f"{st.session_state.user.email} signed in",
+                                metadata={"email": st.session_state.user.email})
+
 # ── Access: free account or subscribed (S49, D-115) ─────────────────────
 # 'registered' (a free account) and 'expired' see their free check result
 # and the subscribe page — every other menu item opens the subscribe page.
@@ -315,7 +324,7 @@ if not _profile.get("pending_result"):
 limited_access = (
     _profile.get("role") != "admin"
     and (_profile.get("subscription_status") or "active") in ("registered", "expired")
-    and not any(c.get("role") == "member" for c in load_accessible_clients(user_id))
+    and not any(c.get("role") != "owner" for c in load_accessible_clients(user_id))
 )
 
 with st.sidebar:
@@ -392,6 +401,7 @@ chat      = st.Page("app_pages/chat.py",      title="Assistant",      icon="💬
 company   = st.Page("app_pages/company.py",   title="Company profile", icon="🏢")
 profile   = st.Page("app_pages/profile.py",   title="Account",        icon="👤")
 team      = st.Page("app_pages/team.py",      title="Team",           icon="👥")
+group_pg  = st.Page("app_pages/group.py",     title="Group",          icon="🏛️")
 activity  = st.Page("app_pages/activity.py",  title="Activity Log",   icon="🕐")
 glossary  = st.Page("app_pages/glossary.py",  title="Glossary",       icon="📖")
 
@@ -431,6 +441,11 @@ _sections = {
     "Tools":    [audit, chat],
     "Account":  [company, profile, team, alerts, activity, glossary, support],
 }
+
+# S54: the Group page, for an Enterprise account or anyone in a group.
+from database import load_member_groups
+if _profile.get("subscription_tier") == "enterprise" or load_member_groups(user_id):
+    _sections["Account"].insert(3, group_pg)
 
 if limited_access:
     # S49. Same menu, so a free account sees what RECOSA does; every item
@@ -512,6 +527,7 @@ PAGE_CONTEXT = {
     "action_plan": "obligations",
     "company":   "account",
     "team":      "account",
+    "group":     "account",
     "glossary":  "other",
 }
 

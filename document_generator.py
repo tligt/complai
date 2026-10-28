@@ -87,6 +87,10 @@ def update_client_profile(client_id: str, user_id: str, fields: dict) -> bool:
             .update(fields) \
             .eq("id", client_id) \
             .execute()
+        from database import log_audit_event
+        log_audit_event(client_id, "company", "Updated the company profile",
+                        user_id=user_id, event_subtype="updated",
+                        metadata={"fields": sorted(fields)})
         return True
     except Exception as e:
         st.error(f"Could not update client profile: {e}")

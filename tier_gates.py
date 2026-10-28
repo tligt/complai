@@ -23,16 +23,17 @@ from cached_reads import load_clients
 
 
 def client_limit_reached(user_id: str) -> bool:
-    """Professional: one client. Advisory: unlimited.
+    """Starter, Professional: one client. Advisory, Enterprise: unlimited.
 
     Checked against the real count, not the tier alone — a Professional
     account with zero clients yet is not "at its limit", it just hasn't
-    used its one slot. Advisory is never gated here; S48's per-seat/
-    per-division limits are a different, not-yet-built question.
+    used its one slot. Advisory is never gated here. Enterprise (S54) owns
+    a group: every company it owns is a company or division of the group.
+    Per-seat or per-entity pricing is S46's question.
     """
     profile = get_user_profile(user_id)
     tier = profile.get("subscription_tier") or "professional"
-    if tier == "advisory":
+    if tier in ("advisory", "enterprise"):
         return False
     return len(load_clients(user_id) or []) >= 1
 

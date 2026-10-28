@@ -49,8 +49,17 @@ from typing import Any, Mapping
 
 import pandas as pd
 
-from database import get_supabase
+from database import get_supabase, log_audit_event, session_user_id
 import inventory as INV
+
+
+def _audit(client_id: str | None, summary: str, subtype: str,
+           user_id: str | None = None, **metadata: Any) -> None:
+    """S54: every inventory change goes on the company's trail."""
+    if client_id:
+        log_audit_event(client_id, "inventory", summary,
+                        user_id=user_id or session_user_id(),
+                        event_subtype=subtype, metadata=metadata or None)
 
 
 # Columns the client may edit in the systems grid. Anything outside this set
@@ -341,6 +350,12 @@ def commit_systems(
         except Exception as e:
             result["errors"].append(f"{base_by_id.get(row_id, {}).get('name', row_id)}: {e}")
 
+    if result["inserted"] or result["updated"] or result["deleted"]:
+        _audit(client_id,
+               f"Systems: {result['inserted']} added, {result['updated']} changed, "
+               f"{result['deleted']} removed", "systems_changed", user_id,
+               inserted=result["inserted"], updated=result["updated"],
+               deleted=result["deleted"])
     return result
 
 
@@ -382,6 +397,7 @@ def save_activity(
         return None, errs
 
     sb = get_supabase()
+    existed = bool(activity_id)
     try:
         if activity_id:
             sb.table("processing_activities").update(payload).eq("id", activity_id).execute()
@@ -392,6 +408,9 @@ def save_activity(
                 return None, ["Could not create the activity."]
     except Exception as e:
         return None, [str(e)]
+    _name = payload.get("name") or next(iter((payload.get("name_i18n") or {}).values()), "")
+    _audit(client_id, f"{'Changed' if existed else 'Added'} the activity {_name}".strip(),
+           "activity_saved", user_id, activity_id=activity_id)
 
     if not isinstance(system_roles, Mapping):
         system_roles = {sid: ROLE_UNKNOWN for sid in (system_roles or [])}
@@ -515,7 +534,11 @@ def _reconcile_counterparties(
 
 def delete_activity(activity_id: str) -> list[str]:
     try:
-        get_supabase().table("processing_activities").delete().eq("id", activity_id).execute()
+        res = get_supabase().table("processing_activities").delete() \
+            .eq("id", activity_id).execute()
+        for row in res.data or []:
+            _audit(row.get("client_id"), f"Removed the activity {row.get('name') or ''}".strip(),
+                   "activity_deleted", activity_id=activity_id)
         return []
     except Exception as e:
         return [str(e)]
@@ -542,6 +565,8 @@ def save_counterparty(
         if counterparty_id:
             sb.table("processing_counterparties").update(payload) \
                 .eq("id", counterparty_id).execute()
+            _audit(client_id, f"Changed the controller {payload.get('legal_name') or ''}".strip(),
+                   "counterparty_saved", user_id, counterparty_id=counterparty_id)
             return counterparty_id, []
         res = sb.table("processing_counterparties").insert(payload).execute()
         new_id = (res.data or [{}])[0].get("id")
@@ -549,6 +574,8 @@ def save_counterparty(
             # The S21 lesson: an insert that succeeds but returns nothing
             # usually means a missing SELECT policy, not a failed write.
             return None, ["Saved, but could not read the row back — check RLS."]
+        _audit(client_id, f"Added the controller {payload.get('legal_name') or ''}".strip(),
+               "counterparty_saved", user_id, counterparty_id=new_id)
         return new_id, []
     except Exception as e:
         return None, [str(e)]
@@ -562,8 +589,11 @@ def delete_counterparty(counterparty_id: str) -> list[str]:
     processed for them.
     """
     try:
-        get_supabase().table("processing_counterparties") \
+        res = get_supabase().table("processing_counterparties") \
             .delete().eq("id", counterparty_id).execute()
+        for row in res.data or []:
+            _audit(row.get("client_id"), f"Removed the controller {row.get('legal_name') or ''}".strip(),
+                   "counterparty_deleted", counterparty_id=counterparty_id)
         return []
     except Exception as e:
         return [str(e)]
@@ -668,6 +698,9 @@ def seed_from_catalogue(
         except Exception as e:
             errors.append(f"{a.get('name')}: {e}")
 
+    _audit(client_id, f"Added {system_row['name']} from the catalogue, with "
+           f"{created} activit{'y' if created == 1 else 'ies'}", "catalogue_seeded",
+           user_id, system_id=system_id, catalogue_key=catalogue_key)
     return {
         "system_id": system_id,
         "system_name": system_row["name"],
@@ -707,7 +740,10 @@ def add_detected_service(
         return {"error": "; ".join(errs)}
     try:
         res = get_supabase().table("systems").insert(row).execute()
-        return {"system_id": (res.data or [{}])[0].get("id"), "system_name": name}
+        system_id = (res.data or [{}])[0].get("id")
+        _audit(client_id, f"Added {name}, found by the website scan", "detected_added",
+               user_id, system_id=system_id)
+        return {"system_id": system_id, "system_name": name}
     except Exception as e:
         return {"error": f"Could not add {name}: {e}"}
 

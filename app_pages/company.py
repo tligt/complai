@@ -18,7 +18,7 @@ from active_client import get_active_client
 from auth import get_user_id
 from cached_reads import load_accessible_clients, load_clients
 from client_setup import COUNTRY_OPTIONS, SECTOR_OPTIONS, SIZE_OPTIONS, REGULATION_OPTIONS
-from database import update_client_fields
+from database import role_label, update_client_fields
 from display import country_label, regulation_label, regulations_text
 from tier_gates import client_limit_reached, upsell_dialog
 
@@ -133,7 +133,7 @@ if len(clients) > 1:
     st.caption("Switch between them with the company box at the top of the menu.")
 for c in clients:
     st.markdown(
-        f"**{c['company_name']}** · " + ("Owner" if c.get("role") == "owner" else "Member")
+        f"**{c['company_name']}** · " + role_label(c.get("role"))
         + "  \n:gray[" + " · ".join(p for p in (
             c.get("sector", ""), country_label(c.get("country")),
             regulations_text(c.get("regulations")),
