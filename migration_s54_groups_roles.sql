@@ -247,3 +247,4 @@ $$;
 drop trigger if exists audit_log_no_change on audit_log;
 create trigger audit_log_no_change before update or delete on audit_log
   for each row execute function public.audit_log_immutable();
+alter function public.audit_log_immutable() set search_path = public;
