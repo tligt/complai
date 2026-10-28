@@ -378,7 +378,7 @@ the only sprint that *is* the gate.
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
-| S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before |
+| S54 | Enterprise multi-seat/multi-division | was S53 until D-115; was S51, S48 before. Group of entities, people per entity, roles, group overview, full audit trail — scope note in 3b (28 Oct) |
 | S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
 | S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
 | S57 | Monitoring sources + competitive monitoring | was S56 until D-115; was S54, S51 before. Merged — both touch the same admin pages |
@@ -2540,6 +2540,50 @@ trust services); counsel's review, which this does not replace.
 **Out of scope:** submitting to authorities, LLM drafting, incidents
 across several clients at once (S54), sector-specific regimes (DORA, eIDAS
 trust services' 24 h).
+
+### S54 — Enterprise multi-seat/multi-division — SCOPE NOTE (28 Oct)
+
+Not a scope lock yet: what it adds, agreed with the user 28 Oct. Kept
+simple on purpose.
+
+**What exists today.** One company with a team (S38: the owner invites by
+email, every member has full access, only the owner invites or removes).
+One consultant with unrelated clients (S47, Advisory). The `enterprise`
+tier exists since 27 Oct but changes nothing.
+
+**What S54 adds.**
+
+1. **A group** — several companies or divisions under one Enterprise
+   account, each with its own compliance status, documents and tasks.
+2. **People per company or division** — a user sees the entities they are
+   assigned to; a group-level user sees all of them.
+3. **Roles** (added by the user) — today every member can do everything.
+   S54 gives each person a role per entity, for example: *owner/admin*
+   (manage people and settings), *editor* (change data, generate, adopt
+   documents), *viewer* (read only — an auditor, a manager). The exact list
+   is settled at scope lock. Enforced in RLS, as D-06 and D-62 require, not
+   only by hiding buttons.
+4. **A group overview** — the entities side by side.
+5. **Audit of everything** (by the user: "they all need to be tracked").
+   Every change, by whom, on which entity, when. Today `audit_log` (S21)
+   has 15 write calls covering documents, assessments, gap runs, website
+   audits, obligations, incidents and support tickets. Not tracked today,
+   and needed once several people share an account:
+   - team changes: invite, remove, role change;
+   - inventory edits (systems, activities, vendors);
+   - company profile edits;
+   - task register changes;
+   - plan and settings changes;
+   - sign-ins.
+   Each row records the acting user and the entity. Group admins read the
+   trail across all their entities; an entity's users read their own (the
+   client-side Activity page, `app_pages/activity.py`, already reads
+   `audit_log`). The trail must be append-only for every user: check its
+policies at scope lock.
+
+**Open at scope lock:** division as a client under a group vs. its own
+workspace; the final role list; whether group reports roll up scores;
+billing per seat or per entity (S46).
 
 ---
 
