@@ -27,9 +27,15 @@ TOOL_QUIZ = "nis2_quiz"
 TOOL_WEBSITE = "website_check"
 TOOL_AI = "ai_act_check"  # S55
 
-# One question per NIS2 Art. 21(2) measure category, in order (a)-(j).
-# Each option's index is its point value: 0 (not addressed) to 3 (documented
-# and regularly reviewed). Max score 30.
+# One question per NIS2 Art. 21(2) measure category, in order (a)-(j), then
+# (D-134, 3 Nov) three NIS2 duties outside that list: management
+# accountability (Art. 20), registration (Art. 3) and monitoring. Each
+# option's index is its point value: 0 (not addressed) to 3 (documented and
+# regularly reviewed). Max score 39.
+#
+# NEW QUESTIONS GO AT THE END. Answers are stored one digit per question
+# (links, accounts, leads), and a result saved before a question was added
+# is read as the first answers only — see LEGACY_LENGTHS below.
 OPTIONS = [
     "We haven't addressed this",
     "We do this informally, on an ad hoc basis",
@@ -58,7 +64,7 @@ QUESTIONS = [
         "advice": "Write down who decides, who is called and what is reported "
                   "to the authority within 24 hours. NIS2's reporting clock "
                   "starts when you become aware, not when you are ready.",
-        "obligations": ["nis2_02"],
+        "obligations": ["nis2_02", "nis2_03"],
     },
     {
         "category": "Business continuity",
@@ -89,8 +95,9 @@ QUESTIONS = [
         "question": "Do you check, on some regular schedule, whether your "
                     "security measures are actually working?",
         "advice": "Pick a few measures (backups restored, patches applied, "
-                  "accounts reviewed) and check them on a fixed schedule.",
-        "obligations": [],
+                  "accounts reviewed) and check them on a fixed schedule — and "
+                  "have your exposed systems tested from outside now and then.",
+        "obligations": ["nis2_14"],
     },
     {
         "category": "Cyber hygiene & training",
@@ -123,20 +130,48 @@ QUESTIONS = [
                   "first — it is the cheapest measure with the biggest effect.",
         "obligations": ["nis2_06"],
     },
+    # D-134
+    {
+        "category": "Management accountability",
+        "question": "Has your management approved the security measures, does it "
+                    "follow them up, and has it been trained on cybersecurity?",
+        "advice": "NIS2 makes the management body answerable for the security "
+                  "measures — approving them, overseeing them and following "
+                  "training itself. Put cybersecurity on the board agenda and "
+                  "minute the approval.",
+        "obligations": ["nis2_12"],
+    },
+    {
+        "category": "Registration with the authority",
+        "question": "Is your company registered with the national cybersecurity "
+                    "authority (the CCB in Belgium)?",
+        "advice": "Entities in scope must register themselves with the national "
+                  "authority and keep the details current. In Belgium that is "
+                  "done online with the CCB.",
+        "obligations": ["nis2_11"],
+    },
+    {
+        "category": "Logging & monitoring",
+        "question": "Do you keep logs of who accessed what, and does someone watch "
+                    "for unusual activity?",
+        "advice": "Keep sign-in and admin logs for your key systems for a set "
+                  "period, and have alerts on what matters — without detection, "
+                  "the incident process never starts.",
+        "obligations": ["nis2_13", "nis2_15"],
+    },
 ]
 
-MAX_SCORE = 3 * len(QUESTIONS)  # NIS2; max_score(kind) for either check
 
 BANDS = [
-    (10, "Early stage",
+    (13, "Early stage",
      "Several of the measures NIS2 expects aren't in place yet. That's "
      "normal at this stage — the important part is knowing where the gaps "
      "are before a regulator or an incident finds them for you."),
-    (20, "Developing",
+    (26, "Developing",
      "Some real foundations exist, but most aren't formalised or reviewed "
      "on a schedule yet — which is usually where NIS2 readiness actually "
      "gets tested."),
-    (30, "Good foundation",
+    (39, "Good foundation",
      "A solid starting point. The next step is usually less about adding "
      "new measures and more about documenting and testing the ones already "
      "in place."),
@@ -148,7 +183,7 @@ _DECLARED_STATUS = ["missing", "partial", "partial", "compliant"]
 
 
 # ── The AI Act Quick Check (S55, D-132) ───────────────────────────────────
-# Eight questions on what the AI Act asks of a company that USES AI tools
+# Nine questions on what the AI Act asks of a company that USES AI tools
 # (a deployer), which is nearly every company: Art. 4 literacy, Art. 5
 # banned practices, Art. 50 transparency, Annex III high-risk uses, and the
 # groundwork they all assume (which tools, which role). Each question has its
@@ -257,27 +292,45 @@ AI_QUESTIONS = [
                   "your HR and recruiting software for AI features first.",
         "obligations": ["ai_11"],
     },
+    # D-134
+    {
+        "category": "Human oversight",
+        "question": "Does someone check what AI produces before it is used — sent to a "
+                    "customer, published, or used to decide about a person?",
+        "options": ["No, AI output goes out as it is",
+                    "Sometimes, it depends who",
+                    "Usually, but it isn't a rule",
+                    "Always — a named person checks, and can overrule it"],
+        "advice": "Make it a rule that a person reviews AI output before it reaches a "
+                  "customer or affects someone, and name who. For high-risk uses the AI "
+                  "Act requires that person to have the competence and authority to "
+                  "overrule the system.",
+        "obligations": ["ai_12"],
+    },
 ]
 AI_LEVELS = ["Not addressed", "Started", "Partly in place", "In place"]
 AI_BANDS = [
-    (8, "Early stage",
+    (9, "Early stage",
      "Your company uses AI, but the basics the AI Act expects aren't in place yet. "
      "That's where most companies are — the first steps are a list of your AI tools "
      "and short training for the people who use them."),
-    (16, "Developing",
+    (18, "Developing",
      "Some groundwork is there, but most of it isn't written down yet — and written "
      "down is what you can show when a client, an auditor or a regulator asks."),
-    (24, "Good foundation",
+    (27, "Good foundation",
      "A solid start. What usually remains is keeping the list of AI tools current "
      "and recording the checks you have made."),
 ]
 
 # The two questionnaires, for the functions below and the screens
 # (funnel_ui.py): NIS2 is the default everywhere, so S49's calls are unchanged.
+# LEGACY_LENGTHS: answer counts saved before questions were added (D-134).
+# Such a result reads as the questions answered then; it is scored on those,
+# and the band scaled to them, so an old result keeps its meaning.
 NIS2 = {"tool": TOOL_QUIZ, "name": "NIS2 Quick Check", "questions": QUESTIONS,
-        "bands": BANDS, "levels": LEVELS}
+        "bands": BANDS, "levels": LEVELS, "legacy_lengths": (10,)}
 AI_ACT = {"tool": TOOL_AI, "name": "AI Act Quick Check", "questions": AI_QUESTIONS,
-          "bands": AI_BANDS, "levels": AI_LEVELS}
+          "bands": AI_BANDS, "levels": AI_LEVELS, "legacy_lengths": (8,)}
 
 
 def options_for(q: dict) -> list[str]:
@@ -285,15 +338,22 @@ def options_for(q: dict) -> list[str]:
     return q.get("options") or OPTIONS
 
 
-def max_score(kind: dict = NIS2) -> int:
-    return 3 * len(kind["questions"])
+def max_score(kind: dict = NIS2, answers: list[int] | None = None) -> int:
+    """The best possible score — of the questions answered, for a result
+    saved before questions were added."""
+    return 3 * len(answers if answers is not None else kind["questions"])
 
 
 def score(answers: list[int]) -> int:
     return sum(answers)
 
 
-def band(total: int, kind: dict = NIS2) -> tuple[str, str]:
+def band(total: int, kind: dict = NIS2, answered: int | None = None) -> tuple[str, str]:
+    """The band for a total; for an older, shorter result (`answered`
+    questions), the total scaled to the full questionnaire first."""
+    full = len(kind["questions"])
+    if answered and answered != full:
+        total = round(total * full / answered)
     for ceiling, label, blurb in kind["bands"]:
         if total <= ceiling:
             return label, blurb
@@ -321,8 +381,9 @@ def encode_answers(answers: list[int]) -> str:
 
 def decode_answers(code: str | None, kind: dict = NIS2) -> list[int] | None:
     """One digit 0-3 per question, or None. Anything else is ignored, never
-    trusted."""
-    if (not code or len(code) != len(kind["questions"])
+    trusted. A result saved before questions were added (a legacy length)
+    reads as its first answers."""
+    if (not code or len(code) not in (len(kind["questions"]), *kind.get("legacy_lengths", ()))
             or any(c not in "0123" for c in code)):
         return None
     return [int(c) for c in code]
@@ -505,7 +566,7 @@ ALL_CHECKS = (TOOL_WEBSITE, TOOL_QUIZ, TOOL_AI)
 # Each check's name in the public app's links (?check=website|nis2|ai).
 LINK_CODES = {TOOL_WEBSITE: "website", TOOL_QUIZ: "nis2", TOOL_AI: "ai"}
 CHECK_NAMES = {TOOL_WEBSITE: ("Website check", "30 seconds"),
-               TOOL_QUIZ: ("NIS2 Quick Check", "2 minutes"),
+               TOOL_QUIZ: ("NIS2 Quick Check", "3 minutes"),
                TOOL_AI: ("AI Act Quick Check", "2 minutes")}
 
 

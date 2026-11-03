@@ -170,8 +170,8 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str,
     from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
 
     total = funnel.score(answers)
-    label, blurb = funnel.band(total, kind)
-    top = funnel.max_score(kind)
+    label, blurb = funnel.band(total, kind, len(answers))
+    top = funnel.max_score(kind, answers)
     level_colour = ["#993C1D", "#BA7517", "#BA7517", "#0F6E56"]
     rows = "".join(
         f"""
@@ -187,7 +187,7 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str,
       </tr>"""
         for r in funnel.breakdown(answers, kind)
     )
-    n_areas = {8: "eight", 10: "ten"}.get(len(answers), str(len(answers)))
+    n_areas = {8: "eight", 9: "nine", 10: "ten", 13: "thirteen"}.get(len(answers), str(len(answers)))
 
     html_body = email_layout(
         f"Your {name} result",

@@ -100,10 +100,11 @@ CHECK_LABELS = {
     funnel.TOOL_WEBSITE: ("🌐", "Website check", "30 seconds",
                           "Your homepage and its privacy, cookie, terms and contact pages, "
                           "against GDPR, ePrivacy, accessibility and consumer rules."),
-    funnel.TOOL_QUIZ:    ("🛡️", "NIS2 Quick Check", "2 minutes",
-                          "Ten questions on the security measures NIS2 expects (Art. 21)."),
+    funnel.TOOL_QUIZ:    ("🛡️", "NIS2 Quick Check", "3 minutes",
+                          "Thirteen questions on the security measures NIS2 expects, and "
+                          "management's own duties."),
     funnel.TOOL_AI:      ("🤖", "AI Act Quick Check", "2 minutes",
-                          "Eight questions on what the AI Act asks of companies that use "
+                          "Nine questions on what the AI Act asks of companies that use "
                           "AI tools — training, transparency, banned and high-risk uses."),
 }
 # The check's name inside a sentence: "the website check", "the NIS2 Quick Check".
@@ -642,9 +643,9 @@ def _result_line(tool: str) -> None:
         return
     answers, kind = ((ss.quiz_answers, funnel.NIS2) if tool == funnel.TOOL_QUIZ
                      else (ss.ai_answers, funnel.AI_ACT))
-    label, _ = funnel.band(funnel.score(answers), kind)
+    label, _ = funnel.band(funnel.score(answers), kind, len(answers))
     weak = funnel.weak_areas(answers)
-    st.markdown(f"{icon} **{name}** · {funnel.score(answers)}/{funnel.max_score(kind)} · {label}"
+    st.markdown(f"{icon} **{name}** · {funnel.score(answers)}/{funnel.max_score(kind, answers)} · {label}"
                 f"  \n:gray[{weak} of {len(answers)} areas need attention]")
     with st.expander("Your breakdown 🔒"):
         render_quiz_score(answers, kind)

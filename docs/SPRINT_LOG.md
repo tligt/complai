@@ -5792,6 +5792,31 @@ offered quietly — also on the detailed result pages.
 Not changed: the marketing-consent wording still says "NIS2 and GDPR"; adding
 the AI Act means a new `CONSENT_VERSION`, left to the copy review.
 
+### D-134 — Four more questions: NIS2 13, AI Act 9, 3 Nov
+
+Compared against the register's obligations, the quick checks missed duties
+a director would recognise. Added, at the END of each list:
+
+- **NIS2**: management accountability (nis2_12, Art. 20), registration with
+  the national authority (nis2_11, Art. 3), logging and monitoring (nis2_13,
+  nis2_15). The incident question now also declares the reporting procedure
+  (nis2_03) and "measuring effectiveness" penetration testing (nis2_14).
+  13 questions, max 39, bands at 13 and 26; "3 minutes".
+- **AI Act**: human oversight (ai_12) — someone checks AI output before it
+  reaches a customer or decides about a person. 9 questions, max 27, bands
+  at 9 and 18.
+- **Left out on purpose**: ai_05 (emotion recognition notice), ai_08 and
+  ai_10 (provider duties), ai_13 and ai_14 (only once a use is high-risk —
+  the full assessment's job).
+
+**Old results keep reading.** Answers are one digit per question, saved in
+links, accounts and leads. `legacy_lengths` (10 for NIS2, 8 for the AI Act)
+lets a shorter result decode as the questions answered then; it is scored
+out of those (20/30, not 20/39) and banded scaled to the full list, so its
+band does not change. "Change my answers" reopens it with the new questions
+to answer. Rule from now on: new questions go at the end, and the old length
+is added to `legacy_lengths`.
+
 ---
 
 ## 5. Constraints and gotchas

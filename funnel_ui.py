@@ -25,7 +25,8 @@ def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
             choice = st.radio(
                 q["question"], options=range(len(opts)),
                 format_func=lambda i, opts=opts: opts[i],
-                key=f"{key}_q_{i}", index=previous[i] if previous else None,
+                key=f"{key}_q_{i}",
+                index=previous[i] if previous and i < len(previous) else None,
             )
             answers.append(choice)
             st.write("")
@@ -41,8 +42,8 @@ def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
 
 def render_quiz_score(answers: list[int], kind: dict = funnel.NIS2) -> None:
     total = funnel.score(answers)
-    label, blurb = funnel.band(total, kind)
-    st.subheader(f"Your result: {total}/{funnel.max_score(kind)} — {label}")
+    label, blurb = funnel.band(total, kind, len(answers))
+    st.subheader(f"Your result: {total}/{funnel.max_score(kind, answers)} — {label}")
     st.write(blurb)
 
 
@@ -69,7 +70,7 @@ def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.
             st.caption(r["advice"])
 
 
-_WORDS = {8: "eight", 10: "ten"}
+_WORDS = {8: "eight", 9: "nine", 10: "ten", 13: "thirteen"}
 
 
 # D-129. How each verdict reads, beside the regulation's name.

@@ -180,7 +180,7 @@ if not funnel.has_site(pending):
     with st.expander("🌐 Website check — 30 seconds"):
         _add_site("app_site_more")
 if answers is None:
-    with st.expander("🛡️ NIS2 Quick Check — 2 minutes"):
+    with st.expander("🛡️ NIS2 Quick Check — 3 minutes"):
         _add_quiz("app_quiz_more")
 if ai_answers is None:
     with st.expander("🤖 AI Act Quick Check — 2 minutes"):

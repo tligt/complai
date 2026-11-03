@@ -177,8 +177,9 @@ if "ticket" in st.query_params:
     del st.query_params["ticket"]
 
 # ── Free check carry-over (S49, D-115) ───────────────────────
-# The public app's CTA links here with ?src= and ?quiz= (ten digits) and/or
-# ?site= (a domain), ?aiact= (eight digits, S55), and ?scope= (the four scope
+# The public app's CTA links here with ?src= and ?quiz= (a digit per NIS2
+# question) and/or ?site= (a domain), ?aiact= (a digit per AI Act question,
+# S55), and ?scope= (the four scope
 # answers, D-129) — never the
 # email. Parked in session state for the
 # signup form (auth.login_ui), which stores it on the new profile, and
