@@ -436,20 +436,27 @@ def _header() -> None:
 
 
 def _scope_step() -> None:
+    prev = ss.get("scope") or {}
+
+    def _at(options, key):
+        # The earlier answer pre-selected when the answers are changed.
+        return options.index(prev[key]) if prev.get(key) in options else None
+
+    sizes, sectors = list(funnel.SIZES), list(funnel.SECTOR_OPTIONS)
+    yes_no, yes_no_unsure = [funnel.YES, funnel.NO], [funnel.YES, funnel.NO, funnel.UNSURE]
     with st.form("scope_form"):
-        size = st.radio("How big is your company?", list(funnel.SIZES),
-                        format_func=funnel.SIZES.get, index=None)
-        sector = st.selectbox("What does it do?", list(funnel.SECTOR_OPTIONS),
-                              format_func=funnel.SECTOR_OPTIONS.get, index=None,
+        size = st.radio("How big is your company?", sizes,
+                        format_func=funnel.SIZES.get, index=_at(sizes, "size"))
+        sector = st.selectbox("What does it do?", sectors,
+                              format_func=funnel.SECTOR_OPTIONS.get, index=_at(sectors, "sector"),
                               placeholder="Choose the closest — or None of these")
-        website = st.radio("Do you have a website?", [funnel.YES, funnel.NO],
+        website = st.radio("Do you have a website?", yes_no,
                            format_func={funnel.YES: "Yes", funnel.NO: "No"}.get,
-                           index=None, horizontal=True)
-        ai = st.radio("Does anyone at your company use AI tools for work?",
-                      [funnel.YES, funnel.NO, funnel.UNSURE],
+                           index=_at(yes_no, "website"), horizontal=True)
+        ai = st.radio("Does anyone at your company use AI tools for work?", yes_no_unsure,
                       format_func={funnel.YES: "Yes", funnel.NO: "No",
                                    funnel.UNSURE: "Not sure"}.get,
-                      index=None, horizontal=True)
+                      index=_at(yes_no_unsure, "ai"), horizontal=True)
         go = st.form_submit_button("Show what applies to me", type="primary",
                                    use_container_width=True)
     if go:
@@ -501,6 +508,23 @@ def _skip_or_next(tool: str) -> None:
             _go(_next_step())
 
 
+def _back_links(current: str) -> None:
+    """Above a check: the way back to the checks already taken, and to the
+    scope answers — a check further on must not lock the earlier ones."""
+    back = [t for t in ss.plan + [t for t in ss.done if t not in ss.plan]
+            if t != current and t in ss.done]
+    if not back and not ss.get("scope"):
+        return
+    items = ([("scope", "✏️ Which rules apply")] if ss.get("scope") else []) + [
+        (t, f"{CHECK_LABELS[t][0]} {CHECK_LABELS[t][1]}") for t in back]
+    cols = st.columns([1.1] + [2] * len(items))
+    cols[0].markdown('<div class="fc-fine" style="padding-top:8px">Go back to:</div>',
+                     unsafe_allow_html=True)
+    for col, (step, label) in zip(cols[1:], items):
+        if col.button(label, type="tertiary", key=f"back_{current}_{step}"):
+            _go("plan" if step == "scope" else step)
+
+
 def _render_site(check: dict) -> None:
     """The website result, locked: the findings while the session has them,
     the summary when the visit came back from the address."""
@@ -517,6 +541,7 @@ def _render_site(check: dict) -> None:
 
 
 def _website_step() -> None:
+    _back_links(funnel.TOOL_WEBSITE)
     check = ss.get("site_result")
     if check and funnel.TOOL_WEBSITE not in ss.editing:
         st.markdown(f"#### Your result for {check['domain']}")
@@ -573,6 +598,7 @@ def _website_step() -> None:
 
 def _questions_step(tool: str, kind: dict, key: str, state_key: str) -> None:
     """A quick check: its questions, then its result alone (D-133)."""
+    _back_links(tool)
     answers = ss.get(state_key)
     if answers and tool not in ss.editing:
         render_quiz_score(answers, kind)
@@ -612,6 +638,7 @@ def _result_line(tool: str) -> None:
         st.markdown(f"{icon} **{name} — {check['domain']}** · {sm['score']}/100 · {sm['risk']} risk")
         with st.expander("What we found 🔒"):
             _render_site(check)
+        _change_link(tool, "Check another website")
         return
     answers, kind = ((ss.quiz_answers, funnel.NIS2) if tool == funnel.TOOL_QUIZ
                      else (ss.ai_answers, funnel.AI_ACT))
@@ -622,6 +649,14 @@ def _result_line(tool: str) -> None:
     with st.expander("Your breakdown 🔒"):
         render_quiz_score(answers, kind)
         render_quiz_breakdown(answers, locked=True, kind=kind)
+    _change_link(tool, "Change my answers")
+
+
+def _change_link(tool: str, label: str) -> None:
+    if st.button(label, type="tertiary", key=f"change_{tool}"):
+        if tool not in ss.editing:
+            ss.editing.append(tool)
+        _go(tool)
 
 
 def _results_step() -> None:
@@ -629,6 +664,8 @@ def _results_step() -> None:
     if ss.get("scope"):
         with st.expander("What applies to you"):
             render_rules(funnel.applicable_rules(ss.scope))
+            if st.button("Change my answers", type="tertiary", key="change_scope"):
+                _go("scope")
     pending = _pending()
     if not pending:
         st.markdown(
