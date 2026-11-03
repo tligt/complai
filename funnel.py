@@ -501,6 +501,29 @@ def has_ai(pending: dict | None) -> bool:
     return bool((pending or {}).get("ai_answers"))
 
 
+ALL_CHECKS = (TOOL_WEBSITE, TOOL_QUIZ, TOOL_AI)
+# Each check's name in the public app's links (?check=website|nis2|ai).
+LINK_CODES = {TOOL_WEBSITE: "website", TOOL_QUIZ: "nis2", TOOL_AI: "ai"}
+CHECK_NAMES = {TOOL_WEBSITE: ("Website check", "30 seconds"),
+               TOOL_QUIZ: ("NIS2 Quick Check", "2 minutes"),
+               TOOL_AI: ("AI Act Quick Check", "2 minutes")}
+
+
+def has_check(pending: dict | None, tool: str) -> bool:
+    return {TOOL_WEBSITE: has_site, TOOL_QUIZ: has_quiz, TOOL_AI: has_ai}[tool](pending)
+
+
+def missing_checks(pending: dict | None) -> list[str]:
+    """The free checks this result does not hold yet, in the usual order."""
+    return [t for t in ALL_CHECKS if not has_check(pending, t)]
+
+
+def check_url(free_check_base: str, tool: str, src: str = "email") -> str:
+    """A link straight to one check in the public app."""
+    return (f"{free_check_base.rstrip('/')}/?"
+            + urlencode({"check": LINK_CODES[tool], "src": src}))
+
+
 def domains_match(email: str, site_domain: str) -> bool:
     """S43's rule for the public app, which has no database.py: the email is
     at the checked site's domain, or the two are subdomain-related. The same

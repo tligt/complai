@@ -43,6 +43,19 @@ def email_layout(subtitle: str, body_html: str, cta_label: str | None = None,
 </body></html>'''
 
 
+def more_checks_html(more: list[tuple[str, str]] | None) -> str:
+    """D-133. The last line of a result email: the free checks not taken yet,
+    each a link straight to it. Empty when every check is taken."""
+    import html as _h
+    if not more:
+        return ""
+    links = " &middot; ".join(
+        f'<a href="{_h.escape(url)}" style="color:{BRAND_DARK};font-weight:bold">{_h.escape(label)}</a>'
+        for label, url in more)
+    return (f'<p style="margin:18px 0 0;font-size:13px;color:#555">Also free, and added to the '
+            f'same account: {links}</p>')
+
+
 def send_audit_report(
     to_email: str,
     website_url: str,
@@ -53,6 +66,7 @@ def send_audit_report(
     warn_count: int,
     fail_count: int,
     cta_url: str | None = None,
+    more: list[tuple[str, str]] | None = None,
 ) -> bool:
     """
     Send the audit report PDF by email using the Brevo API.
@@ -100,7 +114,7 @@ def send_audit_report(
        and it is in your RECOSA account.</p>
     {counts}
     <p>RECOSA shows you how to fix each issue, generates the documents you are missing and
-       keeps checking your site.</p>''',
+       keeps checking your site.</p>{more_checks_html(more)}''',
         "Open RECOSA", cta_url,
         footer_note="Generated automatically from your website's public pages. Not legal advice.",
     )
@@ -136,7 +150,8 @@ def send_audit_report(
 
 
 def send_quiz_result(to_email: str, answers: list[int], cta_url: str,
-                     kind: dict | None = None) -> bool:
+                     kind: dict | None = None,
+                     more: list[tuple[str, str]] | None = None) -> bool:
     """S49. The full NIS2 Quick Check result — or the AI Act Quick Check's
     (S55, kind=funnel.AI_ACT) — sent because the visitor asked for it on the
     public app. Weakest areas first, each with what to do. Returns True on
@@ -182,7 +197,7 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str,
     <table style="width:100%;border-collapse:collapse;background:white">{rows}
     </table>
     <p>The full assessment in RECOSA scores you against every {reg} obligation and turns the
-       gaps into an action plan — included in the 14-day free trial.</p>''',
+       gaps into an action plan — included in the 14-day free trial.</p>{more_checks_html(more)}''',
         "Open RECOSA", cta_url,
         footer_note=f"A lightweight self-check based on your own answers — not a certified {reg} "
                     "audit, and not legal advice.",

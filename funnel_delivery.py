@@ -23,6 +23,12 @@ Two callers, whichever comes first, and the flag stops a second email:
   - monitor_funnel.py, every 15 minutes, for confirmed accounts that have
     not logged in — the form promised the PDF, not a login.
 
+D-133: a check taken in the client app (Your free check), or brought by the
+public app's "Log in instead" link, lives on the profile only, not in the
+metadata. deliver() reads both, so those checks are emailed too — by the
+app, which starts a delivery whenever a check is not sent yet. Every email
+ends with links to the checks not taken yet (FREE_CHECK_URL).
+
 OWN SITE ONLY. The website report is sent only when the address is at the
 checked site's domain (S43), or once the site has been proven to be the
 account's: a meta tag on its homepage or a DNS TXT record carrying a token
@@ -107,6 +113,8 @@ def check_site(site: str, token: str) -> tuple[bool, str]:
 
 QUIZ_SENT, SITE_SENT, ALL_SENT = "recosa_quiz_sent", "recosa_site_sent", "recosa_report_sent"
 AI_SENT = "recosa_ai_sent"  # S55
+_FLAGS = {funnel.TOOL_QUIZ: QUIZ_SENT, funnel.TOOL_WEBSITE: SITE_SENT,  # tool -> flag
+          funnel.TOOL_AI: AI_SENT}
 
 
 def _base_url() -> str:
@@ -114,15 +122,53 @@ def _base_url() -> str:
     return (os.environ.get("APP_BASE_URL") or "").rstrip("/") + "/"
 
 
+def _more(pending: dict) -> list[tuple[str, str]]:
+    """(label, link) for each free check this account has not taken: the
+    last line of every result email."""
+    import os
+    base = os.environ.get("FREE_CHECK_URL") or "https://recosa-checklist.streamlit.app"
+    out = []
+    for tool in funnel.missing_checks(pending):
+        name, time = funnel.CHECK_NAMES[tool]
+        out.append((f"{name} ({time})", funnel.check_url(base, tool, src="email")))
+    return out
+
+
+def unsent(meta: dict | None, pending: dict | None, email: str) -> list[str]:
+    """The checks due now and not emailed yet, by the flags in `meta`."""
+    meta = meta or {}
+    if not pending:
+        return []
+    legacy = _legacy_sent(meta)
+    out = []
+    for tool, flag in _FLAGS.items():
+        if not funnel.has_check(pending, tool) or meta.get(flag) or tool in legacy:
+            continue
+        if tool == funnel.TOOL_WEBSITE and not site_proven(email, pending):
+            continue
+        out.append(tool)
+    return out
+
+
+def _legacy_sent(meta: dict) -> set[str]:
+    """Before D-129 an account carried one check and only recosa_report_sent
+    was set once it went: that check counts as sent."""
+    if not meta.get(ALL_SENT) or any(meta.get(f) for f in _FLAGS.values()):
+        return set()
+    p = pending_of(meta) or {}
+    return {t for t in funnel.ALL_CHECKS if funnel.has_check(p, t)}
+
+
 def send_quiz(email: str, pending: dict) -> bool:
     from email_sender import send_quiz_result
-    return send_quiz_result(email, funnel.decode_answers(pending["answers"]), _base_url())
+    return send_quiz_result(email, funnel.decode_answers(pending["answers"]), _base_url(),
+                            more=_more(pending))
 
 
 def send_ai(email: str, pending: dict) -> bool:
     from email_sender import send_quiz_result
     return send_quiz_result(email, funnel.decode_answers(pending["ai_answers"], funnel.AI_ACT),
-                            _base_url(), kind=funnel.AI_ACT)
+                            _base_url(), kind=funnel.AI_ACT, more=_more(pending))
 
 
 def send_site(email: str, pending: dict) -> bool:
@@ -141,6 +187,7 @@ def send_site(email: str, pending: dict) -> bool:
         to_email=email, website_url=result.url, pdf_bytes=generate_pdf(audit),
         score=audit.score, risk_level=audit.risk_level, ok_count=audit.ok_count,
         warn_count=audit.warn_count, fail_count=audit.fail_count, cta_url=_base_url(),
+        more=_more(pending),
     )
 
 
@@ -150,19 +197,30 @@ def deliver(user) -> str:
     `user` is a Supabase admin User object."""
     from database import get_supabase_admin, record_funnel_event
     meta = dict(user.user_metadata or {})
-    if meta.get(ALL_SENT):
-        return "already"
     if not getattr(user, "email_confirmed_at", None):
         return "not_confirmed"
-    pending = pending_of(meta)
-    if not pending:
-        return "none"
-    # The proof is recorded on the profile (the app writes it there).
     admin = get_supabase_admin()
     prof = (admin.table("profiles").select("pending_result").eq("id", user.id)
             .execute().data or [{}])[0]
-    if (prof.get("pending_result") or {}).get("site_verified"):
+    prof_p = prof.get("pending_result") or {}
+    # D-133: the form's checks (metadata), plus those on the profile only —
+    # taken in the app, or brought by "Log in instead". The form's own win
+    # where both hold one.
+    pending = dict(pending_of(meta) or {})
+    extra = funnel.pending_from_params(prof_p.get("answers"), prof_p.get("site"), None,
+                                       prof_p.get("ai_answers")) or {}
+    for k in ("answers", "site", "ai_answers"):
+        if k in extra and k not in pending:
+            pending[k] = extra[k]
+    if not any(funnel.has_check(pending, t) for t in funnel.ALL_CHECKS):
+        return "none"
+    pending.setdefault("tool", extra.get("tool"))
+    # The proof is recorded on the profile (the app writes it there).
+    if prof_p.get("site_verified") and prof_p.get("site") == pending.get("site"):
         pending["site_verified"] = True
+    legacy = _legacy_sent(meta)
+    for tool in legacy:
+        meta[_FLAGS[tool]] = meta[ALL_SENT]
 
     now = datetime.now(timezone.utc).isoformat()
     sent, failed, waiting = [], False, False
@@ -186,7 +244,7 @@ def deliver(user) -> str:
         else:
             failed = True
     if all(meta.get(flag) for flag, *_ in parts):
-        meta[ALL_SENT] = now
+        meta[ALL_SENT] = meta.get(ALL_SENT) or now
     if sent:
         admin.auth.admin.update_user_by_id(user.id, {"user_metadata": meta})
 

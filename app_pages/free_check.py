@@ -171,19 +171,25 @@ if ai_answers is not None:
         )
 
 # ── The checks not taken yet ──────────────────────────────────────────────
+# D-133: offered, not pushed — a quiet line under the results; each opens in
+# place, and its result is added to this page and emailed like the others.
+if funnel.missing_checks(pending):
+    st.write("")
+    st.caption("**Complete your picture** — also free, added to this page and sent to you")
 if not funnel.has_site(pending):
-    with st.expander("🌐 Also check your website — 30 seconds"):
+    with st.expander("🌐 Website check — 30 seconds"):
         _add_site("app_site_more")
 if answers is None:
-    with st.expander("🛡️ Also take the NIS2 Quick Check — 2 minutes"):
+    with st.expander("🛡️ NIS2 Quick Check — 2 minutes"):
         _add_quiz("app_quiz_more")
 if ai_answers is None:
-    with st.expander("🤖 Also take the AI Act Quick Check — 2 minutes"):
+    with st.expander("🤖 AI Act Quick Check — 2 minutes"):
         _add_ai("app_ai_more")
 
 # The emailed copy (S49 part 2): sent once per check, to a confirmed account
-# whose free check came from the public form — here or by monitor_funnel.py,
-# whichever comes first.
+# — here or by monitor_funnel.py, whichever comes first. D-133: also a check
+# taken on this page, or brought by "Log in instead": deliver() reads the
+# profile too, and a delivery starts whenever a check is not sent yet.
 #
 # In a background thread, not in the page run: re-checking the site, the PDF
 # and the send take 10–15 s, and a rerun in that time (any click) stopped
@@ -197,22 +203,23 @@ def _deliver_in_background(uid: str) -> None:
     try:
         from database import get_supabase_admin
         u = get_supabase_admin().auth.admin.get_user_by_id(uid).user
-        if FD.pending_of(u.user_metadata):
-            print(f"free check delivery {uid}: {FD.deliver(u)}")
+        print(f"free check delivery {uid}: {FD.deliver(u)}")
     except Exception as e:
         print(f"free check delivery {uid}: failed — {e}")
 
 
-if FD.eligible(email, {**pending, "site_verified": FD.site_proven(email, pending)}):
-    _meta = getattr(st.session_state.user, "user_metadata", None) or {}
-    if _meta.get("recosa_pending"):
-        _flag = f"delivery_started_{user_id}"
-        if not st.session_state.get(_flag):
-            st.session_state[_flag] = True
-            threading.Thread(target=_deliver_in_background, args=(user_id,), daemon=True).start()
-        st.success("A copy is on its way to your inbox" + (" — the website report as a PDF."
-                   if funnel.has_site(pending) and FD.site_proven(email, pending) else ".")
-                   + " If it doesn't arrive within a few minutes, check your spam folder.")
+_meta = getattr(st.session_state.user, "user_metadata", None) or {}
+_due = FD.unsent(_meta, pending, email)
+if _due:
+    # Keyed by what is due, so a check added later starts its own delivery
+    # (the metadata in the session is the one read at login).
+    _flag = f"delivery_started_{user_id}_{'_'.join(_due)}"
+    if not st.session_state.get(_flag):
+        st.session_state[_flag] = True
+        threading.Thread(target=_deliver_in_background, args=(user_id,), daemon=True).start()
+    st.success("A copy is on its way to your inbox" + (" — the website report as a PDF."
+               if funnel.TOOL_WEBSITE in _due else ".")
+               + " If it doesn't arrive within a few minutes, check your spam folder.")
 
 st.divider()
 render_trial_cta(profile)

@@ -5757,6 +5757,41 @@ real funnel events (18 rows, 3 Nov 15:54–15:55 UTC; the same happened on
 28 Oct). The tests now set it to an empty string, which `load_dotenv` leaves
 alone.
 
+### D-133 — Free check redesign: one result per page, the visit kept, 3 Nov
+
+Asked for after trying S55: the result appeared under the questions and the
+page grew long; the results page pushed the other checks as hard as the
+report. Agreed: the full report is the one main action, the other checks are
+offered quietly — also on the detailed result pages.
+
+- **One result per page.** A check shows its questions, then its result
+  alone; "Change my answers" reopens them, pre-selected. The website check
+  the same: the address field goes once the result is in ("Check another
+  website").
+- **Results page.** What applies (folded), one line per check taken with its
+  locked teaser folded, then the account form; the checks not taken are one
+  line of small links under it ("Also free — added to the same report").
+- **The visit is kept in the address**: step, plan, answers, scope, the
+  checked domain and its score summary — nothing personal, all validated on
+  the way back. A reload used to lose everything (a new Streamlit session).
+  The site's findings are not in the address: after a reload the summary is
+  shown, and the report still comes by email.
+- **A check after the form was sent**: no second form (a second sign-up with
+  the same address does nothing); a login link that carries every result.
+- **Checks taken in the app, or brought by "Log in instead", are emailed
+  too.** `deliver()` now reads the profile as well as the metadata, and the
+  app starts a delivery whenever a check is not sent (`unsent()`). This also
+  answers the existing-account case from 28 Oct: logging in with a new check
+  now sends it. Accounts flagged before D-129 are still not resent.
+- **Every result email ends with links to the checks not taken** (straight to
+  each, `src=email`). `FREE_CHECK_URL` sets the public app's address
+  (default recosa-checklist.streamlit.app).
+- **Client app**: the checks not taken sit under the results as "Complete
+  your picture", folded.
+
+Not changed: the marketing-consent wording still says "NIS2 and GDPR"; adding
+the AI Act means a new `CONSENT_VERSION`, left to the copy review.
+
 ---
 
 ## 5. Constraints and gotchas

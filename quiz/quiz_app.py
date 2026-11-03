@@ -30,8 +30,15 @@ DEEP LINKS, for the website and campaigns (all optional, combinable):
   ?site=acme.be       the website field filled in
   ?src=homepage       where the visitor came from: on every funnel event, and
                       on the account as recosa_source
-With no ?check the visit starts at step 1. After a direct check, the result
-page offers the others before the form.
+With no ?check the visit starts at step 1.
+
+THE PAGES (D-133, 3 Nov 2026). A check shows its questions, then its result
+alone (the questions go; "Change my answers" brings them back). The results
+page puts the full report first — the one main action — and offers the
+checks not taken in one quiet line under it. The whole visit is kept in the
+address (step, answers, the site's summary — never anything personal), so a
+refresh or a bookmark keeps every result: a Streamlit session alone does not
+survive a reload.
 
 THE FUNNEL (S49 D-115, part 2 D-119). Free to check; one form for the full
 result: it creates the free account, and the result is emailed once the
@@ -105,7 +112,7 @@ IN_TEXT = {funnel.TOOL_WEBSITE: "website check", funnel.TOOL_QUIZ: "NIS2 Quick C
 LINK_CHECKS = {"website": funnel.TOOL_WEBSITE, "nis2": funnel.TOOL_QUIZ,
                "quiz": funnel.TOOL_QUIZ, "ai": funnel.TOOL_AI, "aiact": funnel.TOOL_AI,
                "ai-act": funnel.TOOL_AI}
-ALL_CHECKS = (funnel.TOOL_WEBSITE, funnel.TOOL_QUIZ, funnel.TOOL_AI)
+ALL_CHECKS = funnel.ALL_CHECKS
 
 
 # ── Look: recosa.eu, as the login page (D-127) ────────────────────────────
@@ -245,10 +252,98 @@ def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[
 
 
 # ── State ─────────────────────────────────────────────────────────────────
-# step: scope → plan → website / nis2 (in plan order) → results.
+# step: scope → plan → website / nis2 / ai (in plan order) → results.
 # plan: the checks to take; done: those taken; skipped: those passed over.
+# editing: the checks whose questions are open again ("Change my answers").
+#
+# D-133: mirrored into the address after every run (_save_to_url) and read
+# back when a new session starts with it (_restore_from_url): a reload starts
+# a new Streamlit session, which used to lose every result. Only what is
+# already non-personal: answer digits, the scope code, the checked domain and
+# its score summary. The site's findings are not in the address — the summary
+# is shown instead, and the full report comes by email as before.
 
 ss = st.session_state
+CODE_TOOL = {"website": funnel.TOOL_WEBSITE, "nis2": funnel.TOOL_QUIZ, "ai": funnel.TOOL_AI}
+TOOL_CODE = {t: c for c, t in CODE_TOOL.items()}
+STEPS = {"scope", "plan", "results"}
+RISKS = {"Green", "Amber", "Red", "Low", "Medium", "High"}
+
+
+def _tools(code: str | None) -> list[str]:
+    return [CODE_TOOL[c] for c in (code or "").split(",") if c in CODE_TOOL]
+
+
+def _site_summary(audit) -> dict:
+    return {"score": audit.score, "risk": audit.risk_level, "ok": audit.ok_count,
+            "warn": audit.warn_count, "fail": audit.fail_count}
+
+
+def _restore_from_url() -> bool:
+    """A reload or a bookmark: the visit as the address holds it. Validated —
+    the address is visitor-controlled. False if there is nothing to restore."""
+    qp = st.query_params
+    step = qp.get("step") or ""
+    step = CODE_TOOL.get(step) or (step if step in STEPS else None)
+    if not step:
+        return False
+    ss.src = (qp.get("src") or "")[:40] or None
+    ss.site_prefill = ""
+    ss.plan, ss.done, ss.skipped = _tools(qp.get("plan")), _tools(qp.get("done")), _tools(qp.get("skip"))
+    ss.direct = qp.get("direct") == "1"
+    ss.editing = []
+    scope = funnel.decode_scope(qp.get("scope"))
+    if scope:
+        ss.scope = scope
+    answers = funnel.decode_answers(qp.get("q"))
+    if answers:
+        ss.quiz_answers = answers
+    ai = funnel.decode_answers(qp.get("ai"), funnel.AI_ACT)
+    if ai:
+        ss.ai_answers = ai
+    site = funnel.pending_from_params(None, qp.get("site"))
+    parts = (qp.get("ws") or "").split(".")
+    if site and len(parts) == 5 and parts[1] in RISKS and all(p.isdigit() for p in parts[:1] + parts[2:]):
+        ss.site_result = {"audit": None, "domain": site["site"], "url": f"https://{site['site']}",
+                          "summary": {"score": int(parts[0]), "risk": parts[1], "ok": int(parts[2]),
+                                      "warn": int(parts[3]), "fail": int(parts[4])}}
+    elif site:
+        ss.site_prefill = site["site"]
+    # Only what the address actually restored counts as taken.
+    have = {funnel.TOOL_WEBSITE: bool(ss.get("site_result")),
+            funnel.TOOL_QUIZ: bool(ss.get("quiz_answers")), funnel.TOOL_AI: bool(ss.get("ai_answers"))}
+    ss.done = [t for t in ss.done if have[t]]
+    if step == "plan" and not ss.get("scope"):
+        step = "scope"
+    ss.step = step
+    return True
+
+
+def _save_to_url() -> None:
+    """The visit, written to the address (no rerun)."""
+    d = {"step": TOOL_CODE.get(ss.step, ss.step)}
+    if ss.get("src"):
+        d["src"] = ss.src
+    for key, tools in (("plan", ss.plan), ("done", ss.done), ("skip", ss.skipped)):
+        if tools:
+            d[key] = ",".join(TOOL_CODE[t] for t in tools)
+    if ss.direct:
+        d["direct"] = "1"
+    if ss.get("scope"):
+        d["scope"] = funnel.encode_scope(ss.scope)
+    if ss.get("quiz_answers"):
+        d["q"] = funnel.encode_answers(ss.quiz_answers)
+    if ss.get("ai_answers"):
+        d["ai"] = funnel.encode_answers(ss.ai_answers)
+    site = ss.get("site_result")
+    if site:
+        sm = site.get("summary") or _site_summary(site["audit"])
+        d["site"] = site["domain"]
+        d["ws"] = f"{sm['score']}.{sm['risk']}.{sm['ok']}.{sm['warn']}.{sm['fail']}"
+    elif ss.get("site_prefill"):
+        d["site"] = ss.site_prefill
+    if dict(st.query_params) != d:
+        st.query_params.from_dict(d)
 
 
 def _start_from_link() -> None:
@@ -260,13 +355,13 @@ def _start_from_link() -> None:
     ss.src = (qp.get("src") or "")[:40] or None
     ss.site_prefill = (qp.get("site") or "").strip()[:120]
     ss.plan = [check] if check else []
-    ss.done, ss.skipped = [], []
+    ss.done, ss.skipped, ss.editing = [], [], []
     ss.step = check or "scope"
     ss.direct = bool(check)
     _event("check_landing", check)
 
 
-if "step" not in ss:
+if "step" not in ss and not _restore_from_url():
     _start_from_link()
 
 
@@ -280,6 +375,15 @@ def _next_step() -> str:
         if tool not in ss.done and tool not in ss.skipped:
             return tool
     return "results"
+
+
+def _take(tool: str) -> None:
+    """Open another check (from the results page or a result)."""
+    if tool not in ss.plan:
+        ss.plan.append(tool)
+    if tool in ss.skipped:
+        ss.skipped.remove(tool)
+    _go(tool)
 
 
 def _pending() -> dict | None:
@@ -397,14 +501,39 @@ def _skip_or_next(tool: str) -> None:
             _go(_next_step())
 
 
+def _render_site(check: dict) -> None:
+    """The website result, locked: the findings while the session has them,
+    the summary when the visit came back from the address."""
+    if check.get("audit") is not None:
+        from audit_view import render_results
+        render_results(check["audit"], locked=True)
+        return
+    sm = check["summary"]
+    c1, c2 = st.columns(2)
+    c1.metric("Score", f"{sm['score']}/100")
+    c2.metric("Risk level", sm["risk"])
+    st.markdown(f"✅ {sm['ok']} compliant · ⚠️ {sm['warn']} need attention · ❌ {sm['fail']} missing")
+    st.caption("🔒 Every finding and how to fix it is in the full report.")
+
+
 def _website_step() -> None:
+    check = ss.get("site_result")
+    if check and funnel.TOOL_WEBSITE not in ss.editing:
+        st.markdown(f"#### Your result for {check['domain']}")
+        _render_site(check)
+        if st.button("Check another website", type="tertiary", key="site_again"):
+            ss.editing.append(funnel.TOOL_WEBSITE)
+            st.rerun()
+        _skip_or_next(funnel.TOOL_WEBSITE)
+        return
+
     st.markdown(
         '<div class="fc-note"><b>For your own website.</b> The full report goes to an email '
         'address at the site\'s domain — you@yourcompany.com for yourcompany.com. Email on another '
         'domain, for a brand or product site? You can prove the site is yours after signing up. '
         'Paid plans check any number of sites.</div>', unsafe_allow_html=True)
     with st.form("site_check"):
-        url = st.text_input("Website", value=ss.get("site_prefill") or "",
+        url = st.text_input("Website", value=(check or {}).get("domain") or ss.get("site_prefill") or "",
                             placeholder="https://yourcompany.com")
         run = st.form_submit_button("Check my website", type="primary", use_container_width=True)
 
@@ -432,91 +561,109 @@ def _website_step() -> None:
                 }
                 if funnel.TOOL_WEBSITE not in ss.done:
                     ss.done.append(funnel.TOOL_WEBSITE)
-                ss.pop("account_done", None)
+                if funnel.TOOL_WEBSITE in ss.editing:
+                    ss.editing.remove(funnel.TOOL_WEBSITE)
+                st.rerun()
+    if check and st.button("Keep my result for " + check["domain"], type="tertiary", key="site_keep"):
+        ss.editing.remove(funnel.TOOL_WEBSITE)
+        st.rerun()
+    if not check:
+        _skip_or_next(funnel.TOOL_WEBSITE)
 
-    check = ss.get("site_result")
-    if check:
-        from audit_view import render_results
-        st.markdown(f"#### Your result for {check['domain']}")
-        render_results(check["audit"], locked=True)
-    _skip_or_next(funnel.TOOL_WEBSITE)
+
+def _questions_step(tool: str, kind: dict, key: str, state_key: str) -> None:
+    """A quick check: its questions, then its result alone (D-133)."""
+    answers = ss.get(state_key)
+    if answers and tool not in ss.editing:
+        render_quiz_score(answers, kind)
+        render_quiz_breakdown(answers, locked=True, kind=kind)
+        if st.button("Change my answers", type="tertiary", key=f"edit_{tool}"):
+            ss.editing.append(tool)
+            st.rerun()
+        _skip_or_next(tool)
+        return
+    new = render_quiz_form(key, kind, previous=answers)
+    if new is not None:
+        ss[state_key] = new
+        if tool not in ss.done:
+            ss.done.append(tool)
+        if tool in ss.editing:
+            ss.editing.remove(tool)
+        _event("quiz_completed", tool)
+        st.rerun()
+    if not answers:
+        _skip_or_next(tool)
 
 
 def _quiz_step() -> None:
-    answers = render_quiz_form("nis2_quiz")
-    if answers is not None:
-        ss.quiz_answers = answers
-        if funnel.TOOL_QUIZ not in ss.done:
-            ss.done.append(funnel.TOOL_QUIZ)
-        ss.pop("account_done", None)
-        _event("quiz_completed", funnel.TOOL_QUIZ)
-    if ss.get("quiz_answers"):
-        render_quiz_score(ss.quiz_answers)
-        render_quiz_breakdown(ss.quiz_answers, locked=True)
-    _skip_or_next(funnel.TOOL_QUIZ)
+    _questions_step(funnel.TOOL_QUIZ, funnel.NIS2, "nis2_quiz", "quiz_answers")
 
 
 def _ai_step() -> None:
-    answers = render_quiz_form("ai_act", funnel.AI_ACT)
-    if answers is not None:
-        ss.ai_answers = answers
-        if funnel.TOOL_AI not in ss.done:
-            ss.done.append(funnel.TOOL_AI)
-        ss.pop("account_done", None)
-        _event("quiz_completed", funnel.TOOL_AI)
-    if ss.get("ai_answers"):
-        render_quiz_score(ss.ai_answers, funnel.AI_ACT)
-        render_quiz_breakdown(ss.ai_answers, locked=True, kind=funnel.AI_ACT)
-    _skip_or_next(funnel.TOOL_AI)
+    _questions_step(funnel.TOOL_AI, funnel.AI_ACT, "ai_act", "ai_answers")
+
+
+def _result_line(tool: str) -> None:
+    """One check on the results page: its headline, the locked teaser folded."""
+    icon, name, _, _ = CHECK_LABELS[tool]
+    if tool == funnel.TOOL_WEBSITE:
+        check = ss.site_result
+        sm = check.get("summary") or _site_summary(check["audit"])
+        st.markdown(f"{icon} **{name} — {check['domain']}** · {sm['score']}/100 · {sm['risk']} risk")
+        with st.expander("What we found 🔒"):
+            _render_site(check)
+        return
+    answers, kind = ((ss.quiz_answers, funnel.NIS2) if tool == funnel.TOOL_QUIZ
+                     else (ss.ai_answers, funnel.AI_ACT))
+    label, _ = funnel.band(funnel.score(answers), kind)
+    weak = funnel.weak_areas(answers)
+    st.markdown(f"{icon} **{name}** · {funnel.score(answers)}/{funnel.max_score(kind)} · {label}"
+                f"  \n:gray[{weak} of {len(answers)} areas need attention]")
+    with st.expander("Your breakdown 🔒"):
+        render_quiz_score(answers, kind)
+        render_quiz_breakdown(answers, locked=True, kind=kind)
 
 
 def _results_step() -> None:
+    taken = [t for t in ALL_CHECKS if t in ss.done]
     if ss.get("scope"):
-        with st.container(border=True):
-            st.markdown("**What applies to you**")
+        with st.expander("What applies to you"):
             render_rules(funnel.applicable_rules(ss.scope))
-    check = ss.get("site_result")
-    if check:
-        from audit_view import render_results
-        with st.container(border=True):
-            st.markdown(f"**🌐 Website check — {check['domain']}**")
-            render_results(check["audit"], locked=True)
-    if ss.get("quiz_answers"):
-        with st.container(border=True):
-            st.markdown("**🛡️ NIS2 Quick Check**")
-            render_quiz_score(ss.quiz_answers)
-            render_quiz_breakdown(ss.quiz_answers, locked=True)
-    if ss.get("ai_answers"):
-        with st.container(border=True):
-            st.markdown("**🤖 AI Act Quick Check**")
-            render_quiz_score(ss.ai_answers, funnel.AI_ACT)
-            render_quiz_breakdown(ss.ai_answers, locked=True, kind=funnel.AI_ACT)
+    pending = _pending()
+    if not pending:
+        st.markdown(
+            '<div class="fc-note">Take a check to see where you stand.</div>',
+            unsafe_allow_html=True)
+        for tool in ALL_CHECKS:
+            icon, name, time, what = CHECK_LABELS[tool]
+            if st.button(f"{icon} {name} · {time}", use_container_width=True, key=f"also_{tool}"):
+                _take(tool)
+        return
 
-    # The checks not taken: offered before the form, so taking one does not
-    # lose the others' results (the account carries them all).
+    with st.container(border=True):
+        st.markdown("**Your results**")
+        for tool in taken:
+            _result_line(tool)
+
+    st.write("")
+    _account_form(pending)
+
+    # The checks not taken: offered, not pushed (D-133) — one quiet line under
+    # the form, and the account carries every check taken.
     missing = [t for t in ALL_CHECKS if t not in ss.done]
-    for tool in missing:
-        icon, name, time, what = CHECK_LABELS[tool]
-        if st.button(f"{icon} Also take the {IN_TEXT[tool]} · {time}", use_container_width=True,
-                     key=f"also_{tool}"):
-            if tool not in ss.plan:
-                ss.plan.append(tool)
-            if tool in ss.skipped:
-                ss.skipped.remove(tool)
-            _go(tool)
+    if missing:
+        st.write("")
+        st.markdown('<div class="fc-fine"><b>Also free</b> — added to the same report:</div>',
+                    unsafe_allow_html=True)
+        cols = st.columns(len(missing))
+        for col, tool in zip(cols, missing):
+            icon, name, time, _ = CHECK_LABELS[tool]
+            if col.button(f"{icon} {name} · {time}", type="tertiary", key=f"also_{tool}"):
+                _take(tool)
     if not ss.get("scope") and st.button("Not sure which rules apply to you? Four questions",
                                          type="tertiary"):
         ss.direct = False
         _go("scope")
-
-    pending = _pending()
-    if not pending:
-        st.markdown(
-            '<div class="fc-note">Take a check above to see where you stand.</div>',
-            unsafe_allow_html=True)
-        return
-    st.write("")
-    _account_form(pending)
 
 
 def _and(items: list[str]) -> str:
@@ -527,10 +674,26 @@ def _and(items: list[str]) -> str:
 def _account_form(pending: dict) -> None:
     """The one step: complete the form, get the full results in the app and
     by email once the address is confirmed."""
+    site, quiz, ai = funnel.has_site(pending), funnel.has_quiz(pending), funnel.has_ai(pending)
+    # The login link carries the checks, so an existing account keeps them.
+    login_url = funnel.signup_url(APP_BASE_URL, ss.get("src") or pending["tool"],
+                                  answers=funnel.decode_answers(pending.get("answers")),
+                                  site=pending.get("site"), scope=pending.get("scope"),
+                                  ai_answers=funnel.decode_answers(pending.get("ai_answers"),
+                                                                   funnel.AI_ACT),
+                                  login=True)
     if ss.get("account_done"):
         st.success(ss.account_done)
+        # D-133: a check taken after the form went is not on the new account
+        # (a second sign-up with the same address does nothing). The login
+        # link carries every check, so logging in once confirmed adds it.
+        added = [IN_TEXT[t] for t in ALL_CHECKS
+                 if funnel.has_check(pending, t) and not funnel.has_check(ss.signed_pending, t)]
+        if added:
+            st.info(f"To add your {_and(added)} result to your account: confirm your address, "
+                    f"then [log in with this link]({login_url}). It brings every result on "
+                    "this page with it.")
         return
-    site, quiz, ai = funnel.has_site(pending), funnel.has_quiz(pending), funnel.has_ai(pending)
     parts = ((["the website findings and how to fix them, as a PDF"] if site else [])
              + (["your NIS2 breakdown"] if quiz else [])
              + (["your AI Act breakdown"] if ai else []))
@@ -553,13 +716,6 @@ def _account_form(pending: dict) -> None:
                     f'the box. <a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy policy</a></div>',
                     unsafe_allow_html=True)
         go = st.form_submit_button("Get my full report", type="primary", use_container_width=True)
-    # The login link carries the checks, so an existing account keeps them.
-    login_url = funnel.signup_url(APP_BASE_URL, ss.get("src") or pending["tool"],
-                                  answers=funnel.decode_answers(pending.get("answers")),
-                                  site=pending.get("site"), scope=pending.get("scope"),
-                                  ai_answers=funnel.decode_answers(pending.get("ai_answers"),
-                                                                   funnel.AI_ACT),
-                                  login=True)
     if not go:
         st.markdown(f'<div class="fc-fine">Already have an account? '
                     f'<a href="{login_url}" target="_self">Log in to RECOSA</a></div>',
@@ -578,6 +734,7 @@ def _account_form(pending: dict) -> None:
             st.error(msg)
             return
         _event("signup", pending["tool"])
+        ss.signed_pending = pending
         own = not site or funnel.domains_match(email, pending["site"])
         results = (["your NIS2 breakdown"] if quiz else []) + (["your AI Act breakdown"] if ai else [])
         if own:
@@ -614,3 +771,4 @@ _header()
     funnel.TOOL_AI: _ai_step,
     "results": _results_step,
 }[ss.step]()
+_save_to_url()

@@ -11,9 +11,11 @@ import streamlit as st
 import funnel
 
 
-def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2) -> list[int] | None:
+def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
+                     previous: list[int] | None = None) -> list[int] | None:
     """The questions. Returns the answers once all are submitted, else None
-    (with a warning if the form was submitted incomplete)."""
+    (with a warning if the form was submitted incomplete). previous: the
+    answers given before, pre-selected when they are changed."""
     questions = kind["questions"]
     with st.form(key):
         answers = []
@@ -23,7 +25,7 @@ def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2) -> list[i
             choice = st.radio(
                 q["question"], options=range(len(opts)),
                 format_func=lambda i, opts=opts: opts[i],
-                key=f"{key}_q_{i}", index=None,
+                key=f"{key}_q_{i}", index=previous[i] if previous else None,
             )
             answers.append(choice)
             st.write("")
