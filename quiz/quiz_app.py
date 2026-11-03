@@ -405,7 +405,7 @@ def _header() -> None:
     st.html(_CSS)
     st.markdown(
         '<div class="fc-top"><div class="fc-mark">R</div><span class="fc-name">RECOSA</span>'
-        f'<a class="fc-back" href="{WEBSITE_URL}" target="_self">Back to recosa.eu</a></div>',
+        f'<a class="fc-back" href="{WEBSITE_URL}" target="_top">Back to recosa.eu</a></div>',
         unsafe_allow_html=True)
     titles = {
         "scope":   ("Which EU rules apply to your company?",
@@ -495,35 +495,83 @@ def _plan_step() -> None:
         _go("scope")
 
 
-def _skip_or_next(tool: str) -> None:
-    """Under a check: on to the next one, or to the results."""
-    nxt = _next_step()
-    if tool in ss.done:
-        label = (f"Next: the {IN_TEXT[nxt]}" if nxt != "results"
-                 else "See my results and get the full report")
-        if st.button(label + " →", type="primary", use_container_width=True, key=f"next_{tool}"):
-            _go(nxt)
-    elif len(ss.plan) > 1 or ss.done:
-        if st.button("Skip this check", type="tertiary", key=f"skip_{tool}"):
-            ss.skipped.append(tool)
-            _go(_next_step())
+# ── Navigation (D-135) ────────────────────────────────────────────────────
+# Every check page: the checks bar on top (each check in the plan, any one a
+# click away), and at the bottom one way forward — "Next: …" / "See my full
+# results" once answered, "Skip to …" before — and "← Back" to the page
+# before, in the order the visit goes: what applies → each check → results.
+
+def _sequence() -> list[str]:
+    extra = [t for t in ss.done if t not in ss.plan]
+    return (["plan"] if ss.get("scope") else []) + ss.plan + extra + ["results"]
 
 
-def _back_links(current: str) -> None:
-    """Above a check: the way back to the checks already taken, and to the
-    scope answers — a check further on must not lock the earlier ones."""
-    back = [t for t in ss.plan + [t for t in ss.done if t not in ss.plan]
-            if t != current and t in ss.done]
-    if not back and not ss.get("scope"):
+def _prev_step(current: str) -> str | None:
+    seq = _sequence()
+    if current not in seq:
+        return seq[-2] if len(seq) > 1 else None
+    i = seq.index(current)
+    return seq[i - 1] if i > 0 else None
+
+
+def _step_name(step: str) -> str:
+    return {"plan": "What applies to you", "results": "Your results"}.get(
+        step, CHECK_LABELS.get(step, ("", step))[1])
+
+
+def _forward_label(nxt: str, skipping: bool) -> str:
+    if skipping:
+        return f"Skip to the {IN_TEXT[nxt]} →" if nxt != "results" else "Skip to my results →"
+    return f"Next: the {IN_TEXT[nxt]} →" if nxt != "results" else "See my full results →"
+
+
+def _checks_bar(current: str) -> None:
+    """On top of a check: every check of the visit, the current one marked,
+    the others a click away."""
+    tools = ss.plan + [t for t in ss.done if t not in ss.plan]
+    if len(tools) < 2:
         return
-    items = ([("scope", "✏️ Which rules apply")] if ss.get("scope") else []) + [
-        (t, f"{CHECK_LABELS[t][0]} {CHECK_LABELS[t][1]}") for t in back]
-    cols = st.columns([1.1] + [2] * len(items))
-    cols[0].markdown('<div class="fc-fine" style="padding-top:8px">Go back to:</div>',
-                     unsafe_allow_html=True)
-    for col, (step, label) in zip(cols[1:], items):
-        if col.button(label, type="tertiary", key=f"back_{current}_{step}"):
-            _go("plan" if step == "scope" else step)
+    cols = st.columns(len(tools))
+    for col, tool in zip(cols, tools):
+        icon, name, _, _ = CHECK_LABELS[tool]
+        mark = "✓ " if tool in ss.done else ""
+        if tool == current:
+            col.markdown(f'<div class="fc-step on" style="text-align:center">{icon} {name}</div>',
+                         unsafe_allow_html=True)
+        elif col.button(f"{mark}{icon} {name}", type="tertiary", key=f"bar_{current}_{tool}",
+                        use_container_width=True):
+            _go(tool)
+
+
+def _next_after(tool: str) -> str:
+    """The next check still to take after this one in the plan (then any
+    earlier one left), else the results."""
+    plan = ss.plan if tool in ss.plan else ss.plan + [tool]
+    i = plan.index(tool)
+    for t in plan[i + 1:] + plan[:i]:
+        if t not in ss.done and t not in ss.skipped:
+            return t
+    return "results"
+
+
+def _nav(tool: str) -> None:
+    """At the bottom of a check: forward, then back."""
+    nxt = _next_after(tool)
+    if tool in ss.done:
+        if st.button(_forward_label(nxt, False), type="primary", use_container_width=True,
+                     key=f"next_{tool}"):
+            _go(nxt)
+    elif st.button(_forward_label(nxt, True), use_container_width=True, key=f"skip_{tool}"):
+        if tool not in ss.skipped:
+            ss.skipped.append(tool)
+        _go(nxt)
+    _back_button(tool)
+
+
+def _back_button(current: str) -> None:
+    prev = _prev_step(current)
+    if prev and st.button(f"← Back: {_step_name(prev)}", type="tertiary", key=f"back_{current}"):
+        _go(prev)
 
 
 def _render_site(check: dict) -> None:
@@ -542,7 +590,7 @@ def _render_site(check: dict) -> None:
 
 
 def _website_step() -> None:
-    _back_links(funnel.TOOL_WEBSITE)
+    _checks_bar(funnel.TOOL_WEBSITE)
     check = ss.get("site_result")
     if check and funnel.TOOL_WEBSITE not in ss.editing:
         st.markdown(f"#### Your result for {check['domain']}")
@@ -550,7 +598,7 @@ def _website_step() -> None:
         if st.button("Check another website", type="tertiary", key="site_again"):
             ss.editing.append(funnel.TOOL_WEBSITE)
             st.rerun()
-        _skip_or_next(funnel.TOOL_WEBSITE)
+        _nav(funnel.TOOL_WEBSITE)
         return
 
     st.markdown(
@@ -594,12 +642,12 @@ def _website_step() -> None:
         ss.editing.remove(funnel.TOOL_WEBSITE)
         st.rerun()
     if not check:
-        _skip_or_next(funnel.TOOL_WEBSITE)
+        _nav(funnel.TOOL_WEBSITE)
 
 
 def _questions_step(tool: str, kind: dict, key: str, state_key: str) -> None:
     """A quick check: its questions, then its result alone (D-133)."""
-    _back_links(tool)
+    _checks_bar(tool)
     answers = ss.get(state_key)
     if answers and tool not in ss.editing:
         render_quiz_score(answers, kind)
@@ -607,9 +655,9 @@ def _questions_step(tool: str, kind: dict, key: str, state_key: str) -> None:
         if st.button("Change my answers", type="tertiary", key=f"edit_{tool}"):
             ss.editing.append(tool)
             st.rerun()
-        _skip_or_next(tool)
+        _nav(tool)
         return
-    new = render_quiz_form(key, kind, previous=answers)
+    new = render_quiz_form(key, kind, previous=answers, submit_label="See my score")
     if new is not None:
         ss[state_key] = new
         if tool not in ss.done:
@@ -618,8 +666,11 @@ def _questions_step(tool: str, kind: dict, key: str, state_key: str) -> None:
             ss.editing.remove(tool)
         _event("quiz_completed", tool)
         st.rerun()
+    if answers and st.button("Keep my answers", type="tertiary", key=f"keep_{tool}"):
+        ss.editing.remove(tool)
+        st.rerun()
     if not answers:
-        _skip_or_next(tool)
+        _nav(tool)
 
 
 def _quiz_step() -> None:
@@ -702,6 +753,7 @@ def _results_step() -> None:
                                          type="tertiary"):
         ss.direct = False
         _go("scope")
+    _back_button("results")
 
 
 def _and(items: list[str]) -> str:
@@ -756,7 +808,7 @@ def _account_form(pending: dict) -> None:
         go = st.form_submit_button("Get my full report", type="primary", use_container_width=True)
     if not go:
         st.markdown(f'<div class="fc-fine">Already have an account? '
-                    f'<a href="{login_url}" target="_self">Log in to RECOSA</a></div>',
+                    f'<a href="{login_url}" target="_top">Log in to RECOSA</a></div>',
                     unsafe_allow_html=True)
         return
     email = email.strip()

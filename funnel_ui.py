@@ -12,7 +12,8 @@ import funnel
 
 
 def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
-                     previous: list[int] | None = None) -> list[int] | None:
+                     previous: list[int] | None = None,
+                     submit_label: str = "See my result") -> list[int] | None:
     """The questions. Returns the answers once all are submitted, else None
     (with a warning if the form was submitted incomplete). previous: the
     answers given before, pre-selected when they are changed."""
@@ -30,7 +31,8 @@ def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
             )
             answers.append(choice)
             st.write("")
-        submitted = st.form_submit_button("See my result", type="primary")
+        submitted = st.form_submit_button(submit_label, type="primary",
+                                          use_container_width=True)
 
     if not submitted:
         return None

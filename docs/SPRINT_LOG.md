@@ -5817,6 +5817,30 @@ band does not change. "Change my answers" reopens it with the new questions
 to answer. Rule from now on: new questions go at the end, and the old length
 is added to `legacy_lengths`.
 
+### D-135 — One navigation on every check page, 3 Nov
+
+Found on the live pages: with everything applying, each check page offered
+only "See my result" and a faint "Skip this check" — no visible way on to
+the next check before answering; the "Go back to" line only ever led to
+"Which rules apply" (an earlier check appeared there only once taken), so
+there was no way back to the previous page; and the last check's button
+read "See my results" on a page that already was a result.
+
+- **Checks bar** on top of every check page: each check of the visit, the
+  current one marked, done ones ticked, any one a click away.
+- **One way forward** at the bottom: "Next: the … →" once answered, or "See
+  my full results →" when nothing is left; before answering, a visible
+  "Skip to the … →" / "Skip to my results →". The quiz button is "See my
+  score".
+- **← Back: …** to the page before in the order of the visit (what applies →
+  each check → results), on every check page and on the results page.
+- **Links leave the frame**: "Back to recosa.eu" and "Log in to RECOSA" had
+  `target="_self"`, which on Streamlit Cloud opens them inside the app's
+  frame. Now `_top`.
+- Checked: recosa.eu and the privacy policy answer 200; the deep links
+  (`?check=website|nis2|ai`) go through Streamlit Cloud's cookie redirect,
+  as every visit does.
+
 ---
 
 ## 5. Constraints and gotchas
