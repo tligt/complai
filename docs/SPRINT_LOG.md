@@ -379,7 +379,7 @@ the only sprint that *is* the gate.
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | ~~S54~~ | ~~Enterprise multi-seat/multi-division~~ | **Delivered 28 Oct, ahead of its After-beta position, by request.** Groups, roles (admin, contributor, read-only) enforced in RLS, group overview, full audit trail. D-128, scope note in 3b. was S53 until D-115; was S51, S48 before |
-| **S55** | **AI Act Quick Check — third free check** | New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
+| **S55** | **AI Act Quick Check — third free check** | **Built 3 Nov — D-132; tested locally, not yet live (both apps need a redeploy).** New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
 | S56 | Enterprise routing + in-app messaging | was S55 until D-131; S54 until D-115; S52, S49 before |
 | S57 | Buffer/LinkedIn integration | was S56 until D-131; S55 until D-115; S53, S50 before |
 | S58 | Monitoring sources + competitive monitoring | was S57 until D-131; S56 until D-115; S54, S51 before. Merged — both touch the same admin pages |
@@ -5722,6 +5722,40 @@ the AI Act obligations already there (ai_01–ai_11). Deep link `?check=ai`.
 practices) apply from 2 Feb 2025, Art. 50 (transparency) from 2 Aug 2026 in
 the Act as published; check what the EU's digital omnibus changed before
 any deadline goes on the page.
+
+### D-132 — S55 built: the AI Act Quick Check, 3 Nov
+
+Built as D-131 decided, on the NIS2 Quick Check's mechanics rather than a
+second engine. `funnel.py` now holds two questionnaires, `NIS2` and
+`AI_ACT`, and every scoring function takes the one to use (NIS2 by default,
+so S49's calls are unchanged). The AI Act questions carry their own four
+answers each, worst to best — "nothing to do" answers ("or we don't use
+any", "No" to AI in HR) score 3.
+
+- **Eight questions**: knowing your AI tools (ai_09), AI literacy (ai_01),
+  rules for using AI (no obligation: it is the AUP S61 writes), provider or
+  deployer (ai_03), banned practices (ai_02), chatbots (ai_04), AI-made
+  content (ai_06, ai_07), AI in hiring and HR (ai_11). Max 24; bands at 8
+  and 16. Draft marketing copy, like the NIS2 questions: reviewed before
+  it is promoted.
+- **Public app**: `?check=ai` (also `aiact`, `ai-act`); the scope step adds it
+  for anyone who answers Yes or Not sure to AI use, after the website and
+  NIS2 checks; the result page and the one form handle any combination of
+  the three.
+- **Carried**: `ai_answers` in the pending result, `?aiact=` on the link into
+  the client app (eight digits), kept by `merge_pending`.
+- **Delivery**: its own email (`send_quiz_result(kind=AI_ACT)`), its own flag
+  `recosa_ai_sent`, its own lead row (tool `ai_act_check`, answers in
+  `leads.answers`). Migration `s55_ai_act_check` widens `leads_tool_check`.
+- **Client app**: Your free check shows the AI Act result, offers each check
+  not taken, and declares the answers in the register once per company
+  (`ai_applied_to`, separate from the NIS2 `applied_to`).
+
+**Test runs and live data.** The public app calls `load_dotenv()`, so a local
+test that only *removed* `SUPABASE_URL` had it refilled from `.env` and wrote
+real funnel events (18 rows, 3 Nov 15:54–15:55 UTC; the same happened on
+28 Oct). The tests now set it to an empty string, which `load_dotenv` leaves
+alone.
 
 ---
 

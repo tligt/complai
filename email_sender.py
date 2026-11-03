@@ -135,13 +135,18 @@ def send_audit_report(
     return response.status_code in (200, 201)
 
 
-def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
-    """S49. The full NIS2 Quick Check result, sent because the visitor asked
-    for it on the public quiz. Weakest areas first, each with what to do.
-    Returns True on success. Raises if BREVO_API_KEY is not set, like
-    send_audit_report."""
+def send_quiz_result(to_email: str, answers: list[int], cta_url: str,
+                     kind: dict | None = None) -> bool:
+    """S49. The full NIS2 Quick Check result — or the AI Act Quick Check's
+    (S55, kind=funnel.AI_ACT) — sent because the visitor asked for it on the
+    public app. Weakest areas first, each with what to do. Returns True on
+    success. Raises if BREVO_API_KEY is not set, like send_audit_report."""
     import html
     import funnel
+    kind = kind or funnel.NIS2
+    is_ai = kind is funnel.AI_ACT
+    name = kind["name"]
+    reg = "AI Act" if is_ai else "NIS2"
 
     api_key = os.environ.get("BREVO_API_KEY")
     if not api_key:
@@ -150,7 +155,8 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
     from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
 
     total = funnel.score(answers)
-    label, blurb = funnel.band(total)
+    label, blurb = funnel.band(total, kind)
+    top = funnel.max_score(kind)
     level_colour = ["#993C1D", "#BA7517", "#BA7517", "#0F6E56"]
     rows = "".join(
         f"""
@@ -164,20 +170,21 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
           {html.escape(r["level"])}
         </td>
       </tr>"""
-        for r in funnel.breakdown(answers)
+        for r in funnel.breakdown(answers, kind)
     )
+    n_areas = {8: "eight", 10: "ten"}.get(len(answers), str(len(answers)))
 
     html_body = email_layout(
-        "Your NIS2 Quick Check result",
-        f'''<h2 style="color:{BRAND_DARK};margin-top:0">{total}/{funnel.MAX_SCORE} — {html.escape(label)}</h2>
+        f"Your {name} result",
+        f'''<h2 style="color:{BRAND_DARK};margin-top:0">{total}/{top} — {html.escape(label)}</h2>
     <p>{html.escape(blurb)}</p>
-    <h3 style="color:{BRAND_DARK}">Your ten areas, weakest first</h3>
+    <h3 style="color:{BRAND_DARK}">Your {n_areas} areas, weakest first</h3>
     <table style="width:100%;border-collapse:collapse;background:white">{rows}
     </table>
-    <p>The full assessment in RECOSA scores you against every NIS2 obligation and turns the
+    <p>The full assessment in RECOSA scores you against every {reg} obligation and turns the
        gaps into an action plan — included in the 14-day free trial.</p>''',
         "Open RECOSA", cta_url,
-        footer_note="A lightweight self-check based on your own answers — not a certified NIS2 "
+        footer_note=f"A lightweight self-check based on your own answers — not a certified {reg} "
                     "audit, and not legal advice.",
     )
     response = requests.post(
@@ -186,7 +193,7 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str) -> bool:
         json={
             "sender": {"name": from_name, "email": from_email},
             "to": [{"email": to_email}],
-            "subject": f"Your NIS2 Quick Check result: {total}/{funnel.MAX_SCORE} — {label}",
+            "subject": f"Your {name} result: {total}/{top} — {label}",
             "htmlContent": html_body,
         },
         timeout=20,

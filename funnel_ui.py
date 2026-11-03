@@ -1,6 +1,7 @@
 """
-funnel_ui.py — S49. The NIS2 Quick Check's screens, drawn the same way in the
-public app (quiz/quiz_app.py) and on the client app's result page.
+funnel_ui.py — S49. The quick checks' screens (NIS2, and the AI Act since
+S55: pass kind=funnel.AI_ACT), drawn the same way in the public app
+(quiz/quiz_app.py) and on the client app's result page.
 
 Streamlit only. No Supabase: the callers decide what to store.
 """
@@ -10,16 +11,18 @@ import streamlit as st
 import funnel
 
 
-def render_quiz_form(key: str = "nis2_quiz") -> list[int] | None:
-    """The ten questions. Returns the answers once all ten are submitted,
-    else None (with a warning if the form was submitted incomplete)."""
+def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2) -> list[int] | None:
+    """The questions. Returns the answers once all are submitted, else None
+    (with a warning if the form was submitted incomplete)."""
+    questions = kind["questions"]
     with st.form(key):
         answers = []
-        for i, q in enumerate(funnel.QUESTIONS):
+        for i, q in enumerate(questions):
             st.markdown(f"**{i + 1}. {q['category']}**")
+            opts = funnel.options_for(q)
             choice = st.radio(
-                q["question"], options=range(len(funnel.OPTIONS)),
-                format_func=lambda i: funnel.OPTIONS[i],
+                q["question"], options=range(len(opts)),
+                format_func=lambda i, opts=opts: opts[i],
                 key=f"{key}_q_{i}", index=None,
             )
             answers.append(choice)
@@ -29,23 +32,23 @@ def render_quiz_form(key: str = "nis2_quiz") -> list[int] | None:
     if not submitted:
         return None
     if any(a is None for a in answers):
-        st.warning(f"Answer all {len(funnel.QUESTIONS)} questions to see your result.")
+        st.warning(f"Answer all {len(questions)} questions to see your result.")
         return None
     return answers
 
 
-def render_quiz_score(answers: list[int]) -> None:
+def render_quiz_score(answers: list[int], kind: dict = funnel.NIS2) -> None:
     total = funnel.score(answers)
-    label, blurb = funnel.band(total)
-    st.subheader(f"Your result: {total}/{funnel.MAX_SCORE} — {label}")
+    label, blurb = funnel.band(total, kind)
+    st.subheader(f"Your result: {total}/{funnel.max_score(kind)} — {label}")
     st.write(blurb)
 
 
-def render_quiz_breakdown(answers: list[int], locked: bool) -> None:
+def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.NIS2) -> None:
     """Locked: the area names only, and how many need attention (the free
     teaser, D-115). Unlocked: every area's level and what to do, weakest
     first."""
-    rows = funnel.breakdown(answers)
+    rows = funnel.breakdown(answers, kind)
     if locked:
         weak = funnel.weak_areas(answers)
         st.markdown(
@@ -56,12 +59,15 @@ def render_quiz_breakdown(answers: list[int], locked: bool) -> None:
             st.markdown(f"🔒 {r['category']}")
         return
 
-    st.markdown("**Your ten areas, weakest first**")
+    st.markdown(f"**Your {_WORDS.get(len(rows), len(rows))} areas, weakest first**")
     icon = ["🔴", "🟠", "🟡", "🟢"]
     for r in rows:
         with st.container(border=True):
             st.markdown(f"{icon[r['answer']]} **{r['category']}** — {r['level']}")
             st.caption(r["advice"])
+
+
+_WORDS = {8: "eight", 10: "ten"}
 
 
 # D-129. How each verdict reads, beside the regulation's name.

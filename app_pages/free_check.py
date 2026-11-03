@@ -3,13 +3,14 @@ pages/free_check.py — S49 (D-115). A free account's own page: the full
 result of the free checks it signed up with, and the way to the trial.
 
 The result comes from profiles.pending_result, written at signup from the
-link the public app's CTA carried (?quiz= / ?site= / ?scope=), so it
-survives email confirmation and a different browser. Since D-129 it may hold
-both checks, and the scope answers; a check not taken yet can be taken
-here, and is added to the same result.
+link the public app's CTA carried (?quiz= / ?site= / ?aiact= / ?scope=), so
+it survives email confirmation and a different browser. Since D-129 it may
+hold several checks (the AI Act Quick Check since S55), and the scope
+answers; a check not taken yet can be taken here, and is added to the same
+result.
 
-The quiz answers are also written to the obligation register as DECLARED
-answers — the lowest precedence (obligation_register.py), so any analysis,
+The NIS2 and AI Act answers are also written to the obligation register as
+DECLARED answers — the lowest precedence (obligation_register.py), so any analysis,
 document or derivation overrides them — and only where the client has
 recorded nothing for that obligation yet.
 """
@@ -47,6 +48,13 @@ def _add_quiz(key: str) -> None:
                 "answers": funnel.encode_answers(answers)})
 
 
+def _add_ai(key: str) -> None:
+    answers = render_quiz_form(key, funnel.AI_ACT)
+    if answers is not None:
+        _store({**pending, "tool": pending.get("tool") or funnel.TOOL_AI,
+                "ai_answers": funnel.encode_answers(answers)})
+
+
 def _add_site(key: str) -> None:
     with st.form(key):
         url = st.text_input("Website", value=(client or {}).get("website_url") or "",
@@ -62,13 +70,16 @@ def _add_site(key: str) -> None:
 
 
 # ── No check yet: take one here ───────────────────────────────────────────
-if not (funnel.has_quiz(pending) or funnel.has_site(pending)):
-    st.caption("Take one of the two free checks to see where you stand.")
-    tab_site, tab_quiz = st.tabs(["🌐 Website check", "🛡️ NIS2 Quick Check"])
+if not (funnel.has_quiz(pending) or funnel.has_site(pending) or funnel.has_ai(pending)):
+    st.caption("Take one of the free checks to see where you stand.")
+    tab_site, tab_quiz, tab_ai = st.tabs(["🌐 Website check", "🛡️ NIS2 Quick Check",
+                                          "🤖 AI Act Quick Check"])
     with tab_site:
         _add_site("app_site")
     with tab_quiz:
         _add_quiz("app_quiz")
+    with tab_ai:
+        _add_ai("app_ai")
     st.stop()
 
 scope = funnel.decode_scope(pending.get("scope"))
@@ -79,6 +90,7 @@ if scope:
 
 # ── Website check result ──────────────────────────────────────────────────
 answers = funnel.decode_answers(pending.get("answers"))
+ai_answers = funnel.decode_answers(pending.get("ai_answers"), funnel.AI_ACT)
 if funnel.has_site(pending):
     import funnel_delivery as FD
     site = pending["site"]
@@ -145,13 +157,29 @@ if answers is not None:
             "register as your own declarations. A full assessment replaces them."
         )
 
-# ── The check not taken yet ───────────────────────────────────────────────
+# ── AI Act Quick Check result (S55) ───────────────────────────────────────
+if ai_answers is not None:
+    if funnel.has_site(pending) or answers is not None:
+        st.divider()
+    st.subheader("AI Act Quick Check")
+    render_quiz_score(ai_answers, funnel.AI_ACT)
+    render_quiz_breakdown(ai_answers, locked=False, kind=funnel.AI_ACT)
+    if client:
+        st.caption(
+            f"Your answers are recorded in **{client['company_name']}**'s obligations "
+            "register as your own declarations. A full assessment replaces them."
+        )
+
+# ── The checks not taken yet ──────────────────────────────────────────────
 if not funnel.has_site(pending):
     with st.expander("🌐 Also check your website — 30 seconds"):
         _add_site("app_site_more")
-elif answers is None:
+if answers is None:
     with st.expander("🛡️ Also take the NIS2 Quick Check — 2 minutes"):
         _add_quiz("app_quiz_more")
+if ai_answers is None:
+    with st.expander("🤖 Also take the AI Act Quick Check — 2 minutes"):
+        _add_ai("app_ai_more")
 
 # The emailed copy (S49 part 2): sent once per check, to a confirmed account
 # whose free check came from the public form — here or by monitor_funnel.py,
@@ -192,13 +220,18 @@ render_trial_cta(profile)
 # Last, so the result and the next step are on screen first: each response
 # is a few round trips. Idempotent — an interrupted run is finished on the
 # next visit, and nothing the client already recorded is overwritten.
-if answers is not None and client and pending.get("applied_to") != client["id"]:
+# One flag per check: the AI Act answers may come later than the NIS2 ones.
+for _ans, _kind, _flag in ((answers, funnel.NIS2, "applied_to"),
+                           (ai_answers, funnel.AI_ACT, "ai_applied_to")):
+    if _ans is None or not client or pending.get(_flag) == client["id"]:
+        continue
     import obligation_store as STORE
     existing = STORE.load_responses(client["id"], user_id)
-    for ob_id, status in funnel.declared_responses(answers).items():
+    for ob_id, status in funnel.declared_responses(_ans, _kind).items():
         if ob_id not in existing:
             STORE.save_response(
                 user_id, client["id"], ob_id, status=status,
-                statement_en="Self-declared in the NIS2 Quick Check.",
+                statement_en=f"Self-declared in the {_kind['name']}.",
             )
-    save_pending_result(user_id, {**pending, "applied_to": client["id"]})
+    pending = {**pending, _flag: client["id"]}
+    save_pending_result(user_id, pending)

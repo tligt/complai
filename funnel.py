@@ -7,6 +7,7 @@ stay importable there with only the public app's own requirements.
 
 The quiz questions, weights and advice are DRAFT MARKETING COPY, not reviewed
 legal text (see quiz/quiz_app.py's header, and D-115: reviewed before launch).
+The same holds for the AI Act Quick Check (S55, D-132).
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ CONSENT_TEXT = (
 
 TOOL_QUIZ = "nis2_quiz"
 TOOL_WEBSITE = "website_check"
+TOOL_AI = "ai_act_check"  # S55
 
 # One question per NIS2 Art. 21(2) measure category, in order (a)-(j).
 # Each option's index is its point value: 0 (not addressed) to 3 (documented
@@ -123,7 +125,7 @@ QUESTIONS = [
     },
 ]
 
-MAX_SCORE = 3 * len(QUESTIONS)
+MAX_SCORE = 3 * len(QUESTIONS)  # NIS2; max_score(kind) for either check
 
 BANDS = [
     (10, "Early stage",
@@ -145,23 +147,165 @@ LEVELS = ["Not addressed", "Informal", "Documented", "Documented and tested"]
 _DECLARED_STATUS = ["missing", "partial", "partial", "compliant"]
 
 
+# ── The AI Act Quick Check (S55, D-132) ───────────────────────────────────
+# Eight questions on what the AI Act asks of a company that USES AI tools
+# (a deployer), which is nearly every company: Art. 4 literacy, Art. 5
+# banned practices, Art. 50 transparency, Annex III high-risk uses, and the
+# groundwork they all assume (which tools, which role). Each question has its
+# own four answers, worst to best, so the index is again the points: 0 to 3.
+# "Or we don't use any" answers score 3 — nothing to do is not a gap.
+AI_QUESTIONS = [
+    {
+        "category": "Knowing your AI tools",
+        "question": "Do you know which AI tools are used at your company, by whom and for what?",
+        "options": ["No idea — people use what they like",
+                    "Roughly, but nothing is written down",
+                    "We keep a list of the tools",
+                    "We keep a list with who uses each tool and for what, kept up to date"],
+        "advice": "List every AI tool in use — chat assistants, AI in your office suite, CRM or "
+                  "HR software — with who uses it and for what. Every other AI Act duty "
+                  "starts from this list.",
+        "obligations": ["ai_09"],
+    },
+    {
+        "category": "AI literacy (Art. 4)",
+        "question": "Have the people who use AI tools been trained on how they work, "
+                    "their limits and their risks?",
+        "options": ["No",
+                    "They learned by themselves",
+                    "Some training, not recorded",
+                    "Training for everyone who uses AI, and we keep a record"],
+        "advice": "The AI Act requires a sufficient level of AI literacy from staff who use AI. "
+                  "A short session per tool — what it is good at, where it gets things wrong, "
+                  "what not to put in it — and a record of who attended.",
+        "obligations": ["ai_01"],
+    },
+    {
+        "category": "Rules for using AI",
+        "question": "Are there written rules on which AI tools staff may use, and what data "
+                    "they may put into them?",
+        "options": ["No rules",
+                    "Rules given verbally",
+                    "A written policy, not reviewed since",
+                    "A written policy staff know, reviewed regularly"],
+        "advice": "A one-page AI use policy: the approved tools, what never goes into them "
+                  "(customer and staff personal data, confidential documents), and who to ask. "
+                  "It is also your first evidence of AI literacy.",
+        "obligations": [],
+    },
+    {
+        "category": "Your role for each AI system",
+        "question": "For each AI tool, do you know whether you are only a user (deployer) "
+                    "or its provider — for example when you build AI into your own product?",
+        "options": ["Never considered it",
+                    "We assume we're only users",
+                    "Worked out, but not written down",
+                    "Worked out and recorded per tool"],
+        "advice": "Most companies are deployers, with lighter duties. Building AI into a "
+                  "product you sell, or putting your name on an AI system, can make you a "
+                  "provider — with much heavier ones. Record the role per tool.",
+        "obligations": ["ai_03"],
+    },
+    {
+        "category": "Banned AI practices (Art. 5)",
+        "question": "Have you checked that none of your AI uses is banned — such as emotion "
+                    "recognition at work, social scoring or manipulative techniques?",
+        "options": ["No",
+                    "We assume none is",
+                    "Checked, not written down",
+                    "Checked and recorded"],
+        "advice": "Go through the short list of banned practices against your AI tools and "
+                  "write down the result. These bans already apply, with the AI Act's "
+                  "highest fines.",
+        "obligations": ["ai_02"],
+    },
+    {
+        "category": "Chatbots and AI assistants (Art. 50)",
+        "question": "If customers or visitors talk to an AI — a website chatbot, a support "
+                    "assistant, an AI phone line — are they told it's an AI?",
+        "options": ["We use one and don't say so",
+                    "Not sure",
+                    "It's mentioned somewhere, not in the conversation",
+                    "Told clearly at the start — or we don't use any"],
+        "advice": "Say it at the start of the conversation: \"You are chatting with an AI "
+                  "assistant.\" A line in the terms is not enough.",
+        "obligations": ["ai_04"],
+    },
+    {
+        "category": "AI-made content (Art. 50)",
+        "question": "When you publish AI-generated or AI-edited images, video, audio or text "
+                    "— on your site, social media, in marketing — is it disclosed?",
+        "options": ["Never labelled",
+                    "Sometimes",
+                    "When it could pass for real",
+                    "Always where needed — or we publish none"],
+        "advice": "Label AI-made images, video and audio that could pass for real (deepfakes), "
+                  "and AI-written text published to inform the public. Agree one wording and "
+                  "use it everywhere.",
+        "obligations": ["ai_06", "ai_07"],
+    },
+    {
+        "category": "AI in hiring and HR (high-risk)",
+        "question": "Do you use AI to screen CVs, rank candidates, evaluate staff or "
+                    "decide on promotions?",
+        "options": ["Yes, and we haven't looked at what that means",
+                    "Not sure — it may be built into our HR software",
+                    "Yes, and we've checked the high-risk rules",
+                    "No"],
+        "advice": "AI used in recruitment or to manage staff is high-risk under the AI Act: "
+                  "human oversight, informing the people concerned, keeping the logs. Check "
+                  "your HR and recruiting software for AI features first.",
+        "obligations": ["ai_11"],
+    },
+]
+AI_LEVELS = ["Not addressed", "Started", "Partly in place", "In place"]
+AI_BANDS = [
+    (8, "Early stage",
+     "Your company uses AI, but the basics the AI Act expects aren't in place yet. "
+     "That's where most companies are — the first steps are a list of your AI tools "
+     "and short training for the people who use them."),
+    (16, "Developing",
+     "Some groundwork is there, but most of it isn't written down yet — and written "
+     "down is what you can show when a client, an auditor or a regulator asks."),
+    (24, "Good foundation",
+     "A solid start. What usually remains is keeping the list of AI tools current "
+     "and recording the checks you have made."),
+]
+
+# The two questionnaires, for the functions below and the screens
+# (funnel_ui.py): NIS2 is the default everywhere, so S49's calls are unchanged.
+NIS2 = {"tool": TOOL_QUIZ, "name": "NIS2 Quick Check", "questions": QUESTIONS,
+        "bands": BANDS, "levels": LEVELS}
+AI_ACT = {"tool": TOOL_AI, "name": "AI Act Quick Check", "questions": AI_QUESTIONS,
+          "bands": AI_BANDS, "levels": AI_LEVELS}
+
+
+def options_for(q: dict) -> list[str]:
+    """A question's four answers: its own (AI Act), else the shared scale."""
+    return q.get("options") or OPTIONS
+
+
+def max_score(kind: dict = NIS2) -> int:
+    return 3 * len(kind["questions"])
+
+
 def score(answers: list[int]) -> int:
     return sum(answers)
 
 
-def band(total: int) -> tuple[str, str]:
-    for ceiling, label, blurb in BANDS:
+def band(total: int, kind: dict = NIS2) -> tuple[str, str]:
+    for ceiling, label, blurb in kind["bands"]:
         if total <= ceiling:
             return label, blurb
-    return BANDS[-1][1], BANDS[-1][2]
+    return kind["bands"][-1][1], kind["bands"][-1][2]
 
 
-def breakdown(answers: list[int]) -> list[dict]:
+def breakdown(answers: list[int], kind: dict = NIS2) -> list[dict]:
     """One row per area, weakest first (ties keep question order)."""
     rows = [
-        {"category": q["category"], "answer": a, "level": LEVELS[a],
+        {"category": q["category"], "answer": a, "level": kind["levels"][a],
          "advice": q["advice"]}
-        for q, a in zip(QUESTIONS, answers)
+        for q, a in zip(kind["questions"], answers)
     ]
     return sorted(rows, key=lambda r: r["answer"])
 
@@ -175,19 +319,20 @@ def encode_answers(answers: list[int]) -> str:
     return "".join(str(a) for a in answers)
 
 
-def decode_answers(code: str | None) -> list[int] | None:
-    """Ten digits 0-3, or None. Anything else is ignored, never trusted."""
-    if (not code or len(code) != len(QUESTIONS)
+def decode_answers(code: str | None, kind: dict = NIS2) -> list[int] | None:
+    """One digit 0-3 per question, or None. Anything else is ignored, never
+    trusted."""
+    if (not code or len(code) != len(kind["questions"])
             or any(c not in "0123" for c in code)):
         return None
     return [int(c) for c in code]
 
 
-def declared_responses(answers: list[int]) -> dict[str, str]:
+def declared_responses(answers: list[int], kind: dict = NIS2) -> dict[str, str]:
     """{obligation_id: status} to declare from the quiz. Where two answers map
     to one obligation (access control and MFA), the weaker one wins."""
     out: dict[str, str] = {}
-    for q, a in zip(QUESTIONS, answers):
+    for q, a in zip(kind["questions"], answers):
         for ob in q["obligations"]:
             status = _DECLARED_STATUS[a]
             prev = out.get(ob)
@@ -291,6 +436,8 @@ def checks_for(rules: dict[str, tuple[str, str]]) -> list[str]:
         out.append(TOOL_WEBSITE)
     if rules.get("NIS2", (UNLIKELY,))[0] in (LIKELY, POSSIBLE):
         out.append(TOOL_QUIZ)
+    if "EU AI Act" in rules:
+        out.append(TOOL_AI)
     return out
 
 
@@ -312,13 +459,14 @@ def decode_scope(code: str | None) -> dict | None:
 
 
 # ── The result an account carries ─────────────────────────────────────────
-# Since D-129 one free account can carry both checks: the quiz answers, the
-# checked site, or both, and the four scope answers when given. "tool" stays
-# as the label of the first check (events, the lead's source); code asks
-# has_quiz / has_site, never tool, what the result contains.
+# Since D-129 one free account can carry every check taken: the NIS2 answers
+# ("answers"), the checked site, the AI Act answers ("ai_answers", S55), and
+# the four scope answers when given. "tool" stays as the label of the first
+# check (events, the lead's source); code asks has_quiz / has_site / has_ai,
+# never tool, what the result contains.
 
 def pending_from_params(quiz: str | None, site: str | None,
-                        scope: str | None = None) -> dict | None:
+                        scope: str | None = None, ai: str | None = None) -> dict | None:
     """What the signup link carried, as stored on the profile
     (profiles.pending_result). Validated: the link is visitor-controlled."""
     out: dict = {}
@@ -329,9 +477,13 @@ def pending_from_params(quiz: str | None, site: str | None,
         site = site.strip().lower()
         if _DOMAIN_RE.match(site):
             out["site"] = site
+    ai_answers = decode_answers(ai, AI_ACT)
+    if ai_answers is not None:
+        out["ai_answers"] = encode_answers(ai_answers)
     if not out:
         return None
-    out["tool"] = TOOL_WEBSITE if "site" in out else TOOL_QUIZ
+    out["tool"] = (TOOL_WEBSITE if "site" in out else TOOL_QUIZ if "answers" in out
+                   else TOOL_AI)
     if decode_scope(scope):
         out["scope"] = scope
     return out
@@ -343,6 +495,10 @@ def has_quiz(pending: dict | None) -> bool:
 
 def has_site(pending: dict | None) -> bool:
     return bool((pending or {}).get("site"))
+
+
+def has_ai(pending: dict | None) -> bool:
+    return bool((pending or {}).get("ai_answers"))
 
 
 def domains_match(email: str, site_domain: str) -> bool:
@@ -360,7 +516,8 @@ def merge_pending(old: dict | None, new: dict) -> dict:
     survives when the site is the same."""
     old = old or {}
     out = {k: v for k, v in old.items()
-           if k in ("answers", "site", "scope", "site_verified", "verified_by", "site_token")}
+           if k in ("answers", "site", "ai_answers", "scope", "site_verified", "verified_by",
+                    "site_token")}
     if "site" in new and new["site"] != old.get("site"):
         for k in ("site_verified", "verified_by", "site_token"):
             out.pop(k, None)
@@ -371,7 +528,7 @@ def merge_pending(old: dict | None, new: dict) -> dict:
 
 def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None,
                site: str | None = None, scope: str | None = None,
-               login: bool = False) -> str:
+               ai_answers: list[int] | None = None, login: bool = False) -> str:
     """The CTA link into the client app's signup. Carries the answers, the
     checked site, the scope answers and the source — never the email or
     anything personal. login=True opens the log-in form instead."""
@@ -384,4 +541,6 @@ def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None
         params["site"] = site
     if scope:
         params["scope"] = scope
+    if ai_answers is not None:
+        params["aiact"] = encode_answers(ai_answers)
     return f"{app_base_url.rstrip('/')}/?{urlencode(params)}"

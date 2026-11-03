@@ -1,6 +1,6 @@
 """
-quiz/quiz_app.py — the public free checks: the NIS2 Quick Check (S45) and
-the GDPR website check (S49). Deployed as its own Streamlit Cloud app with
+quiz/quiz_app.py — the public free checks: the NIS2 Quick Check (S45), the
+GDPR website check (S49) and the AI Act Quick Check (S55). Deployed as its own Streamlit Cloud app with
 this file as the entry point, at recosa-checklist.streamlit.app.
 
 Lives in its own directory, not the repo root, and that is load-bearing, not
@@ -19,17 +19,19 @@ THE FLOW (D-129, 28 Oct 2026). Replaces two tabs that each ended in their
 own sign-up form, so the second check was never taken:
   1. Which rules apply — four questions (funnel.applicable_rules).
   2. The checks that matter for those rules, one after the other: the
-     website check, then the NIS2 questions. Either can be skipped.
+     website check, the NIS2 questions, the AI Act questions. Any can be
+     skipped.
   3. One result page and one form; the account carries every check taken.
 
 DEEP LINKS, for the website and campaigns (all optional, combinable):
   ?check=website      straight to the website check (?tool=website still works)
   ?check=nis2         straight to the NIS2 Quick Check
+  ?check=ai           straight to the AI Act Quick Check (S55)
   ?site=acme.be       the website field filled in
   ?src=homepage       where the visitor came from: on every funnel event, and
                       on the account as recosa_source
 With no ?check the visit starts at step 1. After a direct check, the result
-page offers the other one before the form.
+page offers the others before the form.
 
 THE FUNNEL (S49 D-115, part 2 D-119). Free to check; one form for the full
 result: it creates the free account, and the result is emailed once the
@@ -93,11 +95,17 @@ CHECK_LABELS = {
                           "against GDPR, ePrivacy, accessibility and consumer rules."),
     funnel.TOOL_QUIZ:    ("🛡️", "NIS2 Quick Check", "2 minutes",
                           "Ten questions on the security measures NIS2 expects (Art. 21)."),
+    funnel.TOOL_AI:      ("🤖", "AI Act Quick Check", "2 minutes",
+                          "Eight questions on what the AI Act asks of companies that use "
+                          "AI tools — training, transparency, banned and high-risk uses."),
 }
 # The check's name inside a sentence: "the website check", "the NIS2 Quick Check".
-IN_TEXT = {funnel.TOOL_WEBSITE: "website check", funnel.TOOL_QUIZ: "NIS2 Quick Check"}
+IN_TEXT = {funnel.TOOL_WEBSITE: "website check", funnel.TOOL_QUIZ: "NIS2 Quick Check",
+           funnel.TOOL_AI: "AI Act Quick Check"}
 LINK_CHECKS = {"website": funnel.TOOL_WEBSITE, "nis2": funnel.TOOL_QUIZ,
-               "quiz": funnel.TOOL_QUIZ}
+               "quiz": funnel.TOOL_QUIZ, "ai": funnel.TOOL_AI, "aiact": funnel.TOOL_AI,
+               "ai-act": funnel.TOOL_AI}
+ALL_CHECKS = (funnel.TOOL_WEBSITE, funnel.TOOL_QUIZ, funnel.TOOL_AI)
 
 
 # ── Look: recosa.eu, as the login page (D-127) ────────────────────────────
@@ -277,11 +285,13 @@ def _next_step() -> str:
 def _pending() -> dict | None:
     """Everything taken so far, as the account will carry it."""
     answers = ss.get("quiz_answers")
+    ai = ss.get("ai_answers")
     site = (ss.get("site_result") or {}).get("domain")
     scope = ss.get("scope")
     return funnel.pending_from_params(
         funnel.encode_answers(answers) if answers else None, site,
-        funnel.encode_scope(scope) if scope else None)
+        funnel.encode_scope(scope) if scope else None,
+        funnel.encode_answers(ai) if ai else None)
 
 
 # ── Page parts ────────────────────────────────────────────────────────────
@@ -301,6 +311,9 @@ def _header() -> None:
                               "A first read on your site's GDPR and ePrivacy basics."),
         funnel.TOOL_QUIZ:    ("NIS2 Quick Check",
                               "Where you stand on the security measures NIS2 expects."),
+        funnel.TOOL_AI:      ("AI Act Quick Check",
+                              "Where you stand on what the AI Act asks of companies that "
+                              "use AI tools."),
         "results": ("Your results", "The headline is free. The full report comes with a free account."),
     }
     h, sub = titles[ss.step]
@@ -443,6 +456,20 @@ def _quiz_step() -> None:
     _skip_or_next(funnel.TOOL_QUIZ)
 
 
+def _ai_step() -> None:
+    answers = render_quiz_form("ai_act", funnel.AI_ACT)
+    if answers is not None:
+        ss.ai_answers = answers
+        if funnel.TOOL_AI not in ss.done:
+            ss.done.append(funnel.TOOL_AI)
+        ss.pop("account_done", None)
+        _event("quiz_completed", funnel.TOOL_AI)
+    if ss.get("ai_answers"):
+        render_quiz_score(ss.ai_answers, funnel.AI_ACT)
+        render_quiz_breakdown(ss.ai_answers, locked=True, kind=funnel.AI_ACT)
+    _skip_or_next(funnel.TOOL_AI)
+
+
 def _results_step() -> None:
     if ss.get("scope"):
         with st.container(border=True):
@@ -459,10 +486,15 @@ def _results_step() -> None:
             st.markdown("**🛡️ NIS2 Quick Check**")
             render_quiz_score(ss.quiz_answers)
             render_quiz_breakdown(ss.quiz_answers, locked=True)
+    if ss.get("ai_answers"):
+        with st.container(border=True):
+            st.markdown("**🤖 AI Act Quick Check**")
+            render_quiz_score(ss.ai_answers, funnel.AI_ACT)
+            render_quiz_breakdown(ss.ai_answers, locked=True, kind=funnel.AI_ACT)
 
     # The checks not taken: offered before the form, so taking one does not
-    # lose the other's result (the account carries both).
-    missing = [t for t in (funnel.TOOL_WEBSITE, funnel.TOOL_QUIZ) if t not in ss.done]
+    # lose the others' results (the account carries them all).
+    missing = [t for t in ALL_CHECKS if t not in ss.done]
     for tool in missing:
         icon, name, time, what = CHECK_LABELS[tool]
         if st.button(f"{icon} Also take the {IN_TEXT[tool]} · {time}", use_container_width=True,
@@ -487,18 +519,25 @@ def _results_step() -> None:
     _account_form(pending)
 
 
+def _and(items: list[str]) -> str:
+    """"a", "a and b", "a, b and c"."""
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + " and " + items[-1]
+
+
 def _account_form(pending: dict) -> None:
     """The one step: complete the form, get the full results in the app and
     by email once the address is confirmed."""
     if ss.get("account_done"):
         st.success(ss.account_done)
         return
-    site, quiz = funnel.has_site(pending), funnel.has_quiz(pending)
+    site, quiz, ai = funnel.has_site(pending), funnel.has_quiz(pending), funnel.has_ai(pending)
+    parts = ((["the website findings and how to fix them, as a PDF"] if site else [])
+             + (["your NIS2 breakdown"] if quiz else [])
+             + (["your AI Act breakdown"] if ai else []))
     with st.form("account", border=True):
         st.markdown(
             "**Get the full report — " + (
-                "the website findings and how to fix them, as a PDF, and your NIS2 breakdown."
-                if site and quiz else
+                _and(parts) + "." if len(parts) > 1 else
                 "every finding and how to fix it, also sent to you as a PDF."
                 if site else
                 "every area, what to do first, also sent to you by email.") + "**")
@@ -518,6 +557,8 @@ def _account_form(pending: dict) -> None:
     login_url = funnel.signup_url(APP_BASE_URL, ss.get("src") or pending["tool"],
                                   answers=funnel.decode_answers(pending.get("answers")),
                                   site=pending.get("site"), scope=pending.get("scope"),
+                                  ai_answers=funnel.decode_answers(pending.get("ai_answers"),
+                                                                   funnel.AI_ACT),
                                   login=True)
     if not go:
         st.markdown(f'<div class="fc-fine">Already have an account? '
@@ -538,15 +579,17 @@ def _account_form(pending: dict) -> None:
             return
         _event("signup", pending["tool"])
         own = not site or funnel.domains_match(email, pending["site"])
+        results = (["your NIS2 breakdown"] if quiz else []) + (["your AI Act breakdown"] if ai else [])
         if own:
-            what = ("the website report as a PDF and your NIS2 breakdown come to you by email"
-                    if site and quiz else
+            what = (_and((["the website report as a PDF"] if site else []) + results)
+                    + " come to you by email" if len(parts) > 1 else
                     "the full report comes to you by email, as a PDF" if site else
                     "your full result comes to you by email")
             body = f"Confirm your address and {what}; log in to RECOSA to see it straight away."
         else:
-            body = ((("Confirm your address and your NIS2 result comes to you by email. ")
-                     if quiz else "")
+            body = (((f"Confirm your address and {_and(results)} "
+                      f"{'come' if len(results) > 1 else 'comes'} to you by email. ")
+                     if results else "")
                     + f"Your email is not at **{pending['site']}**, so after confirming, log in "
                       f"to RECOSA and prove the site is yours — one line on its homepage or in "
                       f"its DNS. The website report is sent as soon as it's verified.")
@@ -568,5 +611,6 @@ _header()
     "plan": _plan_step,
     funnel.TOOL_WEBSITE: _website_step,
     funnel.TOOL_QUIZ: _quiz_step,
+    funnel.TOOL_AI: _ai_step,
     "results": _results_step,
 }[ss.step]()

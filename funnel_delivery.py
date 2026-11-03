@@ -6,14 +6,16 @@ The public app's one form creates the free account and puts what it knows on
 the account itself, as Supabase user metadata (no database change):
 
     recosa_pending           {"tool": …, "answers": "0123…", "site": "acme.be",
-                             "scope": "medium.food.yes.no"} — the checks taken,
-                             one or both (D-129), and the scope answers
+                             "ai_answers": "0123…", "scope": "medium.food.yes.no"}
+                             — the checks taken, any of the three (D-129, S55),
+                             and the scope answers
     recosa_source            where the visitor came from (the link's src, or
                              the first check)
     recosa_marketing         True if the box was ticked
     recosa_consent_version   funnel.CONSENT_VERSION when it was
     recosa_quiz_sent /       set here once that result has been emailed
-    recosa_site_sent
+    recosa_site_sent /
+    recosa_ai_sent
     recosa_report_sent       set once everything carried has been emailed
 
 Two callers, whichever comes first, and the flag stops a second email:
@@ -46,9 +48,10 @@ META_NAME = "recosa-site-verification"
 
 def pending_of(metadata: dict | None) -> dict | None:
     """The validated pending result from user metadata (visitor-controlled
-    at signup, so re-validated here). Since D-129 it may hold both checks."""
+    at signup, so re-validated here). Since D-129 it may hold several checks."""
     p = (metadata or {}).get("recosa_pending") or {}
-    return funnel.pending_from_params(p.get("answers"), p.get("site"), p.get("scope"))
+    return funnel.pending_from_params(p.get("answers"), p.get("site"), p.get("scope"),
+                                      p.get("ai_answers"))
 
 
 def site_proven(email: str, pending: dict) -> bool:
@@ -57,11 +60,12 @@ def site_proven(email: str, pending: dict) -> bool:
 
 
 def eligible(email: str, pending: dict | None) -> bool:
-    """Something can be sent now: the quiz result always, the website report
+    """Something can be sent now: a quiz result always, the website report
     once the site is proven."""
     if not pending:
         return False
-    return funnel.has_quiz(pending) or (funnel.has_site(pending) and site_proven(email, pending))
+    return (funnel.has_quiz(pending) or funnel.has_ai(pending)
+            or (funnel.has_site(pending) and site_proven(email, pending)))
 
 
 # ── Proving a site is yours ───────────────────────────────────────────────
@@ -102,6 +106,7 @@ def check_site(site: str, token: str) -> tuple[bool, str]:
 # before D-129 carried one check, so that flag alone still means "all sent".
 
 QUIZ_SENT, SITE_SENT, ALL_SENT = "recosa_quiz_sent", "recosa_site_sent", "recosa_report_sent"
+AI_SENT = "recosa_ai_sent"  # S55
 
 
 def _base_url() -> str:
@@ -112,6 +117,12 @@ def _base_url() -> str:
 def send_quiz(email: str, pending: dict) -> bool:
     from email_sender import send_quiz_result
     return send_quiz_result(email, funnel.decode_answers(pending["answers"]), _base_url())
+
+
+def send_ai(email: str, pending: dict) -> bool:
+    from email_sender import send_quiz_result
+    return send_quiz_result(email, funnel.decode_answers(pending["ai_answers"], funnel.AI_ACT),
+                            _base_url(), kind=funnel.AI_ACT)
 
 
 def send_site(email: str, pending: dict) -> bool:
@@ -161,6 +172,8 @@ def deliver(user) -> str:
     if funnel.has_site(pending):
         parts.append((SITE_SENT, funnel.TOOL_WEBSITE, send_site,
                       site_proven(user.email, pending)))
+    if funnel.has_ai(pending):
+        parts.append((AI_SENT, funnel.TOOL_AI, send_ai, True))
     for flag, tool, send, due in parts:
         if meta.get(flag):
             continue
@@ -183,7 +196,8 @@ def deliver(user) -> str:
         try:
             admin.table("leads").insert({
                 "tool": tool, "email": user.email.lower(),
-                "answers": pending.get("answers") if tool == funnel.TOOL_QUIZ else None,
+                "answers": (pending.get("answers") if tool == funnel.TOOL_QUIZ else
+                            pending.get("ai_answers") if tool == funnel.TOOL_AI else None),
                 "site_domain": pending.get("site") if tool == funnel.TOOL_WEBSITE else None,
                 "marketing_consent": bool(meta.get("recosa_marketing")),
                 "consent_version": meta.get("recosa_consent_version") if meta.get("recosa_marketing") else None,
