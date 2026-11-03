@@ -283,7 +283,7 @@ S34.
 
 | # | Sprint | Notes |
 |---|---|---|
-| S11 | Data extraction from uploads | Abandoned 22 Oct, never built. The useful half survives as S66 — D-114 |
+| S11 | Data extraction from uploads | Abandoned 22 Oct, never built. The useful half survives as S68 — D-114, D-131 |
 | S31 | — | Cancelled |
 | S35 | — | Cancelled |
 | S39 | Migration to European infrastructure | Cancelled 22 Oct, replaced by S49 — D-114 |
@@ -379,19 +379,20 @@ the only sprint that *is* the gate.
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | ~~S54~~ | ~~Enterprise multi-seat/multi-division~~ | **Delivered 28 Oct, ahead of its After-beta position, by request.** Groups, roles (admin, contributor, read-only) enforced in RLS, group overview, full audit trail. D-128, scope note in 3b. was S53 until D-115; was S51, S48 before |
-| S55 | Enterprise routing + in-app messaging | was S54 until D-115; was S52, S49 before |
-| S56 | Buffer/LinkedIn integration | was S55 until D-115; was S53, S50 before |
-| S57 | Monitoring sources + competitive monitoring | was S56 until D-115; was S54, S51 before. Merged — both touch the same admin pages |
-| S58 | Skills matrix and training register | was S57 until D-115; was S55, S52 before. High value-to-cost. Feeds the S29 register |
-| S59 | AI Act three-layer inventory | was S58 until D-115; was S56, S53 before. Use case / system / model |
-| S60 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S59 until D-115; was S57, S54 before. Needs S59's inventory to describe |
-| S61 | Annual compliance report | was S60 until D-115; was S58, S55 before. Renders S29 statements |
-| S62 | Dutch language support | was S61 until D-115; was S59, S56 before. Cost grows with every template shipped |
-| S63 | RoPA consistency checks | was S62 until D-115; was S60, S57 before. Depends on S26C |
-| S64 | Cookie Policy purpose granularity | was S63 until D-115; was S61, S58 before |
-| S65 | Compliance heartbeat — scheduled checks | was S64 until D-115; was S62, S59 before. `hold_set_on` shipped |
-| S66 | Evaluate a Streamlit alternative | was S65 until D-115; was S63, S60 before. Added 18 Sept. See the note below |
-| S67 | Import existing documents into the inventory | New 22 Oct (S66 until D-115). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
+| **S55** | **AI Act Quick Check — third free check** | New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
+| S56 | Enterprise routing + in-app messaging | was S55 until D-131; S54 until D-115; S52, S49 before |
+| S57 | Buffer/LinkedIn integration | was S56 until D-131; S55 until D-115; S53, S50 before |
+| S58 | Monitoring sources + competitive monitoring | was S57 until D-131; S56 until D-115; S54, S51 before. Merged — both touch the same admin pages |
+| S59 | Skills matrix and training register | was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
+| S60 | AI Act three-layer inventory | was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
+| S61 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S60 until D-131; S59 until D-115; S57, S54 before. Needs S60's inventory to describe |
+| S62 | Annual compliance report | was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
+| S63 | Dutch language support | was S62 until D-131; S61 until D-115; S59, S56 before. Cost grows with every template shipped |
+| S64 | RoPA consistency checks | was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
+| S65 | Cookie Policy purpose granularity | was S64 until D-131; S63 until D-115; S61, S58 before |
+| S66 | Compliance heartbeat — scheduled checks | was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
+| S67 | Evaluate a Streamlit alternative | was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
+| S68 | Import existing documents into the inventory | New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -593,6 +594,23 @@ of S39–S63 in this file (scope locks in 3b, decision entries, gotchas)
 uses the numbering in force when it was written — map it through the
 table above. The file `scope/s49_monitoring_sources.md` predates even the
 10 September renumbering: its subject is now S56.*
+
+### Renumbering, 3 November 2026
+
+By request (D-131). The AI Act Quick Check goes in at S55, the first
+unshipped number after the last delivered sprint (S54). Every unshipped
+sprint from the old S55 shifts one higher, in the same relative order.
+Delivered sprints, S50–S52 and S46 are below the insertion point and keep
+their numbers.
+
+| was | now | why |
+|---|---|---|
+| — | S55 | New: *AI Act Quick Check — third free check* |
+| S55–S67 | S56–S68 | Straight shift, one higher each |
+
+*Only the roadmap tables and the open rows of section 7 were updated, as
+before. Every other mention of S55–S67 in this file uses the numbering in
+force when it was written. `scope/s49_monitoring_sources.md` is now S58.*
 
 ---
 
@@ -5682,6 +5700,29 @@ Tested 28 Oct: the checker against a live AP article (passes, bot_protected),
 afp.com (blocked), a 404 on recosa.eu (fails); the Monitoring page in AppTest
 against the real run history.
 
+### D-131 — AI Act Quick Check as S55, 3 Nov
+
+An AI Act checklist as acquisition bait was on no sprint. It came up once,
+in the S45 scope lock (22 Sept), as DPO Europe's gated 4-step AI Act
+checklist emailing a PDF, and only that pattern was rejected — for the email
+wall and the infrastructure it needed (email capture, PDF, domain
+verification). S49 has since built exactly that infrastructure for the two
+free checks, so the objection no longer stands, and the scope step added in
+D-129 already flags the AI Act for every visitor who uses AI tools with no
+check to send them to.
+
+**Decided:** a third free check, the AI Act Quick Check, as S55, ahead of
+the other After-beta sprints; S55–S67 shift to S56–S68. It reuses the NIS2
+Quick Check's mechanics rather than a new engine: questions with answer
+levels, score, locked breakdown, the one account form, an email per check
+(a third `recosa_*_sent` flag), declared answers in the register against
+the AI Act obligations already there (ai_01–ai_11). Deep link `?check=ai`.
+
+**Before the copy quotes dates:** Art. 4 (AI literacy) and Art. 5 (banned
+practices) apply from 2 Feb 2025, Art. 50 (transparency) from 2 Aug 2026 in
+the Act as published; check what the EU's digital omnibus changed before
+any deadline goes on the page.
+
 ---
 
 ## 5. Constraints and gotchas
@@ -6081,15 +6122,15 @@ selector. The multi-client selector is Advisory-only (S47).
 |---|---|---|
 | ~~Does S34 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. **Revisited 18 Sept: brought forward of the beta gate anyway, for unrelated reasons — D-96.** |
 | ~~Task register — which number?~~ | S60, S62, S26C | **Resolved: part of S29.** No longer unnumbered. |
-| Systems grid purpose granularity | S64 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
+| Systems grid purpose granularity | S65 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
 | ~~Belgian DPA cookie guidance + 5-year figure~~ | S27 | **Resolved 18 Sept — D-98.** Primary source found and read: the "dated, versioned, previous copies retained" practice is correctly attributed to the Belgian DPA. The five-year figure is not — no primary source states it, and the comment in `database.py` already correctly called it a working figure rather than law. Nothing to change in the code; the open item was the citation, now closed. |
-| Rolling retention start dates | S63 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
+| Rolling retention start dates | S64 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
 | ~~AI Act role: per client or per system?~~ | S56 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S51. |
 | ~~Art. 4 AI literacy in the catalogue?~~ | S55 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
 | ~~`applies_from` for 2 Dec 2026?~~ | — | **Resolved 18 Sept: yes**, `ai_10`. OJ-text verification against the primary source still outstanding. |
 | ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
-| Art. 9(2) coverage | S63 | Both seeded paths use `employment_social_security`; the other nine untested. |
+| Art. 9(2) coverage | S64 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
 | A page refresh logs the user out | S51 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S51's scope (was S40); a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
 | Ask CCB for full-text access | — | **Idea, logged 27 Sept; premature until RECOSA is up and running.** CCB articles are bot-blocked, so CCB items reach the KB as title/teaser only (D-109). Ask CCB for a full-text feed or an allow-listed monitor, framed as a compliance service quoting them with attribution. |
