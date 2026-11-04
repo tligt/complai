@@ -5513,10 +5513,11 @@ app, after a mockup the user approved.
   back as `<app>/?token_hash={{ .TokenHash }}&type=recovery`: Streamlit cannot
   read the `#access_token` fragment of Supabase's default link. app.py
   verifies the token (`verify_otp`, type recovery), and the person chooses a
-  new password before anything else. **Needs the Supabase "Reset password"
-  email template changed** (dashboard → Authentication → Emails); on the
+  new password before anything else. **Supabase "Reset password" email
+  template changed on 4 Nov, reset tested and working** (dashboard →
+  Authentication → Emails; the default link had landed on the login page); on the
   self-hosted stack after S50, the same template through GoTrue's
-  `MAILER_TEMPLATES_RECOVERY`.
+  `MAILER_TEMPLATES_RECOVERY` — set up in `deploy/` (email-templates/recovery.html).
 
 Tested locally 27 Oct at 1280 px and 375 px: the layout, plan cards, the
 switch, the forgot-password view and back. Not tested: a real reset email
