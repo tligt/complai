@@ -145,6 +145,10 @@ QUESTIONS = [
         "category": "Registration with the authority",
         "question": "Is your company registered with the national cybersecurity "
                     "authority (the CCB in Belgium)?",
+        "options": ["No",
+                    "Not sure whether we have to",
+                    "Started, not finished",
+                    "Registered, and we keep the details current"],
         "advice": "Entities in scope must register themselves with the national "
                   "authority and keep the details current. In Belgium that is "
                   "done online with the CCB.",

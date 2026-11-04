@@ -368,7 +368,26 @@ if "step" not in ss and not _restore_from_url():
 
 def _go(step: str) -> None:
     ss.step = step
+    ss.scroll_top = ss.get("scroll_top", 0) + 1
     st.rerun()
+
+
+def _scroll_to_top() -> None:
+    """A new page starts at its top (D-136): Streamlit keeps the scroll
+    position across reruns, so a "Next" from the bottom of a long check used
+    to land halfway down the next one. A zero-height component scrolls the
+    app's own scroll container; the counter makes each one new."""
+    n = ss.pop("scroll_top", 0)
+    if not n:
+        return
+    import streamlit.components.v1 as components
+    components.html(
+        f"""<script>/* {n} {ss.step} */
+        const doc = window.parent.document;
+        for (const sel of ['[data-testid="stMain"]', '[data-testid="stAppViewContainer"]', 'section.main']) {{
+            const el = doc.querySelector(sel); if (el) el.scrollTo(0, 0);
+        }}
+        window.parent.scrollTo(0, 0);</script>""", height=0)
 
 
 def _next_step() -> str:
@@ -784,7 +803,7 @@ def _account_form(pending: dict) -> None:
                     f"then [log in with this link]({login_url}). It brings every result on "
                     "this page with it.")
         return
-    parts = ((["the website findings and how to fix them, as a PDF"] if site else [])
+    parts = ((["a PDF of the website findings and how to fix them"] if site else [])
              + (["your NIS2 breakdown"] if quiz else [])
              + (["your AI Act breakdown"] if ai else []))
     with st.form("account", border=True):
@@ -853,6 +872,7 @@ def _account_form(pending: dict) -> None:
 # ── Page ──────────────────────────────────────────────────────────────────
 
 _header()
+_scroll_to_top()
 {
     "scope": _scope_step,
     "plan": _plan_step,

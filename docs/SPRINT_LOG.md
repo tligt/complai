@@ -5841,6 +5841,29 @@ read "See my results" on a page that already was a result.
   (`?check=website|nis2|ai`) go through Streamlit Cloud's cookie redirect,
   as every visit does.
 
+### D-136 — Live walk-through of the free check, 4 Nov
+
+Walked live in Chrome (src=claude_test, no account made): everything
+applying → website check on recosa.eu → NIS2 skipped → AI Act → back to
+NIS2 → results → reload. Checks bar, Next / Skip to / See my full results,
+← Back, the results page, the address keeping the visit, and the links
+(recosa.eu and Log in in the whole window; the login link carrying site,
+scope and answers) all as designed. Three fixes from it:
+
+- **Each page starts at its top.** Streamlit keeps the scroll position
+  across reruns, so "Next" from the bottom of a check landed halfway down
+  the next one. `_go()` now asks for a scroll to the top (a zero-height
+  component scrolling the app's container).
+- **The registration question has its own answers** (No / Not sure whether
+  we have to / Started / Registered and kept current) instead of the
+  "documented process" scale, which made no sense for it.
+- **Form headline**: "a PDF of the website findings and how to fix them, and
+  your AI Act breakdown" — the breakdown no longer reads as part of the PDF.
+
+Seen, left as is: the current check's emoji draws as a box in the checks
+bar's navy pill on some systems (Public Sans has no emoji; the browser's
+fallback varies).
+
 ---
 
 ## 5. Constraints and gotchas
