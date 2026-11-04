@@ -27,12 +27,15 @@ services:
     ports: !override
       - "127.0.0.1:4000:4000"
 
-  # The password-reset email links back to the app as ?token_hash=…&type=
-  # recovery, which the app can read — Supabase's default link puts the
-  # session in a #fragment Streamlit never sees (D-127). The template is
-  # deploy/email-templates/recovery.html, served by RECOSA's Caddy on the
-  # shared network (http://caddy:8080, not public).
+  # The password-reset and sign-up confirmation emails link back to the app
+  # as ?token_hash=…&type=recovery / type=email, which the app can read —
+  # Supabase's default links put the session in a #fragment Streamlit never
+  # sees (D-127, D-139). The templates are deploy/email-templates/*.html,
+  # served by RECOSA's Caddy on the shared network (http://caddy:8080, not
+  # public).
   auth:
     environment:
       GOTRUE_MAILER_TEMPLATES_RECOVERY: http://caddy:8080/recovery.html
       GOTRUE_MAILER_SUBJECTS_RECOVERY: Reset your RECOSA password
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://caddy:8080/confirmation.html
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: Confirm your email for RECOSA

@@ -186,7 +186,9 @@ Then:
 - Generate a document and download its **PDF** (LibreOffice in the image).
 - Assistant answers with sources (Qdrant + Mistral).
 - Sign up with a second address → the confirmation email arrives (Brevo
-  SMTP), the link works, the free check starts.
+  SMTP); its link starts with `https://app.<domain>/?token_hash=` and
+  `type=email`, and clicking it logs you in on "Your free check" with the
+  result emails arriving within a minute (D-139).
 - Log out → "Forgot your password?" → the email's link starts with
   `https://app.<domain>/?token_hash=` (not `api.<domain>/auth/v1/verify`),
   opens "Choose a new password", and the new password works. If the link is

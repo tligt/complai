@@ -5916,6 +5916,21 @@ S50 (the server's own cron); before that, the confirmation link could log
 the person in directly (a `token_hash` link, as for the password reset),
 which sends at once.
 
+### D-139 — The confirmation link logs the person in, 4 Nov
+
+Follows D-138: people who confirmed and did not log in waited hours for
+their free check emails. The "Confirm signup" email now links back as
+`?token_hash=…&type=email` (template `deploy/email-templates/
+confirmation.html`, pasted into the Supabase dashboard on Supabase Cloud).
+app.py verifies it (`auth.start_email_confirmation`, `verify_otp` type
+email) before the login screen: the address is confirmed and the person is
+logged in, lands on Your free check, and its emails go out at once — and
+one login fewer. An expired or used link falls back to the login screen
+with a plain note; the older `type=signup` is accepted too. Supabase's
+default link keeps working as before (confirms, then the person logs in).
+On the S50 stack: `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` in
+`supabase.override.yml`, tested in the runbook's B11.
+
 ---
 
 ## 5. Constraints and gotchas

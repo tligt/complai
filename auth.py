@@ -340,6 +340,24 @@ def start_password_recovery(token_hash: str) -> bool:
     return True
 
 
+def start_email_confirmation(token_hash: str) -> bool:
+    """D-139. The sign-up confirmation link ("Confirm signup" template, as
+    ?token_hash=…&type=email) confirms the address AND logs the person in,
+    so they land on their free check result and its emails go out at once —
+    not hours later from the scheduled job. True when it worked."""
+    try:
+        res = get_supabase().auth.verify_otp({"token_hash": token_hash, "type": "email"})
+    except Exception as e:
+        print(f"Confirmation link rejected: {e}")
+        return False
+    if not (res and res.session):
+        return False
+    st.session_state.user          = res.user
+    st.session_state.access_token  = res.session.access_token
+    st.session_state.refresh_token = res.session.refresh_token
+    return True
+
+
 def set_new_password_ui() -> None:
     st.markdown("### Choose a new password")
     p1 = st.text_input("New password", type="password", key="recover_pw",

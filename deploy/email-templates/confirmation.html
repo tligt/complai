@@ -1,0 +1,13 @@
+<!-- Supabase "Confirm signup" email (D-139). Self-hosted: GoTrue reads it
+     from GOTRUE_MAILER_TEMPLATES_CONFIRMATION (supabase.override.yml), served
+     by Caddy on the internal network. On Supabase Cloud the same body is
+     pasted into Authentication → Emails → Confirm signup.
+
+     The link comes back to the app as ?token_hash=…&type=email: the app
+     confirms the address and logs the person in (auth.start_email_confirmation),
+     so the free check result opens and its emails go out at once. -->
+<h2>Confirm your email for RECOSA</h2>
+<p>One click to confirm your address and open your free account:</p>
+<p><a href="{{ .SiteURL }}/?token_hash={{ .TokenHash }}&type=email">Confirm my email</a></p>
+<p>If you took a free check, your full results open straight away and a copy comes to this address.</p>
+<p>Didn't sign up for RECOSA? Ignore this email: no account is created without this confirmation.</p>

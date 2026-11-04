@@ -226,10 +226,28 @@ if st.query_params.get("type") == "recovery" and st.query_params.get("token_hash
         st.session_state.auth_mode = "Forgot"
         st.session_state.recovery_failed = True
 
+# D-139: the sign-up confirmation link ("Confirm signup" template) lands here
+# with ?token_hash=…&type=email (or the older type=signup). It confirms the
+# address and logs the person in, so the free check result opens and its
+# emails go out now. Supabase's default link confirms too, but hands the
+# session over in a #fragment the app cannot read: the person then logs in.
+if (st.query_params.get("type") in ("email", "signup")
+        and st.query_params.get("token_hash")):
+    from auth import start_email_confirmation
+    _th = st.query_params["token_hash"]
+    del st.query_params["token_hash"]
+    del st.query_params["type"]
+    if not start_email_confirmation(_th):
+        st.session_state.auth_mode = "Log in"
+        st.session_state.confirm_failed = True
+
 if not is_logged_in():
     import login_page
     if st.session_state.pop("recovery_failed", False):
         st.warning("That reset link has expired or was already used. Ask for a new one below.")
+    if st.session_state.pop("confirm_failed", False):
+        st.info("That confirmation link has expired or was already used. If you've "
+                "confirmed your address already, just log in.")
     login_page.render()
     st.stop()
 
