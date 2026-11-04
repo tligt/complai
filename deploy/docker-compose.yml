@@ -78,6 +78,7 @@ services:
     env_file: .env
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./email-templates:/srv/email-templates:ro
       - caddy_data:/data
       - caddy_config:/config
     networks: [recosa, supabase]

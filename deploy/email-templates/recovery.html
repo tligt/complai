@@ -1,0 +1,12 @@
+<!-- Supabase "Reset password" email (D-127). Self-hosted: GoTrue reads it
+     from GOTRUE_MAILER_TEMPLATES_RECOVERY (supabase.override.yml), served by
+     Caddy on the internal network. On Supabase Cloud the same body is pasted
+     into Authentication → Emails → Reset password.
+
+     The link must come back to the app as ?token_hash=…&type=recovery:
+     Streamlit cannot read the #access_token fragment of Supabase's default
+     link (app.py, auth.start_password_recovery). -->
+<h2>Reset your RECOSA password</h2>
+<p>Follow this link to choose a new password:</p>
+<p><a href="{{ .SiteURL }}/?token_hash={{ .TokenHash }}&type=recovery">Choose a new password</a></p>
+<p>If you didn't ask for this, ignore this email: your password stays as it is.</p>

@@ -26,6 +26,14 @@
 	reverse_proxy quiz:8503
 }
 
+# Email templates for Supabase's own emails (the password reset, D-127), read
+# by GoTrue over the internal network: port 8080 is not published (only 80
+# and 443 are), so this is not reachable from outside.
+:8080 {
+	root * /srv/email-templates
+	file_server
+}
+
 # Supabase API. Only what RECOSA uses is routed — auth, data and files for the
 # apps, and the Compliance Pulse function the recosa.eu site reads (S19/S20).
 # Everything else Kong serves, Studio in particular, is not reachable from

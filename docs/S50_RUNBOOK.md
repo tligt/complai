@@ -187,7 +187,16 @@ Then:
 - Assistant answers with sources (Qdrant + Mistral).
 - Sign up with a second address → the confirmation email arrives (Brevo
   SMTP), the link works, the free check starts.
-- Account → "forgot password" email, if enabled in S51.
+- Log out → "Forgot your password?" → the email's link starts with
+  `https://app.<domain>/?token_hash=` (not `api.<domain>/auth/v1/verify`),
+  opens "Choose a new password", and the new password works. If the link is
+  Supabase's default one, GoTrue did not get the template: check
+  `docker compose exec auth env | grep MAILER_TEMPLATES` and
+  `docker compose exec auth wget -qO- http://caddy:8080/recovery.html`
+  (run in `/opt/recosa/supabase/docker`; both containers are on the
+  `supabase_default` network).
+- A free check's result email: its "Also free" links point to
+  `https://check.<domain>` (`FREE_CHECK_URL` in `deploy/.env`).
 - `https://admin.<domain>` loads; `https://check.<domain>` runs a free check.
 - `https://api.<domain>/functions/v1/compliance-pulse?limit=3` returns the
   same items as the old URL (`https://<ref>.supabase.co/functions/v1/compliance-pulse?limit=3`).
@@ -228,7 +237,9 @@ knowledge base since).
 **C4. Switch the jobs on.** `mv /etc/cron.d/recosa.disabled /etc/cron.d/recosa`
 
 **C5. Links.** On the Framer site, point the app, sign-up and free-check
-links to the new names, and change the **AnySync** collections' source URL
+links to the new names (or, if `app.` / `check.recosa.eu` were already set up
+as redirects to Streamlit Cloud, just point those DNS names here — the site's
+links stay as they are), and change the **AnySync** collections' source URL
 (both of them, including the `articles_only=true` one) to
 `https://api.<domain>/functions/v1/compliance-pulse`. Brevo templates and `APP_BASE_URL` already use the
 new app name.
