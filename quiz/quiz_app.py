@@ -82,6 +82,24 @@ except ImportError:
 import requests
 import streamlit as st
 
+
+def _fresh_shared_modules() -> None:
+    """D-136. On a push, Streamlit Cloud reruns this script with the new code
+    but keeps the modules from the folder above as first imported — only
+    this script's own folder is watched. New questions in funnel.py stayed
+    invisible until a reboot, and a call into something new would fail.
+    funnel and funnel_ui record their file's timestamp when loaded; reload
+    either one whose file is newer (or that predates the record), before the
+    from-imports below bind their names."""
+    import importlib
+    for name in ("funnel", "funnel_ui"):  # funnel first: funnel_ui uses it
+        mod = sys.modules.get(name)
+        if mod is not None and getattr(mod, "_LOADED_MTIME", None) != os.path.getmtime(mod.__file__):
+            importlib.reload(mod)
+
+
+_fresh_shared_modules()
+
 import funnel
 from funnel_ui import (render_quiz_form, render_quiz_score, render_quiz_breakdown,
                        render_rules)

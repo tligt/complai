@@ -5860,6 +5860,15 @@ scope and answers) all as designed. Three fixes from it:
 - **Form headline**: "a PDF of the website findings and how to fix them, and
   your AI Act breakdown" — the breakdown no longer reads as part of the PDF.
 
+- **Pushes reach the shared modules.** After the push, the scroll fix
+  (in `quiz/quiz_app.py`) was live but the registration answers (in
+  `funnel.py`) were not: Streamlit Cloud reruns the entry script with the
+  new code but keeps modules from the folder above as first imported, until
+  a reboot — and a call into something new there would fail. `funnel.py`
+  and `funnel_ui.py` now record their file's timestamp when loaded, and the
+  public app reloads either one whose file is newer (or that predates the
+  record) before using it.
+
 Seen, left as is: the current check's emoji draws as a box in the checks
 bar's navy pill on some systems (Public Sans has no emoji; the browser's
 fallback varies).

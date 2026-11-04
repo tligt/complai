@@ -12,8 +12,13 @@ The same holds for the AI Act Quick Check (S55, D-132).
 
 from __future__ import annotations
 
+import os
 import re
 from urllib.parse import urlencode
+
+# The file's timestamp as loaded: the public app reloads this module when the
+# file on disk is newer (quiz_app._fresh_shared_modules, D-136).
+_LOADED_MTIME = os.path.getmtime(__file__)
 
 # Version of the marketing-consent wording shown beside the email field.
 # Stored with every lead that ticked it; change it whenever the wording does.

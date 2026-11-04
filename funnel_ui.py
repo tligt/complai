@@ -6,9 +6,14 @@ S55: pass kind=funnel.AI_ACT), drawn the same way in the public app
 Streamlit only. No Supabase: the callers decide what to store.
 """
 
+import os
+
 import streamlit as st
 
 import funnel
+
+# As in funnel.py: the public app reloads this module when the file is newer.
+_LOADED_MTIME = os.path.getmtime(__file__)
 
 
 def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
