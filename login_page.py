@@ -92,6 +92,10 @@ _CSS = """
     border-radius: 8px !important; min-height: 44px; }
 .st-key-auth_card .stButton > button[kind="primary"] p { color: #FFFFFF !important; font-weight: 700 !important; font-size: 15px !important; }
 .st-key-auth_card .stButton > button[kind="primary"]:hover { background: #00264D !important; }
+/* Link buttons (the back office's "Go to RECOSA"): same as the main button. */
+.st-key-auth_card [data-testid="stBaseLinkButton-primary"] { background: #003366 !important; border: none !important;
+    border-radius: 8px !important; min-height: 44px; }
+.st-key-auth_card [data-testid="stBaseLinkButton-primary"] p { color: #FFFFFF !important; font-weight: 700 !important; font-size: 15px !important; }
 /* Text links (Forgot your password?, Back to log in) */
 .st-key-auth_card .stButton > button[kind="tertiary"] { padding: 0 !important; min-height: 0 !important; }
 .st-key-auth_card .stButton > button[kind="tertiary"] p { color: #003366 !important; font-weight: 700 !important;

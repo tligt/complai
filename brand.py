@@ -107,6 +107,14 @@ SHELL_CSS = """
     font-weight: 600 !important;
     border-radius: 6px !important;
 }
+/* White label on every navy button. Needed where a page colours its text
+   (the login pages set .stApp p, which beat the colour the button passes
+   down: "Go to RECOSA" came out navy on navy, 4 Nov). */
+.stButton > button[kind="primary"] p,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] p,
+[data-testid="stBaseLinkButton-primary"] p {
+    color: #FFFFFF !important;
+}
 
 /* ── Content width ── */
 .main .block-container {
