@@ -19,7 +19,8 @@ from database import (
 
 REASON_LABELS = dict(FEEDBACK_REASONS)
 
-st.markdown("## Answer feedback")
+st.title("Feedback")
+st.caption("What users said about the assistant's answers.")
 
 summary = get_feedback_summary()
 

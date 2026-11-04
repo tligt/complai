@@ -145,6 +145,19 @@ def render() -> None:
             st.markdown(_PITCH, unsafe_allow_html=True)
 
 
+def render_admin() -> None:
+    """The back office's login (D-140): the client login's look and card,
+    log-in only — the Sign up tab points to the client app."""
+    _style()
+    st.markdown(
+        '<div class="lp-top"><div class="lp-mark">R</div><span class="lp-name">RECOSA</span>'
+        '<span class="lp-pill" style="margin-left:10px">Back office</span></div>',
+        unsafe_allow_html=True)
+    _, mid, _ = st.columns([1, 1.2, 1])
+    with mid, st.container(key="auth_card"):
+        login_ui(admin=True)
+
+
 def render_password_reset() -> None:
     """After a reset link: only the new-password form, same look."""
     _style()

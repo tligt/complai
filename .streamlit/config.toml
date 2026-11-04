@@ -1,0 +1,13 @@
+# RECOSA's look, shared by the three Streamlit apps (client app, back office,
+# public free check), as on recosa.eu (D-140): navy #003366 for the main
+# buttons and every selected control (radio, checkbox, toggle, links), and
+# Public Sans for all text. Each app adds its own CSS on top (brand.py for
+# the client app and the back office, quiz/quiz_app.py for the free check).
+#
+# Read from the folder Streamlit runs in: the repository root, locally, on
+# Streamlit Cloud and in the S50 containers.
+
+[theme]
+base = "light"
+primaryColor = "#003366"
+font = "Public Sans:https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap"

@@ -113,7 +113,7 @@ def init():
 
 init()
 
-st.markdown("## Support tickets")
+st.title("Tickets")
 
 
 # ── Detail view ───────────────────────────────────────────────

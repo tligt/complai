@@ -23,145 +23,10 @@ st.set_page_config(
 )
 
 # ── Global CSS ────────────────────────────────────────────────
-st.markdown("""
-<style>
-/* Hide Streamlit chrome */
-#MainMenu, footer, header { visibility: hidden; }
-.stDeployButton { display: none; }
-
-/* Global font */
-html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-}
-
-/* ── Sidebar ── */
-[data-testid="stSidebar"] {
-    background: #003366 !important;
-}
-[data-testid="stSidebar"] p,
-[data-testid="stSidebar"] span,
-[data-testid="stSidebar"] label,
-[data-testid="stSidebar"] div,
-[data-testid="stSidebar"] small {
-    color: #CBD5E1 !important;
-}
-[data-testid="stSidebar"] a {
-    color: #CBD5E1 !important;
-    border-radius: 6px !important;
-    padding: 0.4rem 0.75rem !important;
-}
-[data-testid="stSidebar"] a:hover {
-    background: rgba(255,255,255,0.08) !important;
-    color: white !important;
-}
-[data-testid="stSidebar"] [aria-current="page"],
-[data-testid="stSidebar"] [aria-selected="true"] {
-    background: rgba(20,199,213,0.18) !important;
-    border-left: 3px solid #14C7D5 !important;
-    color: white !important;
-}
-/* Nav section labels. stNavSectionHeader is the element Streamlit 1.61
-   renders; the old stSidebarNavSeparator rule matched nothing, so the
-   group titles came out dark grey on dark blue (usability audit C3). */
-[data-testid="stNavSectionHeader"],
-[data-testid="stNavSectionHeader"] * {
-    color: #94A3B8 !important;
-    visibility: visible !important;
-    font-size: 0.7rem !important;
-    font-weight: 600 !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.08em !important;
-}
-/* "View N more" — was dark grey on dark blue (audit C2). */
-[data-testid="stSidebarNavViewButton"],
-[data-testid="stSidebarNavViewButton"] * {
-    color: #E2E8F0 !important;
-    font-weight: 600 !important;
-}
-/* Sidebar buttons (Log out, New chat…): the text rule above made their
-   label pale grey on Streamlit's near-white button, 1.4:1 (audit C1). */
-[data-testid="stSidebar"] .stButton > button {
-    background: transparent !important;
-    border: 1px solid rgba(255,255,255,0.45) !important;
-}
-[data-testid="stSidebar"] .stButton > button,
-[data-testid="stSidebar"] .stButton > button * {
-    color: #FFFFFF !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(255,255,255,0.10) !important;
-}
-/* Sidebar inputs */
-[data-testid="stSidebar"] .stSelectbox > div > div {
-    background: rgba(255,255,255,0.08) !important;
-    border-color: rgba(255,255,255,0.15) !important;
-    color: white !important;
-}
-/* Streamlit 1.61's select box is a text input inside; the company switcher's
-   value was dark grey on dark blue. */
-[data-testid="stSidebar"] [data-testid="stSelectbox"] input {
-    color: #FFFFFF !important;
-    -webkit-text-fill-color: #FFFFFF !important;
-}
-[data-testid="stSidebar"] .stSelectbox svg {
-    fill: #94A3B8 !important;
-}
-
-/* ── Buttons ── */
-/* Brand teal with dark blue text: white on #14C7D5 was 2.1:1, dark blue is
-   6.1:1 (audit M12). Form submit and link buttons get the same look — they
-   were Streamlit's default red. */
-.stButton > button[kind="primary"],
-[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"],
-[data-testid="stBaseLinkButton-primary"] {
-    background: #14C7D5 !important;
-    border: none !important;
-    font-weight: 600 !important;
-    border-radius: 6px !important;
-    transition: background 0.2s;
-}
-.stButton > button[kind="primary"],
-.stButton > button[kind="primary"] *,
-[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"],
-[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"] *,
-[data-testid="stBaseLinkButton-primary"],
-[data-testid="stBaseLinkButton-primary"] * {
-    color: #003366 !important;
-}
-.stButton > button[kind="primary"]:hover,
-[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:hover,
-[data-testid="stBaseLinkButton-primary"]:hover {
-    background: #0E7C86 !important;
-}
-.stButton > button[kind="primary"]:hover *,
-[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:hover *,
-[data-testid="stBaseLinkButton-primary"]:hover * {
-    color: #FFFFFF !important;
-}
-
-/* ── Content width ── */
-.main .block-container {
-    max-width: 1200px !important;
-    padding: 2rem 3rem !important;
-    margin: 0 auto !important;
-}
-
-/* ── Login specific ── */
-.login-container .main .block-container {
-    max-width: 420px !important;
-    padding: 3rem 1.5rem !important;
-    margin: 5vh auto 0 !important;
-}
-
-/* ── Metrics ── */
-[data-testid="stMetric"] {
-    background: #F4F7FA;
-    border-radius: 8px;
-    padding: 1rem;
-    border: 1px solid #E2E8F0;
-}
-</style>
-""", unsafe_allow_html=True)
+# Shared with the back office (D-140): brand.py, and the theme in
+# .streamlit/config.toml.
+import brand
+brand.apply_shell()
 
 # ── Deep link capture ─────────────────────────────────────────
 # Must happen before init_auth(), because an unauthenticated arrival from a
@@ -259,14 +124,10 @@ if st.session_state.get("password_recovery"):
 # ── Authenticated ─────────────────────────────────────────────
 user_id = get_user_id()
 
-# Sidebar: logo above nav (injected via CSS top position)
+# Sidebar: the logo above the menu (brand.py), then the menu's own styles.
+brand.apply_logo("RECOSA")
 st.markdown("""
 <style>
-/* Room for the logo. The menu is drawn by this script (st.page_link), so
-   it is user content, not stSidebarNav (usability audit batch 2). */
-[data-testid="stSidebarUserContent"] {
-    padding-top: 1.25rem !important;
-}
 /* Menu group titles */
 .nav-group {
     color: #94A3B8 !important;
@@ -281,22 +142,6 @@ st.markdown("""
 }
 [data-testid="stSidebar"] [data-testid="stPageLink-NavLink"] span {
     color: #E2E8F0 !important;
-}
-/* Logo overlay at top of sidebar */
-[data-testid="stSidebar"]::before {
-    content: "🛡️  RECOSA";
-    display: block;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    padding: 1rem 1rem 0.75rem;
-    font-size: 1.1rem;
-    font-weight: 800;
-    color: white !important;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    background: #003366;
-    z-index: 999;
 }
 </style>
 """, unsafe_allow_html=True)

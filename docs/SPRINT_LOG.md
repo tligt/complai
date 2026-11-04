@@ -5931,6 +5931,34 @@ default link keeps working as before (confirms, then the person logs in).
 On the S50 stack: `GOTRUE_MAILER_TEMPLATES_CONFIRMATION` in
 `supabase.override.yml`, tested in the runbook's B11.
 
+### D-140 — One look for the back office, the client app and the free check, 4 Nov
+
+Reviewed against recosa.eu, the client app and the free check. The back
+office had drifted from its own "same as client app" copy of the styles:
+white on turquoise buttons (2.1:1, fixed in the client app as audit M12),
+form and link buttons in Streamlit's default red, the sidebar contrast fixes
+(audit C1-C3) missing, and "Inter" — a font neither app ever loaded, so both
+showed the system font after a Public Sans login page. Its login reused the
+client form, Sign up tab included.
+
+- **Theme** (`.streamlit/config.toml`, read by all three apps): navy #003366
+  as the primary colour and Public Sans for all text. Main buttons are navy
+  with white text everywhere, as on recosa.eu (12.6:1); selected radios and
+  checkboxes are navy too (the free check's were default red).
+- **`brand.py`**: the client app's shell CSS (navy sidebar and its fixes,
+  button shape, metric cards, width), now shared by the back office, and the
+  site's "R" mark at the top of both sidebars.
+- **Back office login**: the client login's look (`login_page.render_admin`),
+  log in only. The Sign up tab says it is the back office and, for anyone
+  looking for RECOSA, links to the client app (asked for, 4 Nov).
+- **Page titles** plain and matching the menu (Home, Dashboard, Users, Audit
+  Trail, Versions, Tickets, Feedback, Monitoring, Knowledge Base). Versions
+  kept, as asked.
+
+Checked in the browser: the back office login and its Sign up tab, Public
+Sans, the free check's navy radios. Not checked: the sidebars once logged in
+(needs a login).
+
 ---
 
 ## 5. Constraints and gotchas

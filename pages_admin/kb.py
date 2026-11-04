@@ -15,7 +15,7 @@ from rag import (
     delete_source,
 )
 
-st.title("📚 Knowledge Base")
+st.title("Knowledge Base")
 st.caption("Manage the regulatory documents ingested into Qdrant.")
 
 LANG_OPTIONS   = {"en": "EN — English", "fr": "FR — French", "nl": "NL — Dutch"}

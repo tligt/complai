@@ -2,7 +2,7 @@ import streamlit as st
 from database import get_supabase_admin, get_token_summary_by_client
 from datetime import datetime, timedelta
 
-st.title("📊 Client Dashboard")
+st.title("Dashboard")
 st.caption("Usage, activity and abuse monitoring across all clients.")
 
 admin = get_supabase_admin()

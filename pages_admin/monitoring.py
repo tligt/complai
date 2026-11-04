@@ -31,7 +31,7 @@ from database import (
 from email_sender import send_regulatory_alert
 from slug_generation import slugify
 
-st.title("📡 Monitoring")
+st.title("Monitoring")
 st.caption("Regulatory and marketing monitoring — review, approve, and publish.")
 
 

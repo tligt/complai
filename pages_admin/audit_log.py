@@ -8,7 +8,8 @@ EVENT_ICONS = {
     "audit_run": "🔍",
 }
 
-st.title("Audit Trail — All Clients")
+st.title("Audit Trail")
+st.caption("Every company's trail, newest first.")
 
 supabase = get_supabase()
 

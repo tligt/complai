@@ -17,7 +17,7 @@ PKGS = [
     "requests", "python-dotenv",
 ]
 
-st.markdown("## Installed versions")
+st.title("Versions")
 st.caption(f"Python {sys.version.split()[0]}")
 
 lines = []

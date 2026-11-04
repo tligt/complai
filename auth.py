@@ -95,10 +95,13 @@ def is_logged_in() -> bool:
     return st.session_state.get("user") is not None
 
 
-def login_ui():
+def login_ui(admin: bool = False):
     """The form card of the login page (login_page.py draws the page around
     it, D-127): a Log in / Sign up switch, then the form. Forgot password is
-    a third state of the same switch, reached from the log-in form."""
+    a third state of the same switch, reached from the log-in form.
+
+    admin=True (the back office, D-140): no sign-up here — the Sign up tab
+    sends whoever was looking for RECOSA to the client app."""
     # S49: arriving from a free check or a website sign-up link (app.py
     # parks it in session state), the visitor is new — open on Sign up,
     # unless the link is the free check's "Log in instead".
@@ -124,7 +127,9 @@ def login_ui():
     )
 
     if st.session_state.auth_mode == "Log in":
-        _login_form(funnel)
+        _login_form(funnel, admin)
+    elif admin:
+        _not_here()
     elif st.session_state.get("signup_sent_to"):
         _check_inbox(st.session_state.signup_sent_to,
                      st.session_state.get("signup_plan"))
@@ -132,12 +137,23 @@ def login_ui():
         _signup_form(funnel)
 
 
+def _not_here() -> None:
+    """The back office's Sign up tab: this is not where clients sign up or
+    log in."""
+    app_url = (os.environ.get("APP_BASE_URL") or "https://recosa.streamlit.app").rstrip("/") + "/"
+    st.markdown("This is RECOSA's back office, for the RECOSA team only.")
+    st.markdown(f'<div class="auth-fine" style="text-align:left;font-size:14px">If you were trying '
+                f'to sign up or log in to RECOSA, <a href="{app_url}" target="_top">click here</a>.</div>',
+                unsafe_allow_html=True)
+    st.link_button("Go to RECOSA", app_url, type="primary", use_container_width=True)
+
+
 def _go(mode: str) -> None:
     st.session_state.auth_mode = mode
     st.rerun()
 
 
-def _login_form(funnel: dict) -> None:
+def _login_form(funnel: dict, admin: bool = False) -> None:
     email = st.text_input("Email", key="login_email", placeholder="you@company.com")
     password = st.text_input("Password", type="password", key="login_password",
                              placeholder="Your password")
@@ -160,8 +176,9 @@ def _login_form(funnel: dict) -> None:
         # rerun (funnel stays in session state until then), and its result
         # page opens.
         st.rerun()
-    st.markdown('<div class="auth-fine">New to RECOSA? Switch to <b>Sign up</b> above '
-                'for a free trial.</div>', unsafe_allow_html=True)
+    if not admin:
+        st.markdown('<div class="auth-fine">New to RECOSA? Switch to <b>Sign up</b> above '
+                    'for a free trial.</div>', unsafe_allow_html=True)
 
 
 def _auth_error(e: Exception) -> str:
