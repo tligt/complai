@@ -5873,6 +5873,31 @@ Seen, left as is: the current check's emoji draws as a box in the checks
 bar's navy pill on some systems (Public Sans has no emoji; the browser's
 fallback varies).
 
+### D-137 — The GDPR Quick Check, the fourth free check, 4 Nov
+
+The website check only reads what GDPR shows on a site (privacy notice,
+cookie banner); most of GDPR is what a company does behind it. A fourth free
+check on the quick-check mechanics (`funnel.GDPR`, tool `gdpr_check`):
+
+- **Ten questions**, each with its own four answers, worst to best: knowing
+  your data (gdpr_03), legal basis (gdpr_02), suppliers' processing
+  agreements (gdpr_05), data outside the EU (gdpr_11), people's rights
+  (gdpr_07), breaches within 72 hours (gdpr_06), retention (gdpr_09),
+  security of personal data (gdpr_20), staff awareness (gdpr_13), sensitive
+  data, DPO and DPIA (gdpr_04, gdpr_10, gdpr_16). Max 30, bands at 10 and
+  20, "2 minutes". Draft copy, like the others. Left to the website check:
+  the privacy notice (gdpr_01); to the full assessment: legitimate interest,
+  children's data, joint controllers.
+- **Offered to every visitor**: GDPR applies to practically every company,
+  so `checks_for` always includes it, after the website check. The "No free
+  check fits your answers" branch could no longer happen and is removed.
+- **Everywhere the others are**: `?check=gdpr`, `g=` in the address, `?gdpr=`
+  on the link into the client app, `gdpr_answers` on the account, its own
+  email (`recosa_gdpr_sent`) and lead row, Your free check in the app, and
+  the answers declared in the register (`gdpr_applied_to`). The result email
+  takes the regulation's name from the questionnaire (`kind["reg"]`).
+- Migration `d137_gdpr_check` widens `leads_tool_check`.
+
 ---
 
 ## 5. Constraints and gotchas

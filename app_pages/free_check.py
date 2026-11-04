@@ -55,6 +55,13 @@ def _add_ai(key: str) -> None:
                 "ai_answers": funnel.encode_answers(answers)})
 
 
+def _add_gdpr(key: str) -> None:
+    answers = render_quiz_form(key, funnel.GDPR)
+    if answers is not None:
+        _store({**pending, "tool": pending.get("tool") or funnel.TOOL_GDPR,
+                "gdpr_answers": funnel.encode_answers(answers)})
+
+
 def _add_site(key: str) -> None:
     with st.form(key):
         url = st.text_input("Website", value=(client or {}).get("website_url") or "",
@@ -70,12 +77,14 @@ def _add_site(key: str) -> None:
 
 
 # ── No check yet: take one here ───────────────────────────────────────────
-if not (funnel.has_quiz(pending) or funnel.has_site(pending) or funnel.has_ai(pending)):
+if not any(funnel.has_check(pending, t) for t in funnel.ALL_CHECKS):
     st.caption("Take one of the free checks to see where you stand.")
-    tab_site, tab_quiz, tab_ai = st.tabs(["🌐 Website check", "🛡️ NIS2 Quick Check",
-                                          "🤖 AI Act Quick Check"])
+    tab_site, tab_gdpr, tab_quiz, tab_ai = st.tabs(["🌐 Website check", "🔐 GDPR Quick Check",
+                                                    "🛡️ NIS2 Quick Check", "🤖 AI Act Quick Check"])
     with tab_site:
         _add_site("app_site")
+    with tab_gdpr:
+        _add_gdpr("app_gdpr")
     with tab_quiz:
         _add_quiz("app_quiz")
     with tab_ai:
@@ -91,6 +100,7 @@ if scope:
 # ── Website check result ──────────────────────────────────────────────────
 answers = funnel.decode_answers(pending.get("answers"))
 ai_answers = funnel.decode_answers(pending.get("ai_answers"), funnel.AI_ACT)
+gdpr_answers = funnel.decode_answers(pending.get("gdpr_answers"), funnel.GDPR)
 if funnel.has_site(pending):
     import funnel_delivery as FD
     site = pending["site"]
@@ -157,9 +167,22 @@ if answers is not None:
             "register as your own declarations. A full assessment replaces them."
         )
 
+# ── GDPR Quick Check result (D-137) ───────────────────────────────────────
+if gdpr_answers is not None:
+    if funnel.has_site(pending) or answers is not None:
+        st.divider()
+    st.subheader("GDPR Quick Check")
+    render_quiz_score(gdpr_answers, funnel.GDPR)
+    render_quiz_breakdown(gdpr_answers, locked=False, kind=funnel.GDPR)
+    if client:
+        st.caption(
+            f"Your answers are recorded in **{client['company_name']}**'s obligations "
+            "register as your own declarations. A full assessment replaces them."
+        )
+
 # ── AI Act Quick Check result (S55) ───────────────────────────────────────
 if ai_answers is not None:
-    if funnel.has_site(pending) or answers is not None:
+    if funnel.has_site(pending) or answers is not None or gdpr_answers is not None:
         st.divider()
     st.subheader("AI Act Quick Check")
     render_quiz_score(ai_answers, funnel.AI_ACT)
@@ -179,6 +202,9 @@ if funnel.missing_checks(pending):
 if not funnel.has_site(pending):
     with st.expander("🌐 Website check — 30 seconds"):
         _add_site("app_site_more")
+if gdpr_answers is None:
+    with st.expander("🔐 GDPR Quick Check — 2 minutes"):
+        _add_gdpr("app_gdpr_more")
 if answers is None:
     with st.expander("🛡️ NIS2 Quick Check — 3 minutes"):
         _add_quiz("app_quiz_more")
@@ -229,7 +255,8 @@ render_trial_cta(profile)
 # next visit, and nothing the client already recorded is overwritten.
 # One flag per check: the AI Act answers may come later than the NIS2 ones.
 for _ans, _kind, _flag in ((answers, funnel.NIS2, "applied_to"),
-                           (ai_answers, funnel.AI_ACT, "ai_applied_to")):
+                           (ai_answers, funnel.AI_ACT, "ai_applied_to"),
+                           (gdpr_answers, funnel.GDPR, "gdpr_applied_to")):
     if _ans is None or not client or pending.get(_flag) == client["id"]:
         continue
     import obligation_store as STORE

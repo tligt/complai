@@ -1,6 +1,7 @@
 """
 quiz/quiz_app.py — the public free checks: the NIS2 Quick Check (S45), the
-GDPR website check (S49) and the AI Act Quick Check (S55). Deployed as its own Streamlit Cloud app with
+GDPR website check (S49), the AI Act Quick Check (S55) and the GDPR Quick
+Check (D-137). Deployed as its own Streamlit Cloud app with
 this file as the entry point, at recosa-checklist.streamlit.app.
 
 Lives in its own directory, not the repo root, and that is load-bearing, not
@@ -19,7 +20,7 @@ THE FLOW (D-129, 28 Oct 2026). Replaces two tabs that each ended in their
 own sign-up form, so the second check was never taken:
   1. Which rules apply — four questions (funnel.applicable_rules).
   2. The checks that matter for those rules, one after the other: the
-     website check, the NIS2 questions, the AI Act questions. Any can be
+     website check, the GDPR, NIS2 and AI Act questions. Any can be
      skipped.
   3. One result page and one form; the account carries every check taken.
 
@@ -27,6 +28,7 @@ DEEP LINKS, for the website and campaigns (all optional, combinable):
   ?check=website      straight to the website check (?tool=website still works)
   ?check=nis2         straight to the NIS2 Quick Check
   ?check=ai           straight to the AI Act Quick Check (S55)
+  ?check=gdpr         straight to the GDPR Quick Check (D-137)
   ?site=acme.be       the website field filled in
   ?src=homepage       where the visitor came from: on every funnel event, and
                       on the account as recosa_source
@@ -118,6 +120,9 @@ CHECK_LABELS = {
     funnel.TOOL_WEBSITE: ("🌐", "Website check", "30 seconds",
                           "Your homepage and its privacy, cookie, terms and contact pages, "
                           "against GDPR, ePrivacy, accessibility and consumer rules."),
+    funnel.TOOL_GDPR:    ("🔐", "GDPR Quick Check", "2 minutes",
+                          "Ten questions on what GDPR asks behind the website — your data, "
+                          "suppliers, rights requests, breaches, retention."),
     funnel.TOOL_QUIZ:    ("🛡️", "NIS2 Quick Check", "3 minutes",
                           "Thirteen questions on the security measures NIS2 expects, and "
                           "management's own duties."),
@@ -127,10 +132,10 @@ CHECK_LABELS = {
 }
 # The check's name inside a sentence: "the website check", "the NIS2 Quick Check".
 IN_TEXT = {funnel.TOOL_WEBSITE: "website check", funnel.TOOL_QUIZ: "NIS2 Quick Check",
-           funnel.TOOL_AI: "AI Act Quick Check"}
+           funnel.TOOL_AI: "AI Act Quick Check", funnel.TOOL_GDPR: "GDPR Quick Check"}
 LINK_CHECKS = {"website": funnel.TOOL_WEBSITE, "nis2": funnel.TOOL_QUIZ,
                "quiz": funnel.TOOL_QUIZ, "ai": funnel.TOOL_AI, "aiact": funnel.TOOL_AI,
-               "ai-act": funnel.TOOL_AI}
+               "ai-act": funnel.TOOL_AI, "gdpr": funnel.TOOL_GDPR}
 ALL_CHECKS = funnel.ALL_CHECKS
 
 
@@ -283,7 +288,8 @@ def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[
 # is shown instead, and the full report comes by email as before.
 
 ss = st.session_state
-CODE_TOOL = {"website": funnel.TOOL_WEBSITE, "nis2": funnel.TOOL_QUIZ, "ai": funnel.TOOL_AI}
+CODE_TOOL = {"website": funnel.TOOL_WEBSITE, "nis2": funnel.TOOL_QUIZ, "ai": funnel.TOOL_AI,
+             "gdpr": funnel.TOOL_GDPR}
 TOOL_CODE = {t: c for c, t in CODE_TOOL.items()}
 STEPS = {"scope", "plan", "results"}
 RISKS = {"Green", "Amber", "Red", "Low", "Medium", "High"}
@@ -320,6 +326,9 @@ def _restore_from_url() -> bool:
     ai = funnel.decode_answers(qp.get("ai"), funnel.AI_ACT)
     if ai:
         ss.ai_answers = ai
+    gdpr = funnel.decode_answers(qp.get("g"), funnel.GDPR)
+    if gdpr:
+        ss.gdpr_answers = gdpr
     site = funnel.pending_from_params(None, qp.get("site"))
     parts = (qp.get("ws") or "").split(".")
     if site and len(parts) == 5 and parts[1] in RISKS and all(p.isdigit() for p in parts[:1] + parts[2:]):
@@ -330,7 +339,8 @@ def _restore_from_url() -> bool:
         ss.site_prefill = site["site"]
     # Only what the address actually restored counts as taken.
     have = {funnel.TOOL_WEBSITE: bool(ss.get("site_result")),
-            funnel.TOOL_QUIZ: bool(ss.get("quiz_answers")), funnel.TOOL_AI: bool(ss.get("ai_answers"))}
+            funnel.TOOL_QUIZ: bool(ss.get("quiz_answers")), funnel.TOOL_AI: bool(ss.get("ai_answers")),
+            funnel.TOOL_GDPR: bool(ss.get("gdpr_answers"))}
     ss.done = [t for t in ss.done if have[t]]
     if step == "plan" and not ss.get("scope"):
         step = "scope"
@@ -354,6 +364,8 @@ def _save_to_url() -> None:
         d["q"] = funnel.encode_answers(ss.quiz_answers)
     if ss.get("ai_answers"):
         d["ai"] = funnel.encode_answers(ss.ai_answers)
+    if ss.get("gdpr_answers"):
+        d["g"] = funnel.encode_answers(ss.gdpr_answers)
     site = ss.get("site_result")
     if site:
         sm = site.get("summary") or _site_summary(site["audit"])
@@ -428,12 +440,14 @@ def _pending() -> dict | None:
     """Everything taken so far, as the account will carry it."""
     answers = ss.get("quiz_answers")
     ai = ss.get("ai_answers")
+    gdpr = ss.get("gdpr_answers")
     site = (ss.get("site_result") or {}).get("domain")
     scope = ss.get("scope")
     return funnel.pending_from_params(
         funnel.encode_answers(answers) if answers else None, site,
         funnel.encode_scope(scope) if scope else None,
-        funnel.encode_answers(ai) if ai else None)
+        funnel.encode_answers(ai) if ai else None,
+        funnel.encode_answers(gdpr) if gdpr else None)
 
 
 # ── Page parts ────────────────────────────────────────────────────────────
@@ -453,6 +467,8 @@ def _header() -> None:
                               "A first read on your site's GDPR and ePrivacy basics."),
         funnel.TOOL_QUIZ:    ("NIS2 Quick Check",
                               "Where you stand on the security measures NIS2 expects."),
+        funnel.TOOL_GDPR:    ("GDPR Quick Check",
+                              "Where you stand on what GDPR asks behind your website."),
         funnel.TOOL_AI:      ("AI Act Quick Check",
                               "Where you stand on what the AI Act asks of companies that "
                               "use AI tools."),
@@ -511,23 +527,13 @@ def _plan_step() -> None:
     rules = funnel.applicable_rules(ss.scope)
     with st.container(border=True):
         render_rules(rules)
-    if ss.plan:
-        st.markdown("#### Your free checks")
-        for tool in ss.plan:
-            icon, name, time, what = CHECK_LABELS[tool]
-            st.markdown(f"{icon} **{name}** · {time}  \n:gray[{what}]")
-        if st.button(f"Start the {IN_TEXT[ss.plan[0]]}", type="primary", use_container_width=True):
-            _go(ss.plan[0])
-    else:
-        st.markdown(
-            '<div class="fc-note"><b>No free check fits your answers.</b> GDPR still applies to '
-            'you: RECOSA works out your obligations from your company and writes the policies '
-            'and registers with you.</div>', unsafe_allow_html=True)
-        st.link_button("Start a 14-day free trial", f"{APP_BASE_URL}/?signup=1&src=free_check",
-                       type="primary", use_container_width=True)
-        if st.button("Take the NIS2 Quick Check anyway", use_container_width=True):
-            ss.plan = [funnel.TOOL_QUIZ]
-            _go(funnel.TOOL_QUIZ)
+    # GDPR always applies, so the plan always holds at least its check (D-137).
+    st.markdown("#### Your free checks")
+    for tool in ss.plan:
+        icon, name, time, what = CHECK_LABELS[tool]
+        st.markdown(f"{icon} **{name}** · {time}  \n:gray[{what}]")
+    if st.button(f"Start the {IN_TEXT[ss.plan[0]]}", type="primary", use_container_width=True):
+        _go(ss.plan[0])
     if st.button("Change my answers", type="tertiary"):
         _go("scope")
 
@@ -714,6 +720,10 @@ def _quiz_step() -> None:
     _questions_step(funnel.TOOL_QUIZ, funnel.NIS2, "nis2_quiz", "quiz_answers")
 
 
+def _gdpr_step() -> None:
+    _questions_step(funnel.TOOL_GDPR, funnel.GDPR, "gdpr_check", "gdpr_answers")
+
+
 def _ai_step() -> None:
     _questions_step(funnel.TOOL_AI, funnel.AI_ACT, "ai_act", "ai_answers")
 
@@ -729,8 +739,9 @@ def _result_line(tool: str) -> None:
             _render_site(check)
         _change_link(tool, "Check another website")
         return
-    answers, kind = ((ss.quiz_answers, funnel.NIS2) if tool == funnel.TOOL_QUIZ
-                     else (ss.ai_answers, funnel.AI_ACT))
+    kind = funnel.QUICK_CHECKS[tool][0]
+    answers = ss[{funnel.TOOL_QUIZ: "quiz_answers", funnel.TOOL_AI: "ai_answers",
+                  funnel.TOOL_GDPR: "gdpr_answers"}[tool]]
     label, _ = funnel.band(funnel.score(answers), kind, len(answers))
     weak = funnel.weak_areas(answers)
     st.markdown(f"{icon} **{name}** · {funnel.score(answers)}/{funnel.max_score(kind, answers)} · {label}"
@@ -802,12 +813,15 @@ def _account_form(pending: dict) -> None:
     """The one step: complete the form, get the full results in the app and
     by email once the address is confirmed."""
     site, quiz, ai = funnel.has_site(pending), funnel.has_quiz(pending), funnel.has_ai(pending)
+    gdpr = funnel.has_gdpr(pending)
     # The login link carries the checks, so an existing account keeps them.
     login_url = funnel.signup_url(APP_BASE_URL, ss.get("src") or pending["tool"],
                                   answers=funnel.decode_answers(pending.get("answers")),
                                   site=pending.get("site"), scope=pending.get("scope"),
                                   ai_answers=funnel.decode_answers(pending.get("ai_answers"),
                                                                    funnel.AI_ACT),
+                                  gdpr_answers=funnel.decode_answers(pending.get("gdpr_answers"),
+                                                                     funnel.GDPR),
                                   login=True)
     if ss.get("account_done"):
         st.success(ss.account_done)
@@ -822,6 +836,7 @@ def _account_form(pending: dict) -> None:
                     "this page with it.")
         return
     parts = ((["a PDF of the website findings and how to fix them"] if site else [])
+             + (["your GDPR breakdown"] if gdpr else [])
              + (["your NIS2 breakdown"] if quiz else [])
              + (["your AI Act breakdown"] if ai else []))
     with st.form("account", border=True):
@@ -863,7 +878,8 @@ def _account_form(pending: dict) -> None:
         _event("signup", pending["tool"])
         ss.signed_pending = pending
         own = not site or funnel.domains_match(email, pending["site"])
-        results = (["your NIS2 breakdown"] if quiz else []) + (["your AI Act breakdown"] if ai else [])
+        results = ((["your GDPR breakdown"] if gdpr else []) + (["your NIS2 breakdown"] if quiz else [])
+                   + (["your AI Act breakdown"] if ai else []))
         if own:
             what = (_and((["the website report as a PDF"] if site else []) + results)
                     + " come to you by email" if len(parts) > 1 else
@@ -895,6 +911,7 @@ _scroll_to_top()
     "scope": _scope_step,
     "plan": _plan_step,
     funnel.TOOL_WEBSITE: _website_step,
+    funnel.TOOL_GDPR: _gdpr_step,
     funnel.TOOL_QUIZ: _quiz_step,
     funnel.TOOL_AI: _ai_step,
     "results": _results_step,

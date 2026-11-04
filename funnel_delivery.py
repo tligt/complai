@@ -6,7 +6,8 @@ The public app's one form creates the free account and puts what it knows on
 the account itself, as Supabase user metadata (no database change):
 
     recosa_pending           {"tool": …, "answers": "0123…", "site": "acme.be",
-                             "ai_answers": "0123…", "scope": "medium.food.yes.no"}
+                             "ai_answers": "0123…", "gdpr_answers": "0123…",
+                             "scope": "medium.food.yes.no"}
                              — the checks taken, any of the three (D-129, S55),
                              and the scope answers
     recosa_source            where the visitor came from (the link's src, or
@@ -57,7 +58,7 @@ def pending_of(metadata: dict | None) -> dict | None:
     at signup, so re-validated here). Since D-129 it may hold several checks."""
     p = (metadata or {}).get("recosa_pending") or {}
     return funnel.pending_from_params(p.get("answers"), p.get("site"), p.get("scope"),
-                                      p.get("ai_answers"))
+                                      p.get("ai_answers"), p.get("gdpr_answers"))
 
 
 def site_proven(email: str, pending: dict) -> bool:
@@ -70,7 +71,7 @@ def eligible(email: str, pending: dict | None) -> bool:
     once the site is proven."""
     if not pending:
         return False
-    return (funnel.has_quiz(pending) or funnel.has_ai(pending)
+    return (funnel.has_quiz(pending) or funnel.has_ai(pending) or funnel.has_gdpr(pending)
             or (funnel.has_site(pending) and site_proven(email, pending)))
 
 
@@ -113,8 +114,9 @@ def check_site(site: str, token: str) -> tuple[bool, str]:
 
 QUIZ_SENT, SITE_SENT, ALL_SENT = "recosa_quiz_sent", "recosa_site_sent", "recosa_report_sent"
 AI_SENT = "recosa_ai_sent"  # S55
+GDPR_SENT = "recosa_gdpr_sent"  # D-137
 _FLAGS = {funnel.TOOL_QUIZ: QUIZ_SENT, funnel.TOOL_WEBSITE: SITE_SENT,  # tool -> flag
-          funnel.TOOL_AI: AI_SENT}
+          funnel.TOOL_AI: AI_SENT, funnel.TOOL_GDPR: GDPR_SENT}
 
 
 def _base_url() -> str:
@@ -165,6 +167,12 @@ def send_quiz(email: str, pending: dict) -> bool:
                             more=_more(pending))
 
 
+def send_gdpr(email: str, pending: dict) -> bool:
+    from email_sender import send_quiz_result
+    return send_quiz_result(email, funnel.decode_answers(pending["gdpr_answers"], funnel.GDPR),
+                            _base_url(), kind=funnel.GDPR, more=_more(pending))
+
+
 def send_ai(email: str, pending: dict) -> bool:
     from email_sender import send_quiz_result
     return send_quiz_result(email, funnel.decode_answers(pending["ai_answers"], funnel.AI_ACT),
@@ -208,8 +216,8 @@ def deliver(user) -> str:
     # where both hold one.
     pending = dict(pending_of(meta) or {})
     extra = funnel.pending_from_params(prof_p.get("answers"), prof_p.get("site"), None,
-                                       prof_p.get("ai_answers")) or {}
-    for k in ("answers", "site", "ai_answers"):
+                                       prof_p.get("ai_answers"), prof_p.get("gdpr_answers")) or {}
+    for k in ("answers", "site", "ai_answers", "gdpr_answers"):
         if k in extra and k not in pending:
             pending[k] = extra[k]
     if not any(funnel.has_check(pending, t) for t in funnel.ALL_CHECKS):
@@ -230,6 +238,8 @@ def deliver(user) -> str:
     if funnel.has_site(pending):
         parts.append((SITE_SENT, funnel.TOOL_WEBSITE, send_site,
                       site_proven(user.email, pending)))
+    if funnel.has_gdpr(pending):
+        parts.append((GDPR_SENT, funnel.TOOL_GDPR, send_gdpr, True))
     if funnel.has_ai(pending):
         parts.append((AI_SENT, funnel.TOOL_AI, send_ai, True))
     for flag, tool, send, due in parts:
@@ -255,7 +265,8 @@ def deliver(user) -> str:
             admin.table("leads").insert({
                 "tool": tool, "email": user.email.lower(),
                 "answers": (pending.get("answers") if tool == funnel.TOOL_QUIZ else
-                            pending.get("ai_answers") if tool == funnel.TOOL_AI else None),
+                            pending.get("ai_answers") if tool == funnel.TOOL_AI else
+                            pending.get("gdpr_answers") if tool == funnel.TOOL_GDPR else None),
                 "site_domain": pending.get("site") if tool == funnel.TOOL_WEBSITE else None,
                 "marketing_consent": bool(meta.get("recosa_marketing")),
                 "consent_version": meta.get("recosa_consent_version") if meta.get("recosa_marketing") else None,

@@ -31,6 +31,7 @@ CONSENT_TEXT = (
 TOOL_QUIZ = "nis2_quiz"
 TOOL_WEBSITE = "website_check"
 TOOL_AI = "ai_act_check"  # S55
+TOOL_GDPR = "gdpr_check"  # D-137
 
 # One question per NIS2 Art. 21(2) measure category, in order (a)-(j), then
 # (D-134, 3 Nov) three NIS2 duties outside that list: management
@@ -331,15 +332,176 @@ AI_BANDS = [
      "and recording the checks you have made."),
 ]
 
-# The two questionnaires, for the functions below and the screens
-# (funnel_ui.py): NIS2 is the default everywhere, so S49's calls are unchanged.
+# ── The GDPR Quick Check (D-137, 4 Nov) ───────────────────────────────────
+# The website check reads what GDPR shows on a site (privacy notice, cookie
+# banner); most of GDPR is what a company does behind it. Ten questions on
+# that, each its own four answers, worst to best (0-3), each recorded against
+# the register's GDPR obligations. Offered to every visitor: GDPR applies to
+# practically every company. The privacy notice (gdpr_01) is the website
+# check's; legitimate interest, children's data and joint controllers are the
+# full assessment's.
+GDPR_QUESTIONS = [
+    {
+        "category": "Knowing your data",
+        "question": "Do you know what personal data you hold — on customers, staff, "
+                    "suppliers' contacts — and where it is stored: which tools, servers "
+                    "and countries?",
+        "options": ["No overview",
+                    "Roughly, but nothing is written down",
+                    "A list, not kept up to date",
+                    "A record of processing, kept up to date"],
+        "advice": "Write down each use of personal data — what data, whose, why, where it is "
+                  "stored and who receives it. This record of processing (Art. 30) is the "
+                  "base of everything else in GDPR, and the first thing an authority asks for.",
+        "obligations": ["gdpr_03"],
+    },
+    {
+        "category": "Legal basis",
+        "question": "For each use of personal data — invoicing, marketing, recruitment, "
+                    "camera surveillance — is the legal basis written down?",
+        "options": ["Never looked at it",
+                    "We rely on consent for most things",
+                    "Written down for some uses",
+                    "Written down for every use"],
+        "advice": "Every use needs one of six legal bases: contract, legal obligation, "
+                  "legitimate interest, consent… Consent is often the wrong one for staff or "
+                  "customers. Record the basis next to each use in your record of processing.",
+        "obligations": ["gdpr_02"],
+    },
+    {
+        "category": "Suppliers handling your data",
+        "question": "Do the suppliers who handle personal data for you — IT, payroll, CRM, "
+                    "cloud, newsletter tools — have a data processing agreement with you?",
+        "options": ["Don't know",
+                    "Some, in their standard terms",
+                    "Most, but no overview",
+                    "All, and we keep a list of them"],
+        "advice": "Each supplier that processes personal data for you needs a data "
+                  "processing agreement (Art. 28). Many are in their online terms — list your "
+                  "suppliers, find each agreement and keep the list current.",
+        "obligations": ["gdpr_05"],
+    },
+    {
+        "category": "Data outside the EU",
+        "question": "Does any personal data go outside the EU — to US cloud or AI tools, for "
+                    "example — and are safeguards in place?",
+        "options": ["Don't know",
+                    "Yes, nothing checked",
+                    "Checked for the main tools",
+                    "Checked for all — or everything stays in the EU"],
+        "advice": "For each tool that stores or reaches data outside the EU, check the basis "
+                  "for the transfer: an adequacy decision (the EU-US Data Privacy Framework, "
+                  "for certified US companies) or standard contractual clauses.",
+        "obligations": ["gdpr_11"],
+    },
+    {
+        "category": "People's rights",
+        "question": "If someone asks for a copy of their data, or to correct or delete it, "
+                    "is there a procedure to answer within one month?",
+        "options": ["No",
+                    "We would figure it out",
+                    "Someone knows what to do, nothing written",
+                    "A written procedure, with who answers"],
+        "advice": "Name who receives such requests, how the person's identity is checked, "
+                  "where the data is searched and who answers — within one month. Keep a log "
+                  "of the requests and the answers.",
+        "obligations": ["gdpr_07"],
+    },
+    {
+        "category": "Data breaches",
+        "question": "If personal data leaked tomorrow — a lost laptop, a hacked mailbox — do "
+                    "you know who decides, and how to notify the authority within 72 hours?",
+        "options": ["No",
+                    "Roughly",
+                    "A procedure, never tested",
+                    "A written procedure, and a breach log kept"],
+        "advice": "Write down who assesses a breach, when the data protection authority must "
+                  "be told (within 72 hours) and when the people concerned. Every breach goes "
+                  "in a log, even the ones not reported.",
+        "obligations": ["gdpr_06"],
+    },
+    {
+        "category": "How long you keep data",
+        "question": "Have you decided how long you keep each kind of personal data, and is "
+                    "old data actually deleted?",
+        "options": ["We keep everything",
+                    "Some periods decided, not applied",
+                    "Periods set, deleted now and then",
+                    "Periods set, and deletion done on schedule"],
+        "advice": "Set a period per kind of data — candidates, former customers, staff files — "
+                  "from the law where there is one, and plan the deletion. Keeping everything "
+                  "'just in case' is itself a breach of GDPR.",
+        "obligations": ["gdpr_09"],
+    },
+    {
+        "category": "Security of personal data",
+        "question": "Are the security measures that protect personal data — access rights, "
+                    "encryption, backups — written down?",
+        "options": ["No",
+                    "In place, but not written down",
+                    "Partly written down",
+                    "Written down and reviewed"],
+        "advice": "GDPR asks for security appropriate to the risk, and for you to be able to "
+                  "show it (Art. 32). A short document — who has access to what, encryption, "
+                  "backups, updates — reviewed once a year.",
+        "obligations": ["gdpr_20"],
+    },
+    {
+        "category": "Staff awareness",
+        "question": "Have the people who handle personal data been trained on data protection?",
+        "options": ["No",
+                    "Informally",
+                    "Some training, not recorded",
+                    "Training for all of them, and we keep a record"],
+        "advice": "Most breaches start with a person: a wrong recipient, a phishing mail, a "
+                  "lost USB stick. A short yearly session, and a record of who followed it.",
+        "obligations": ["gdpr_13"],
+    },
+    {
+        "category": "Sensitive data, DPO and DPIA",
+        "question": "Do you handle sensitive data (health, biometrics, children) or monitor "
+                    "people on a large scale — and have you checked whether you need a DPO "
+                    "or a DPIA?",
+        "options": ["Yes, and we haven't looked at it",
+                    "Not sure",
+                    "Yes, and we've checked what is needed",
+                    "No such data or monitoring"],
+        "advice": "Sensitive data needs an extra legal basis and stronger safeguards (Art. 9). "
+                  "Processing it at scale, or monitoring people, can require a data protection "
+                  "officer (Art. 37) and an impact assessment before you start (Art. 35).",
+        "obligations": ["gdpr_04", "gdpr_10", "gdpr_16"],
+    },
+]
+GDPR_LEVELS = ["Not addressed", "Started", "Partly in place", "In place"]
+GDPR_BANDS = [
+    (10, "Early stage",
+     "Personal data is handled, but the basics GDPR expects aren't written down yet. "
+     "The first step is a record of what data you hold and why — most of the rest "
+     "follows from it."),
+    (20, "Developing",
+     "Part of it is in place, often informally. What GDPR asks is that you can show "
+     "it: the record, the agreements, the procedures, on paper."),
+    (30, "Good foundation",
+     "A solid base. What usually remains is keeping the record and the supplier list "
+     "current, and testing the breach and rights procedures."),
+]
+
+# The questionnaires, for the functions below and the screens (funnel_ui.py):
+# NIS2 is the default everywhere, so S49's calls are unchanged. "reg" is the
+# regulation's name in a sentence (the result email).
 # LEGACY_LENGTHS: answer counts saved before questions were added (D-134).
 # Such a result reads as the questions answered then; it is scored on those,
 # and the band scaled to them, so an old result keeps its meaning.
-NIS2 = {"tool": TOOL_QUIZ, "name": "NIS2 Quick Check", "questions": QUESTIONS,
+NIS2 = {"tool": TOOL_QUIZ, "name": "NIS2 Quick Check", "reg": "NIS2", "questions": QUESTIONS,
         "bands": BANDS, "levels": LEVELS, "legacy_lengths": (10,)}
-AI_ACT = {"tool": TOOL_AI, "name": "AI Act Quick Check", "questions": AI_QUESTIONS,
-          "bands": AI_BANDS, "levels": AI_LEVELS, "legacy_lengths": (8,)}
+AI_ACT = {"tool": TOOL_AI, "name": "AI Act Quick Check", "reg": "AI Act",
+          "questions": AI_QUESTIONS, "bands": AI_BANDS, "levels": AI_LEVELS,
+          "legacy_lengths": (8,)}
+GDPR = {"tool": TOOL_GDPR, "name": "GDPR Quick Check", "reg": "GDPR",
+        "questions": GDPR_QUESTIONS, "bands": GDPR_BANDS, "levels": GDPR_LEVELS}
+# Each quick check: its questionnaire and the key its answers are kept under.
+QUICK_CHECKS = {TOOL_QUIZ: (NIS2, "answers"), TOOL_GDPR: (GDPR, "gdpr_answers"),
+                TOOL_AI: (AI_ACT, "ai_answers")}
 
 
 def options_for(q: dict) -> list[str]:
@@ -500,10 +662,12 @@ def applicable_rules(scope: dict) -> dict[str, tuple[str, str]]:
 
 def checks_for(rules: dict[str, tuple[str, str]]) -> list[str]:
     """The free checks worth taking, in the order they are run: the website
-    first (30 seconds, no typing), then the NIS2 questions."""
+    first (30 seconds, no typing), then GDPR (always: it always applies),
+    NIS2 and the AI Act."""
     out = []
     if "ePrivacy" in rules:
         out.append(TOOL_WEBSITE)
+    out.append(TOOL_GDPR)
     if rules.get("NIS2", (UNLIKELY,))[0] in (LIKELY, POSSIBLE):
         out.append(TOOL_QUIZ)
     if "EU AI Act" in rules:
@@ -536,7 +700,8 @@ def decode_scope(code: str | None) -> dict | None:
 # never tool, what the result contains.
 
 def pending_from_params(quiz: str | None, site: str | None,
-                        scope: str | None = None, ai: str | None = None) -> dict | None:
+                        scope: str | None = None, ai: str | None = None,
+                        gdpr: str | None = None) -> dict | None:
     """What the signup link carried, as stored on the profile
     (profiles.pending_result). Validated: the link is visitor-controlled."""
     out: dict = {}
@@ -550,10 +715,13 @@ def pending_from_params(quiz: str | None, site: str | None,
     ai_answers = decode_answers(ai, AI_ACT)
     if ai_answers is not None:
         out["ai_answers"] = encode_answers(ai_answers)
+    gdpr_answers = decode_answers(gdpr, GDPR)
+    if gdpr_answers is not None:
+        out["gdpr_answers"] = encode_answers(gdpr_answers)
     if not out:
         return None
     out["tool"] = (TOOL_WEBSITE if "site" in out else TOOL_QUIZ if "answers" in out
-                   else TOOL_AI)
+                   else TOOL_GDPR if "gdpr_answers" in out else TOOL_AI)
     if decode_scope(scope):
         out["scope"] = scope
     return out
@@ -571,16 +739,22 @@ def has_ai(pending: dict | None) -> bool:
     return bool((pending or {}).get("ai_answers"))
 
 
-ALL_CHECKS = (TOOL_WEBSITE, TOOL_QUIZ, TOOL_AI)
-# Each check's name in the public app's links (?check=website|nis2|ai).
-LINK_CODES = {TOOL_WEBSITE: "website", TOOL_QUIZ: "nis2", TOOL_AI: "ai"}
+def has_gdpr(pending: dict | None) -> bool:
+    return bool((pending or {}).get("gdpr_answers"))
+
+
+ALL_CHECKS = (TOOL_WEBSITE, TOOL_GDPR, TOOL_QUIZ, TOOL_AI)
+# Each check's name in the public app's links (?check=website|gdpr|nis2|ai).
+LINK_CODES = {TOOL_WEBSITE: "website", TOOL_GDPR: "gdpr", TOOL_QUIZ: "nis2", TOOL_AI: "ai"}
 CHECK_NAMES = {TOOL_WEBSITE: ("Website check", "30 seconds"),
+               TOOL_GDPR: ("GDPR Quick Check", "2 minutes"),
                TOOL_QUIZ: ("NIS2 Quick Check", "3 minutes"),
                TOOL_AI: ("AI Act Quick Check", "2 minutes")}
 
 
 def has_check(pending: dict | None, tool: str) -> bool:
-    return {TOOL_WEBSITE: has_site, TOOL_QUIZ: has_quiz, TOOL_AI: has_ai}[tool](pending)
+    return {TOOL_WEBSITE: has_site, TOOL_GDPR: has_gdpr, TOOL_QUIZ: has_quiz,
+            TOOL_AI: has_ai}[tool](pending)
 
 
 def missing_checks(pending: dict | None) -> list[str]:
@@ -609,8 +783,8 @@ def merge_pending(old: dict | None, new: dict) -> dict:
     survives when the site is the same."""
     old = old or {}
     out = {k: v for k, v in old.items()
-           if k in ("answers", "site", "ai_answers", "scope", "site_verified", "verified_by",
-                    "site_token")}
+           if k in ("answers", "site", "ai_answers", "gdpr_answers", "scope", "site_verified",
+                    "verified_by", "site_token")}
     if "site" in new and new["site"] != old.get("site"):
         for k in ("site_verified", "verified_by", "site_token"):
             out.pop(k, None)
@@ -621,7 +795,8 @@ def merge_pending(old: dict | None, new: dict) -> dict:
 
 def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None,
                site: str | None = None, scope: str | None = None,
-               ai_answers: list[int] | None = None, login: bool = False) -> str:
+               ai_answers: list[int] | None = None,
+               gdpr_answers: list[int] | None = None, login: bool = False) -> str:
     """The CTA link into the client app's signup. Carries the answers, the
     checked site, the scope answers and the source — never the email or
     anything personal. login=True opens the log-in form instead."""
@@ -636,4 +811,6 @@ def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None
         params["scope"] = scope
     if ai_answers is not None:
         params["aiact"] = encode_answers(ai_answers)
+    if gdpr_answers is not None:
+        params["gdpr"] = encode_answers(gdpr_answers)
     return f"{app_base_url.rstrip('/')}/?{urlencode(params)}"

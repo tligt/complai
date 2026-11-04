@@ -159,9 +159,8 @@ def send_quiz_result(to_email: str, answers: list[int], cta_url: str,
     import html
     import funnel
     kind = kind or funnel.NIS2
-    is_ai = kind is funnel.AI_ACT
     name = kind["name"]
-    reg = "AI Act" if is_ai else "NIS2"
+    reg = kind.get("reg", "NIS2")
 
     api_key = os.environ.get("BREVO_API_KEY")
     if not api_key:

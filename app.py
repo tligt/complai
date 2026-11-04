@@ -188,13 +188,15 @@ if "ticket" in st.query_params:
 # D-126: the website's sign-up links add ?signup=<plan> (starter,
 # professional) or ?signup=1, which opens the sign-up form with that plan
 # chosen. Anything else is ignored: the link is visitor-controlled.
-if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "signup", "login")):
+if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup",
+                                      "login")):
     import funnel as _funnel
     from database import SIGNUP_PLANS as _PLANS
     _src = (st.query_params.get("src") or "")[:40] or None
     _pending = _funnel.pending_from_params(
         st.query_params.get("quiz"), st.query_params.get("site"),
-        st.query_params.get("scope"), st.query_params.get("aiact"))
+        st.query_params.get("scope"), st.query_params.get("aiact"),
+        st.query_params.get("gdpr"))
     _signup = (st.query_params.get("signup") or "").strip().lower()
     st.session_state.funnel = {
         "src": _src, "pending": _pending,
@@ -204,7 +206,7 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "
         "login": st.query_params.get("login") == "1",
     }
     record_funnel_event("app_landing", (_pending or {}).get("tool"), _src)
-    for _k in ("src", "quiz", "site", "scope", "aiact", "signup", "login"):
+    for _k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup", "login"):
         if _k in st.query_params:
             del st.query_params[_k]
 
