@@ -379,7 +379,7 @@ the only sprint that *is* the gate.
 | S52 | Document branding | was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | ~~S54~~ | ~~Enterprise multi-seat/multi-division~~ | **Delivered 28 Oct, ahead of its After-beta position, by request.** Groups, roles (admin, contributor, read-only) enforced in RLS, group overview, full audit trail. D-128, scope note in 3b. was S53 until D-115; was S51, S48 before |
-| **S55** | **AI Act Quick Check — third free check** | **Built 3 Nov — D-132; tested locally, not yet live (both apps need a redeploy).** New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
+| ~~S55~~ | ~~AI Act Quick Check — third free check~~ | **Closed 4 Nov.** Built 3 Nov (D-132), then the free check redesign, navigation, more NIS2/AI Act questions and the GDPR Quick Check (D-133 to D-137); live walk-through 4 Nov; real sign-up 4 Nov — four checks, four emails, four leads. New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
 | S56 | Enterprise routing + in-app messaging | was S55 until D-131; S54 until D-115; S52, S49 before |
 | S57 | Buffer/LinkedIn integration | was S56 until D-131; S55 until D-115; S53, S50 before |
 | S58 | Monitoring sources + competitive monitoring | was S57 until D-131; S56 until D-115; S54, S51 before. Merged — both touch the same admin pages |
@@ -5898,6 +5898,23 @@ check on the quick-check mechanics (`funnel.GDPR`, tool `gdpr_check`):
   the answers declared in the register (`gdpr_applied_to`). The result email
   takes the regulation's name from the questionnaire (`kind["reg"]`).
 - Migration `d137_gdpr_check` widens `leads_tool_check`.
+
+### D-138 — S55 closed; the delivery job runs hours apart, 4 Nov
+
+Real sign-up on the live app (4 Nov, 11:22 UTC): website, GDPR, NIS2 and AI
+Act checks, one account — four emails, four lead rows with the consent, the
+account flagged all sent. S55 closed.
+
+Found in the same test: an account confirmed at 11:15 and not logged into
+had received nothing hours later. `deliver()` is right (a dry run against
+the live accounts would send all four); the job is not every 15 minutes.
+GitHub runs scheduled workflows on a free repository when it has capacity:
+Free Check Delivery ran at 00:25, 06:50 and so on — four to seven hours
+apart. The app sends at once when the person logs in (the background
+thread), so only those who confirm and do not log in wait. Fixed for good in
+S50 (the server's own cron); before that, the confirmation link could log
+the person in directly (a `token_hash` link, as for the password reset),
+which sends at once.
 
 ---
 
