@@ -149,7 +149,7 @@ def apply_logo(label: str, native_nav: bool = False) -> None:
     """The mark and the name at the top of the sidebar. native_nav: the menu
     is Streamlit's own (the back office), which needs pushing down; the
     client app draws its menu itself, as sidebar content."""
-    room = ('[data-testid="stSidebarNav"] { margin-top: 70px !important; }' if native_nav else
+    room = ('[data-testid="stSidebarNav"] { margin-top: 12px !important; }' if native_nav else
             '[data-testid="stSidebarUserContent"] { padding-top: 1.25rem !important; }')
     st.markdown(f"""
 <style>
