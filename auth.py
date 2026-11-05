@@ -81,13 +81,14 @@ def start_login(res) -> None:
     old = st.session_state.get("sid")
     if old:
         sessions.delete(old)
-    _set_login(res.user, res.session.access_token, res.session.refresh_token)
     sid = sessions.create(_app(), res.user.id, res.session.access_token,
                           res.session.refresh_token)
     st.session_state.sid = sid
     st.session_state._cookie = sid          # written by init_auth's next run
+    st.session_state._resume_tried = sid    # this tab has it already
     st.session_state._last_activity = time.time()
     st.session_state._last_touch = time.time()
+    _set_login(res.user, res.session.access_token, res.session.refresh_token)
 
 
 def init_auth(app: str = "client"):
@@ -104,8 +105,14 @@ def init_auth(app: str = "client"):
     if "refresh_token" not in st.session_state:
         st.session_state.refresh_token = None
 
+    seen = _bridge(app)
     if st.session_state.user is None:
-        _resume(app)
+        before = st.session_state.get("_cookie", False)
+        _resume(app, seen)
+        if st.session_state.get("_cookie", False) != before:
+            # The bridge was mounted before the resume decided: one more
+            # run takes the change (clearing a dead cookie) to the browser.
+            st.rerun()
 
     if st.session_state.user is not None and st.session_state.get("sid"):
         if not _still_active(app):
@@ -124,39 +131,65 @@ def init_auth(app: str = "client"):
             else:
                 _refresh_here(remaining)
 
-    _render_cookie(app)
 
-
-def _render_cookie(app: str) -> None:
-    """Writes a pending cookie change. Kept on every run while pending is
-    set for this tab: a run cut short by st.rerun() may never reach the
-    browser, and writing the same cookie twice is harmless."""
-    if "_cookie" not in st.session_state:
-        return
+def _bridge(app: str) -> str | None:
+    """The cookie bridge, mounted on every run in a hidden container. A
+    pending change (set at login, cleared at logout) is sent on every run
+    until the browser reports the new value: a run cut short by st.rerun()
+    may never reach the browser, and writing the same cookie twice is
+    harmless."""
+    if not sessions.enabled():
+        return None
+    pending = st.session_state.get("_cookie", False)
+    op = "none" if pending is False else ("set" if pending else "clear")
     with st.container(key="recosa_cookie"):
         st.html("<style>.st-key-recosa_cookie{display:none}</style>")
-        sessions.write_cookie(app, st.session_state._cookie)
+        seen = sessions.bridge(app, op, pending or None)
+    if pending is not False and seen is not None and seen == (pending or ""):
+        st.session_state.pop("_cookie", None)      # the browser has it
+    return seen
 
 
-def _resume(app: str) -> None:
+def _resume(app: str, seen: str | None) -> None:
     """A tab that opens with the login cookie: the stored login, if it is
-    still valid. Tried once per tab and cookie."""
-    sid = sessions.read_cookie(app)
+    still valid. Tried once per tab and cookie. The cookie comes from the
+    connection's headers (local) or from the browser bridge (Streamlit
+    Cloud, where the proxy does not pass cookies on).
+
+    A run can be cut short at any session-state access (the bridge's answer
+    starts a new run), so the slow part comes first and "tried" is written
+    last: a cut-short attempt is simply made again on the next run."""
+    sid = sessions.read_cookie(app) or seen
     if not sid or st.session_state.get("_resume_tried") == sid:
         return
+    got = _resume_login(app, sid)
+    if got is None:
+        st.session_state._cookie = None     # a dead cookie: clear it
+    else:
+        access, refresh, user = got
+        st.session_state.sid = sid
+        st.session_state._last_activity = time.time()
+        st.session_state._last_touch = time.time()
+        # A reopened page is not a new sign-in: the audit trail (D-128)
+        # records sign-ins, not reloads.
+        st.session_state.signin_logged = True
+        _set_login(user, access, refresh)
     st.session_state._resume_tried = sid
+
+
+def _resume_login(app: str, sid: str):
+    """(access, refresh, user) for a stored login, refreshed if needed, or
+    None when it is over. No session-state access in here."""
     row = sessions.load(app, sid)
     if not row:
-        st.session_state._cookie = None     # a dead cookie: clear it
-        return
+        return None
     access, refresh, user = row["access"], row["refresh"], None
     remaining = _seconds_until_expiry(access)
     if remaining is None or remaining < _REFRESH_MARGIN_SECONDS:
         got = _rotate(app, sid, row)
         if not got:
             sessions.delete(sid)
-            st.session_state._cookie = None
-            return
+            return None
         access, refresh, user = got
     if user is None:
         try:
@@ -164,15 +197,8 @@ def _resume(app: str) -> None:
         except Exception as e:
             print(f"Stored login rejected: {e}")
             sessions.delete(sid)
-            st.session_state._cookie = None
-            return
-    _set_login(user, access, refresh)
-    st.session_state.sid = sid
-    st.session_state._last_activity = time.time()
-    st.session_state._last_touch = time.time()
-    # A reopened page is not a new sign-in: the audit trail (D-128) records
-    # sign-ins, not reloads.
-    st.session_state.signin_logged = True
+            return None
+    return access, refresh, user
 
 
 def _still_active(app: str) -> bool:

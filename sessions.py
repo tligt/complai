@@ -24,8 +24,8 @@ Switched on by two secrets, SESSION_SECRET and SUPABASE_SERVICE_KEY. Without
 them (tests, a fresh environment) everything works as before: no cookie, a
 refresh logs out.
 
-The cookie is written by a few lines of JavaScript (st.html), so it cannot be
-HttpOnly; that is why it holds an opaque id and not a token. On the S50
+The cookie is written and read by a small browser-side component (bridge()),
+so it cannot be HttpOnly; that is why it holds an opaque id and not a token. On the S50
 server it can move to an HttpOnly cookie set by the server (st.App routes).
 """
 
@@ -187,12 +187,7 @@ def delete_others(user_id: str, keep_sid: str | None) -> None:
 
 # ── The cookie ────────────────────────────────────────────────────────────
 
-def read_cookie(app: str) -> str | None:
-    """The cookie as the browser sent it when this tab connected."""
-    try:
-        value = st.context.cookies.get(COOKIE[app])
-    except Exception:
-        return None
+def _valid(value: str | None) -> str | None:
     # token_urlsafe(32) is 43 characters of [A-Za-z0-9_-]; anything else is
     # not ours.
     if value and 20 <= len(value) <= 100 and all(c.isalnum() or c in "-_" for c in value):
@@ -200,19 +195,70 @@ def read_cookie(app: str) -> str | None:
     return None
 
 
-def write_cookie(app: str, sid: str | None) -> None:
-    """Sets (sid) or clears (None) the cookie in the browser. Rendered inside
-    a hidden container; the value is only [A-Za-z0-9_-], safe to inline."""
-    name = COOKIE[app]
+def read_cookie(app: str) -> str | None:
+    """The cookie as the browser sent it when this tab connected. Works
+    locally; on Streamlit Cloud the proxy does not pass it on (5 Nov), so
+    bridge() below reads it in the browser instead."""
+    try:
+        return _valid(st.context.cookies.get(COOKIE[app]))
+    except Exception:
+        return None
+
+
+# A components-v2 element with no visible output: it writes the cookie when
+# asked, then reports the cookie's current value back to Python (state
+# "sid"), which reruns the script once. Values travel as data, never
+# inlined into the script.
+_BRIDGE_JS = """
+let sent = null;
+export default function(component) {
+  const { data, setStateValue } = component;
+  const d = data || {};
+  if (!d.name) return;
+  const secure = location.protocol === "https:" ? "; Secure" : "";
+  const tail = "; Path=/; SameSite=Lax" + secure;
+  if (d.op === "set" && d.value) {
+    document.cookie = d.name + "=" + d.value + "; Max-Age=" + d.max_age + tail;
+  } else if (d.op === "clear") {
+    document.cookie = d.name + "=; Max-Age=0" + tail;
+  }
+  const hit = document.cookie.split("; ").find(c => c.startsWith(d.name + "="));
+  const value = hit ? hit.slice(d.name.length + 1) : "";
+  if (value !== sent) { sent = value; setStateValue("sid", value); }
+}
+"""
+_bridge = None
+
+
+def bridge(app: str, op: str = "none", value: str | None = None) -> str | None:
+    """Mounts the cookie bridge (call it on every run, so it stays mounted).
+    op: "set" (value = the new cookie), "clear", or "none". Returns the
+    cookie's value as the browser last reported it: None until the browser
+    has answered on this tab, "" when there is no cookie."""
+    global _bridge
+    import streamlit.components.v2 as components_v2
     absolute, _ = LIMITS[app]
-    value, max_age = (sid, absolute) if sid else ("", 0)
-    st.html(
-        f"""<script>(function(){{
-          var s = location.protocol === "https:" ? "; Secure" : "";
-          document.cookie = "{name}={value}; Max-Age={max_age}; Path=/; SameSite=Lax" + s;
-        }})();</script>""",
-        unsafe_allow_javascript=True,
-    )
+
+    def mount():
+        return _bridge(
+            key="recosa_cookie_bridge",
+            data={"name": COOKIE[app], "op": op, "value": value or "", "max_age": absolute},
+            default={"sid": None},
+            on_sid_change=lambda: None,
+        )
+
+    if _bridge is None:
+        _bridge = components_v2.component("recosa_cookie_bridge", js=_BRIDGE_JS)
+    try:
+        res = mount()
+    except ValueError:
+        # The registry belongs to the Streamlit runtime, not this module: a
+        # new runtime in the same process (tests, a server restart) starts
+        # empty. Register again.
+        _bridge = components_v2.component("recosa_cookie_bridge", js=_BRIDGE_JS)
+        res = mount()
+    seen = getattr(res, "sid", None)
+    return None if seen is None else (_valid(seen) or "")
 
 
 def seconds_since(iso: str) -> float:
