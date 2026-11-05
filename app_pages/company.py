@@ -125,6 +125,11 @@ if clients:
         if _n2.button("Set NIS2 scope", key="co_nis2", use_container_width=True):
             st.switch_page("app_pages/obligations.py")
 
+    # S52: logo, colour, font and footer line on this company's documents.
+    st.divider()
+    import branding_view
+    branding_view.render(client, user_id)
+
 st.divider()
 
 # ── All companies ─────────────────────────────────────────────────────────

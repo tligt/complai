@@ -88,6 +88,7 @@ def build_xlsx(
     title: str,
     prose: str | None = None,
     metadata: Sequence[tuple[str, Any]] = (),
+    theme=None,
 ) -> bytes:
     """One sheet per block, plus an About sheet carrying the prose.
 
@@ -130,8 +131,12 @@ def build_xlsx(
     about.column_dimensions["B"].width = 70
 
     # --- One sheet per block ----------------------------------------------
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill("solid", fgColor="14C7D5")
+    # S52: header row in the document theme's colour (doc_theme), with
+    # white or near-black text, whichever reads; the house style is navy.
+    from doc_theme import HOUSE, rgb_to_hex
+    theme = theme or HOUSE
+    header_font = Font(bold=True, color=rgb_to_hex(theme.header_text)[1:])
+    header_fill = PatternFill("solid", fgColor=theme.color[1:])
     wrap = Alignment(wrap_text=True, vertical="top")
 
     for block in blocks:

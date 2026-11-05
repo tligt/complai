@@ -119,6 +119,11 @@ def generate_templated_document(
             "document languages.",
         )
 
+    # S52: the company's branding (or the house style), one theme for the
+    # whole group so its languages look the same.
+    from doc_theme import theme_for_client  # noqa: PLC0415
+    doc_theme = theme_for_client(client_id)
+
     saved: list[dict[str, Any]] = []
     unresolved: list[tuple[str, list[str]]] = []
     xlsx_failures: list[str] = []
@@ -129,7 +134,7 @@ def generate_templated_document(
         # title and date twice, once in English.
         docx_bytes = build_docx(
             d.result.body, doc_type, company_name, d.language,
-            include_header=False,
+            include_header=False, theme=doc_theme,
         )
 
         # A register is a table and gets filtered, sorted and handed to an
@@ -159,6 +164,7 @@ def generate_templated_document(
                         ("Template version", d.template_version_id or "\u2014"),
                         ("Template revision", d.source_revision or "\u2014"),
                     ],
+                    theme=doc_theme,
                 )
             except Exception as exc:
                 xlsx_failures.append(f"{d.language.upper()}: {exc}")
@@ -189,6 +195,7 @@ def generate_templated_document(
             document_group_id=d.document_group_id,
             outstanding_fields=d.result.outstanding_fields,
             jurisdictions_applied=d.jurisdictions_applied,
+            brand_profile_version=doc_theme.version_id,
         )
 
         if d.result.unknown_tags:

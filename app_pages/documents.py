@@ -985,7 +985,12 @@ if _view == "generate":
                 language=language,
                 regulatory_context=reg_context,
             )
-            docx_bytes = build_docx(doc_text, doc_type, company_display, language)
+            # S52: the company's branding; an external company (no
+            # client_id) gets the house style.
+            from doc_theme import theme_for_client
+            _doc_theme = theme_for_client(client_id)
+            docx_bytes = build_docx(doc_text, doc_type, company_display, language,
+                                    theme=_doc_theme)
 
         st.success(f"✅ {DOCUMENT_TYPES[doc_type]} generated for {company_display}")
 
@@ -1009,6 +1014,7 @@ if _view == "generate":
             docx_bytes=docx_bytes,
             pdf_bytes=pdf_bytes if pdf_ok else None,
             odt_bytes=odt_bytes if odt_ok else None,
+            brand_profile_version=_doc_theme.version_id,
         )
 
         st.markdown("**Download your document:**")
