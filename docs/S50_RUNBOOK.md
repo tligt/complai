@@ -39,6 +39,11 @@ Each says exactly what to note down for Part B.
 **A1. Scaleway account.** Create the organisation, add the payment method,
 turn on two-factor authentication. Note nothing.
 
+*Done 5 Nov (D-141):* the account, the Recosa project, the SSH key in it,
+and an IAM application `recosa-deploy` limited to the Recosa project, used
+by the `scw` CLI on the dev PC. With it, A3–A5 can be run as `scw` commands
+instead of in the console (all but the bucket's 35-day expiry rule).
+
 **A2. SSH key.** Console → Project → Credentials → SSH keys → add your public
 key (`~/.ssh/id_ed25519.pub`; create one with `ssh-keygen -t ed25519` if
 needed).
@@ -80,6 +85,9 @@ instance's IP: `app`, `admin`, `check`, `api` (the names can change in
 
 **A8. Brevo SMTP key.** Brevo → SMTP & API → SMTP → generate a key. It
 sends Supabase's own emails (sign-up confirmation, password reset).
+Scaleway blocks outgoing ports 25, 465 and 587 on new instances, so the
+relay is used on port **2525** (`SMTP_PORT` in `deploy/.env`). If Brevo's
+*authorised IPs* are on (Security → Authorised IPs), add the instance's IP.
 
 → Note the **SMTP login** and **key**.
 

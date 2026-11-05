@@ -366,7 +366,7 @@ the only sprint that *is* the gate.
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
 | **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
-| **S50** | **Migrate to production environment with EU sovereignty** | New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
+| **S50** | **Migrate to production environment with EU sovereignty** | **Waits until closer to the beta, by choice (5 Nov, D-141)**; Scaleway access and runbook ready, nothing created. New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
 ### After beta
@@ -5956,8 +5956,38 @@ client form, Sign up tab included.
   kept, as asked.
 
 Checked in the browser: the back office login and its Sign up tab, Public
-Sans, the free check's navy radios. Not checked: the sidebars once logged in
-(needs a login).
+Sans, the free check's navy radios. Logged in (4–5 Nov): both sidebars, the
+client app's Home and Documents, and all nine back office pages, the logo
+gap included.
+
+### D-141 — S50 waits; the Scaleway access is ready, 5 Nov
+
+The move to Scaleway waits until closer to the beta, by choice: until then
+the current setup costs next to nothing, while the instance would bill about
+€45 a month from day one. Development continues first.
+
+Ready, nothing created: an IAM application `recosa-deploy` whose policy is
+limited to the Recosa project (Instances, Block Storage, Object Storage),
+plus organisation-level ProjectReadOnly in a second policy so `scw init` can
+list projects (one rule cannot mix organisation and project scope). The
+`scw` CLI on the dev PC, defaults fr-par / fr-par-1 and the Recosa project.
+Checked: the key sees no server or container of the Evidara project, in any
+region. The SSH key is added to the Recosa project (keys reach an instance
+only when it is created).
+
+Hosting stays one instance (D-67, D-68), not serverless containers. Self-
+hosted Supabase keeps its data on disk and runs 24/7, and Streamlit keeps
+each session in one container's memory, so scaling down or out logs people
+out; once the instance runs, the apps on it cost nothing more. To keep costs
+down until the beta: create it late, or power it off between work sessions
+(only the disk and IP are billed). Size: PRO2-XXS (2 vCPU, 8 GB, about €41 a
+month in Paris, 5 Nov), resizable later.
+
+Found for S50: Scaleway blocks outgoing SMTP (25, 465, 587) on new
+instances, so Supabase's emails go through Brevo's relay on port 2525
+(`deploy/.env.example`); if Brevo's authorised IPs are on, the instance's IP
+must be added. And Supabase Studio's telemetry must be off, so nothing goes
+to Supabase Inc. — to check in the stack's settings during S50.
 
 ---
 
