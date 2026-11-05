@@ -115,6 +115,16 @@ SHELL_CSS = """
 [data-testid="stBaseLinkButton-primary"] p {
     color: #FFFFFF !important;
 }
+/* A disabled navy button is drawn pale by Streamlit: the white label above
+   made it invisible ("Dismiss it" before a reason is typed, 5 Nov). */
+.stButton > button[kind="primary"]:disabled,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:disabled {
+    background-color: #E2E8F0 !important;
+}
+.stButton > button[kind="primary"]:disabled p,
+[data-testid="stFormSubmitButton"] > button[kind="primaryFormSubmit"]:disabled p {
+    color: #64748B !important;
+}
 
 /* ── Content width ── */
 .main .block-container {
