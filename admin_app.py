@@ -52,9 +52,13 @@ tickets = st.Page(
     icon="🎫",
 )
 
-pg = st.navigation({
+_admin_sections = {
     "Admin":   [home, dashboard, users, audit_log, versions],
     "Support": [tickets, feedback],
     "Content": [monitoring, kb],
-})
+}
+pg = st.navigation(_admin_sections)
+# S51: a link or reload of a page that first went through the login opens it.
+from auth import go_to_requested_page
+go_to_requested_page(pg, _admin_sections)
 pg.run()

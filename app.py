@@ -380,6 +380,11 @@ if _pending and not limited_access:
 if st.session_state.pop("open_free_check", False) and not limited_access:
     st.switch_page(free_check)
 
+# S51: a link or reload of a page that first went through the login (or the
+# wait for the login cookie) opens that page, not Home.
+from auth import go_to_requested_page
+go_to_requested_page(pg, _sections)
+
 pg.run()
 
 # ── Help widget ───────────────────────────────────────────────

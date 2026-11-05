@@ -98,6 +98,8 @@ def init_auth(app: str = "client"):
     app: "client" (app.py) or "admin" (admin_app.py) — each has its own
     cookie and limits (sessions.LIMITS)."""
     st.session_state._auth_app = app
+    if "_wanted_path" not in st.session_state:
+        st.session_state._wanted_path = _requested_path()
     if "user" not in st.session_state:
         st.session_state.user = None
     if "access_token" not in st.session_state:
@@ -115,6 +117,34 @@ def init_auth(app: str = "client"):
             st.rerun()
         if st.session_state.user is None and _waiting_for_browser(seen):
             st.stop()
+
+
+def _requested_path() -> str:
+    """The page the tab was opened on ("documents", "" for the home page),
+    read once per tab from the address. A first run that ends before
+    st.navigation (the login page, the wait for the cookie) loses it: the
+    next run is on the default page."""
+    from urllib.parse import urlparse
+    try:
+        path = urlparse(st.context.url or "").path
+    except Exception:
+        return ""
+    if path.startswith("/~/+"):          # Streamlit Cloud's inner frame
+        path = path[len("/~/+"):]
+    return path.strip("/")
+
+
+def go_to_requested_page(current, sections: dict) -> None:
+    """S51: once the login is known, open the page the tab was opened on
+    (a link to /documents, a reload of it) if this run is on another one.
+    Once per tab. Call after st.navigation, before pg.run()."""
+    wanted = st.session_state.pop("_wanted_path", None)
+    if not wanted or wanted == "logout" or getattr(current, "url_path", None) == wanted:
+        return
+    for pages in sections.values():
+        for page in pages:
+            if page.url_path == wanted:
+                st.switch_page(page)
 
 
 def _waiting_for_browser(seen: str | None) -> bool:
