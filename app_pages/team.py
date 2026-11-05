@@ -82,6 +82,10 @@ for c in clients:
                         st.session_state.pop("selected_client", None)
                         _refresh()
 
+        # S56: the default person per area (admins set it, everyone sees it).
+        from work_items_view import render_rules
+        render_rules(c, user_id)
+
         if not manage:
             continue
         with st.form(f"invite_form_{c['id']}", clear_on_submit=True):

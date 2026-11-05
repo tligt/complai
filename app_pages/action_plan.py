@@ -6,6 +6,9 @@ list in the app was the easiest to miss.
 
 The list itself is unchanged from Obligations (S29): derived on every read in
 obligation_view, never stored as open; dismissing needs a reason.
+
+S56: with a team, each task shows who handles it, "Only mine" filters to
+yours, and Open shows a task with its person, its comments and Dismiss.
 """
 
 import streamlit as st
@@ -13,6 +16,8 @@ import streamlit as st
 import obligation_store as STORE
 import obligation_view as OV
 import tasks as T
+import work_items as W
+from work_items_view import render_panel
 from active_client import get_active_client
 from auth import get_user_id
 from display import fmt_date, plural
@@ -29,10 +34,20 @@ st.caption(
 user_id = get_user_id()
 client = get_active_client(user_id)
 client_id = client["id"]
-open_tasks = OV.load_state(user_id, client)["open_tasks"]
+_state = OV.load_state(user_id, client)
+open_tasks = _state["open_tasks"]
+assignments = _state.get("assignments") or {}
+team = W.has_team(client_id)
 
 if open_tasks:
-    st.markdown(f"**{plural(len(open_tasks), 'task')}** for {client['company_name']}")
+    _mine = [f for f in open_tasks
+             if (assignments.get(f["finding_key"]) or {}).get("assignee_id") == user_id]
+    h1, h2 = st.columns([3, 1])
+    h1.markdown(f"**{plural(len(open_tasks), 'task')}** for {client['company_name']}"
+                + (f" · **{len(_mine)}** handled by you" if team else ""))
+    if team and h2.toggle("Only mine", key="ap_only_mine",
+                          value=st.session_state.get("ap_only_mine", False)):
+        open_tasks = _mine
 
 # ── Tasks ─────────────────────────────────────────────────────────────────
 # Summary table with two real per-row actions — Go fix it and Dismiss — via
@@ -53,14 +68,14 @@ if open_tasks:
 # than a one-character column was.
 _TASK_LINK_PAGES = OV.TASK_LINK_PAGES
 _FIX_LABEL = "Fix it"
-_DISMISS_LABEL = "Dismiss"
+_OPEN_LABEL = "Open"
 
 
 def _task_actions(f: dict) -> list[str]:
     acts = []
     if _TASK_LINK_PAGES.get(f.get("link") or ""):
         acts.append(_FIX_LABEL)
-    acts.append(_DISMISS_LABEL)
+    acts.append(_OPEN_LABEL)
     return acts
 
 
@@ -78,7 +93,7 @@ def _handle_task_action():
         return
     f = open_tasks[idx]
     label = click.get("label") or ""
-    if _DISMISS_LABEL in label:
+    if _OPEN_LABEL in label:
         st.session_state["ap_task_dismiss_select"] = f["finding_key"]
     elif _FIX_LABEL in label:
         page = _TASK_LINK_PAGES.get(f.get("link") or "")
@@ -88,12 +103,19 @@ def _handle_task_action():
 
 if open_tasks:
     _icon = {T.BLOCKING: "🔴", T.DUE: "🟠", T.OPEN: "⚪"}
+    _talk = W.comment_counts(client_id, "task") if team else {}
+
+    def _who(f):
+        a = (assignments.get(f["finding_key"]) or {}).get("assignee_id")
+        return ("You" if a == user_id else W.name_of(client_id, a)) if a else ""
 
     st.dataframe(
         [
             {
-                "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}",
+                "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}"
+                        + (f"  💬 {_talk[f['finding_key']]}" if _talk.get(f["finding_key"]) else ""),
                 "Detail": f.get("detail") or "",
+                **({"Handled by": _who(f)} if team else {}),
                 "Due": fmt_date(f["due"]) if f.get("due") else "",
                 "Actions": _task_actions(f),
             }
@@ -108,7 +130,8 @@ if open_tasks:
         width="stretch",
         column_config={
             "Task": st.column_config.TextColumn(width=430),
-            "Detail": st.column_config.TextColumn(width=620),
+            "Detail": st.column_config.TextColumn(width=520 if team else 620),
+            "Handled by": st.column_config.TextColumn(width=140),
             "Due": st.column_config.TextColumn(width=90),
             # A single Dismiss renders directly at this width; two actions
             # collapse into a "..." menu rather than both showing inline —
@@ -134,18 +157,32 @@ if open_tasks:
     # path sets the same key, so clicking Dismiss in the table and picking a
     # task here do the same thing.
     _tasks_by_key = {f["finding_key"]: f for f in open_tasks}
+    # S56: the inbox opens a task here (ap_open_task, set by app_pages/inbox.py).
+    _from_inbox = st.session_state.pop("ap_open_task", None)
+    if _from_inbox in _tasks_by_key:
+        st.session_state["ap_task_dismiss_select"] = _from_inbox
+    if st.session_state.get("ap_task_dismiss_select") not in _tasks_by_key:
+        st.session_state.pop("ap_task_dismiss_select", None)
     _select_options = [None] + list(_tasks_by_key.keys())
     _selected_key = st.selectbox(
-        "Dismiss a task",
+        "Open a task" if team else "Dismiss a task",
         options=_select_options,
         format_func=lambda k: (
-            "— Select a task to dismiss —" if k is None else _tasks_by_key[k]["title"]
+            ("— Select a task —" if team else "— Select a task to dismiss —")
+            if k is None else _tasks_by_key[k]["title"]
         ),
         key="ap_task_dismiss_select",
     )
 
     if _selected_key:
         f = _tasks_by_key[_selected_key]
+        if team:
+            with st.container(border=True):
+                st.markdown(f"**{f['title']}**")
+                if f.get("detail"):
+                    st.caption(f["detail"])
+                render_panel(client, "task", f["finding_key"], f["title"], user_id,
+                             assignments.get(f["finding_key"]))
         with st.container(border=True):
             # A reason is required — the CHECK constraint enforces it, and
             # this is what an auditor asks about.

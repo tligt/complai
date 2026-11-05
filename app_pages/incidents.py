@@ -197,6 +197,12 @@ with tab_inc:
                     row = S.create_incident(user_id, client["id"], title=title, description=desc,
                                             discovered_at=found, reported_by=reporter, system_ids=sys_ids)
                     if row:
+                        # S56: the company's incidents person handles it.
+                        try:
+                            import work_items as _W
+                            _W.route_incident(client["id"], row)
+                        except Exception as _e:
+                            print(f"Incident not routed: {_e}")
                         if do_alert:
                             S.alert_team(user_id, row, client, R.alert_targets(contacts, row, [], nis2), "logged")
                         st.session_state.incident_sel = row["id"]
@@ -249,6 +255,18 @@ with tab_inc:
                    "(\"NIS2 — are you in scope, and as what?\").")
         if st.button("Go to Obligations", icon="✅", key="nis2_scope_link"):
             st.switch_page("app_pages/obligations.py")
+    # S56: who handles this incident, and the team's comments on it.
+    import work_items as _W
+    if _W.has_team(client["id"]) or _W.comments(client["id"], "incident", inc_id):
+        from work_items_view import render_panel as _panel
+        _arow = _W.current(client["id"], "incident").get(inc_id)
+        _n = len(_W.comments(client["id"], "incident", inc_id))
+        _who = (_arow or {}).get("assignee_id")
+        with st.expander(f"👤 Handled by {_W.name_of(client['id'], _who) if _who else 'nobody yet'}"
+                         + (f" · 💬 {_n}" if _n else ""),
+                         expanded=st.session_state.pop("incident_open_panel", False)):
+            _panel(client, "incident", inc_id, inc["title"], user_id, _arow)
+
     with st.container(border=True):
         st.markdown("**Deadlines**")
 

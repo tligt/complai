@@ -611,3 +611,75 @@ def send_workspace_invite(
     except Exception as e:
         print(f"Workspace invite notification error: {e}")
         return False
+
+
+# ── S56: inbox nudge ───────────────────────────────────────────────────────
+
+def send_inbox_nudge(to_email: str) -> bool:
+    """Content-free: someone has something new in their RECOSA inbox.
+
+    D-05: no title, no company, no comment text, no name — those are
+    compliance content written by the client. Sent only when the person's
+    inbox goes from empty to not empty (work_items.notify), so a busy day is
+    one email, not twenty. NOTIFY_ENABLED gate and soft-fail, like the others.
+    """
+    if os.environ.get("NOTIFY_ENABLED", "false").strip().lower() != "true":
+        return False
+
+    api_key    = os.environ.get("BREVO_API_KEY")
+    from_email = os.environ.get("BREVO_FROM_EMAIL")
+    from_name  = os.environ.get("BREVO_FROM_NAME", "RECOSA")
+    base_url   = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+    if not (api_key and from_email and base_url and to_email):
+        return False
+    link = f"{base_url}/inbox"
+    text_body = (
+        "You have something new in your RECOSA inbox: a task given to you, "
+        "or a comment.\n\n"
+        f"Open it here: {link}\n\n"
+        "For confidentiality, the details are only readable inside RECOSA.\n"
+        "RECOSA - recosa.eu"
+    )
+    html_body = f"""
+<div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
+  <div style="background:#003366;padding:20px;border-radius:8px 8px 0 0">
+    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+  </div>
+  <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2">
+    <p style="color:#333;line-height:1.6;margin:0 0 18px">
+      You have something new in your RECOSA inbox: a task given to you, or a comment.
+    </p>
+    <p style="margin:0 0 18px">
+      <a href="{link}"
+         style="display:inline-block;background:#003366;color:#fff;
+                padding:11px 24px;border-radius:6px;text-decoration:none;
+                font-weight:bold;font-size:14px">Open my inbox &rarr;</a>
+    </p>
+    <p style="color:#6b7280;font-size:12px;margin:0">
+      For confidentiality, nothing about the task or the comment is included
+      in this email.
+    </p>
+  </div>
+  <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;
+              text-align:center">
+    <p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+  </div>
+</div>
+"""
+    try:
+        response = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={"api-key": api_key, "Content-Type": "application/json"},
+            json={
+                "sender":      {"name": from_name, "email": from_email},
+                "to":          [{"email": to_email}],
+                "subject":     "Something new for you in RECOSA",
+                "textContent": text_body,
+                "htmlContent": html_body,
+            },
+            timeout=10,
+        )
+        return response.status_code in (200, 201, 202)
+    except Exception as e:
+        print(f"Inbox nudge error: {e}")
+        return False

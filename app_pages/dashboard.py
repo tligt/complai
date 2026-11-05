@@ -483,6 +483,7 @@ with col3:
 # ── Fill the "What to do next" slot (see the top of the page) ──
 from database import count_unread_replies as _unread_replies
 _tasks = _ob_state["open_tasks"] if _ob_state else []
+_assigned = (_ob_state or {}).get("assignments") or {}
 _next = [f for f in _tasks if f.get("link") != "incidents"][:3]
 
 # ── Getting started (usability audit batch 3) ─────────────────
@@ -539,6 +540,23 @@ with _next_slot.container(border=True):
         _page = _OV.TASK_LINK_PAGES.get(_f.get("link") or "")
         if _page and _c2.button("Fix it", key=f"home_fix_{_i}", use_container_width=True):
             st.switch_page(_page)
+    # S56: what is handled by you, and what is new in your inbox.
+    try:
+        import work_items as _W
+        _mine_n = sum(1 for _f in _tasks
+                      if (_assigned.get(_f["finding_key"]) or {}).get("assignee_id") == user_id)
+        _inbox_new = _W.unread_count(user_id)
+    except Exception:
+        _mine_n, _inbox_new = 0, 0
+    if _mine_n or _inbox_new:
+        _m1, _m2 = st.columns(2)
+        if _mine_n and _m1.button(plural(_mine_n, "task") + " handled by you", key="home_mine",
+                                  use_container_width=True, type="primary"):
+            st.session_state["ap_only_mine"] = True
+            st.switch_page("app_pages/action_plan.py")
+        if _inbox_new and _m2.button(f"Inbox ({_inbox_new} new)", key="home_inbox",
+                                     use_container_width=True):
+            st.switch_page("app_pages/inbox.py")
     _b1, _b2, _b3 = st.columns(3)
     if _tasks and _b1.button(f"Action plan ({len(_tasks)})", key="home_plan",
                              use_container_width=True):

@@ -311,8 +311,17 @@ def _logout_page():
 
 logout_pg = st.Page(_logout_page, title="Log out", icon="🚪", url_path="logout")
 
+# S56: the inbox — tasks given to you, comments, mentions. In the menu once
+# you work with someone on a company, or have anything in it.
+import work_items as _W
+_inbox_n = _W.unread_count(user_id)
+inbox = st.Page("app_pages/inbox.py",
+                title=f"Inbox ({_inbox_n})" if _inbox_n else "Inbox", icon="📥")
+_show_inbox = bool(_inbox_n) or any(
+    _W.has_team(c["id"]) for c in (load_accessible_clients(user_id) or [])[:10])
+
 _sections = {
-    "":         [home, plan],
+    "":         [home, plan] + ([inbox] if _show_inbox else []),
     "Assess":   [oblig, gap, risk],
     "Records":  [inventory, documents, record],
     "Respond":  [incidents, wording],
@@ -421,6 +430,7 @@ PAGE_CONTEXT = {
     "team":      "account",
     "group":     "account",
     "glossary":  "other",
+    "inbox":     "obligations",
 }
 
 # The default page is served at the root, so its url_path is empty.

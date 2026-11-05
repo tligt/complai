@@ -98,12 +98,24 @@ def load_state(user_id: str, client: dict) -> dict:
     STORE.reconcile(user_id, client_id, findings, events)
     open_tasks = T.apply_history(findings, events)
 
+    # S56: who handles each task; never-assigned tasks follow the company's
+    # routing rule for their area. Never allowed to break the register.
+    try:
+        import work_items as W
+        assignments = W.current(client_id, "task")
+        if W.route_unassigned(client_id, open_tasks, assignments):
+            assignments = W.current(client_id, "task")
+    except Exception as e:
+        print(f"Assignments not loaded: {e}")
+        assignments = {}
+
     return {
         "client_id": client_id, "regulations": regulations,
         "doc_languages": doc_languages, "activities": activities,
         "systems": systems, "links": links, "readiness": readiness,
         "responses": responses, "register": register, "doc_status": doc_status,
         "applicable": applicable, "verdicts": verdicts, "open_tasks": open_tasks,
+        "assignments": assignments,
         "counts": OR.counts(verdicts),
     }
 
