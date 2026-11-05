@@ -1023,6 +1023,13 @@ if _view == "generate":
         if odt_ok:
             c3.download_button("📋 ODT", odt_bytes, f"{fname}.odt",
                 "application/vnd.oasis.opendocument.text", use_container_width=True)
+        if not (pdf_ok and odt_ok):
+            # S51: say why a format is missing; the DOCX is complete.
+            st.caption("PDF and ODT copies aren't available right now. The Word file "
+                       "above is the complete document: open it in Word or LibreOffice "
+                       "to save it as PDF." if not (pdf_ok or odt_ok) else
+                       f"The {'PDF' if not pdf_ok else 'ODT'} copy isn't available right "
+                       "now. The Word file is the complete document.")
 
         st.divider()
         with st.expander("📖 Preview", expanded=False):

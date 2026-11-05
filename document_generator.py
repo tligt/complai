@@ -1127,73 +1127,49 @@ def build_docx(document_text: str, document_type: str,
     return buf.getvalue()
 
 
-def convert_docx_to_pdf(docx_bytes: bytes) -> bytes:
-    """Convert DOCX bytes to PDF using LibreOffice."""
+class OfficeUnavailable(RuntimeError):
+    """LibreOffice is not installed here: no PDF or ODT, the DOCX stands."""
+
+
+def office_available() -> bool:
+    """S51: whether LibreOffice can be called. Checked before each
+    conversion, so a missing install fails at once instead of after a
+    subprocess error, and callers can say so in plain words."""
     import shutil
+    return bool(shutil.which("soffice") or shutil.which("libreoffice"))
 
-    # Find soffice.py — try multiple locations
-    soffice_candidates = [
-        '/mnt/skills/public/docx/scripts/office/soffice.py',
-        '/mnt/skills/public/pptx/scripts/office/soffice.py',
-    ]
-    soffice_script = next((p for p in soffice_candidates if os.path.exists(p)), None)
 
+def _convert(docx_bytes: bytes, fmt: str) -> bytes:
+    """DOCX bytes to `fmt` ("pdf" or "odt") with LibreOffice. Raises
+    OfficeUnavailable when it is not installed, RuntimeError when the
+    conversion fails or takes over 60 s. The DOCX is the document of record;
+    callers keep it either way."""
+    import shutil
+    exe = shutil.which("soffice") or shutil.which("libreoffice")
+    if not exe:
+        raise OfficeUnavailable("LibreOffice is not installed")
     with tempfile.TemporaryDirectory() as tmpdir:
         docx_path = os.path.join(tmpdir, 'document.docx')
-        pdf_path = os.path.join(tmpdir, 'document.pdf')
-
+        out_path = os.path.join(tmpdir, f'document.{fmt}')
         with open(docx_path, 'wb') as f:
             f.write(docx_bytes)
-
-        if soffice_script:
+        try:
             result = subprocess.run(
-                ['python3', soffice_script,
-                 '--headless', '--convert-to', 'pdf', docx_path, '--outdir', tmpdir],
-                capture_output=True, text=True, timeout=60
-            )
-        else:
-            # Fallback: call soffice directly
-            result = subprocess.run(
-                ['soffice', '--headless', '--convert-to', 'pdf',
-                 '--outdir', tmpdir, docx_path],
-                capture_output=True, text=True, timeout=60
-            )
-
-        if os.path.exists(pdf_path):
-            with open(pdf_path, 'rb') as f:
+                [exe, '--headless', '--convert-to', fmt, '--outdir', tmpdir, docx_path],
+                capture_output=True, text=True, timeout=60)
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"{fmt.upper()} conversion took over 60 s")
+        if os.path.exists(out_path):
+            with open(out_path, 'rb') as f:
                 return f.read()
-        raise RuntimeError(f"PDF conversion failed: {result.stderr or result.stdout}")
+        raise RuntimeError(f"{fmt.upper()} conversion failed: {result.stderr or result.stdout}")
+
+
+def convert_docx_to_pdf(docx_bytes: bytes) -> bytes:
+    """Convert DOCX bytes to PDF using LibreOffice."""
+    return _convert(docx_bytes, "pdf")
 
 
 def convert_docx_to_odt(docx_bytes: bytes) -> bytes:
     """Convert DOCX bytes to ODT using LibreOffice."""
-    soffice_candidates = [
-        '/mnt/skills/public/docx/scripts/office/soffice.py',
-        '/mnt/skills/public/pptx/scripts/office/soffice.py',
-    ]
-    soffice_script = next((p for p in soffice_candidates if os.path.exists(p)), None)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        docx_path = os.path.join(tmpdir, 'document.docx')
-        odt_path = os.path.join(tmpdir, 'document.odt')
-
-        with open(docx_path, 'wb') as f:
-            f.write(docx_bytes)
-
-        if soffice_script:
-            result = subprocess.run(
-                ['python3', soffice_script,
-                 '--headless', '--convert-to', 'odt', docx_path, '--outdir', tmpdir],
-                capture_output=True, text=True, timeout=60
-            )
-        else:
-            result = subprocess.run(
-                ['soffice', '--headless', '--convert-to', 'odt',
-                 '--outdir', tmpdir, docx_path],
-                capture_output=True, text=True, timeout=60
-            )
-
-        if os.path.exists(odt_path):
-            with open(odt_path, 'rb') as f:
-                return f.read()
-        raise RuntimeError(f"ODT conversion failed: {result.stderr or result.stdout}")
+    return _convert(docx_bytes, "odt")

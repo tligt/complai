@@ -19,7 +19,7 @@ st.set_page_config(
 import brand
 brand.apply_shell()
 
-init_auth()
+init_auth("admin")
 
 if not is_logged_in():
     import login_page

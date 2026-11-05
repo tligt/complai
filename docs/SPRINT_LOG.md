@@ -277,7 +277,7 @@ not.** The shift from the table previously here: D-09 inserted the document
 register as S27 and moved everything below it by one, putting the beta gate at
 S34.
 
-**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48, S49, S53, S54.
+**Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48, S49, S53, S54, S55.
 
 **Cancelled:** S11, S31, S35, S39, S40.
 
@@ -286,8 +286,8 @@ S34.
 | S11 | Data extraction from uploads | Abandoned 22 Oct, never built. The useful half survives as S68 — D-114, D-131 |
 | S31 | — | Cancelled |
 | S35 | — | Cancelled |
-| S39 | Migration to European infrastructure | Cancelled 22 Oct, replaced by S49 — D-114 |
-| S40 | GDPR deletion + session hardening | Cancelled 22 Oct, replaced by S50 (same scope, still the gate) — D-114 |
+| S39 | Migration to European infrastructure | Cancelled 22 Oct, replaced by S50 (S49 until D-115) — D-114 |
+| S40 | GDPR deletion + session hardening | Cancelled 22 Oct, replaced by S51 (S50 until D-115) — D-114 |
 
 | # | Sprint | Notes |
 |---|---|---|
@@ -350,8 +350,10 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
 4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115). **Built and live 22 Oct (D-116).** Left: the website report email sent for real, and the quiz copy review.
-5. **S50** — migrate to production environment with EU sovereignty.
-6. **S51** — GDPR deletion + session hardening, the beta gate.
+5. **S50** — migrate to production environment with EU sovereignty. **Waits until closer to the beta (D-141).**
+6. **S51** — session hardening, the beta gate. GDPR deletion moved out to S69 (D-142).
+
+**Set 5 Nov (D-142):** S51, then S52, then S56; S50 when the beta is near.
 
 ### Before the beta gate
 
@@ -367,7 +369,7 @@ the only sprint that *is* the gate.
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
 | **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | **Waits until closer to the beta, by choice (5 Nov, D-141)**; Scaleway access and runbook ready, nothing created. New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
-| **S51** | **GDPR deletion + session hardening** | New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
+| **S51** | **Session hardening** | **Built 5 Nov (D-143), tested locally; live once the secrets are set.** GDPR deletion moved out to S69. New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
 ### After beta
 
@@ -393,6 +395,7 @@ the only sprint that *is* the gate.
 | S66 | Compliance heartbeat — scheduled checks | was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S67 | Evaluate a Streamlit alternative | was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S68 | Import existing documents into the inventory | New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
+| S69 | GDPR deletion | New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -5988,6 +5991,62 @@ instances, so Supabase's emails go through Brevo's relay on port 2525
 (`deploy/.env.example`); if Brevo's authorised IPs are on, the instance's IP
 must be added. And Supabase Studio's telemetry must be off, so nothing goes
 to Supabase Inc. — to check in the stack's settings during S50.
+
+### D-142 — GDPR deletion moves out of S51 to S69; then S52 and S56, 5 Nov
+
+By request. S51 keeps session hardening, the beta gate: a refresh or a
+reopened page keeps the person logged in, and the PDF/ODT fallback (section
+7). GDPR deletion becomes S69, for now after the other sprints; whether the
+beta waits for it is decided when S69 is scheduled. After S51: S52 (document
+branding), then S56 (enterprise routing + in-app messaging). S50 waits
+(D-141).
+
+### D-143 — S51: the login survives a refresh; PDF/ODT degrade to DOCX, 5 Nov
+
+**Two causes, both fixed.** (1) The login lived only in `st.session_state`,
+which a refresh, a new tab or a link opened later replaces with an empty
+one. (2) Every auth client `auth.get_supabase()` created ran supabase-py's
+auto-refresh timer: about an hour later it spent the single-use refresh
+token in the background and kept the result, so the app's own refresh then
+presented a used token (`refresh_token_already_used`, D-113) — and one
+timer thread lingered per client. Clients are now made with
+`auto_refresh_token=False, persist_session=False`, and one is reused per
+token pair (`set_session` called Supabase on every call before).
+
+**Stored login (`sessions.py`, `migration_s51_app_sessions.sql`).** The
+browser keeps one cookie, `recosa_sid` (back office: `recosa_bo_sid`), with
+a random opaque value — not a token. `app_sessions` keeps the Supabase
+tokens behind it, Fernet-encrypted with `SESSION_SECRET`, under the SHA-256
+of the cookie; RLS on, no policy, service role only; rows go with the
+account. All tabs of a browser share the login, and a refresh is written
+compare-and-swap, so a tab that loses the race takes the winner's tokens
+instead of reusing a spent one (which Supabase answers by revoking the
+login). Limits: client app 7 days, 24 h idle; back office 12 h, 4 h idle.
+Logout deletes the row (the cookie opens nothing after that) and clears the
+cookie; a password change ends the logins in other browsers. A reopened
+page is not recorded as a sign-in (D-128's trail).
+
+The cookie is written by script (`st.html`, `SameSite=Lax`, `Secure` on
+https), so it cannot be HttpOnly — hence an opaque id, not a token. On the
+S50 server it can become an HttpOnly cookie set by a server route
+(`st.App`). Switched on by `SESSION_SECRET` and `SUPABASE_SERVICE_KEY`;
+without them the apps behave as before.
+
+**PDF/ODT fallback.** `document_generator._convert` checks for LibreOffice
+first (`office_available`, `OfficeUnavailable`) instead of failing after a
+subprocess error, and drops the dead `/mnt/skills` paths. The DOCX was
+already kept when conversion failed; now the Documents page and the
+template generator's summary say why the PDF is missing and that the Word
+file is complete.
+
+Tested locally, logged in (5 Nov): the cookie is set at login; a reload,
+a direct page URL and a second tab stay logged in; the audit trail shows
+the one sign-in only; logout in one tab clears the cookie and the row, and
+the other tab is at the login page on its next load. Store tests against
+the database: wrong app refused, swap refused on stale tokens, idle row
+removed, tokens never in plain text. Not yet tested: a refresh after the
+hour's token expiry, and the apps on Streamlit Cloud (needs the two
+secrets).
 
 ---
 

@@ -122,6 +122,7 @@ def generate_templated_document(
     saved: list[dict[str, Any]] = []
     unresolved: list[tuple[str, list[str]]] = []
     xlsx_failures: list[str] = []
+    pdf_missing = False
     for d in renderable:
         # include_header=False: the template body carries its own title,
         # company block and date. Letting build_docx add its own produced the
@@ -171,6 +172,7 @@ def generate_templated_document(
                 # fragile step here. A missing PDF is a degraded result, not a
                 # lost document — the DOCX is the artefact of record.
                 pdf_bytes = None
+                pdf_missing = True
 
         doc_id = save_document_with_files(
             user_id=user_id,
@@ -228,6 +230,10 @@ def generate_templated_document(
             f"from the document ({detail}). Do not publish it until this is "
             "fixed."
         )
+    if pdf_missing:
+        # S51: said, not just absent.
+        parts.append("No PDF copy this time (the converter isn't available). "
+                     "The Word version is complete.")
     if xlsx_failures:
         # Reported, not swallowed. The DOCX is complete, so this is a degraded
         # result rather than a failure — but a client expecting a spreadsheet

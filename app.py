@@ -76,7 +76,7 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "
             del st.query_params[_k]
 
 # ── Auth ──────────────────────────────────────────────────────
-init_auth()
+init_auth("client")
 
 # ── Login screen ──────────────────────────────────────────────
 # D-127: a password-reset link (Supabase "Reset password" template) lands
@@ -110,6 +110,8 @@ if not is_logged_in():
     import login_page
     if st.session_state.pop("recovery_failed", False):
         st.warning("That reset link has expired or was already used. Ask for a new one below.")
+    if st.session_state.pop("session_ended", False):
+        st.info("You were logged out after a day without activity. Log in again to continue.")
     if st.session_state.pop("confirm_failed", False):
         st.info("That confirmation link has expired or was already used. If you've "
                 "confirmed your address already, just log in.")

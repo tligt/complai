@@ -1,6 +1,8 @@
 import os
+import time
 import streamlit as st
-from supabase import create_client, Client
+from supabase import create_client, Client, ClientOptions
+import sessions
 from database import (
     create_user_profile,
     mark_leads_converted, record_funnel_event,
@@ -23,30 +25,91 @@ TERMS_URL = "https://www.recosa.eu/terms-of-service"
 PRIVACY_URL = "https://www.recosa.eu/privacy-policy"
 
 
-def get_supabase() -> Client:
+def _new_client() -> Client:
     url = os.environ.get("SUPABASE_URL")
     key = os.environ.get("SUPABASE_KEY")
     if not url or not key:
         raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in secrets.")
-    client = create_client(url, key)
+    # S51: no automatic refresh. supabase-py otherwise starts a timer per
+    # client that, just before the access token expires, spends the
+    # single-use refresh token in the background and keeps the result to
+    # itself — so the token the app holds is already used when it refreshes
+    # (refresh_token_already_used, D-113), and one timer thread lingered per
+    # client created. Refreshing is init_auth's job alone.
+    return create_client(url, key, options=ClientOptions(
+        auto_refresh_token=False, persist_session=False))
+
+
+def get_supabase() -> Client:
+    """An auth-capable client for this login. One per token pair, reused:
+    set_session() checks the token with Supabase (a network call), which was
+    made on every call before S51."""
+    access_token  = st.session_state.get("access_token")
+    refresh_token = st.session_state.get("refresh_token")
+    cached = st.session_state.get("_auth_client")
+    if cached and cached[0] == (access_token, refresh_token):
+        return cached[1]
+    client = _new_client()
     try:
-        access_token  = st.session_state.get("access_token")
-        refresh_token = st.session_state.get("refresh_token")
         if access_token and refresh_token:
             client.auth.set_session(access_token, refresh_token)
     except Exception:
         pass
+    st.session_state["_auth_client"] = ((access_token, refresh_token), client)
     return client
 
 
-def init_auth():
-    """Initialise auth session state and refresh token if needed."""
+def _set_login(user, access: str | None, refresh: str | None) -> None:
+    st.session_state.user          = user
+    st.session_state.access_token  = access
+    st.session_state.refresh_token = refresh
+
+
+def _clear_login() -> None:
+    _set_login(None, None, None)
+    st.session_state.pop("sid", None)
+
+
+def _app() -> str:
+    return st.session_state.get("_auth_app", "client")
+
+
+def start_login(res) -> None:
+    """A fresh login (password, reset link, confirmation link): this tab's
+    state, and from S51 a stored login with its cookie, so a refresh or
+    another tab keeps it."""
+    old = st.session_state.get("sid")
+    if old:
+        sessions.delete(old)
+    _set_login(res.user, res.session.access_token, res.session.refresh_token)
+    sid = sessions.create(_app(), res.user.id, res.session.access_token,
+                          res.session.refresh_token)
+    st.session_state.sid = sid
+    st.session_state._cookie = sid          # written by init_auth's next run
+    st.session_state._last_activity = time.time()
+    st.session_state._last_touch = time.time()
+
+
+def init_auth(app: str = "client"):
+    """Initialise auth session state, pick up a stored login (S51), and
+    refresh the token when it is about to expire.
+
+    app: "client" (app.py) or "admin" (admin_app.py) — each has its own
+    cookie and limits (sessions.LIMITS)."""
+    st.session_state._auth_app = app
     if "user" not in st.session_state:
         st.session_state.user = None
     if "access_token" not in st.session_state:
         st.session_state.access_token = None
     if "refresh_token" not in st.session_state:
         st.session_state.refresh_token = None
+
+    if st.session_state.user is None:
+        _resume(app)
+
+    if st.session_state.user is not None and st.session_state.get("sid"):
+        if not _still_active(app):
+            return
 
     # Refresh only when the access token is about to expire, not on every
     # rerun. Supabase refresh tokens are single-use: refreshing on every
@@ -56,21 +119,140 @@ def init_auth():
     if st.session_state.get("refresh_token"):
         remaining = _seconds_until_expiry(st.session_state.get("access_token"))
         if remaining is None or remaining < _REFRESH_MARGIN_SECONDS:
-            try:
-                supabase = get_supabase()
-                res = supabase.auth.refresh_session(st.session_state.refresh_token)
-                if res and res.session:
-                    st.session_state.access_token  = res.session.access_token
-                    st.session_state.refresh_token = res.session.refresh_token
-                    st.session_state.user          = res.user
-            except Exception:
-                # Only a session whose access token has actually run out is
-                # over. If it is still valid, a failed refresh (e.g. another
-                # rerun already rotated the token) must not log the user out.
-                if remaining is None or remaining <= 0:
-                    st.session_state.user          = None
-                    st.session_state.access_token  = None
-                    st.session_state.refresh_token = None
+            if st.session_state.get("sid"):
+                _refresh_stored(app, remaining)
+            else:
+                _refresh_here(remaining)
+
+    _render_cookie(app)
+
+
+def _render_cookie(app: str) -> None:
+    """Writes a pending cookie change. Kept on every run while pending is
+    set for this tab: a run cut short by st.rerun() may never reach the
+    browser, and writing the same cookie twice is harmless."""
+    if "_cookie" not in st.session_state:
+        return
+    with st.container(key="recosa_cookie"):
+        st.html("<style>.st-key-recosa_cookie{display:none}</style>")
+        sessions.write_cookie(app, st.session_state._cookie)
+
+
+def _resume(app: str) -> None:
+    """A tab that opens with the login cookie: the stored login, if it is
+    still valid. Tried once per tab and cookie."""
+    sid = sessions.read_cookie(app)
+    if not sid or st.session_state.get("_resume_tried") == sid:
+        return
+    st.session_state._resume_tried = sid
+    row = sessions.load(app, sid)
+    if not row:
+        st.session_state._cookie = None     # a dead cookie: clear it
+        return
+    access, refresh, user = row["access"], row["refresh"], None
+    remaining = _seconds_until_expiry(access)
+    if remaining is None or remaining < _REFRESH_MARGIN_SECONDS:
+        got = _rotate(app, sid, row)
+        if not got:
+            sessions.delete(sid)
+            st.session_state._cookie = None
+            return
+        access, refresh, user = got
+    if user is None:
+        try:
+            user = _new_client().auth.get_user(access).user
+        except Exception as e:
+            print(f"Stored login rejected: {e}")
+            sessions.delete(sid)
+            st.session_state._cookie = None
+            return
+    _set_login(user, access, refresh)
+    st.session_state.sid = sid
+    st.session_state._last_activity = time.time()
+    st.session_state._last_touch = time.time()
+    # A reopened page is not a new sign-in: the audit trail (D-128) records
+    # sign-ins, not reloads.
+    st.session_state.signin_logged = True
+
+
+def _still_active(app: str) -> bool:
+    """Idle timeout inside an open tab, and the throttled last-seen write."""
+    _, idle = sessions.LIMITS[app]
+    now = time.time()
+    last = st.session_state.get("_last_activity") or now
+    if now - last > idle:
+        sessions.delete(st.session_state.get("sid"))
+        _clear_login()
+        st.session_state._cookie = None
+        st.session_state.session_ended = True
+        return False
+    st.session_state._last_activity = now
+    if now - (st.session_state.get("_last_touch") or 0) > sessions.TOUCH_EVERY:
+        st.session_state._last_touch = now
+        sessions.touch(st.session_state.sid)
+    return True
+
+
+def _rotate(app: str, sid: str, row: dict):
+    """Refresh a stored login once for all its tabs. Returns (access,
+    refresh, user), or None when the login is over."""
+    try:
+        res = _new_client().auth.refresh_session(row["refresh"])
+    except Exception as e:
+        print(f"Refresh of the stored login failed: {e}")
+        res = None
+    if res and res.session:
+        if sessions.swap_tokens(sid, row["sealed"], res.session.access_token,
+                                res.session.refresh_token):
+            return res.session.access_token, res.session.refresh_token, res.user
+    # Another tab refreshed first: its tokens are in the row now.
+    again = sessions.load(app, sid)
+    if again and again["sealed"] != row["sealed"]:
+        if (_seconds_until_expiry(again["access"]) or 0) > 0:
+            return again["access"], again["refresh"], None
+    return None
+
+
+def _refresh_stored(app: str, remaining: float | None) -> None:
+    sid = st.session_state.sid
+    row = sessions.load(app, sid)
+    if not row:
+        # Logged out in another tab, or past its limits.
+        if remaining is None or remaining <= 0:
+            _clear_login()
+            st.session_state._cookie = None
+        return
+    if row["access"] != st.session_state.access_token and \
+            (_seconds_until_expiry(row["access"]) or 0) > (remaining or 0):
+        # Another tab already refreshed: take its tokens.
+        st.session_state.access_token  = row["access"]
+        st.session_state.refresh_token = row["refresh"]
+        return
+    got = _rotate(app, sid, row)
+    if got:
+        access, refresh, user = got
+        st.session_state.access_token  = access
+        st.session_state.refresh_token = refresh
+        if user is not None:
+            st.session_state.user = user
+    elif remaining is None or remaining <= 0:
+        sessions.delete(sid)
+        _clear_login()
+        st.session_state._cookie = None
+
+
+def _refresh_here(remaining: float | None) -> None:
+    """No stored login (S51 switched off): refresh this tab's tokens."""
+    try:
+        res = _new_client().auth.refresh_session(st.session_state.refresh_token)
+        if res and res.session:
+            _set_login(res.user, res.session.access_token, res.session.refresh_token)
+    except Exception:
+        # Only a session whose access token has actually run out is
+        # over. If it is still valid, a failed refresh (e.g. another
+        # rerun already rotated the token) must not log the user out.
+        if remaining is None or remaining <= 0:
+            _clear_login()
 
 
 # Refresh when less than this is left on the access token (default 1 hour).
@@ -169,9 +351,7 @@ def _login_form(funnel: dict, admin: bool = False) -> None:
         except Exception as e:
             st.error(_auth_error(e))
             return
-        st.session_state.user          = res.user
-        st.session_state.access_token  = res.session.access_token
-        st.session_state.refresh_token = res.session.refresh_token
+        start_login(res)
         # S49: the free check the link carried is saved by app.py after the
         # rerun (funnel stays in session state until then), and its result
         # page opens.
@@ -350,9 +530,7 @@ def start_password_recovery(token_hash: str) -> bool:
         return False
     if not (res and res.session):
         return False
-    st.session_state.user          = res.user
-    st.session_state.access_token  = res.session.access_token
-    st.session_state.refresh_token = res.session.refresh_token
+    start_login(res)
     st.session_state.password_recovery = True
     return True
 
@@ -369,9 +547,7 @@ def start_email_confirmation(token_hash: str) -> bool:
         return False
     if not (res and res.session):
         return False
-    st.session_state.user          = res.user
-    st.session_state.access_token  = res.session.access_token
-    st.session_state.refresh_token = res.session.refresh_token
+    start_login(res)
     return True
 
 
@@ -405,10 +581,14 @@ def logout():
         supabase.auth.sign_out({"scope": "local"})
     except Exception:
         pass
-    for key in ["user", "access_token", "refresh_token",
-                "selected_client", "messages", "clients"]:
+    # S51: the stored login goes, so the cookie opens nothing any more, even
+    # if the browser keeps it; the next run clears it too.
+    sessions.delete(st.session_state.get("sid"))
+    for key in ["user", "access_token", "refresh_token", "sid", "_auth_client",
+                "selected_client", "messages", "clients", "signin_logged"]:
         if key in st.session_state:
             del st.session_state[key]
+    st.session_state._cookie = None
     st.rerun()
 
 
@@ -431,6 +611,8 @@ def change_password(new_password: str) -> tuple[bool, str | None]:
     try:
         supabase = get_supabase()
         supabase.auth.update_user({"password": new_password})
+        # S51: a new password ends the logins kept in other browsers.
+        sessions.delete_others(get_user_id(), st.session_state.get("sid"))
         return True, None
     except Exception as e:
         return False, str(e)
