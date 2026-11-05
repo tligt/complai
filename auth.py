@@ -139,7 +139,7 @@ def go_to_requested_page(current, sections: dict) -> None:
     (a link to /documents, a reload of it) if this run is on another one.
     Once per tab. Call after st.navigation, before pg.run()."""
     wanted = st.session_state.pop("_wanted_path", None)
-    if not wanted or wanted == "logout" or getattr(current, "url_path", None) == wanted:
+    if not wanted or getattr(current, "url_path", None) == wanted:
         return
     for pages in sections.values():
         for page in pages:
