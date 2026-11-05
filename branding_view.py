@@ -112,7 +112,7 @@ def render(client: dict, user_id: str) -> None:
             enabled = st.toggle("Use my branding on documents",
                                 value=bool(row.get("enabled")) if row else True,
                                 key=f"brand_on_{cid}")
-            up = st.file_uploader("Logo (PNG or JPG)", type=["png", "jpg", "jpeg"],
+            up = st.file_uploader("Logo (PNG or JPG, up to 5 MB)", type=["png", "jpg", "jpeg"],
                                   key=f"brand_logo_{cid}",
                                   help="A wide logo on a transparent or white background "
                                        "works best. It goes at the top of every page.")
