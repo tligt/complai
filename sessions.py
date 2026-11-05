@@ -20,6 +20,10 @@ Now:
   without use; the back office 12 h and 4 h. Logging out deletes the row, so
   the cookie is dead at once, even if the browser keeps it.
 
+Streamlit Cloud does not pass cookies on to the app (st.context.cookies is
+empty there), so the cookie is read in the browser by bridge() and reported
+back; st.context.cookies is used where it works (locally, the S50 server).
+
 Switched on by two secrets, SESSION_SECRET and SUPABASE_SERVICE_KEY. Without
 them (tests, a fresh environment) everything works as before: no cookie, a
 refresh logs out.

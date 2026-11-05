@@ -369,7 +369,7 @@ the only sprint that *is* the gate.
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
 | **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | **S50** | **Migrate to production environment with EU sovereignty** | **Waits until closer to the beta, by choice (5 Nov, D-141)**; Scaleway access and runbook ready, nothing created. New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
-| **S51** | **Session hardening** | **Built 5 Nov (D-143), tested locally; live once the secrets are set.** GDPR deletion moved out to S69. New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
+| **S51** | **Session hardening** | **Built and live 5 Nov (D-143)**: login kept across reloads and tabs, tested on Streamlit Cloud; left: a token refresh after an hour, in a browser. GDPR deletion moved out to S69. New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
 ### After beta
 
@@ -6044,9 +6044,25 @@ a direct page URL and a second tab stay logged in; the audit trail shows
 the one sign-in only; logout in one tab clears the cookie and the row, and
 the other tab is at the login page on its next load. Store tests against
 the database: wrong app refused, swap refused on stale tokens, idle row
-removed, tokens never in plain text. Not yet tested: a refresh after the
-hour's token expiry, and the apps on Streamlit Cloud (needs the two
-secrets).
+removed, tokens never in plain text.
+
+**Streamlit Cloud does not pass cookies on to the app** (5 Nov, live):
+`st.context.cookies` is empty there, so the first live reload found no
+login although the cookie was set. The cookie is now written and read by a
+components-v2 bridge in the browser (`sessions.bridge`), which reports it
+back to Python; `st.context.cookies` stays the fast path where it works
+(locally, and on the S50 server). Three consequences, all handled: the
+bridge's answer cuts the running script short, so the resume writes its
+"tried" mark last; a tab with no cookies on its connection waits for the
+answer ("Opening RECOSA…", a login link after 4 s) instead of drawing the
+login page; and the page a tab was opened on is read once from the address
+and opened once the login is known (`auth.go_to_requested_page`) — which
+also takes a link opened while logged out to its page after login.
+
+Tested live (5 Nov, Chrome): login, reload, a second tab, a direct
+`/documents` link, Log out (row gone; the other tab at the login page on
+reload); the back office reopened on `/versions` with no login. Not yet
+tested: a refresh after the hour's token expiry in a browser.
 
 ---
 
