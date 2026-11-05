@@ -82,12 +82,15 @@ init_auth("client")
 # D-127: a password-reset link (Supabase "Reset password" template) lands
 # here with ?token_hash=…&type=recovery. It logs the person in once; they
 # then choose a new password before anything else.
-if st.query_params.get("type") == "recovery" and st.query_params.get("token_hash"):
+# D-146: an invite's "Choose my password" link (?type=invite) takes the
+# same path, for a colleague whose account RECOSA created.
+if st.query_params.get("type") in ("recovery", "invite") and st.query_params.get("token_hash"):
     from auth import start_password_recovery
     _th = st.query_params["token_hash"]
+    _otp = st.query_params["type"]
     del st.query_params["token_hash"]
     del st.query_params["type"]
-    if not start_password_recovery(_th):
+    if not start_password_recovery(_th, _otp):
         st.session_state.auth_mode = "Forgot"
         st.session_state.recovery_failed = True
 

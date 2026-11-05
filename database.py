@@ -1766,6 +1766,69 @@ def _email_of(user_id: str | None) -> str:
         return "someone"
 
 
+# ── Invites with a set-password link (D-146) ─────────────────────────────
+# An invited colleague with no RECOSA account gets one at once — no plan, no
+# trial of their own (the on_auth_user_created trigger makes the profile) —
+# and the invite email carries a one-time link to choose their own password.
+# Nobody else ever sees or sets it. The link comes back to the app as
+# ?token_hash=…&type=invite (a new account) or type=recovery (an account
+# that exists but has never been used, on Resend), and app.py shows the
+# "Choose your password" screen.
+
+def _account_for_invite(email: str) -> tuple[str | None, str | None]:
+    """(user_id, set-password link) for an invited email. An account that
+    already exists and has been used gets no link: they just log in."""
+    admin = get_supabase_admin()
+    base = (os.environ.get("APP_BASE_URL") or "").rstrip("/")
+    existing = admin.table("profiles").select("id").ilike("email", email).limit(1).execute().data
+    try:
+        if not existing:
+            res = admin.auth.admin.generate_link({"type": "invite", "email": email})
+            uid = res.user.id if res.user else None
+            if uid:
+                try:
+                    admin.table("profiles").update({"signup_source": "invite"}).eq("id", uid).execute()
+                except Exception:
+                    pass
+            return uid, (f"{base}/?token_hash={res.properties.hashed_token}&type=invite"
+                         if base else None)
+        uid = existing[0]["id"]
+        if never_signed_in(uid):
+            res = admin.auth.admin.generate_link({"type": "recovery", "email": email})
+            return uid, (f"{base}/?token_hash={res.properties.hashed_token}&type=recovery"
+                         if base else None)
+        return uid, None
+    except Exception as e:
+        print(f"Could not prepare the account for {email}: {e}")
+        return (existing[0]["id"] if existing else None), None
+
+
+def never_signed_in(user_id: str | None) -> bool:
+    """True for an account that has never logged in (an invite not taken
+    up yet)."""
+    if not user_id:
+        return True
+    try:
+        u = get_supabase_admin().auth.admin.get_user_by_id(user_id).user
+        return not getattr(u, "last_sign_in_at", None)
+    except Exception:
+        return False
+
+
+EMAILS_OFF = ("RECOSA's emails are switched off, so no email was sent. Ask them to open "
+              "RECOSA, click \"Forgot your password?\" and enter this email address: they'll "
+              "get a link to choose a password.")
+
+
+def resend_invite(email: str, place_name: str, invited_by: str) -> tuple[bool, str | None]:
+    """A fresh set-password link for someone who has not logged in yet."""
+    uid, link = _account_for_invite(email.strip().lower())
+    from email_sender import send_workspace_invite
+    if not send_workspace_invite(email, place_name, _email_of(invited_by), set_password_url=link):
+        return False, EMAILS_OFF
+    return True, None
+
+
 def invite_workspace_member(
     client_id: str, invited_by: str, email: str, role: str = "contributor",
 ) -> tuple[bool, str | None]:
@@ -1802,9 +1865,8 @@ def invite_workspace_member(
             .eq("id", client_id).limit(1).execute().data
         client_name = (client_rows[0].get("company_name") if client_rows else None) or "your account"
 
-        existing = admin.table("profiles").select("id") \
-            .ilike("email", email).limit(1).execute().data
-        member_user_id = existing[0]["id"] if existing else None
+        # D-146: an account (and a set-password link) for a new colleague.
+        member_user_id, set_pw = _account_for_invite(email)
 
         admin.table("workspace_members").upsert({
             "client_id": client_id,
@@ -1825,7 +1887,9 @@ def invite_workspace_member(
         )
 
         from email_sender import send_workspace_invite
-        send_workspace_invite(email, client_name, _email_of(invited_by))
+        if not send_workspace_invite(email, client_name, _email_of(invited_by),
+                                     set_password_url=set_pw):
+            return True, EMAILS_OFF
 
         return True, None
     except Exception as e:
@@ -2109,9 +2173,7 @@ def invite_group_member(
     if role not in CLIENT_ROLES:
         return False, "Unknown role."
     try:
-        existing = get_supabase_admin().table("profiles").select("id") \
-            .ilike("email", email).limit(1).execute().data
-        member_user_id = existing[0]["id"] if existing else None
+        member_user_id, set_pw = _account_for_invite(email)      # D-146
         get_supabase().table("group_members").upsert({
             "group_id": group["id"],
             "invited_email": email,
@@ -2126,7 +2188,9 @@ def invite_group_member(
         _audit_group(group, f"Invited {email} to the group as {CLIENT_ROLES[role]}",
                      invited_by, "group_member_invited", {"email": email, "role": role})
         from email_sender import send_workspace_invite
-        send_workspace_invite(email, group["name"], _email_of(invited_by))
+        if not send_workspace_invite(email, group["name"], _email_of(invited_by),
+                                     set_password_url=set_pw):
+            return True, EMAILS_OFF
         return True, None
     except Exception as e:
         print(f"Could not invite {email} to group {group['id']}: {e}")

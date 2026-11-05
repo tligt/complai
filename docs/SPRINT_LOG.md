@@ -6149,8 +6149,36 @@ Tested: the access rules in a rolled-back transaction (owner assigns, sets a
 rule, comments; cannot write a rule-sourced assignment; a stranger sees and
 writes none of it; no app user can write a notification); task areas; the
 Action plan without and with a team, the panel, the rules and the Inbox
-rendered with stubbed data. Not yet tested live: no company has a second
-person yet.
+rendered with stubbed data. Live (5 Nov, Talentrix AI, ff@recosa.eu as
+contributor): the Team rules, the Action plan column and filter, giving a
+task, a comment, two notifications written. Not yet: the colleague's side
+(their Inbox). Fixed on the way: disabled navy buttons were invisible (the
+forced white label on Streamlit's pale disabled style).
+
+### D-146 — An invited colleague chooses their own password, 5 Nov
+
+Asked for by the user: inviting someone gave them access but no way in — no
+password, and the only route was the sign-up form for new customers, which
+asks for a plan and starts a trial of their own (and counted them as a
+trial in the funnel). Now, inviting an email with no RECOSA account creates
+the account at once (Supabase `generate_link` type invite; the
+on_auth_user_created trigger makes the profile, no plan and no trial,
+`signup_source = invite`), and the invite email's button is a one-time
+"Choose my password" link (`?token_hash=…&type=invite`). app.py takes it
+through the password-reset path: logged in, then "Welcome to RECOSA —
+choose your password", then into the company. Nobody else sees or sets the
+password. An existing account gets the usual "Log in".
+
+The Team page shows "Invited — hasn't chosen a password yet" until the
+person first logs in, with *Resend invite* (a fresh link; type recovery for
+an account that exists but was never used). While NOTIFY_ENABLED is off no
+email goes out: the page says so and suggests "Forgot your password?" with
+that email, which Supabase sends itself. It never shows the link — whoever
+holds it could log in as them. Same for group invites.
+
+Not tested end to end: it needs a new email address and the invite email
+(NOTIFY_ENABLED on). Checked: the never-signed-in test on existing
+accounts, and that no email goes out while NOTIFY_ENABLED is off.
 
 ---
 

@@ -14,7 +14,7 @@ from auth import get_user_id
 from database import (
     CLIENT_ROLES, CLIENT_ROLE_HELP, can_manage_people, role_label,
     invite_workspace_member, list_workspace_members, remove_workspace_member,
-    set_workspace_member_role,
+    set_workspace_member_role, never_signed_in, resend_invite,
 )
 from cached_reads import load_accessible_clients
 
@@ -46,6 +46,12 @@ def _refresh():
 if not clients:
     st.caption("Set up a company to invite people to work on it with you.")
 
+# D-146: a message from the last invite survives the rerun that shows the
+# new member in the list.
+_note = st.session_state.pop("team_invite_note", None)
+if _note:
+    st.warning(_note)
+
 for c in clients:
     manage = can_manage_people(c.get("role"))
     with st.container(border=True):
@@ -56,8 +62,16 @@ for c in clients:
         for m in members:
             mc1, mc2, mc3 = st.columns([3, 2, 1])
             mc1.write(m["display_name"])
-            if m["status"] != "active":
-                mc1.caption("Invited — not signed up yet")
+            _waiting = m["status"] != "active" or never_signed_in(m.get("member_user_id"))
+            if _waiting:
+                mc1.caption("Invited — hasn't chosen a password yet")
+                if manage and mc1.button("Resend invite", key=f"resend_{m['id']}",
+                                         type="tertiary"):
+                    ok, err = resend_invite(m["invited_email"], c["company_name"], user_id)
+                    if ok:
+                        st.toast(f"A new link was sent to {m['invited_email']}.")
+                    else:
+                        st.warning(err)
             if manage:
                 _key = f"role_{m['id']}"
                 new_role = mc2.selectbox(
@@ -103,7 +117,11 @@ for c in clients:
                 if inv_email.strip():
                     ok, err = invite_workspace_member(c["id"], user_id, inv_email, inv_role)
                     if ok:
-                        st.success(f"Invited {inv_email.strip()} as {CLIENT_ROLES[inv_role]}.")
+                        if err:                 # D-146: invited, but no email went out
+                            st.session_state.team_invite_note = (
+                                f"{inv_email.strip()} has access as {CLIENT_ROLES[inv_role]}. " + err)
+                        else:
+                            st.toast(f"Invited {inv_email.strip()} as {CLIENT_ROLES[inv_role]}.")
                         _refresh()
                     else:
                         st.error(err or "Could not send the invite.")

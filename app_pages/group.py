@@ -148,6 +148,8 @@ if is_admin:
             if ok:
                 st.success(f"Invited {email.strip()} as {CLIENT_ROLES[role]} on every "
                            "company of the group.")
+                if err:             # D-146: invited, but no email went out
+                    st.warning(err)
                 load_accessible_clients.clear()
             else:
                 st.error(err)

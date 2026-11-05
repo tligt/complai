@@ -536,6 +536,7 @@ def send_ticket_reply_notification(
 
 def send_workspace_invite(
     to_email: str, client_name: str, inviter_email: str,
+    set_password_url: str | None = None,
 ) -> bool:
     """Tells someone they now have access to a client on RECOSA.
 
@@ -558,11 +559,15 @@ def send_workspace_invite(
     if not (api_key and from_email and base_url and to_email):
         return False
 
+    # D-146: a new colleague gets a one-time link to choose their password.
+    link = set_password_url or f"{base_url}/"
+    action = "Choose my password" if set_password_url else "Log in"
+    how = ("Your account is ready. Choose your password with the button below. "
+           "The link works once; if it has expired, ask for a new invite."
+           if set_password_url else "Log in with this email address to start.")
     text_body = (
         f"{inviter_email} has given you access to {client_name} on RECOSA.\n\n"
-        f"Log in here: {base_url}/\n\n"
-        "If you don't have an account yet, sign up with this email address "
-        "and access is granted automatically.\n\n"
+        f"{how}\n\n{action}: {link}\n\n"
         "RECOSA - recosa.eu"
     )
 
@@ -576,15 +581,12 @@ def send_workspace_invite(
       <strong>{inviter_email}</strong> has given you access to
       <strong>{client_name}</strong> on RECOSA.
     </p>
+    <p style="color:#333;line-height:1.6;margin:0 0 18px">{how}</p>
     <p style="margin:0 0 18px">
-      <a href="{base_url}/"
+      <a href="{link}"
          style="display:inline-block;background:#003366;color:#fff;
                 padding:11px 24px;border-radius:6px;text-decoration:none;
-                font-weight:bold;font-size:14px">Log in &rarr;</a>
-    </p>
-    <p style="color:#6b7280;font-size:12px;margin:0">
-      No account yet? Sign up with this email address and access is
-      granted automatically.
+                font-weight:bold;font-size:14px">{action} &rarr;</a>
     </p>
   </div>
   <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;

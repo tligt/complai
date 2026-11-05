@@ -603,11 +603,15 @@ def _forgot_form() -> None:
         _go("Log in")
 
 
-def start_password_recovery(token_hash: str) -> bool:
+def start_password_recovery(token_hash: str, otp_type: str = "recovery") -> bool:
     """Logs in with the reset email's one-time token. True when it worked;
-    the caller then shows set_new_password_ui()."""
+    the caller then shows set_new_password_ui().
+
+    D-146: otp_type="invite" is the invite email's "Choose my password" link
+    for a colleague whose account RECOSA created; the same screen follows,
+    worded as a welcome."""
     try:
-        res = get_supabase().auth.verify_otp({"token_hash": token_hash, "type": "recovery"})
+        res = get_supabase().auth.verify_otp({"token_hash": token_hash, "type": otp_type})
     except Exception as e:
         print(f"Password recovery link rejected: {e}")
         return False
@@ -615,6 +619,8 @@ def start_password_recovery(token_hash: str) -> bool:
         return False
     start_login(res)
     st.session_state.password_recovery = True
+    if otp_type == "invite":
+        st.session_state.password_welcome = True
     return True
 
 
@@ -635,7 +641,12 @@ def start_email_confirmation(token_hash: str) -> bool:
 
 
 def set_new_password_ui() -> None:
-    st.markdown("### Choose a new password")
+    if st.session_state.get("password_welcome"):
+        st.markdown("### Welcome to RECOSA")
+        st.caption("You've been given access by a colleague. Choose your password "
+                   "to finish setting up your account.")
+    else:
+        st.markdown("### Choose a new password")
     p1 = st.text_input("New password", type="password", key="recover_pw",
                        placeholder="At least 8 characters")
     if st.button("Save my new password", type="primary", use_container_width=True,
@@ -646,6 +657,7 @@ def set_new_password_ui() -> None:
         ok, err = change_password(p1)
         if ok:
             st.session_state.pop("password_recovery", None)
+            st.session_state.pop("password_welcome", None)
             st.session_state.pop("recover_pw", None)
             st.success("Saved. Taking you to RECOSA…")
             st.rerun()
