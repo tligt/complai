@@ -6176,9 +6176,13 @@ email goes out: the page says so and suggests "Forgot your password?" with
 that email, which Supabase sends itself. It never shows the link — whoever
 holds it could log in as them. Same for group invites.
 
-Not tested end to end: it needs a new email address and the invite email
-(NOTIFY_ENABLED on). Checked: the never-signed-in test on existing
-accounts, and that no email goes out while NOTIFY_ENABLED is off.
+Tested live end to end (5 Nov, NOTIFY_ENABLED switched on by the user):
+ffon@recosa.eu invited to Talentrix AI, email received, "Choose my password",
+landed in Talentrix AI. The account is confirmed and logged in, a
+contributor of Talentrix AI, `signup_source = invite`, no trial, no company
+of its own, nothing in the funnel's sign-ups. A first invite sent while the
+app still ran with emails off (ffo@recosa.eu) reached Brevo as nothing at
+all — the Team page's warning is the only trace, as designed.
 
 ---
 
