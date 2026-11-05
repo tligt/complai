@@ -113,6 +113,33 @@ def init_auth(app: str = "client"):
             # The bridge was mounted before the resume decided: one more
             # run takes the change (clearing a dead cookie) to the browser.
             st.rerun()
+        if st.session_state.user is None and _waiting_for_browser(seen):
+            st.stop()
+
+
+def _waiting_for_browser(seen: str | None) -> bool:
+    """On Streamlit Cloud the connection carries no cookies, so a reopened
+    page only learns about its login when the bridge answers, a moment
+    later. Drawing the login page meanwhile loses the page asked for (a
+    link to /documents landed on Home): show a short wait instead. The
+    bridge answers on its first render; if it ever does not, a link to the
+    login page appears after a few seconds (?nobridge=1)."""
+    if seen is not None or not sessions.enabled():
+        return False
+    if st.query_params.get("nobridge") == "1":
+        return False
+    try:
+        if len(st.context.cookies):
+            return False          # cookies arrive with the connection (local)
+    except Exception:
+        pass
+    st.html("""<style>
+      .recosa-wait{font:14px 'Public Sans',sans-serif;color:#64748B;padding:3rem 0;text-align:center}
+      .recosa-wait a{opacity:0;animation:recosa-show .2s 4s forwards;color:#003366}
+      @keyframes recosa-show{to{opacity:1}}
+    </style><div class="recosa-wait">Opening RECOSA…<br><br>
+      <a href="?nobridge=1" target="_self">Continue to log in</a></div>""")
+    return True
 
     if st.session_state.user is not None and st.session_state.get("sid"):
         if not _still_active(app):
