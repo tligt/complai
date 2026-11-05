@@ -6102,8 +6102,11 @@ headings and dark header text).
 Tested: Word with and without branding (fonts, the logo in the page header,
 the header fill, the footer), rendered to PDF and checked by eye; Excel
 header colours; the page section in its three states (Starter,
-Professional without branding, saved). Not yet tested: saving a profile and
-generating a real document in the app.
+Professional without branding, saved). Live (5 Nov): the section on
+Company profile, and a profile saved by the user for creagent (version 1,
+#0D1B2E, Arial); a document built from that saved row came out branded,
+footer without RECOSA. Not yet tested: generating a document from the
+Documents page with branding on (the Chrome connection dropped).
 
 ---
 
