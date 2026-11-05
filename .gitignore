@@ -15,3 +15,9 @@ venv/
 
 # OS / editor cruft
 .DS_Store
+
+# SSH keys must never be committed (the repository is public)
+scaleway
+scaleway.pub
+id_*
+*.pem
