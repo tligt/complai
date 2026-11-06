@@ -495,9 +495,11 @@ with tab_reg:
                         
                         shown_draft = st.session_state.get(draft_key) or u.get("linkedin_draft")
                         if shown_draft:
-                            st.text_area("LinkedIn draft", value=shown_draft,
-                                         height=150, key=f"li_text_{u['id']}")
-                            st.caption("Copy and paste into LinkedIn.")
+                            _li = st.text_area("LinkedIn draft", value=shown_draft,
+                                               height=150, key=f"li_text_{u['id']}")
+                            # S57: queue, schedule or save as an Idea in Buffer.
+                            from buffer_view import render_send
+                            render_send(u, "regulatory_updates", _li, user_id)
 
                     else:
                         st.error("Rejected")
@@ -876,9 +878,10 @@ with tab_mkt:
 
                         mkt_shown_draft = st.session_state.get(mkt_draft_key) or u.get("linkedin_draft")
                         if mkt_shown_draft:
-                            st.text_area("LinkedIn draft", value=mkt_shown_draft,
-                                         height=150, key=f"mkt_li_text_{u['id']}")
-                            st.caption("Copy and paste into LinkedIn.")
+                            _li = st.text_area("LinkedIn draft", value=mkt_shown_draft,
+                                               height=150, key=f"mkt_li_text_{u['id']}")
+                            from buffer_view import render_send
+                            render_send(u, "marketing_updates", _li, user_id)
                     else:
                         st.error("Rejected")
 
