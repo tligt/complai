@@ -155,12 +155,37 @@ def apply_shell() -> None:
     st.markdown(SHELL_CSS, unsafe_allow_html=True)
 
 
-def apply_logo(label: str, native_nav: bool = False) -> None:
+def apply_logo(label: str, native_nav: bool = False, account: str | None = None) -> None:
     """The mark and the name at the top of the sidebar. native_nav: the menu
     is Streamlit's own (the back office), which needs pushing down; the
-    client app draws its menu itself, as sidebar content."""
-    room = ('[data-testid="stSidebarNav"] { margin-top: 12px !important; }' if native_nav else
-            '[data-testid="stSidebarUserContent"] { padding-top: 1.25rem !important; }')
+    client app draws its menu itself, as sidebar content.
+
+    account (6 Nov): the email of whoever is logged in, in small type under
+    the name. A login is shared by every tab of a browser (S51), so logging
+    in on a second account replaces the first everywhere; this says whose
+    session a tab is in."""
+    extra = 1.15 if account else 0       # rem added to the header for the email
+    room = (f'[data-testid="stSidebarNav"] {{ margin-top: {12 + round(extra * 16)}px !important; }}'
+            if native_nav else
+            f'[data-testid="stSidebarUserContent"] {{ padding-top: {1.25 + extra}rem !important; }}')
+    who = ""
+    if account:
+        # Only characters that cannot end the CSS string or the style block.
+        safe = "".join(ch for ch in account if ch not in '\\"<>\n\r')
+        who = f"""
+[data-testid="stSidebar"]::after {{
+    content: "{safe}";
+    position: absolute;
+    top: 2.55rem; left: 3.1rem; right: 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1rem;
+    color: #C9D6E3 !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 1000;
+}}"""
     st.markdown(f"""
 <style>
 {room}
@@ -169,7 +194,7 @@ def apply_logo(label: str, native_nav: bool = False) -> None:
     display: block;
     position: absolute;
     top: 0; left: 0; right: 0;
-    padding: 1rem 1rem 0.75rem 3.1rem;
+    padding: 1rem 1rem {0.75 + extra}rem 3.1rem;
     min-height: 1.6rem;
     line-height: 1.6rem;
     font-size: 1.05rem;
@@ -179,6 +204,6 @@ def apply_logo(label: str, native_nav: bool = False) -> None:
     border-bottom: 1px solid rgba(255,255,255,0.1);
     background: #003366 url("{_MARK}") no-repeat 1rem 0.95rem;
     z-index: 999;
-}}
+}}{who}
 </style>
 """, unsafe_allow_html=True)

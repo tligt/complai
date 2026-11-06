@@ -130,7 +130,7 @@ if st.session_state.get("password_recovery"):
 user_id = get_user_id()
 
 # Sidebar: the logo above the menu (brand.py), then the menu's own styles.
-brand.apply_logo("RECOSA")
+brand.apply_logo("RECOSA", account=getattr(st.session_state.user, "email", None))
 st.markdown("""
 <style>
 /* Menu group titles */

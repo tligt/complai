@@ -26,7 +26,8 @@ if not is_logged_in():
     login_page.render_admin()
     st.stop()
 
-brand.apply_logo("RECOSA Admin", native_nav=True)
+brand.apply_logo("RECOSA Admin", native_nav=True,
+                account=getattr(st.session_state.user, "email", None))
 
 user_id = get_user_id()
 if not is_admin(user_id):
