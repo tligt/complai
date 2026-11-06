@@ -384,7 +384,7 @@ the only sprint that *is* the gate.
 | ~~S55~~ | ~~AI Act Quick Check — third free check~~ | **Closed 4 Nov.** Built 3 Nov (D-132), then the free check redesign, navigation, more NIS2/AI Act questions and the GDPR Quick Check (D-133 to D-137); live walk-through 4 Nov; real sign-up 4 Nov — four checks, four emails, four leads. New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
 | **S56** | **Enterprise routing + in-app messaging** | **Built 5 Nov (D-145)**: assign tasks and incidents, routing rules per area, comments, inbox. Live test waits for a company with two people. was S55 until D-131; S54 until D-115; S52, S49 before |
 | **S57** | **Buffer/LinkedIn integration** | **Built 6 Nov (D-147)**: LinkedIn drafts to Buffer — queue, schedule or Idea. Live test waits for a Buffer account and its API key. was S56 until D-131; S55 until D-115; S53, S50 before |
-| ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became EDIVARA, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S63). was S57 until D-131; S56 until D-115; S54, S51 before |
+| ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S63). was S57 until D-131; S56 until D-115; S54, S51 before |
 | S59 | Skills matrix and training register | was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
 | S60 | AI Act three-layer inventory | was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
 | S61 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S60 until D-131; S59 until D-115; S57, S54 before. Needs S60's inventory to describe |
@@ -1595,12 +1595,12 @@ Tier 1 documents, then the Netherlands. `reference_values` already carries
 `LANGUAGES` declares four; only the seeder is behind — those columns are per
 language and will need a locale dimension where wording differs.
 
-**Not in S63:** monitoring and competitive tracking as a product (EDIVARA,
+**Not in S63:** monitoring and competitive tracking as a product (Evidara,
 D-148); new regulations.
 
 #### S54 — Competitive monitoring
 
-**Closed 6 Nov 2026 (S58, D-148): not built in RECOSA.** It became EDIVARA,
+**Closed 6 Nov 2026 (S58, D-148): not built in RECOSA.** It became Evidara,
 a separate SaaS tool in development. The note below is kept for the record.
 
 **Priority:** low. Not beta-blocking.
@@ -6316,10 +6316,10 @@ reliable timing only after S50). Revisit only if Buffer's limits bite (3
 channels and 10 queued posts per channel on the free plan) or post
 statistics are wanted in RECOSA — and start the LinkedIn review early then.
 
-### D-148 — S58 closed (it became EDIVARA); S63 becomes Localization, 6 Nov
+### D-148 — S58 closed (it became Evidara); S63 becomes Localization, 6 Nov
 
 By the user. **S58** (monitoring sources + competitive monitoring) is not
-built in RECOSA: it became EDIVARA, a separate SaaS tool in development.
+built in RECOSA: it became Evidara, a separate SaaS tool in development.
 RECOSA keeps its own regulatory and marketing monitoring as it is. The
 part of "monitoring sources" that RECOSA still needs — the regulators and
 sources of a new country — goes with that country's localization.
