@@ -499,7 +499,7 @@ with tab_reg:
                                                height=150, key=f"li_text_{u['id']}")
                             # S57: queue, schedule or save as an Idea in Buffer.
                             from buffer_view import render_send
-                            render_send(u, "regulatory_updates", _li, user_id)
+                            render_send(u, "regulatory_updates", _li, None)
 
                     else:
                         st.error("Rejected")
@@ -881,7 +881,7 @@ with tab_mkt:
                             _li = st.text_area("LinkedIn draft", value=mkt_shown_draft,
                                                height=150, key=f"mkt_li_text_{u['id']}")
                             from buffer_view import render_send
-                            render_send(u, "marketing_updates", _li, user_id)
+                            render_send(u, "marketing_updates", _li, None)
                     else:
                         st.error("Rejected")
 

@@ -33,3 +33,8 @@ revoke all on public.social_posts from anon, authenticated;
 
 comment on table public.social_posts is
   'S57: drafts sent to Buffer (queue, scheduled, or Idea). Back office, service role only.';
+
+-- Found while testing S57 (6 Nov): regulatory drafts were never stored —
+-- save_linkedin_draft wrote to a column regulatory_updates did not have,
+-- and the failure was only printed. marketing_updates had it since S17.
+alter table public.regulatory_updates add column if not exists linkedin_draft text;
