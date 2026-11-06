@@ -1,8 +1,8 @@
 """
 buffer_client.py — S57 (D-147): Buffer's GraphQL API, the little of it the
 back office needs: list the channels, add a post to a channel's queue or
-schedule it for a time, or save an Idea (Buffer's draft content, finished
-and published in Buffer itself — the API has no post drafts).
+schedule it for a time, or save it as a draft on the channel (saveToDraft:
+finished and published in Buffer itself).
 
 Docs read 6 Nov 2026: developers.buffer.com (your-first-post, authentication,
 posts-and-scheduling, error-handling, api-limits, ideas). Endpoint
@@ -32,8 +32,14 @@ class BufferError(RuntimeError):
     pass
 
 
+def _key() -> str:
+    """The key as pasted, without the spaces, line breaks or quotes a
+    secrets box picks up (a 401 on the first live try, 6 Nov)."""
+    return (os.environ.get("BUFFER_API_KEY") or "").strip().strip('"').strip("'").strip()
+
+
 def configured() -> bool:
-    return bool(os.environ.get("BUFFER_API_KEY"))
+    return bool(_key())
 
 
 def _s(value: str) -> str:
@@ -42,7 +48,7 @@ def _s(value: str) -> str:
 
 
 def _gql(query: str) -> dict:
-    key = os.environ.get("BUFFER_API_KEY")
+    key = _key()
     if not key:
         raise BufferError("BUFFER_API_KEY is not set.")
     try:
@@ -84,14 +90,18 @@ def channels() -> list[dict]:
     return sorted(out, key=lambda c: (c.get("service") != "linkedin", c.get("name") or ""))
 
 
-def create_post(channel_id: str, text: str, due_at: datetime | None = None) -> dict:
-    """Queue the post (next free slot) or, with due_at, schedule it.
-    Returns {id, dueAt}."""
+def create_post(channel_id: str, text: str, due_at: datetime | None = None,
+                draft: bool = False) -> dict:
+    """Queue the post (next free slot), with due_at schedule it, or with
+    draft=True save it as a draft on the channel (status 'draft': nothing is
+    published until it is scheduled in Buffer). Returns {id, dueAt}."""
     if due_at:
         when = due_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         mode = f"mode: customScheduled, dueAt: {_s(when)}"
     else:
         mode = "mode: addToQueue"
+    if draft:
+        mode += ", saveToDraft: true"
     data = _gql(f"""mutation {{
       createPost(input: {{ text: {_s(text)}, channelId: {_s(channel_id)},
                            schedulingType: automatic, {mode} }}) {{

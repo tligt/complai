@@ -38,3 +38,9 @@ comment on table public.social_posts is
 -- save_linkedin_draft wrote to a column regulatory_updates did not have,
 -- and the failure was only printed. marketing_updates had it since S17.
 alter table public.regulatory_updates add column if not exists linkedin_draft text;
+
+-- 6 Nov: Buffer's createPost takes saveToDraft (examples/create-draft-post),
+-- so "draft in Buffer" is a real draft on the channel, not an Idea.
+alter table public.social_posts drop constraint if exists social_posts_mode_check;
+alter table public.social_posts add constraint social_posts_mode_check
+    check (mode in ('queue', 'scheduled', 'draft', 'idea'));
