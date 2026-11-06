@@ -6229,6 +6229,14 @@ published. The box now picks RECOSA's own LinkedIn channel by default (the
 first one listed was creagent's). Not yet tried live: queue and schedule,
 which publish.
 
+*Rejected (6 Nov, with the user) — posting to LinkedIn directly.* A company
+page needs LinkedIn's Community Management API (a reviewed Standard tier
+that can be refused), a page admin's authorisation renewed about every 60
+days, and a queue and scheduler of our own (LinkedIn publishes at once;
+reliable timing only after S50). Revisit only if Buffer's limits bite (3
+channels and 10 queued posts per channel on the free plan) or post
+statistics are wanted in RECOSA — and start the LinkedIn review early then.
+
 ---
 
 ## 5. Constraints and gotchas
