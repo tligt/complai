@@ -384,12 +384,12 @@ the only sprint that *is* the gate.
 | ~~S55~~ | ~~AI Act Quick Check — third free check~~ | **Closed 4 Nov.** Built 3 Nov (D-132), then the free check redesign, navigation, more NIS2/AI Act questions and the GDPR Quick Check (D-133 to D-137); live walk-through 4 Nov; real sign-up 4 Nov — four checks, four emails, four leads. New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
 | **S56** | **Enterprise routing + in-app messaging** | **Built 5 Nov (D-145)**: assign tasks and incidents, routing rules per area, comments, inbox. Live test waits for a company with two people. was S55 until D-131; S54 until D-115; S52, S49 before |
 | **S57** | **Buffer/LinkedIn integration** | **Built 6 Nov (D-147)**: LinkedIn drafts to Buffer — queue, schedule or Idea. Live test waits for a Buffer account and its API key. was S56 until D-131; S55 until D-115; S53, S50 before |
-| S58 | Monitoring sources + competitive monitoring | was S57 until D-131; S56 until D-115; S54, S51 before. Merged — both touch the same admin pages |
+| ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became EDIVARA, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S63). was S57 until D-131; S56 until D-115; S54, S51 before |
 | S59 | Skills matrix and training register | was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
 | S60 | AI Act three-layer inventory | was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
 | S61 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S60 until D-131; S59 until D-115; S57, S54 before. Needs S60's inventory to describe |
 | S62 | Annual compliance report | was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
-| S63 | Dutch language support | was S62 until D-131; S61 until D-115; S59, S56 before. Cost grows with every template shipped |
+| S63 | Localization — languages per country, and a checklist per country added | **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | S64 | RoPA consistency checks | was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | S65 | Cookie Policy purpose granularity | was S64 until D-131; S63 until D-115; S61, S58 before |
 | S66 | Compliance heartbeat — scheduled checks | was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
@@ -1499,30 +1499,109 @@ template engine plus `document_xlsx.py`, stamped and registered like any other
 document. S27 gives the auditor a register; this gives management a narrative,
 and management-level accountability is an explicit NIS2 duty.
 
-#### S59 — Dutch (NL) language support
+#### S63 — Localization (was Dutch language support) — SCOPE NOTE, 6 Nov
 
-**Priority:** post-beta, but it constrains work starting now.
+*Rescoped with the user (D-148). The note it replaces, written as "S59 —
+Dutch (NL) language support", is folded in below.*
 
-Adequacy supports seven interface languages including Dutch. For a Belgian
-market this is not optional: a Flemish SME will not adopt a French-and-English
-tool, and **Dutch is more commercially relevant in Belgium than the sovereignty
-claim**.
+**The problem is wider than Dutch.** RECOSA serves Belgium and France today.
+Opening Benelux means the Netherlands and Luxembourg, and every country
+added brings its own languages, regulators, law and sources. Adequacy
+supports seven interface languages including Dutch; a Flemish SME will not
+adopt a French-and-English tool, and Dutch is more commercially relevant in
+Belgium than the sovereignty claim.
 
-Scope: NL interface labels; NL reference-data labels across every seeded table;
-NL siblings for every Tier 1 and Tier 2 template; GBA/APD naming and language
-routing.
+**A language is per country, not global.** Today templates, inserts and
+labels are keyed by language alone (`en`, `fr`, `nl`, `de`), and one French
+template serves Belgium and France, with the country's facts (authority,
+CSIRT, ePrivacy rules) merged in from the `jurisdiction` vocabulary (D-83,
+`resolve_jurisdictions`). That breaks as soon as wording itself differs by
+country:
+- **nl-BE vs nl-NL**: different legal vocabulary and institutions (GBA vs
+  Autoriteit Persoonsgegevens, KBO vs KvK, ondernemingsnummer vs
+  KvK-nummer), different references to national law, different register;
+- **fr-BE vs fr-FR** (and fr-LU): APD vs CNIL, BCE vs SIREN/SIRET, Belgian
+  vs French terms for the same legal notion;
+- **de-BE vs de-LU** (and de-DE if ever): the German-speaking Community of
+  Belgium vs Luxembourg;
+- Luxembourg alone has three official languages (lb, fr, de), and its
+  business documents are mostly French or German.
 
-**Constrains present work.** Every template authored before S59 needs an NL
-sibling, so the sprint's cost grows with every document shipped. Keep templates
-language-parallel — same block IDs, merge fields and materiality — so NL is
-translation, not re-derivation. Estimate against the S27–S33 template output
-before committing to a date, and consider pulling NL forward for Tier 1 only.
+So the unit becomes the **locale** (language + country, e.g. `nl-BE`), on
+three axes that must stay separate:
+1. **Interface language** — what the person reads (per user; a Brussels
+   company may have a French- and a Dutch-speaking user);
+2. **Document locale** — what each document is written in (per company:
+   `document_languages` becomes a list of locales);
+3. **Jurisdiction** — whose law and authorities apply (per company and per
+   market served, as today).
+A document's locale and its jurisdiction usually match (nl-BE, Belgian law)
+but need not (an English document for a Belgian company).
 
-Note: `reference_values` already carries `label_nl` / `label_de` / `note_nl` /
-`note_de`, and `inventory.py`'s `LANGUAGES` already declares four. Only the
-seeder is behind.
+**Fallback rule, to decide in the scope lock.** For interface text, a
+fallback (nl-NL → nl-BE → en) is acceptable. For legal text it is not by
+default: a Dutch template written for the Netherlands must not silently
+serve a Belgian company. Each template is authored for a locale, or
+explicitly marked as valid for several ("same text for nl-BE and nl-NL"),
+never inferred. Generation fails rather than borrow across countries, the
+same principle as D-83's "failing at generation is better than emitting a
+placeholder".
+
+**What it touches** (why this is more than translation): template_versions
+and inserts keyed by locale; `reference_values` labels (`label_nl` etc. are
+per language today); the obligations catalogue's national references; the
+interface strings (not yet extracted — Streamlit text is inline); the free
+check (quiz) and its emails; the email templates (Brevo, Supabase); dates
+and number formats; recosa.eu. Existing data needs a migration: today's
+`fr` templates become `fr-BE` + `fr-FR` (shared or split), `nl` becomes
+`nl-BE`.
+
+**Per-country checklist — every country added goes through it** (stored
+with the country, so it is visible what is done for each):
+1. **Languages** — official and business languages; the locales offered for
+   documents and for the interface.
+2. **Regulators** — GDPR supervisory authority; NIS2 competent authority and
+   CSIRT; AI Act market-surveillance authority and notifying authority; any
+   sector regulator that matters (finance, health, telecom). Contact and
+   notification channels, verified against the authority's own pages (the
+   "VERIFY BEFORE BETA" rule of D-83).
+3. **Law** — national GDPR implementing act; NIS2 transposition (law,
+   entry into force, entity registration duty and deadline); national AI Act
+   designations; ePrivacy / cookie rules (the jurisdiction vocabulary);
+   retention periods set by national law (employment, accounting, tax).
+4. **Breach notification** — the authority's form or portal, deadlines,
+   language of filing (S53's channels per jurisdiction).
+5. **Local sources of information** — authority news and guidance pages,
+   official journal, national CERT advisories, for regulatory monitoring.
+6. **Company data** — the business registry and its lookup (S48: CBE for
+   Belgium, SIRENE for France; KvK for the Netherlands, RCS/LBR for
+   Luxembourg), number format and validation, legal forms.
+7. **Templates and wording** — which documents exist in which locale,
+   reviewed by a qualified local lawyer before release; inserts (S30)
+   translated and reviewed.
+8. **Interface and emails** — translated strings, the free check and its
+   result emails, the authentication emails, support replies.
+9. **Commercial** — currency, VAT, prices, Terms and Privacy Policy of
+   RECOSA for that country, the website pages and the sign-up flow.
+10. **Support** — the languages support is offered in.
+
+**Cost grows with every template shipped** (kept from the old note). Keep
+templates locale-parallel — same block IDs, merge fields and materiality —
+so a new locale is translation and review, not re-derivation. Estimate
+against the existing template output before committing to a date, and
+consider a first slice: the locale model and the checklist, then nl-BE for
+Tier 1 documents, then the Netherlands. `reference_values` already carries
+`label_nl` / `label_de` / `note_nl` / `note_de`, and `inventory.py`'s
+`LANGUAGES` declares four; only the seeder is behind — those columns are per
+language and will need a locale dimension where wording differs.
+
+**Not in S63:** monitoring and competitive tracking as a product (EDIVARA,
+D-148); new regulations.
 
 #### S54 — Competitive monitoring
+
+**Closed 6 Nov 2026 (S58, D-148): not built in RECOSA.** It became EDIVARA,
+a separate SaaS tool in development. The note below is kept for the record.
 
 **Priority:** low. Not beta-blocking.
 
@@ -6236,6 +6315,25 @@ days, and a queue and scheduler of our own (LinkedIn publishes at once;
 reliable timing only after S50). Revisit only if Buffer's limits bite (3
 channels and 10 queued posts per channel on the free plan) or post
 statistics are wanted in RECOSA — and start the LinkedIn review early then.
+
+### D-148 — S58 closed (it became EDIVARA); S63 becomes Localization, 6 Nov
+
+By the user. **S58** (monitoring sources + competitive monitoring) is not
+built in RECOSA: it became EDIVARA, a separate SaaS tool in development.
+RECOSA keeps its own regulatory and marketing monitoring as it is. The
+part of "monitoring sources" that RECOSA still needs — the regulators and
+sources of a new country — goes with that country's localization.
+
+**S63** was *Dutch language support*. It becomes **Localization**: a
+language is per country (nl-BE differs from nl-NL, fr-BE from fr-FR), so
+documents, wording and interface are keyed by locale, kept apart from the
+jurisdiction whose law applies. Every country added goes through a
+checklist — languages, regulators, law, breach channels, local sources,
+company registry, templates reviewed by a local lawyer, interface and
+emails, commercial terms, support. The user expects it to be more than a
+translation sprint, and it is: it changes how templates and labels are
+keyed. Scope note in 3b; a scope lock (fallback rule, migration of today's
+`fr` and `nl` templates, first slice) comes before building.
 
 ---
 
