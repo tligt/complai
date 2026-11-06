@@ -73,7 +73,11 @@ def render_send(item: dict, table: str, text: str, user_id: str | None) -> None:
             st.info("No channel in Buffer yet. Connect the RECOSA LinkedIn page in Buffer first.")
             return
         by_id = {c["id"]: c for c in chans}
-        default = [c["id"] for c in chans if c.get("service") == "linkedin"][:1] or [chans[0]["id"]]
+        # RECOSA's own LinkedIn channel first: the Buffer account also holds
+        # creagent's page (6 Nov), which must not be the silent default.
+        _li = [c for c in chans if c.get("service") == "linkedin"]
+        _own = [c for c in _li if "recosa" in (c.get("name") or "").lower()]
+        default = [(_own or _li or chans)[0]["id"]]
         mode = st.radio("How", list(_MODES), format_func=_MODES.get, horizontal=True,
                         key=f"{key}_mode")
         due = None

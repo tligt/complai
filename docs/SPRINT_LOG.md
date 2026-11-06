@@ -6220,7 +6220,14 @@ box reads the admin from the session); (2) `regulatory_updates` had no
 S17 — added; (3) Buffer does have post drafts after all (`saveToDraft: true`,
 examples/create-draft-post), so "draft in Buffer" is a draft on the chosen
 channel, not an Idea; (4) the key is cleaned of spaces, line breaks and
-quotes before use. Buffer still answers 401 to the key: open.
+quotes before use. The 401 was the credential type: Buffer offers personal
+API keys and *app clients* (OAuth client id/secret); RECOSA needs the
+personal key. With it, tested live 6 Nov: the channels listed (two LinkedIn
+pages, creagent and recosa-ai), a draft of "Europe employs more people in
+compliance than in R&D" saved on recosa-ai, logged with Buffer's id, nothing
+published. The box now picks RECOSA's own LinkedIn channel by default (the
+first one listed was creagent's). Not yet tried live: queue and schedule,
+which publish.
 
 ---
 
