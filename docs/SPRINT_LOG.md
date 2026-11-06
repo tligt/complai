@@ -6316,6 +6316,34 @@ reliable timing only after S50). Revisit only if Buffer's limits bite (3
 channels and 10 queued posts per channel on the free plan) or post
 statistics are wanted in RECOSA — and start the LinkedIn review early then.
 
+### D-149 — LinkedIn posts: plain text, the source, a real RECOSA mention, an image, 6 Nov
+
+Found by the user on the first real sends: the drafts were Markdown
+(`**🚨 …**`), and LinkedIn shows the asterisks; Buffer passes text as it is.
+`linkedin_post.py` now makes the post Buffer sends:
+- **Plain text.** Bold, italics, code, [text](url) links and list dashes are
+  converted; "#" is never touched (hashtags pass on LinkedIn — asked for).
+  The prompt also asks for plain text, "RECOSA" spelled exactly, and no
+  source or link of its own.
+- **The source, chosen per post:** "Source: <link>" in the post, or the
+  source's name in the post and the link in the **first comment**
+  (`metadata.linkedin.firstComment`, 1,250 characters) — a link in the post
+  is widely believed to cut reach. Or no source line.
+- **A real RECOSA mention.** Typing "@RECOSA" in the text, or the page URL,
+  stays plain through the API; Buffer's LinkedIn `annotations` work (tested
+  by the user with a draft in Buffer's API Explorer, 6 Nov): id `129854326`,
+  entity `urn:li:organization:129854326`, link, localizedName RECOSA,
+  vanityName recosa-ai, start and length. Every standalone "RECOSA" (and
+  "@RECOSA") becomes one; positions counted in UTF-16 code units, as
+  JavaScript counts (an emoji is two) — to confirm on a live draft.
+- **An image** when the link is in the comment (no link preview then): a
+  1200×627 RECOSA card with the headline, uploaded to the public
+  `social-images` bucket (Buffer fetches images by URL; there is no upload).
+  Not the article's own image: it belongs to its publisher.
+The box shows exactly what LinkedIn will get and the first comment before
+sending. Tested offline: the conversions, both source modes, the mention
+positions after an emoji, the request sent to Buffer, the card, the box.
+
 ### D-148 — S58 closed (it became Evidara); S63 becomes Localization, 6 Nov
 
 By the user. **S58** (monitoring sources + competitive monitoring) is not

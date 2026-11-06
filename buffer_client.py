@@ -90,11 +90,31 @@ def channels() -> list[dict]:
     return sorted(out, key=lambda c: (c.get("service") != "linkedin", c.get("name") or ""))
 
 
+def _lit(value) -> str:
+    """A Python value as a GraphQL input literal (objects unquoted keys)."""
+    if isinstance(value, dict):
+        return "{ " + ", ".join(f"{k}: {_lit(v)}" for k, v in value.items() if v is not None) + " }"
+    if isinstance(value, (list, tuple)):
+        return "[" + ", ".join(_lit(v) for v in value) + "]"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return _s(str(value))
+
+
 def create_post(channel_id: str, text: str, due_at: datetime | None = None,
-                draft: bool = False) -> dict:
+                draft: bool = False, *, first_comment: str | None = None,
+                annotations: list[dict] | None = None,
+                image_url: str | None = None) -> dict:
     """Queue the post (next free slot), with due_at schedule it, or with
     draft=True save it as a draft on the channel (status 'draft': nothing is
-    published until it is scheduled in Buffer). Returns {id, dueAt}."""
+    published until it is scheduled in Buffer). Returns {id, dueAt}.
+
+    LinkedIn extras (D-149): first_comment (up to 1,250 characters),
+    annotations (mentions: id, entity, link, localizedName, vanityName,
+    start, length — the format a test draft confirmed on 6 Nov), image_url
+    (a public, stable image URL; Buffer fetches it, there is no upload)."""
     if due_at:
         when = due_at.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         mode = f"mode: customScheduled, dueAt: {_s(when)}"
@@ -102,6 +122,15 @@ def create_post(channel_id: str, text: str, due_at: datetime | None = None,
         mode = "mode: addToQueue"
     if draft:
         mode += ", saveToDraft: true"
+    li = {}
+    if first_comment:
+        li["firstComment"] = first_comment[:1250]
+    if annotations:
+        li["annotations"] = annotations
+    if li:
+        mode += f", metadata: {_lit({'linkedin': li})}"
+    if image_url:
+        mode += f", assets: {_lit([{'image': {'url': image_url}}])}"
     data = _gql(f"""mutation {{
       createPost(input: {{ text: {_s(text)}, channelId: {_s(channel_id)},
                            schedulingType: automatic, {mode} }}) {{

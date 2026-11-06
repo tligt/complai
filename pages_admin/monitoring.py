@@ -153,7 +153,11 @@ Format:
 - Call to action mentioning RECOSA
 - 3-5 relevant hashtags
 
-Max 250 words. Write in English."""
+Max 250 words. Write in English.
+Plain text only: LinkedIn shows no Markdown. No asterisks, no # titles, no [links](url);
+use line breaks, "•" for list items and emojis for emphasis. Hashtags at the end as #Word.
+Write the company name exactly as RECOSA (it becomes a mention of the RECOSA page).
+Do not add a source line or any link: they are added when the post is sent."""
     else:
         system_prompt = """You are a content writer for RECOSA, an EU regulatory compliance platform for SMEs.
 Write a LinkedIn post inspired by this news item, from the perspective of an EU compliance expert.
@@ -164,7 +168,11 @@ Format:
 - RECOSA angle (how this relates to what we help SMEs with)
 - 3-5 relevant hashtags
 
-Max 250 words. Write in English."""
+Max 250 words. Write in English.
+Plain text only: LinkedIn shows no Markdown. No asterisks, no # titles, no [links](url);
+use line breaks, "•" for list items and emojis for emphasis. Hashtags at the end as #Word.
+Write the company name exactly as RECOSA (it becomes a mention of the RECOSA page).
+Do not add a source line or any link: they are added when the post is sent."""
 
     user_prompt = f"""TITLE: {item.get('title', '')}
 SUMMARY: {item.get('summary', '')}
