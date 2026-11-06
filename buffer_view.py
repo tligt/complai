@@ -17,6 +17,7 @@ logged in social_posts and listed under the box.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -107,8 +108,17 @@ def render_send(item: dict, table: str, text: str, user_id: str | None = None) -
             due = datetime.combine(d, t, tzinfo=TZ)
 
         # ── Source, image ────────────────────────────────────────────────
-        src_mode = st.radio("Source", list(LP.SOURCE_MODES), format_func=LP.SOURCE_MODES.get,
-                            key=f"{key}_src")
+        # Buffer posts a first comment only on a paid plan (6 Nov): until
+        # BUFFER_PAID_PLAN = "true" is set, "Source: link" is the default, so
+        # the link is never silently dropped.
+        _paid = (os.environ.get("BUFFER_PAID_PLAN") or "").strip().lower() == "true"
+        _modes = list(LP.SOURCE_MODES)
+        src_mode = st.radio("Source", _modes, format_func=LP.SOURCE_MODES.get,
+                            index=_modes.index("comment" if _paid else "link"), key=f"{key}_src")
+        if src_mode == "comment" and not _paid:
+            st.caption("On Buffer's free plan the first comment isn't posted, so the link "
+                       "won't be published. Set BUFFER_PAID_PLAN = \"true\" in the back "
+                       "office's secrets after upgrading.")
         src_name = st.text_input("Source name", value=item.get("source") or "",
                                  key=f"{key}_srcname") if src_mode == "comment" else item.get("source")
         src_url = item.get("url") or ""

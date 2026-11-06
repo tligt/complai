@@ -6350,7 +6350,10 @@ no Markdown left.
 does not post it, so with "link in the first comment" the post carries the
 source's name and the link is not published. Kept as built, by the user's
 choice: it works as soon as RECOSA moves to a paid plan. Until then, use
-"Source: link" when the link matters. **S57 closed.**
+"Source: link" when the link matters. The box defaults to "Source: link" and
+warns when the comment option is picked, until BUFFER_PAID_PLAN = "true" is
+set in the back office's secrets; then the comment is the default again.
+**S57 closed.**
 
 ### D-148 — S58 closed (it became Evidara); S63 becomes Localization, 6 Nov
 
