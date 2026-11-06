@@ -6211,7 +6211,16 @@ to Buffer, never client data (D-05).
 Tested with Buffer's answers faked: channels (LinkedIn first), queue,
 scheduled (09:00 Brussels → 08:00 UTC), a MutationError, an Idea, an
 UNAUTHORIZED error, a 429; the box without a key, with a key, scheduled
-and Idea. Not yet tested against Buffer: there is no Buffer account yet.
+and Idea.
+
+Same day, after the user added BUFFER_API_KEY: (1) the Marketing feed
+crashed (the box was called with a `user_id` that tab never defined; the
+box reads the admin from the session); (2) `regulatory_updates` had no
+`linkedin_draft` column, so regulatory drafts had never been stored since
+S17 — added; (3) Buffer does have post drafts after all (`saveToDraft: true`,
+examples/create-draft-post), so "draft in Buffer" is a draft on the chosen
+channel, not an Idea; (4) the key is cleaned of spaces, line breaks and
+quotes before use. Buffer still answers 401 to the key: open.
 
 ---
 
