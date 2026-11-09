@@ -67,7 +67,13 @@ def get_embeddings(texts: list[str]) -> list[list[float]]:
                 json={"model": "mistral-embed", "input": texts},
             )
             response.raise_for_status()
-            return [item["embedding"] for item in response.json()["data"]]
+            _j = response.json()
+            try:
+                from database import log_mistral_usage
+                log_mistral_usage(_j, "embedding", model="mistral-embed")
+            except Exception:
+                pass
+            return [item["embedding"] for item in _j["data"]]
         except Exception as e:
             if attempt < 2:
                 time.sleep(10)

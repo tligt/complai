@@ -24,6 +24,14 @@ COUNTRY_OPTIONS = {"EU": "🇪🇺 EU", "BE": "🇧🇪 Belgium", "FR": "🇫�
 DOC_TYPE_OPTIONS = ["core", "supplementary", "guidance", "decision", "other"]
 REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT", "EPRIVACY", "EAA", "CONSUMER_RIGHTS", "general"]
 
+@st.cache_data(ttl=300, show_spinner="Reading the knowledge base…")
+def _kb_summary():
+    """Qdrant's summary, read once (9 Nov: it was read three times per page
+    load, once per tab — about 20 s with nothing on screen). Cleared on
+    Refresh and after every upload, edit or delete."""
+    return get_knowledge_base_summary()
+
+
 tab_summary, tab_upload, tab_edit, tab_delete = st.tabs([
     "📋 Summary", "⬆️ Upload", "✏️ Edit", "🗑️ Delete"
 ])
@@ -38,10 +46,11 @@ with tab_summary:
     st.caption("Documents currently ingested in Qdrant.")
 
     if st.button("🔄 Refresh", key="refresh_kb"):
+        _kb_summary.clear()
         st.rerun()
 
     try:
-        kb_summary = get_knowledge_base_summary()
+        kb_summary = _kb_summary()
         if not kb_summary:
             st.info("No documents found in the knowledge base.")
         else:
@@ -137,6 +146,7 @@ with tab_upload:
                     if not text.strip():
                         st.error("No text found in file.")
                     else:
+                        _kb_summary.clear()
                         result = ingest_to_qdrant(
                             text=text,
                             source=source_name.strip(),
@@ -163,7 +173,7 @@ with tab_edit:
     st.caption("Update the source name, language, country, or regulation for an existing document.")
 
     try:
-        kb = get_knowledge_base_summary()
+        kb = _kb_summary()
         source_names = [item["source"] for item in kb]
 
         if not source_names:
@@ -206,6 +216,7 @@ with tab_edit:
 
             if st.button("💾 Save changes", type="primary", key="btn_edit"):
                 with st.spinner("Updating..."):
+                    _kb_summary.clear()
                     count = update_source_metadata(
                         old_source=selected_source,
                         new_source=new_name.strip() if new_name.strip() else None,
@@ -229,7 +240,7 @@ with tab_delete:
     st.caption("Permanently removes all chunks for a document from Qdrant.")
 
     try:
-        kb = get_knowledge_base_summary()
+        kb = _kb_summary()
         source_names = [item["source"] for item in kb]
 
         if not source_names:
@@ -242,6 +253,7 @@ with tab_delete:
             if st.button("🗑️ Delete permanently", type="secondary",
                           key="btn_delete", use_container_width=True):
                 with st.spinner("Deleting..."):
+                    _kb_summary.clear()
                     count = delete_source(del_source)
                     st.success(f"✅ Deleted {count} chunks for '{del_source}'")
                     st.rerun()

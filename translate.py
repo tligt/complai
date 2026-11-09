@@ -195,6 +195,7 @@ def translate_fields(
                 client_id=client_id,
                 input_tokens=usage.get("prompt_tokens", 0),
                 output_tokens=usage.get("completion_tokens", 0),
+                model=MODEL,
             )
         except Exception:
             # Same rule as chat.py: a logging failure must not cost the client

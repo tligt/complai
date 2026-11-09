@@ -1,6 +1,6 @@
 import streamlit as st
 from database import get_supabase_admin, get_token_summary_by_client
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 st.title("Dashboard")
 st.caption("Usage, activity and abuse monitoring across all clients.")
@@ -15,7 +15,7 @@ period = st.radio(
     index=1,
 )
 
-now = datetime.utcnow()
+now = datetime.now(timezone.utc)
 if period == "Last 7 days":
     since = (now - timedelta(days=7)).isoformat()
 elif period == "Last 30 days":
@@ -27,13 +27,24 @@ st.divider()
 
 # ── Top-level stats ───────────────────────────────────────────
 try:
+    from database import count_open_tickets
+    t1, t2, t3 = st.columns(3)
+    _open = count_open_tickets()
+    t1.metric("Open tickets", _open, help="Open or in progress.")
+    _soon = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+    _trials = admin.table("profiles").select("id, trial_ends_at") \
+        .eq("subscription_status", "trial").execute().data or []
+    t2.metric("Trials running", len(_trials))
+    t3.metric("Trials ending within 7 days",
+              sum(1 for p in _trials if (p.get("trial_ends_at") or "9") <= _soon))
+
     col1, col2, col3, col4 = st.columns(4)
 
     clients_res = admin.table("clients").select("id", count="exact").execute()
-    col1.metric("Total clients", clients_res.count or 0)
+    col1.metric("Total clients", clients_res.count or 0, help="All time.")
 
     profiles_res = admin.table("profiles").select("id", count="exact").execute()
-    col2.metric("Registered users", profiles_res.count or 0)
+    col2.metric("Registered users", profiles_res.count or 0, help="All time.")
 
     docs_q = admin.table("documents").select("id", count="exact")
     if since:
@@ -80,12 +91,16 @@ try:
             if cid:
                 gap_counts[cid] = gap_counts.get(cid, 0) + 1
 
-        chats_all = admin.table("chat_history").select("user_id").execute().data or []
+        # Per company (chat_history.client_id). It was counted per owner
+        # until 9 Nov, so every company of one owner showed the same number.
+        # A question is one user message; the assistant's answers are not counted.
+        chats_all = admin.table("chat_history").select("client_id") \
+            .eq("role", "user").execute().data or []
         chat_counts = {}
         for ch in chats_all:
-            uid = ch.get("user_id")
-            if uid:
-                chat_counts[uid] = chat_counts.get(uid, 0) + 1
+            k = ch.get("client_id")
+            if k:
+                chat_counts[k] = chat_counts.get(k, 0) + 1
 
         # Token summary per client
         token_summary = get_token_summary_by_client(since=since)
@@ -113,7 +128,7 @@ try:
 
             n_docs  = doc_counts.get(cid, 0)
             n_gaps  = gap_counts.get(cid, 0)
-            n_chats = chat_counts.get(uid, 0)
+            n_chats = chat_counts.get(cid, 0)
             regs    = ", ".join(client.get("regulations") or [])
             signup  = str(client.get("created_at", ""))[:10]
             flagged = n_docs >= DOC_ABUSE_THRESHOLD
@@ -127,9 +142,9 @@ try:
             c2.caption(client.get("sector", "—"))
             c3.caption(client.get("country", "—"))
             c4.caption(regs or "—")
-            c5.metric("", n_docs, label_visibility="collapsed")
-            c6.metric("", n_gaps, label_visibility="collapsed")
-            c7.metric("", n_chats, label_visibility="collapsed")
+            c5.metric("Docs", n_docs, label_visibility="collapsed")
+            c6.metric("Gaps", n_gaps, label_visibility="collapsed")
+            c7.metric("Chats", n_chats, label_visibility="collapsed")
             c8.caption(f"${cost_usd:.4f}" if cost_usd > 0 else "—")
             if flagged:
                 c9.error("⚠️")
@@ -145,8 +160,8 @@ except Exception as e:
 # ── Token usage detail ────────────────────────────────────────
 st.subheader("💰 Token usage & cost")
 
-CLIENT_FEATURES = {"chat", "docgen", "docgen_suggest", "gap_single", "gap_full"}
-INTERNAL_FEATURES = {"monitoring_summarise", "embedding"}
+CLIENT_FEATURES = {"chat", "chat_classify", "docgen", "docgen_suggest", "gap_single",
+                   "gap_full", "translate", "draft_insert"}
 
 FEAT_LABELS = {
     "chat":                  "💬 Chat",
@@ -156,6 +171,13 @@ FEAT_LABELS = {
     "gap_full":              "🏢 Full compliance check",
     "monitoring_summarise":  "📡 Regulatory monitoring",
     "embedding":             "🧠 KB embeddings",
+    "chat_classify":         "💬 Chat — question routing",
+    "translate":             "🌐 Translation",
+    "draft_insert":          "✍️ Drafted inserts",
+    "monitoring_format":     "📡 Monitoring — formatting",
+    "linkedin_draft":        "📣 LinkedIn drafts",
+    "marketing_search":      "📣 Marketing monitoring",
+    "marketing_monitor_analyse": "📣 Marketing monitoring — analysis",
 }
 
 try:
@@ -163,7 +185,7 @@ try:
     all_rows = load_token_usage(since=since)
 
     client_rows   = [r for r in all_rows if r.get("feature") in CLIENT_FEATURES]
-    internal_rows = [r for r in all_rows if r.get("feature") in INTERNAL_FEATURES]
+    internal_rows = [r for r in all_rows if r.get("feature") not in CLIENT_FEATURES]
 
     tab_client, tab_internal = st.tabs(["👥 Client usage", "⚙️ Internal / operational"])
 
@@ -179,7 +201,7 @@ try:
             t1.metric("API calls", c_calls)
             t2.metric("Total tokens", f"{c_tokens:,}")
             t3.metric("Total cost (USD)", f"${c_cost:.4f}")
-            st.caption("Mistral Large — $2.00/M input · $6.00/M output")
+            st.caption("Estimated at Mistral's list prices per model (database._MISTRAL_PRICES).")
 
             feat_totals = {}
             for r in client_rows:
@@ -202,7 +224,8 @@ try:
             t1.metric("API calls", i_calls)
             t2.metric("Total tokens", f"{i_tokens:,}")
             t3.metric("Total cost (USD)", f"${i_cost:.4f}")
-            st.caption("Mistral Large (summarisation) + mistral-embed (embeddings)")
+            st.caption("Monitoring, LinkedIn drafts, embeddings. Logged since 9 Nov; "
+                       "earlier internal calls were not recorded.")
 
             feat_totals = {}
             for r in internal_rows:

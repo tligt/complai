@@ -128,7 +128,10 @@ def _format_as_markdown(plain_text: str, title: str = "") -> str | None:
             timeout=45,
         )
         response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
+        _j = response.json()
+        from database import log_mistral_usage
+        log_mistral_usage(_j, "monitoring_format")
+        return _j["choices"][0]["message"]["content"].strip()
     except Exception as e:
         st.error(f"Could not format as Markdown: {e}")
         return None
@@ -199,7 +202,10 @@ Write the LinkedIn post."""
             timeout=30,
         )
         response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"].strip()
+        _j = response.json()
+        from database import log_mistral_usage
+        log_mistral_usage(_j, "linkedin_draft")
+        return _j["choices"][0]["message"]["content"].strip()
     except Exception as e:
         st.error(f"Could not generate LinkedIn draft: {e}")
         return None

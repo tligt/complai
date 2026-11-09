@@ -1,5 +1,5 @@
 import streamlit as st
-from database import get_supabase_admin, load_regulatory_updates
+from database import get_supabase_admin, load_regulatory_updates, count_open_tickets
 
 st.title("Home")
 st.caption(f"Logged in as admin · {st.session_state.user.email}")
@@ -9,7 +9,7 @@ st.divider()
 try:
     admin = get_supabase_admin()
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     clients_res = admin.table("clients").select("id", count="exact").execute()
     col1.metric("Total clients", clients_res.count or 0)
@@ -25,9 +25,12 @@ try:
     docs_res = admin.table("documents").select("id", count="exact").execute()
     col4.metric("Documents generated", docs_res.count or 0)
 
+    _open = count_open_tickets()
+    col5.metric("Open tickets", _open,
+                delta="needs a reply" if _open else None,
+                delta_color="inverse" if _open else "off",
+                help="Open or in progress.")
+
 except Exception as e:
     st.warning(f"Could not load stats: {e}")
 
-st.divider()
-st.subheader("Quick navigation")
-st.caption("Use the sidebar to navigate between admin sections.")

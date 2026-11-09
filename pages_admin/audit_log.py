@@ -1,45 +1,107 @@
-import streamlit as st
-from datetime import datetime
-from database import get_supabase
+"""
+pages_admin/audit_log.py — every company's audit trail, newest first.
 
-EVENT_ICONS = {
-    "document_generated": "📄",
-    "gap_assessment_run": "📊",
-    "audit_run": "🔍",
+An account-level event (a sign-in, a plan change) is written once per
+company the person belongs to, so each company's own trail is complete.
+Here, across companies, those copies are one event: rows with the same
+person, type, text and second are shown once, with their companies listed
+(9 Nov — one sign-in showed five times).
+
+A sortable table (click a column header); the row menu of the shared table
+component comes with the table work (BO review, points 4–6).
+"""
+
+from datetime import date, datetime, timedelta
+
+import streamlit as st
+
+from database import get_all_profiles, get_supabase_admin
+
+EVENT_LABELS = {
+    "sign_in": "Sign-in",
+    "document_generated": "Document generated",
+    "document": "Document",
+    "gap_assessment_run": "Gap assessment",
+    "assessment": "Assessment",
+    "audit_run": "Website audit",
+    "incident": "Incident",
+    "team": "Team",
+    "assignment": "Assignment",
+    "plan": "Plan",
+    "support_ticket_created": "Ticket opened",
+    "support_ticket_status_changed": "Ticket status",
 }
+LIMIT = 1000
 
 st.title("Audit Trail")
-st.caption("Every company's trail, newest first.")
+st.caption("Every company's trail, newest first. Click a column header to sort.")
 
-supabase = get_supabase()
-
+admin = get_supabase_admin()
 try:
-    clients = supabase.table("clients").select("id, company_name").execute().data
+    companies = {c["id"]: c["company_name"] for c in
+                 admin.table("clients").select("id, company_name").execute().data or []}
 except Exception as e:
-    st.error(f"Could not load clients: {e}")
-    clients = []
+    st.error(f"Could not load companies: {e}")
+    companies = {}
+emails = {p["id"]: p.get("email") or "" for p in get_all_profiles() or []}
 
-company_lookup = {c["id"]: c["company_name"] for c in clients}
-filter_company = st.selectbox("Filter by company", ["All"] + sorted(company_lookup.values()))
+f1, f2, f3 = st.columns([2, 2, 2])
+company = f1.selectbox("Company", ["All"] + sorted(companies.values()))
+period = f2.date_input("Period", value=(date.today() - timedelta(days=30), date.today()),
+                       max_value=date.today(), format="DD/MM/YYYY")
 
-query = supabase.table("audit_log").select("*").order("created_at", desc=True).limit(200)
-if filter_company != "All":
-    cid = next(k for k, v in company_lookup.items() if v == filter_company)
-    query = query.eq("company_id", cid)
+q = admin.table("audit_log").select("*").order("created_at", desc=True).limit(LIMIT)
+if company != "All":
+    q = q.eq("company_id", next(k for k, v in companies.items() if v == company))
+if isinstance(period, (list, tuple)) and len(period) == 2:
+    q = q.gte("created_at", period[0].isoformat()) \
+         .lt("created_at", (period[1] + timedelta(days=1)).isoformat())
 
-try:
-    rows = query.execute().data
-except Exception as e:
-    st.error(f"Could not load audit log: {e}")
-    rows = []
+with st.spinner("Loading the trail…"):
+    try:
+        rows = q.execute().data or []
+    except Exception as e:
+        st.error(f"Could not load the audit trail: {e}")
+        rows = []
 
-if not rows:
-    st.info("No activity recorded yet.")
-else:
-    for row in rows:
-        ts = datetime.fromisoformat(
-            row["created_at"].replace("Z", "+00:00")
-        ).strftime("%d %b %Y, %H:%M")
-        icon = EVENT_ICONS.get(row["event_type"], "•")
-        company_name = company_lookup.get(row["company_id"], "Unknown")
-        st.markdown(f"{icon} **{company_name}** — {row['summary']} — {ts}")
+# One row per event (see the module note).
+events: dict[tuple, dict] = {}
+for r in rows:
+    key = (r.get("user_id"), r["event_type"], r.get("summary"), r["created_at"][:19])
+    e = events.get(key)
+    name = companies.get(r.get("company_id"), "—")
+    if e:
+        if name not in e["companies"]:
+            e["companies"].append(name)
+    else:
+        events[key] = {**r, "companies": [name]}
+
+types = sorted({e["event_type"] for e in events.values()})
+picked = f3.multiselect("Event types", types, format_func=lambda t: EVENT_LABELS.get(t, t),
+                        placeholder="All")
+shown = [e for e in events.values() if not picked or e["event_type"] in picked]
+
+if not shown:
+    st.info("Nothing recorded for this selection.")
+    st.stop()
+
+st.caption(f"{len(shown)} event{'s' if len(shown) != 1 else ''}"
+           + (f" (the newest {LIMIT} rows were read; narrow the period to see older ones)"
+              if len(rows) == LIMIT else ""))
+st.dataframe(
+    [{
+        "When": datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")),
+        "Company": ", ".join(sorted(e["companies"])),
+        "Who": emails.get(e.get("user_id"), "") or "—",
+        "Event": EVENT_LABELS.get(e["event_type"], e["event_type"]),
+        "What": e.get("summary") or "",
+    } for e in shown],
+    hide_index=True, width="stretch", height=min(38 + 35 * len(shown), 700),
+    column_config={
+        "When": st.column_config.DatetimeColumn(format="DD MMM YYYY, HH:mm", width=150),
+        "Company": st.column_config.TextColumn(width=200),
+        "Who": st.column_config.TextColumn(width=210),
+        "Event": st.column_config.TextColumn(width=130),
+        "What": st.column_config.TextColumn(width="large"),
+    },
+)

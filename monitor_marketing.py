@@ -86,6 +86,11 @@ def search_news_with_agent(query: str, api_key: str, agent_id: str) -> list[dict
             return []
 
         data = resp.json()
+        try:
+            from database import log_mistral_usage
+            log_mistral_usage(data, "marketing_search")
+        except Exception:
+            pass
 
         # Debug: print top-level keys to understand response structure
         print(f"  Response keys: {list(data.keys())}")

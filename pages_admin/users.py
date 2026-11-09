@@ -11,13 +11,15 @@ Table-plus-detail-panel, same shape as pages/obligations.py: a summary grid
 to scan, one detail form for whichever account is selected.
 """
 
+from datetime import date, datetime, time, timedelta, timezone
+
 import streamlit as st
 
 from auth import get_user_id
 from database import (
     get_all_profiles, get_supabase_admin,
     set_user_role, set_user_tier, SUBSCRIPTION_TIERS, ROLES,
-    SUBSCRIPTION_STATUSES, set_subscription_status,
+    SUBSCRIPTION_STATUSES, set_subscription_status, TRIAL_DAYS,
 )
 
 st.title("Users")
@@ -147,8 +149,27 @@ with st.container(border=True):
         key=f"status_{target['id']}",
         help="Free accounts and ended trials see only their free check and the subscribe page.",
     )
+    # A trial always has an end date, editable to extend it (9 Nov).
+    _ends = None
+    if new_status == "trial":
+        try:
+            _cur_end = datetime.fromisoformat(
+                (target.get("trial_ends_at") or "").replace("Z", "+00:00")).date()
+        except ValueError:
+            _cur_end = None
+        _default_end = (_cur_end if _cur_end and _cur_end >= date.today()
+                        else date.today() + timedelta(days=TRIAL_DAYS))
+        _end_day = st.date_input(
+            "Trial ends", value=_default_end, min_value=date.today(),
+            key=f"trial_end_{target['id']}", format="DD/MM/YYYY",
+            help=f"{TRIAL_DAYS} days by default. A later date extends the trial; "
+                 "the change is logged.")
+        if _cur_end:
+            st.caption(f"Currently ends {_cur_end.strftime('%d %b %Y')}.")
+        # End of that day, Brussels time is close enough: 23:59 UTC.
+        _ends = datetime.combine(_end_day, time(23, 59), tzinfo=timezone.utc)
     if st.button("Save status", key=f"save_status_{target['id']}"):
-        if set_subscription_status(target["id"], new_status):
+        if set_subscription_status(target["id"], new_status, trial_ends_at=_ends):
             st.success("Status updated.")
             st.rerun()
         else:

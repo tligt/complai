@@ -18,7 +18,7 @@ from auth import get_user_id
 from database import (
     load_all_tickets, get_ticket, load_thread_messages,
     post_thread_message, update_ticket, mark_thread_read,
-    get_all_profiles, get_ticket_owner_email,
+    get_all_profiles, get_ticket_owner_email, get_supabase_admin,
     thread_has_unread_admin_message,
     TICKET_CATEGORIES, TICKET_SEVERITIES, TICKET_STATUSES, TICKET_PRIORITIES,
 )
@@ -104,6 +104,24 @@ def send_reply(ticket: dict, body: str, resolve: bool = False) -> bool:
     return True
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def _who() -> tuple[dict, dict]:
+    """(email by user id, company name by client id), for the queue."""
+    emails = {p["id"]: p.get("email") or "" for p in get_all_profiles() or []}
+    try:
+        names = {c["id"]: c["company_name"] for c in
+                 get_supabase_admin().table("clients").select("id, company_name").execute().data or []}
+    except Exception:
+        names = {}
+    return emails, names
+
+
+def _from(t: dict) -> str:
+    emails, names = _who()
+    parts = [names.get(t.get("client_id")), emails.get(t.get("user_id"))]
+    return " · ".join(p for p in parts if p) or "unknown sender"
+
+
 def init():
     if "admin_open_ticket" not in st.session_state:
         st.session_state.admin_open_ticket = None
@@ -137,6 +155,7 @@ if st.session_state.admin_open_ticket:
          "warning": st.warning}.get(notice[0], st.info)(notice[1])
 
     st.markdown(f"### {t['subject']}")
+    st.caption(f"From {_from(t)}")
     st.caption(
         f"{CATEGORY_LABELS.get(t['category'], t['category'])} · "
         f"{CONTEXT_LABELS.get(t['context'], t['context'])} · "
@@ -181,7 +200,10 @@ if st.session_state.admin_open_ticket:
                 key="adm_severity",
             )
         with c4:
-            profiles = get_all_profiles() or []
+            # Admins only: a ticket is RECOSA's to handle (9 Nov: the list
+            # offered every account, clients included).
+            profiles = [p for p in get_all_profiles() or []
+                        if p.get("role") == "admin" or p["id"] == t.get("assigned_to")]
             options = [None] + [p["id"] for p in profiles]
             labels = {p["id"]: (p.get("email") or p["id"][:8]) for p in profiles}
             current = t.get("assigned_to")
@@ -311,6 +333,7 @@ for t in rows:
     with col_a:
         st.markdown(f"**{t['subject']}**")
         st.caption(
+            f"{_from(t)} · opened {t['created_at'][:10]}  \n"
             f"{PRIORITY_BADGE.get(t['priority'], '')} · "
             f"{STATUS_LABELS.get(t['status'], t['status'])} · "
             f"{CATEGORY_LABELS.get(t['category'], t['category'])} · "

@@ -1447,18 +1447,27 @@ def expire_trial_if_due(profile: dict) -> dict:
     return {**profile, "subscription_status": "expired"}
 
 
-def set_subscription_status(target_user_id: str, status: str) -> bool:
-    """Admin: set an account's status by hand (until Stripe, S46)."""
+def set_subscription_status(target_user_id: str, status: str,
+                            trial_ends_at: datetime | None = None) -> bool:
+    """Admin: set an account's status by hand (until Stripe, S46).
+
+    A trial always has an end date (9 Nov: a trial set here had none, so it
+    never ended): `trial_ends_at`, or TRIAL_DAYS from now. Setting a later
+    date on a running or ended trial is how an admin extends it."""
     if status not in SUBSCRIPTION_STATUSES:
         return False
+    row: dict = {"subscription_status": status}
+    summary = f"Subscription set to {SUBSCRIPTION_STATUSES[status]}"
+    if status == "trial":
+        ends = trial_ends_at or (datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS))
+        row["trial_ends_at"] = ends.isoformat()
+        summary += f", ending {ends.strftime('%d %b %Y')}"
     try:
-        get_supabase_admin().table("profiles").update(
-            {"subscription_status": status}
-        ).eq("id", target_user_id).execute()
-        log_account_event(target_user_id, "plan",
-                          f"Subscription set to {SUBSCRIPTION_STATUSES[status]}",
+        get_supabase_admin().table("profiles").update(row).eq("id", target_user_id).execute()
+        log_account_event(target_user_id, "plan", summary,
                           event_subtype="status_changed",
-                          metadata={"status": status, "by": session_user_id()},
+                          metadata={"status": status, "by": session_user_id(),
+                                    "trial_ends_at": row.get("trial_ends_at")},
                           owned_only=True)
         return True
     except Exception as e:
@@ -2691,6 +2700,29 @@ def mark_alert_ingested(update_id: str, chunks_count: int) -> bool:
 
 _MISTRAL_INPUT_COST_PER_M  = 2.00
 _MISTRAL_OUTPUT_COST_PER_M = 6.00
+# USD per million tokens (input, output), by model. An estimate for the
+# dashboard, not an invoice: check against Mistral's price list when it
+# changes. Unknown models are priced as Large.
+_MISTRAL_PRICES = {
+    "mistral-large-latest": (_MISTRAL_INPUT_COST_PER_M, _MISTRAL_OUTPUT_COST_PER_M),
+    "mistral-small-latest": (0.10, 0.30),
+    "mistral-embed":        (0.10, 0.0),
+}
+
+
+def log_mistral_usage(response_json: dict | None, feature: str,
+                      user_id: str | None = None, client_id: str | None = None,
+                      model: str = "mistral-large-latest") -> None:
+    """Log the `usage` block of a Mistral answer. Never raises: a logging
+    failure must not cost the caller its result."""
+    try:
+        u = (response_json or {}).get("usage") or {}
+        log_token_usage(user_id, feature,
+                        int(u.get("prompt_tokens") or 0),
+                        int(u.get("completion_tokens") or 0),
+                        client_id=client_id, model=model)
+    except Exception as e:
+        print(f"Could not log token usage: {e}")
 
 
 def log_token_usage(
@@ -2709,13 +2741,8 @@ def log_token_usage(
         total = input_tokens + output_tokens
         if total == 0:
             return True
-        if model == "mistral-embed":
-            cost = (input_tokens / 1_000_000) * 0.10
-        else:
-            cost = (
-                (input_tokens  / 1_000_000) * _MISTRAL_INPUT_COST_PER_M +
-                (output_tokens / 1_000_000) * _MISTRAL_OUTPUT_COST_PER_M
-            )
+        p_in, p_out = _MISTRAL_PRICES.get(model, _MISTRAL_PRICES["mistral-large-latest"])
+        cost = (input_tokens / 1_000_000) * p_in + (output_tokens / 1_000_000) * p_out
         row = {
             "feature":       feature,
             "model":         model,
@@ -2724,9 +2751,11 @@ def log_token_usage(
             "total_tokens":  total,
             "cost_usd":      round(cost, 6),
         }
-        # Only set user_id if it's a valid non-system value
-        # SYSTEM_USER_ID is a valid UUID sentinel for monitoring processes
-        if user_id and user_id not in ("system",):
+        # Only a real account goes in user_id (a foreign key to auth.users).
+        # SYSTEM_USER_ID, the monitoring jobs' sentinel, is no account: until
+        # 9 Nov every monitoring and embedding row was refused for it and the
+        # error only printed, so the dashboard showed no internal usage.
+        if user_id and user_id not in ("system", SYSTEM_USER_ID):
             row["user_id"] = user_id
         if client_id:
             row["client_id"] = client_id
