@@ -6594,6 +6594,18 @@ menu also assigns it to you or marks it resolved without a reply (locked,
 with why, when already so). Checked live (columns, empty filter) and
 locally with the 3 real tickets.
 
+**Dashboard and Monitoring tabs, same day (aadd5b9, e2a204a):** the
+Dashboard's companies are a sortable table (documents, gap checks,
+questions, AI cost, flag; ⋮ opens the account on Companies) instead of a
+row of metric boxes each. Monitoring's Sources tab: a source's ⋮ switches
+it on or off, or deletes it after a confirmation. Run history: one row per
+run; a click shows its breakdown in a pop-up. The shared table now shows
+times in Brussels time (it showed UTC) and sorts on UTC. Checked live:
+creagent 43 documents / 7 gap checks / 8 questions; 9 sources; 30 runs, a
+run's pop-up with its per-source breakdown. With this, every list in the
+back office and the client app that had a "select below" is the shared
+table (BO review point 4 closed).
+
 ### D-154 — Monitoring: repeats stopped at intake, the queue as a table, bulk rejects, 9 Nov
 
 From the back office review (D-150). The EDPB feed re-lists news reworded
