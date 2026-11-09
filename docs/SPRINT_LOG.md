@@ -6048,7 +6048,7 @@ The move to Scaleway waits until closer to the beta, by choice: until then
 the current setup costs next to nothing, while the instance would bill about
 €45 a month from day one. Development continues first.
 
-Ready, nothing created: an IAM application `recosa-deploy` whose policy is
+Ready, nothing created: an IAM application `RECOSA` whose policy `recosa-project` is
 limited to the Recosa project (Instances, Block Storage, Object Storage),
 plus organisation-level ProjectReadOnly in a second policy so `scw init` can
 list projects (one rule cannot mix organisation and project scope). The

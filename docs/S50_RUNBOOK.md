@@ -40,7 +40,7 @@ Each says exactly what to note down for Part B.
 turn on two-factor authentication. Note nothing.
 
 *Done 5 Nov (D-141):* the account, the Recosa project, the SSH key in it,
-and an IAM application `recosa-deploy` limited to the Recosa project, used
+and an IAM application `RECOSA` (policy `recosa-project`) limited to the Recosa project, used
 by the `scw` CLI on the dev PC. With it, A3–A5 can be run as `scw` commands
 instead of in the console (all but the bucket's 35-day expiry rule).
 
