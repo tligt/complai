@@ -257,9 +257,16 @@ def table(rows: list[dict], columns: list[dict], *, key: str,
         _component = components_v2.component("recosa_table_view", css=_CSS, js=_JS)
         res = mount()
     hit = getattr(res, "action", None)
-    if isinstance(hit, dict) and hit.get("row") and hit.get("action"):
-        return {"row": hit["row"], "action": hit["action"]}
-    return None
+    if not (isinstance(hit, dict) and hit.get("row") and hit.get("action")):
+        return None
+    # A click is reported once. The component can hand the same click back
+    # on a later run (seen 9 Nov: after "Cancel" the task reopened), so each
+    # click carries its time and one already acted on is ignored.
+    seen_key = f"_tv_seen_{key}"
+    if hit.get("n") is not None and st.session_state.get(seen_key) == hit["n"]:
+        return None
+    st.session_state[seen_key] = hit.get("n")
+    return {"row": hit["row"], "action": hit["action"]}
 
 
 def locked(label: str, value, reason: str, key: str | None = None) -> None:
