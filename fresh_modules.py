@@ -22,7 +22,8 @@ import sys
 
 # Shared modules that pages import names from; a module is reloaded before
 # the ones that import from it.
-MODULES = ("database", "cached_reads", "auth", "tier_gates", "doc_theme", "active_client")
+MODULES = ("database", "cached_reads", "auth", "tier_gates", "doc_theme", "active_client",
+           "table_view")
 
 
 def _mtime(path: str | None) -> float | None:

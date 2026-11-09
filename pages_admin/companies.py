@@ -8,14 +8,15 @@ company; Advisory a consultant's client companies; Enterprise a group's.
 Every plan or status change is a dated period (account_periods, append-only)
 written by database.change_account.
 
-Click a row to open it. (The ⋮ row menu comes with the shared table
-component — BO review, points 4–6.)
+Click a row to open it, or use its ⋮ menu: change the plan, extend a
+trial, edit the contract details (table_view.py, BO review points 4–6).
 """
 
 from datetime import date, datetime, time, timedelta, timezone
 
 import streamlit as st
 
+import table_view as tv
 from auth import get_user_id
 from database import (
     ACCOUNT_STATUSES, SUBSCRIPTION_TIERS, TRIAL_DAYS, change_account, get_all_profiles,
@@ -104,7 +105,7 @@ status_pick = f1.multiselect("Status", list(ACCOUNT_STATUSES), format_func=ACCOU
                              placeholder="All")
 search = f2.text_input("Search", placeholder="Account, company or email")
 
-rows = []
+rows, by_id = [], {}
 for a in accounts:
     comps = companies_of.get(a["id"], [])
     ppl = people_of(a)
@@ -114,66 +115,58 @@ for a in accounts:
         continue
     if search and search.lower() not in hay:
         continue
-    rows.append((a, {
-        "Account": a["name"],
-        "Plan": SUBSCRIPTION_TIERS.get(a["plan"], a["plan"]),
-        "Status": ACCOUNT_STATUSES.get(a["status"], a["status"]),
-        "Trial ends": _dt(a.get("trial_ends_at")) if a["status"] in ("trial", "expired") else None,
-        "Customer since": _dt(first_active.get(a["id"])),
-        "Companies": ", ".join(sorted(c["company_name"] for c in comps)) or "—",
-        "People": len(ppl),
-        "Contract contact": a.get("contact_name") or a.get("contact_email") or "—",
-        "Opened": _dt(a["created_at"]),
-    }))
+    by_id[a["id"]] = a
+    rows.append({"id": a["id"], "cells": {
+        "name": a["name"],
+        "plan": SUBSCRIPTION_TIERS.get(a["plan"], a["plan"]),
+        "status": ACCOUNT_STATUSES.get(a["status"], a["status"]),
+        "trial": _dt(a.get("trial_ends_at")) if a["status"] in ("trial", "expired") else None,
+        "since": _dt(first_active.get(a["id"])),
+        "companies": ", ".join(sorted(c["company_name"] for c in comps)),
+        "people": len(ppl),
+        "contact": a.get("contact_name") or a.get("contact_email"),
+        "opened": _dt(a["created_at"]),
+    }, "actions": [
+        {"id": "open", "label": "Open", "icon": "📂"},
+        {"id": "plan", "label": "Change plan or status", "icon": "✏️"},
+        {"id": "trial", "label": "Extend the trial", "icon": "⏳",
+         "disabled": None if a["status"] in ("trial", "expired")
+         else "Only for an account on trial or whose trial ended"},
+        {"id": "contract", "label": "Edit contract and billing", "icon": "🧾"},
+    ]})
 
-st.caption(f"{len(rows)} account{'s' if len(rows) != 1 else ''} · click a row to open it")
-event = st.dataframe(
-    [r for _, r in rows], hide_index=True, width="stretch",
-    on_select="rerun", selection_mode="single-row", key="accounts_table",
-    column_config={
-        "Account": st.column_config.TextColumn(width=180),
-        "Trial ends": st.column_config.DateColumn(format="DD MMM YYYY"),
-        "Customer since": st.column_config.DateColumn(format="DD MMM YYYY"),
-        "Opened": st.column_config.DateColumn(format="DD MMM YYYY"),
-        "Companies": st.column_config.TextColumn(width=220),
-        "People": st.column_config.NumberColumn(width=70),
-    },
-)
-picked = (event.selection.rows if event and event.selection else []) or []
-if not picked:
-    st.stop()
-acc = rows[picked[0]][0]
+st.caption(f"{len(rows)} account{'s' if len(rows) != 1 else ''} · click a row to open it, "
+           "or use its ⋮ menu · click a column title to sort")
+hit = tv.table(rows, [
+    {"key": "name", "label": "Account"}, {"key": "plan", "label": "Plan"},
+    {"key": "status", "label": "Status"}, {"key": "trial", "label": "Trial ends", "kind": "date"},
+    {"key": "since", "label": "Customer since", "kind": "date"},
+    {"key": "companies", "label": "Companies"}, {"key": "people", "label": "People", "kind": "number"},
+    {"key": "contact", "label": "Contract contact"}, {"key": "opened", "label": "Opened", "kind": "date"},
+], key="accounts", sort=("opened", "desc"), current=st.session_state.get("acc_open"),
+    empty="No account matches.")
 
-# ── One account ───────────────────────────────────────────────────────────
-st.divider()
-st.subheader(acc["name"])
-st.caption(f"{SUBSCRIPTION_TIERS.get(acc['plan'], acc['plan'])} · "
-           f"{ACCOUNT_STATUSES.get(acc['status'], acc['status'])}"
-           + (f" until {_day(acc.get('trial_ends_at'))}" if acc["status"] == "trial" else "")
-           + f" · opened {_day(acc['created_at'])}")
 
-notice = st.session_state.pop("acc_notice", None)
-if notice:
-    st.success(notice)
-
-t_sub, t_hist, t_people, t_contract = st.tabs(
-    ["Subscription", "History", "Companies and people", "Contract and billing"])
-
-with t_sub:
-    with st.form(f"sub_{acc['id']}"):
-        c1, c2 = st.columns(2)
-        plans = list(SUBSCRIPTION_TIERS)
-        new_plan = c1.selectbox("Plan", plans, index=plans.index(acc["plan"]),
-                                format_func=SUBSCRIPTION_TIERS.get)
-        statuses = list(ACCOUNT_STATUSES)
-        new_status = c2.selectbox("Status", statuses, index=statuses.index(acc["status"]),
-                                  format_func=ACCOUNT_STATUSES.get)
+# ── The forms, used in the panel below and in the menu's dialogs ─────────
+def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
+    with st.form(f"sub_{where}_{acc['id']}"):
+        plans, statuses = list(SUBSCRIPTION_TIERS), list(ACCOUNT_STATUSES)
+        if trial_only:
+            tv.locked("Plan", SUBSCRIPTION_TIERS.get(acc["plan"]), "Change the plan with "
+                      "\"Change plan or status\".", key=f"lp_{where}_{acc['id']}")
+            new_plan, new_status = acc["plan"], "trial"
+        else:
+            c1, c2 = st.columns(2)
+            new_plan = c1.selectbox("Plan", plans, index=plans.index(acc["plan"]),
+                                    format_func=SUBSCRIPTION_TIERS.get)
+            new_status = c2.selectbox("Status", statuses, index=statuses.index(acc["status"]),
+                                      format_func=ACCOUNT_STATUSES.get)
         cur_end = _dt(acc.get("trial_ends_at"))
         default_end = (cur_end.date() if cur_end and cur_end.date() >= date.today()
                        else date.today() + timedelta(days=TRIAL_DAYS))
         end_day = st.date_input(
-            "Trial ends (used when the status is Trial)", value=default_end,
-            min_value=date.today(), format="DD/MM/YYYY",
+            "Trial ends" + ("" if trial_only else " (used when the status is Trial)"),
+            value=default_end, min_value=date.today(), format="DD/MM/YYYY",
             help=f"{TRIAL_DAYS} days by default. A later date extends the trial.")
         note = st.text_input("Note for the history",
                              placeholder="e.g. upgraded on request, trial extended a week")
@@ -188,44 +181,14 @@ with t_sub:
                                  note=note, by=admin_id)
         if ok:
             st.session_state.acc_notice = "Saved."
+            st.session_state.acc_open = acc["id"]
             st.rerun()
         else:
             st.error(err or "Could not save.")
 
-with t_hist:
-    periods = load_account_periods(acc["id"])
-    if not periods:
-        st.info("No history recorded.")
-    else:
-        st.dataframe([{
-            "From": _dt(p["starts_at"]),
-            "To": _dt(p.get("ends_at")),
-            "Plan": SUBSCRIPTION_TIERS.get(p["plan"], p["plan"]),
-            "Status": ACCOUNT_STATUSES.get(p["status"], p["status"]),
-            "Trial ends": _dt(p.get("trial_ends_at")),
-            "Note": p.get("note") or "",
-            "By": (profiles.get(p.get("changed_by") or "") or {}).get("email") or "—",
-        } for p in periods], hide_index=True, width="stretch", column_config={
-            "From": st.column_config.DatetimeColumn(format="DD MMM YYYY, HH:mm"),
-            "To": st.column_config.DatetimeColumn(format="DD MMM YYYY, HH:mm", help="Empty: current"),
-            "Trial ends": st.column_config.DateColumn(format="DD MMM YYYY"),
-            "Note": st.column_config.TextColumn(width="large"),
-        })
 
-with t_people:
-    comps = companies_of.get(acc["id"], [])
-    st.markdown(f"**Companies ({len(comps)})**")
-    st.write(", ".join(sorted(c["company_name"] for c in comps)) or "None yet.")
-    ppl = people_of(acc)
-    st.markdown(f"**People ({len(ppl)})**")
-    st.dataframe([{
-        "Email": p["email"], "Role": p["role"],
-        "Status": {"active": "Active", "pending": "Invited, not signed in yet"}.get(p.get("status"), p.get("status") or ""),
-        "Companies": "All" if p["companies"] == ["all"] else ", ".join(sorted(p["companies"])),
-    } for p in ppl], hide_index=True, width="stretch")
-
-with t_contract:
-    with st.form(f"contract_{acc['id']}"):
+def contract_form(acc: dict, where: str) -> None:
+    with st.form(f"contract_{where}_{acc['id']}"):
         name = st.text_input("Account name", value=acc["name"],
                              help="The customer, i.e. the contracting party.")
         c1, c2, c3 = st.columns(3)
@@ -243,6 +206,9 @@ with t_contract:
         billing = c4.text_input("Billing email", value=acc.get("billing_email") or "")
         vat = c5.text_input("VAT number", value=acc.get("vat_number") or "")
         notes = st.text_area("Notes", value=acc.get("notes") or "", height=90)
+        tv.locked("Owner", (profiles.get(acc.get("owner_user_id") or "") or {}).get("email"),
+                  "The person who opened the account and manages it in the app. "
+                  "Not changeable here yet.", key=f"lo_{where}_{acc['id']}")
         save = st.form_submit_button("Save", type="primary")
     if save:
         fields = {"name": name, "contact_name": contact_name, "contact_email": contact_email,
@@ -253,6 +219,88 @@ with t_contract:
             st.info("Nothing changed.")
         elif update_account_details(acc["id"], changed, by=admin_id):
             st.session_state.acc_notice = "Saved."
+            st.session_state.acc_open = acc["id"]
             st.rerun()
         else:
             st.error("Could not save.")
+
+
+@st.dialog("Change plan or status", width="large")
+def plan_dialog(acc: dict) -> None:
+    st.caption(acc["name"])
+    subscription_form(acc, "dlg")
+
+
+@st.dialog("Extend the trial")
+def trial_dialog(acc: dict) -> None:
+    st.caption(acc["name"])
+    subscription_form(acc, "dlgt", trial_only=True)
+
+
+@st.dialog("Contract and billing", width="large")
+def contract_dialog(acc: dict) -> None:
+    st.caption(acc["name"])
+    contract_form(acc, "dlg")
+
+
+if hit and hit["row"] in by_id:
+    st.session_state.acc_open = hit["row"]
+    {"plan": plan_dialog, "trial": trial_dialog, "contract": contract_dialog}.get(
+        hit["action"], lambda a: None)(by_id[hit["row"]])
+
+acc = by_id.get(st.session_state.get("acc_open") or "")
+if not acc:
+    st.stop()
+
+# ── One account ───────────────────────────────────────────────────────────
+st.divider()
+st.subheader(acc["name"])
+st.caption(f"{SUBSCRIPTION_TIERS.get(acc['plan'], acc['plan'])} · "
+           f"{ACCOUNT_STATUSES.get(acc['status'], acc['status'])}"
+           + (f" until {_day(acc.get('trial_ends_at'))}" if acc["status"] == "trial" else "")
+           + f" · opened {_day(acc['created_at'])}")
+
+notice = st.session_state.pop("acc_notice", None)
+if notice:
+    st.success(notice)
+
+t_sub, t_hist, t_people, t_contract = st.tabs(
+    ["Subscription", "History", "Companies and people", "Contract and billing"])
+
+with t_sub:
+    subscription_form(acc, "tab")
+
+with t_hist:
+    periods = load_account_periods(acc["id"])
+    tv.table([{"id": p["id"], "cells": {
+        "from": _dt(p["starts_at"]), "to": _dt(p.get("ends_at")),
+        "plan": SUBSCRIPTION_TIERS.get(p["plan"], p["plan"]),
+        "status": ACCOUNT_STATUSES.get(p["status"], p["status"]),
+        "trial": _dt(p.get("trial_ends_at")), "note": p.get("note"),
+        "by": (profiles.get(p.get("changed_by") or "") or {}).get("email"),
+    }} for p in periods], [
+        {"key": "from", "label": "From", "kind": "datetime"},
+        {"key": "to", "label": "To (empty: current)", "kind": "datetime"},
+        {"key": "plan", "label": "Plan"}, {"key": "status", "label": "Status"},
+        {"key": "trial", "label": "Trial ends", "kind": "date"},
+        {"key": "note", "label": "Note"}, {"key": "by", "label": "By"},
+    ], key=f"hist_{acc['id']}", sort=("from", "desc"), empty="No history recorded.")
+
+with t_people:
+    comps = companies_of.get(acc["id"], [])
+    st.markdown(f"**Companies ({len(comps)})**")
+    st.write(", ".join(sorted(c["company_name"] for c in comps)) or "None yet.")
+    ppl = people_of(acc)
+    st.markdown(f"**People ({len(ppl)})**")
+    tv.table([{"id": p.get("id") or p["email"], "cells": {
+        "email": p["email"], "role": p["role"],
+        "status": {"active": "Active", "pending": "Invited, not signed in yet"}.get(
+            p.get("status"), p.get("status")),
+        "companies": "All" if p["companies"] == ["all"] else ", ".join(sorted(p["companies"])),
+    }} for p in ppl], [
+        {"key": "email", "label": "Email"}, {"key": "role", "label": "Role"},
+        {"key": "status", "label": "Status"}, {"key": "companies", "label": "Companies"},
+    ], key=f"people_{acc['id']}", sort=("email", "asc"), empty="Nobody yet.")
+
+with t_contract:
+    contract_form(acc, "tab")

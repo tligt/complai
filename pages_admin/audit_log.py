@@ -7,14 +7,15 @@ Here, across companies, those copies are one event: rows with the same
 person, type, text and second are shown once, with their companies listed
 (9 Nov — one sign-in showed five times).
 
-A sortable table (click a column header); the row menu of the shared table
-component comes with the table work (BO review, points 4–6).
+The shared table (table_view.py): sortable columns; a row's ⋮ menu filters
+on its company.
 """
 
 from datetime import date, datetime, timedelta
 
 import streamlit as st
 
+import table_view as tv
 from database import get_all_profiles, get_supabase_admin
 
 EVENT_LABELS = {
@@ -34,7 +35,8 @@ EVENT_LABELS = {
 LIMIT = 1000
 
 st.title("Audit Trail")
-st.caption("Every company's trail, newest first. Click a column header to sort.")
+st.caption("Every company's trail, newest first. Click a column title to sort; "
+           "a row's ⋮ menu filters on its company.")
 
 admin = get_supabase_admin()
 try:
@@ -46,7 +48,10 @@ except Exception as e:
 emails = {p["id"]: p.get("email") or "" for p in get_all_profiles() or []}
 
 f1, f2, f3 = st.columns([2, 2, 2])
-company = f1.selectbox("Company", ["All"] + sorted(companies.values()))
+# A row's ⋮ "Only this company" sets the filter before the widget is drawn.
+if st.session_state.get("audit_company_next"):
+    st.session_state.audit_company = st.session_state.pop("audit_company_next")
+company = f1.selectbox("Company", ["All"] + sorted(companies.values()), key="audit_company")
 period = f2.date_input("Period", value=(date.today() - timedelta(days=30), date.today()),
                        max_value=date.today(), format="DD/MM/YYYY")
 
@@ -97,20 +102,25 @@ if not shown:
 st.caption(f"{len(shown)} event{'s' if len(shown) != 1 else ''}"
            + (f" (the newest {LIMIT} rows were read; narrow the period to see older ones)"
               if len(rows) == LIMIT else ""))
-st.dataframe(
-    [{
-        "When": datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")),
-        "Company": ", ".join(sorted(e["companies"])),
-        "Who": emails.get(e.get("user_id"), "") or "—",
-        "Event": EVENT_LABELS.get(e["event_type"], e["event_type"]),
-        "What": e.get("summary") or "",
-    } for e in shown],
-    hide_index=True, width="stretch", height=min(38 + 35 * len(shown), 700),
-    column_config={
-        "When": st.column_config.DatetimeColumn(format="DD MMM YYYY, HH:mm", width=150),
-        "Company": st.column_config.TextColumn(width=200),
-        "Who": st.column_config.TextColumn(width=210),
-        "Event": st.column_config.TextColumn(width=130),
-        "What": st.column_config.TextColumn(width="large"),
-    },
-)
+hit = tv.table(
+    [{"id": e["id"], "cells": {
+        "when": datetime.fromisoformat(e["created_at"].replace("Z", "+00:00")),
+        "company": ", ".join(sorted(e["companies"])),
+        "who": emails.get(e.get("user_id"), ""),
+        "event": EVENT_LABELS.get(e["event_type"], e["event_type"]),
+        "what": e.get("summary"),
+    }, "actions": [
+        {"id": "company", "label": "Show only this company", "icon": "🏢",
+         "disabled": None if len(e["companies"]) == 1 and company == "All" else
+         ("Already filtered on a company" if company != "All"
+          else "This event concerns several companies")},
+    ]} for e in shown],
+    [{"key": "when", "label": "When", "kind": "datetime"}, {"key": "company", "label": "Company"},
+     {"key": "who", "label": "Who"}, {"key": "event", "label": "Event"},
+     {"key": "what", "label": "What"}],
+    key="audit", sort=("when", "desc"), empty="Nothing recorded for this selection.")
+if hit and hit["action"] == "company":
+    e = next((x for x in shown if x["id"] == hit["row"]), None)
+    if e and len(e["companies"]) == 1 and e["companies"][0] in companies.values():
+        st.session_state.audit_company_next = e["companies"][0]
+        st.rerun()
