@@ -106,15 +106,11 @@ HOUSE = DocTheme()
 def owner_tier(client_id: str) -> str | None:
     """The plan of the account that owns the company. Read with the service
     role: a team member may not read the owner's profile."""
-    from database import get_supabase_admin
+    # S59: the plan of the company's customer account.
+    from database import account_for_client
     try:
-        c = (get_supabase_admin().table("clients").select("user_id")
-             .eq("id", client_id).limit(1).execute().data)
-        if not c:
-            return None
-        p = (get_supabase_admin().table("profiles").select("subscription_tier")
-             .eq("id", c[0]["user_id"]).limit(1).execute().data)
-        return (p[0].get("subscription_tier") if p else None) or "professional"
+        acc = account_for_client(client_id)
+        return (acc or {}).get("plan") or ("professional" if acc else None)
     except Exception as e:
         print(f"Could not read the plan for branding: {e}")
         return None

@@ -1,176 +1,157 @@
 """
-pages_admin/users.py — accounts, roles and subscription tiers.
+pages_admin/users.py — the people: accounts they belong to, their companies
+and roles, invitation state, last sign-in, and the admin role.
 
-The only code path that ever sets profiles.role. Every admin account until
-now was made one by hand, directly in the database — there was nothing else
-to make it here with. Also where a subscription tier is actually assigned
-today: there is no billing integration yet (S43), so an admin flipping this
-by hand IS the assignment mechanism, not a stopgap for one.
-
-Table-plus-detail-panel, same shape as pages/obligations.py: a summary grid
-to scan, one detail form for whichever account is selected.
+S59 (D-151): plan, status and trial are the customer account's, changed on
+the Companies page; here they are shown, read-only, for the account the
+person owns or works in. Before S59 they were set here, per person.
 """
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import datetime
 
 import streamlit as st
 
 from auth import get_user_id
 from database import (
-    get_all_profiles, get_supabase_admin,
-    set_user_role, set_user_tier, SUBSCRIPTION_TIERS, ROLES,
-    SUBSCRIPTION_STATUSES, set_subscription_status, TRIAL_DAYS,
+    ACCOUNT_STATUSES, ROLES, SUBSCRIPTION_TIERS, get_all_profiles, get_supabase_admin,
+    load_accounts, set_user_role,
 )
 
+SOURCES = {"invite": "Invited", "website_check": "Website check", "nis2_quiz": "NIS2 check",
+           "gdpr_quiz": "GDPR check", "ai_quiz": "AI Act check", "website": "Website sign-up",
+           "direct": "Direct sign-up"}
+
 st.title("Users")
-st.caption("Accounts, roles and subscription tiers.")
+st.caption("People, the accounts and companies they work in, and their role. "
+           "Plans are changed on the Companies page.")
 
 admin_id = get_user_id()
+admin = get_supabase_admin()
 
-profiles = get_all_profiles()
+with st.spinner("Loading users…"):
+    profiles = get_all_profiles()
+    accounts = {a["id"]: a for a in load_accounts()}
+    try:
+        clients = {c["id"]: c for c in admin.table("clients")
+                   .select("id, company_name, user_id, account_id").execute().data or []}
+        members = admin.table("workspace_members") \
+            .select("client_id, member_user_id, role, status").execute().data or []
+    except Exception as e:
+        st.error(f"Could not load companies: {e}")
+        clients, members = {}, []
+    last_sign_in: dict[str, str] = {}
+    try:
+        page = 1
+        while True:
+            batch = admin.auth.admin.list_users(page=page, per_page=200)
+            for u in batch:
+                last_sign_in[u.id] = getattr(u, "last_sign_in_at", None)
+            if len(batch) < 200:
+                break
+            page += 1
+    except Exception as e:
+        print(f"Could not read sign-ins: {e}")
+
 if not profiles:
     st.info("No accounts found.")
     st.stop()
 
-# One client-count / first-company lookup per account, client-side — same
-# pattern pages_admin/dashboard.py already uses for its per-client table
-# rather than a SQL join PostgREST doesn't offer here.
-try:
-    _clients = get_supabase_admin().table("clients") \
-        .select("user_id, company_name").execute().data or []
-except Exception:
-    _clients = []
-_companies_by_user: dict[str, list[str]] = {}
-for c in _clients:
-    _companies_by_user.setdefault(c["user_id"], []).append(c["company_name"])
+owned_account = {a["owner_user_id"]: a for a in accounts.values() if a.get("owner_user_id")}
 
-st.dataframe(
-    [
-        {
-            "Email": p.get("email") or "",
-            "Name": p.get("full_name") or "",
-            "Role": ROLES.get(p.get("role") or "", p.get("role") or ""),
-            "Plan": SUBSCRIPTION_TIERS.get(
-                p.get("subscription_tier") or "professional",
-                p.get("subscription_tier") or "",
-            ),
-            # S49: free / trial / subscribed / trial ended, and where the
-            # signup came from (nis2_quiz, website_check, direct).
-            "Status": SUBSCRIPTION_STATUSES.get(
-                p.get("subscription_status") or "", p.get("subscription_status") or ""),
-            "Trial ends": (p.get("trial_ends_at") or "")[:10],
-            "Source": p.get("signup_source") or "",
-            "Clients": ", ".join(_companies_by_user.get(p["id"], [])) or "—",
-            "Created": (p.get("created_at") or "")[:10],
-        }
-        for p in profiles
-    ],
-    hide_index=True,
-    width="stretch",
+
+def _when(v) -> datetime | None:
+    if not v:
+        return None
+    if isinstance(v, datetime):
+        return v
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def work_of(uid: str) -> tuple[dict | None, list[str]]:
+    """(the account whose plan applies to this person, their companies with roles)."""
+    comps, acc = [], owned_account.get(uid)
+    for c in clients.values():
+        if c.get("user_id") == uid:
+            comps.append(f"{c['company_name']} (owner)")
+    for m in members:
+        c = clients.get(m["client_id"])
+        if m.get("member_user_id") == uid and c and m.get("status") != "removed":
+            comps.append(f"{c['company_name']} ({(m.get('role') or '').replace('_', ' ')})")
+            acc = acc or accounts.get(c.get("account_id"))
+    return acc, comps
+
+
+rows = []
+for p in profiles:
+    acc, comps = work_of(p["id"])
+    signed = _when(last_sign_in.get(p["id"]))
+    rows.append({
+        "Email": p.get("email") or "",
+        "Name": p.get("full_name") or "",
+        "Role": ROLES.get(p.get("role") or "", p.get("role") or ""),
+        "Account": (acc or {}).get("name") or "—",
+        "Plan": SUBSCRIPTION_TIERS.get((acc or {}).get("plan"), "—") if acc else "—",
+        "Status": ACCOUNT_STATUSES.get((acc or {}).get("status"), "—") if acc else "—",
+        "Companies": ", ".join(comps) or "—",
+        "Last sign-in": signed,
+        "Signed in": "Yes" if signed else "Never (invitation pending)" if p.get("signup_source") == "invite" else "Never",
+        "Source": SOURCES.get(p.get("signup_source") or "", p.get("signup_source") or "—"),
+        "Created": _when(p.get("created_at")),
+    })
+
+search = st.text_input("Search", placeholder="Email, name, account or company")
+shown = [r for r in rows if not search or search.lower() in
+         " ".join(str(v) for v in r.values()).lower()]
+st.caption(f"{len(shown)} user{'s' if len(shown) != 1 else ''} · click a row to open it")
+event = st.dataframe(
+    shown, hide_index=True, width="stretch", on_select="rerun",
+    selection_mode="single-row", key="users_table",
     column_config={
-        "Email": st.column_config.TextColumn(width=280),
-        "Name": st.column_config.TextColumn(width=160),
-        "Role": st.column_config.TextColumn(width=90),
-        "Plan": st.column_config.TextColumn(width=110),
-        "Clients": st.column_config.TextColumn(width=220),
-        "Created": st.column_config.TextColumn(width=100),
+        "Email": st.column_config.TextColumn(width=220),
+        "Companies": st.column_config.TextColumn(width=240),
+        "Last sign-in": st.column_config.DatetimeColumn(format="DD MMM YYYY, HH:mm"),
+        "Created": st.column_config.DateColumn(format="DD MMM YYYY"),
     },
 )
+picked = (event.selection.rows if event and event.selection else []) or []
+if not picked:
+    st.stop()
 
-_profiles_by_id = {p["id"]: p for p in profiles}
-_sel_id = st.selectbox(
-    "Select an account",
-    options=list(_profiles_by_id.keys()),
-    format_func=lambda i: _profiles_by_id[i].get("email") or i,
-    key="admin_user_select",
-)
-target = _profiles_by_id[_sel_id]
+target = next(p for p in profiles if (p.get("email") or "") == shown[picked[0]]["Email"])
 is_self = target["id"] == admin_id
+acc, comps = work_of(target["id"])
 
+st.divider()
 with st.container(border=True):
     st.markdown(f"**{target.get('email') or target['id']}**")
-    if is_self:
-        st.caption("This is your own account.")
+    if acc:
+        st.caption(f"Account **{acc['name']}** — "
+                   f"{SUBSCRIPTION_TIERS.get(acc['plan'], acc['plan'])}, "
+                   f"{ACCOUNT_STATUSES.get(acc['status'], acc['status'])}"
+                   + (" (owner)" if acc.get("owner_user_id") == target["id"] else " (member)"))
+        st.page_link("pages_admin/companies.py", label="Change the plan on the Companies page →")
+    else:
+        st.caption("No account yet: this person owns no company and works in none.")
 
-    col_role, col_tier = st.columns(2)
-    with col_role:
-        _role_codes = list(ROLES.keys())
-        _current_role = target.get("role") or "client"
-        new_role = st.selectbox(
-            "Role", options=_role_codes,
-            index=_role_codes.index(_current_role) if _current_role in _role_codes else 0,
-            format_func=lambda c: ROLES[c],
-            key=f"role_{target['id']}",
-            # There is exactly one admin account in the database today.
-            # Letting it demote itself here has no in-code way back.
-            disabled=is_self,
-            help=("You can't change your own role." if is_self else None),
-        )
-        if not is_self and st.button("Save role", key=f"save_role_{target['id']}"):
-            if set_user_role(target["id"], new_role):
-                st.success("Role updated.")
-                st.rerun()
-            else:
-                st.error("Could not update role.")
-
-    with col_tier:
-        _tier_codes = list(SUBSCRIPTION_TIERS.keys())
-        _current_tier = target.get("subscription_tier") or "professional"
-        _n_clients = len(_companies_by_user.get(target["id"], []))
-        new_tier = st.selectbox(
-            "Plan", options=_tier_codes,
-            index=_tier_codes.index(_current_tier) if _current_tier in _tier_codes else 0,
-            format_func=lambda c: SUBSCRIPTION_TIERS[c],
-            key=f"tier_{target['id']}",
-        )
-        if _current_tier == "advisory" and _n_clients > 1:
-            st.caption(
-                f":orange[{_n_clients} clients on this account — "
-                "downgrading to Professional will be refused until it's "
-                "down to one.]"
-            )
-        if st.button("Save plan", key=f"save_tier_{target['id']}"):
-            ok, err = set_user_tier(target["id"], new_tier)
-            if ok:
-                st.success("Plan updated.")
-                st.rerun()
-            else:
-                st.error(err or "Could not update plan.")
-
-    # S49 (D-115). Until Stripe (S46), a plan request from the subscribe
-    # page arrives as a billing ticket, and setting "Subscribed" here is
-    # what grants the full app.
-    _status_codes = list(SUBSCRIPTION_STATUSES.keys())
-    _current_status = target.get("subscription_status") or "registered"
-    new_status = st.selectbox(
-        "Status", options=_status_codes,
-        index=_status_codes.index(_current_status) if _current_status in _status_codes else 0,
-        format_func=lambda c: SUBSCRIPTION_STATUSES[c],
-        key=f"status_{target['id']}",
-        help="Free accounts and ended trials see only their free check and the subscribe page.",
+    _role_codes = list(ROLES.keys())
+    _current_role = target.get("role") or "client"
+    new_role = st.selectbox(
+        "Role", options=_role_codes,
+        index=_role_codes.index(_current_role) if _current_role in _role_codes else 0,
+        format_func=lambda c: ROLES[c], key=f"role_{target['id']}",
+        # There is exactly one admin account in the database today.
+        # Letting it demote itself here has no in-code way back.
+        disabled=is_self,
+        help=("You can't change your own role." if is_self else
+              "Admin gives access to this back office."),
     )
-    # A trial always has an end date, editable to extend it (9 Nov).
-    _ends = None
-    if new_status == "trial":
-        try:
-            _cur_end = datetime.fromisoformat(
-                (target.get("trial_ends_at") or "").replace("Z", "+00:00")).date()
-        except ValueError:
-            _cur_end = None
-        _default_end = (_cur_end if _cur_end and _cur_end >= date.today()
-                        else date.today() + timedelta(days=TRIAL_DAYS))
-        _end_day = st.date_input(
-            "Trial ends", value=_default_end, min_value=date.today(),
-            key=f"trial_end_{target['id']}", format="DD/MM/YYYY",
-            help=f"{TRIAL_DAYS} days by default. A later date extends the trial; "
-                 "the change is logged.")
-        if _cur_end:
-            st.caption(f"Currently ends {_cur_end.strftime('%d %b %Y')}.")
-        # End of that day, Brussels time is close enough: 23:59 UTC.
-        _ends = datetime.combine(_end_day, time(23, 59), tzinfo=timezone.utc)
-    if st.button("Save status", key=f"save_status_{target['id']}"):
-        if set_subscription_status(target["id"], new_status, trial_ends_at=_ends):
-            st.success("Status updated.")
+    if not is_self and st.button("Save role", key=f"save_role_{target['id']}",
+                                 disabled=new_role == _current_role):
+        if set_user_role(target["id"], new_role):
+            st.success("Role updated.")
             st.rerun()
         else:
-            st.error("Could not update status.")
+            st.error("Could not update role.")

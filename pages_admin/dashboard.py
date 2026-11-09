@@ -32,8 +32,9 @@ try:
     _open = count_open_tickets()
     t1.metric("Open tickets", _open, help="Open or in progress.")
     _soon = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
-    _trials = admin.table("profiles").select("id, trial_ends_at") \
-        .eq("subscription_status", "trial").execute().data or []
+    # S59: trials are the customer accounts'.
+    _trials = admin.table("accounts").select("id, trial_ends_at") \
+        .eq("status", "trial").execute().data or []
     t2.metric("Trials running", len(_trials))
     t3.metric("Trials ending within 7 days",
               sum(1 for p in _trials if (p.get("trial_ends_at") or "9") <= _soon))

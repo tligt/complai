@@ -98,6 +98,18 @@ st.subheader("Plan")
 _tier = profile.get("subscription_tier") or "professional"
 _status = profile.get("subscription_status") or "active"
 
+# S59: the plan is the customer account's. Someone who owns no account (an
+# invited colleague) works under the account of the company they are in:
+# they see its plan, and its owner changes it.
+_managed_by = None
+if not profile.get("account"):
+    from active_client import get_active_client
+    from database import account_for_client
+    _acc = account_for_client((get_active_client(user_id) or {}).get("id"))
+    if _acc:
+        _tier, _status, _managed_by = _acc["plan"], _acc["status"], _acc["name"]
+        profile = {**profile, "trial_ends_at": _acc.get("trial_ends_at")}
+
 PLAN_INCLUDES = {
     "starter": "One company · GDPR, NIS2 and the EU AI Act · obligations and "
                "action plan, systems, the core documents, incidents, web audit, "
@@ -130,8 +142,13 @@ with st.container(border=True):
             p2.info(f"Free trial — **{plural(_left, 'day')} left**, "
                     f"until {fmt_date(profile['trial_ends_at'])}.")
 
+    if _managed_by:
+        p1.caption(f"The plan of **{_managed_by}**, the account this company belongs to.")
+
 st.markdown("**Changing plan**")
-if _status in ("registered", "expired"):
+if _managed_by:
+    st.caption(f"The plan is managed by the owner of {_managed_by}.")
+elif _status in ("registered", "expired"):
     st.caption("To subscribe, write to us through Support.")
     if st.button("Contact support", key="plan_support"):
         st.switch_page("app_pages/support.py")

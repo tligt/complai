@@ -86,6 +86,9 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
     fills in; only those present are written."""
     optional = ("website_url", "enterprise_number", "legal_name",
                 "legal_form", "registered_address")
+    # S59: the company goes into its creator's customer account (a database
+    # trigger sets clients.account_id); open the account first if needed.
+    ensure_account(user_id)
     try:
         supabase = get_supabase()
         res = supabase.table("clients").insert({
@@ -1381,10 +1384,14 @@ def create_user_profile(
         if pending_result:
             row["pending_result"] = pending_result
         get_supabase_admin().table("profiles").upsert(row, on_conflict="id").execute()
-        return True
     except Exception as e:
         print(f"Could not create profile: {e}")
         return False
+    # S59: a self sign-up opens its customer account at once, with the plan
+    # chosen; an invited person joins someone else's and opens none.
+    if signup_source != "invite":
+        ensure_account(user_id, plan=subscription_tier)
+    return True
 
 
 # ── Subscription status (S49, D-115) ─────────────────────────────────────
@@ -1402,77 +1409,291 @@ SUBSCRIPTION_STATUSES = {
 }
 
 
+# ── Customer accounts (S59, D-151) ───────────────────────────────────────
+# The plan, status and trial belong to the customer account — the
+# contracting party — not to a person. Its companies point to it
+# (clients.account_id, set by a trigger on insert). Every change closes the
+# open period in account_periods and opens the next: the history is
+# append-only (a database trigger refuses anything else). Written with the
+# service role only.
+
+ACCOUNT_STATUSES = {**SUBSCRIPTION_STATUSES, "cancelled": "Cancelled"}
+# Plans that hold more than one company (Advisory: a consultant's clients;
+# Enterprise: a group and its divisions).
+MULTI_COMPANY_PLANS = ("advisory", "enterprise")
+ACCOUNT_DETAIL_FIELDS = ("name", "contact_name", "contact_email", "contact_phone",
+                         "contact_user_id", "billing_email", "vat_number", "notes")
+
+
+def _one(rows) -> dict | None:
+    return rows[0] if rows else None
+
+
+def get_account(account_id: str | None) -> dict | None:
+    if not account_id:
+        return None
+    try:
+        return _one(get_supabase_admin().table("accounts").select("*")
+                    .eq("id", account_id).limit(1).execute().data)
+    except Exception as e:
+        print(f"Could not load account: {e}")
+        return None
+
+
+def account_for_user(user_id: str | None) -> dict | None:
+    """The account this person manages (owns), if any. An invited colleague
+    has none: they work in companies of someone else's account."""
+    if not user_id:
+        return None
+    try:
+        return _one(get_supabase_admin().table("accounts").select("*")
+                    .eq("owner_user_id", user_id).limit(1).execute().data)
+    except Exception as e:
+        print(f"Could not load account: {e}")
+        return None
+
+
+def account_for_client(client_id: str | None) -> dict | None:
+    """The account a company belongs to: whose plan applies to it."""
+    if not client_id:
+        return None
+    try:
+        c = _one(get_supabase_admin().table("clients").select("account_id, user_id")
+                 .eq("id", client_id).limit(1).execute().data)
+        if not c:
+            return None
+        return get_account(c.get("account_id")) or account_for_user(c.get("user_id"))
+    except Exception as e:
+        print(f"Could not load the company's account: {e}")
+        return None
+
+
+def ensure_account(user_id: str, plan: str | None = None, name: str | None = None) -> dict | None:
+    """The person's account, opened if they have none (a self sign-up, or
+    anyone about to create a company). Named after the email's domain until
+    an admin or the company setup gives it a better name."""
+    existing = account_for_user(user_id)
+    if existing:
+        return existing
+    admin = get_supabase_admin()
+    try:
+        p = _one(admin.table("profiles").select("email").eq("id", user_id).limit(1).execute().data) or {}
+        domain = (p.get("email") or "").split("@")[-1] or "New account"
+        row = {"name": (name or domain).strip() or domain,
+               "plan": plan if plan in SUBSCRIPTION_TIERS else "professional",
+               "status": "registered", "owner_user_id": user_id}
+        acc = _one(admin.table("accounts").insert(row).execute().data)
+    except Exception as e:
+        # A second tab opening it at the same moment: the unique owner wins.
+        acc = account_for_user(user_id)
+        if not acc:
+            print(f"Could not open an account: {e}")
+            return None
+        return acc
+    try:
+        admin.table("account_periods").insert({
+            "account_id": acc["id"], "plan": acc["plan"], "status": acc["status"],
+            "starts_at": acc["created_at"], "note": "Account opened", "changed_by": user_id,
+        }).execute()
+        # Companies this person created before having an account.
+        admin.table("clients").update({"account_id": acc["id"]}) \
+            .eq("user_id", user_id).is_("account_id", "null").execute()
+    except Exception as e:
+        print(f"Could not finish opening the account: {e}")
+    return acc
+
+
+def account_company_ids(account_id: str) -> list[str]:
+    try:
+        return [c["id"] for c in get_supabase_admin().table("clients").select("id")
+                .eq("account_id", account_id).execute().data or []]
+    except Exception:
+        return []
+
+
+def _audit_account(account_id: str, summary: str, subtype: str, by: str | None,
+                   metadata: dict | None = None) -> None:
+    for cid in account_company_ids(account_id):
+        log_audit_event(cid, "plan", summary, user_id=by, event_subtype=subtype,
+                        metadata=metadata)
+
+
+def change_account(account_id: str, *, plan: str | None = None, status: str | None = None,
+                   trial_ends_at: datetime | None = None, note: str | None = None,
+                   by: str | None = None) -> tuple[bool, str | None]:
+    """Change the plan and/or status: closes the open period, opens the next.
+    Returns (ok, error message).
+
+    A trial always has an end date: `trial_ends_at`, else the current one if
+    still ahead, else TRIAL_DAYS from now. Setting a later date on a trial
+    (running or ended) is how it is extended. Leaving a multi-company plan
+    while the account holds several companies is refused (see set_user_tier's
+    old note: picking which companies to drop is the customer's decision)."""
+    acc = get_account(account_id)
+    if not acc:
+        return False, "Account not found."
+    new_plan = plan or acc["plan"]
+    new_status = status or acc["status"]
+    if new_plan not in SUBSCRIPTION_TIERS:
+        return False, "Unknown plan."
+    if new_status not in ACCOUNT_STATUSES:
+        return False, "Unknown status."
+    now = datetime.now(timezone.utc)
+
+    ends = None
+    if new_status == "trial":
+        current = None
+        if acc.get("trial_ends_at"):
+            try:
+                current = datetime.fromisoformat(acc["trial_ends_at"].replace("Z", "+00:00"))
+            except ValueError:
+                current = None
+        ends = trial_ends_at or (current if current and current > now and acc["status"] == "trial"
+                                 else now + timedelta(days=TRIAL_DAYS))
+    def _minute(v):
+        if not v:
+            return None
+        d = v if isinstance(v, datetime) else datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return d.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M")
+
+    same_trial = new_status != "trial" or _minute(ends) == _minute(
+        acc.get("trial_ends_at") if acc["status"] == "trial" else None)
+    if (new_plan, new_status) == (acc["plan"], acc["status"]) and same_trial:
+        return True, None                       # nothing changes
+
+    if acc["plan"] in MULTI_COMPANY_PLANS and new_plan not in MULTI_COMPANY_PLANS:
+        n = len(account_company_ids(account_id))
+        if n > 1:
+            return False, (f"This account has {n} companies. {SUBSCRIPTION_TIERS[new_plan]} holds "
+                           "one: move or remove the others first.")
+
+    admin = get_supabase_admin()
+    try:
+        admin.table("account_periods").update({"ends_at": now.isoformat()}) \
+            .eq("account_id", account_id).is_("ends_at", "null").execute()
+        admin.table("account_periods").insert({
+            "account_id": account_id, "plan": new_plan, "status": new_status,
+            "trial_ends_at": ends.isoformat() if ends else None,
+            "starts_at": now.isoformat(), "note": (note or "").strip() or None, "changed_by": by,
+        }).execute()
+        upd = {"plan": new_plan, "status": new_status, "updated_at": now.isoformat()}
+        if ends:
+            upd["trial_ends_at"] = ends.isoformat()
+        admin.table("accounts").update(upd).eq("id", account_id).execute()
+    except Exception as e:
+        print(f"Could not change the account: {e}")
+        return False, "Could not save."
+
+    parts = []
+    if new_plan != acc["plan"]:
+        parts.append(f"plan {SUBSCRIPTION_TIERS[acc['plan']]} → {SUBSCRIPTION_TIERS[new_plan]}")
+    if new_status != acc["status"]:
+        parts.append(f"status {ACCOUNT_STATUSES[acc['status']]} → {ACCOUNT_STATUSES[new_status]}")
+    if ends:
+        parts.append(f"trial until {ends.strftime('%d %b %Y')}")
+    _audit_account(account_id, "Subscription: " + ", ".join(parts) + (f" ({note})" if note else ""),
+                   "subscription_changed", by,
+                   {"plan": new_plan, "status": new_status,
+                    "trial_ends_at": ends.isoformat() if ends else None})
+    return True, None
+
+
+def update_account_details(account_id: str, fields: dict, by: str | None = None) -> bool:
+    """Name, contract contact, billing email, VAT number, notes."""
+    row = {k: ((v or "").strip() or None) if isinstance(v, str) or v is None else v
+           for k, v in fields.items() if k in ACCOUNT_DETAIL_FIELDS}
+    if "name" in row and not row["name"]:
+        row.pop("name")
+    if not row:
+        return True
+    row["updated_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        get_supabase_admin().table("accounts").update(row).eq("id", account_id).execute()
+        _audit_account(account_id, "Account details updated: " +
+                       ", ".join(k.replace("_", " ") for k in row if k != "updated_at"),
+                       "account_details", by)
+        return True
+    except Exception as e:
+        print(f"Could not update the account: {e}")
+        return False
+
+
+def load_account_periods(account_id: str) -> list[dict]:
+    """The history, newest first."""
+    try:
+        return get_supabase_admin().table("account_periods").select("*") \
+            .eq("account_id", account_id).order("starts_at", desc=True) \
+            .order("created_at", desc=True).execute().data or []
+    except Exception as e:
+        print(f"Could not load the account history: {e}")
+        return []
+
+
+def load_accounts() -> list[dict]:
+    """Back office: every account, newest first."""
+    try:
+        return get_supabase_admin().table("accounts").select("*") \
+            .order("created_at", desc=True).execute().data or []
+    except Exception as e:
+        print(f"Could not load accounts: {e}")
+        return []
+
+
+def expire_account_trial_if_due(acc: dict | None) -> dict | None:
+    """A trial past its end date becomes 'expired' — stored, with its period."""
+    if not acc or acc.get("status") != "trial" or not acc.get("trial_ends_at"):
+        return acc
+    try:
+        ends = datetime.fromisoformat(acc["trial_ends_at"].replace("Z", "+00:00"))
+    except ValueError:
+        return acc
+    if ends > datetime.now(timezone.utc):
+        return acc
+    ok, _ = change_account(acc["id"], status="expired", note="The free trial ended")
+    return {**acc, "status": "expired"} if ok else acc
+
+
+# ── The person-level names, kept for their callers ───────────────────────
+# Each acts on the account the person owns (opened if needed).
+
 def start_trial(user_id: str, tier: str | None = None) -> bool:
-    """Start the one free trial, TRIAL_DAYS days. Only from 'registered' —
-    an expired trial does not restart.
+    """Start the account's one free trial, TRIAL_DAYS days. Only from
+    'registered': an expired trial does not restart, and an invited
+    colleague starts none (they own no account).
 
     `tier`: the plan chosen at sign-up (D-126). Without one — the free
-    check's "Start free trial" button — the tier already on the profile
-    is kept, Professional by default."""
-    try:
-        ends = datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS)
-        row = {"subscription_status": "trial", "trial_ends_at": ends.isoformat()}
-        if tier in SUBSCRIPTION_TIERS:
-            row["subscription_tier"] = tier
-        res = get_supabase_admin().table("profiles").update(row) \
-            .eq("id", user_id).eq("subscription_status", "registered").execute()
-        if res.data:
-            log_account_event(user_id, "plan", f"Started the {TRIAL_DAYS}-day free trial",
-                              event_subtype="trial_started",
-                              metadata={"tier": res.data[0].get("subscription_tier")},
-                              owned_only=True)
-        return bool(res.data)
-    except Exception as e:
-        print(f"Could not start trial: {e}")
+    check's "Start free trial" button — the account's plan is kept."""
+    acc = ensure_account(user_id, plan=tier)
+    if not acc or acc["status"] != "registered":
         return False
+    ok, _ = change_account(acc["id"], status="trial",
+                           plan=tier if tier in SUBSCRIPTION_TIERS else None,
+                           note=f"Started the {TRIAL_DAYS}-day free trial", by=user_id)
+    return ok
 
 
 def expire_trial_if_due(profile: dict) -> dict:
-    """A trial past its end date becomes 'expired' — stored, so the admin
-    list shows it too. Returns the profile as it now stands."""
-    if profile.get("subscription_status") != "trial" or not profile.get("trial_ends_at"):
+    """The profile as get_user_profile returns it, with its account's trial
+    expired if due (S59: the trial is the account's)."""
+    acc = profile.get("account")
+    if not acc:
         return profile
-    try:
-        ends = datetime.fromisoformat(profile["trial_ends_at"].replace("Z", "+00:00"))
-    except ValueError:
+    acc2 = expire_account_trial_if_due(acc)
+    if acc2 is acc:
         return profile
-    if ends > datetime.now(timezone.utc):
-        return profile
-    try:
-        get_supabase_admin().table("profiles").update(
-            {"subscription_status": "expired"}
-        ).eq("id", profile["id"]).eq("subscription_status", "trial").execute()
-    except Exception as e:
-        print(f"Could not expire trial: {e}")
-    return {**profile, "subscription_status": "expired"}
+    return {**profile, "account": acc2, "subscription_status": acc2["status"]}
 
 
 def set_subscription_status(target_user_id: str, status: str,
-                            trial_ends_at: datetime | None = None) -> bool:
-    """Admin: set an account's status by hand (until Stripe, S46).
-
-    A trial always has an end date (9 Nov: a trial set here had none, so it
-    never ended): `trial_ends_at`, or TRIAL_DAYS from now. Setting a later
-    date on a running or ended trial is how an admin extends it."""
-    if status not in SUBSCRIPTION_STATUSES:
+                            trial_ends_at: datetime | None = None,
+                            note: str | None = None) -> bool:
+    """Set the status of the account this person owns (opened if needed)."""
+    acc = ensure_account(target_user_id)
+    if not acc:
         return False
-    row: dict = {"subscription_status": status}
-    summary = f"Subscription set to {SUBSCRIPTION_STATUSES[status]}"
-    if status == "trial":
-        ends = trial_ends_at or (datetime.now(timezone.utc) + timedelta(days=TRIAL_DAYS))
-        row["trial_ends_at"] = ends.isoformat()
-        summary += f", ending {ends.strftime('%d %b %Y')}"
-    try:
-        get_supabase_admin().table("profiles").update(row).eq("id", target_user_id).execute()
-        log_account_event(target_user_id, "plan", summary,
-                          event_subtype="status_changed",
-                          metadata={"status": status, "by": session_user_id(),
-                                    "trial_ends_at": row.get("trial_ends_at")},
-                          owned_only=True)
-        return True
-    except Exception as e:
-        print(f"Could not set subscription status: {e}")
-        return False
+    ok, _ = change_account(acc["id"], status=status, trial_ends_at=trial_ends_at,
+                           note=note, by=session_user_id())
+    return ok
 
 
 def save_pending_result(user_id: str, pending_result: dict | None) -> bool:
@@ -1530,15 +1751,30 @@ def get_user_profile(user_id: str) -> dict:
             .eq("id", user_id) \
             .single() \
             .execute()
-        return res.data or {}
+        profile = res.data or {}
     except Exception:
         return {}
+    # S59: the plan, status and trial are the account's. They are laid over
+    # the profile's old columns (no longer written) so every reader of
+    # subscription_tier / subscription_status / trial_ends_at gets the
+    # account's values; `account` is the account itself, or None for a
+    # person who owns none (an invited colleague).
+    acc = account_for_user(user_id) if profile else None
+    profile["account"] = acc
+    if acc:
+        profile.update(subscription_tier=acc["plan"], subscription_status=acc["status"],
+                       trial_ends_at=acc.get("trial_ends_at"))
+    return profile
 
 
 def is_admin(user_id: str) -> bool:
     """Check if a user has admin role."""
-    profile = get_user_profile(user_id)
-    return profile.get("role") == "admin"
+    try:
+        r = get_supabase_admin().table("profiles").select("role").eq("id", user_id) \
+            .limit(1).execute().data
+        return bool(r) and r[0].get("role") == "admin"
+    except Exception:
+        return False
 
 
 def get_all_profiles() -> list[dict]:
@@ -1650,36 +1886,13 @@ def set_user_tier(target_user_id: str, tier: str) -> tuple[bool, str | None]:
     membership row, so there is nothing about workspace_members for this
     function to check.
     """
+    # S59: the plan is the account's; the guard above lives in change_account.
     if tier not in SUBSCRIPTION_TIERS:
         return False, "Unknown plan."
-    try:
-        current = get_supabase_admin().table("profiles") \
-            .select("subscription_tier").eq("id", target_user_id) \
-            .single().execute().data or {}
-        was_advisory = (current.get("subscription_tier") or "professional") == "advisory"
-
-        if was_advisory and tier != "advisory":
-            n = get_supabase_admin().table("clients") \
-                .select("id", count="exact") \
-                .eq("user_id", target_user_id).execute().count or 0
-            if n > 1:
-                return False, (
-                    f"This account has {n} clients. Professional only "
-                    "supports one — move or remove the extra clients "
-                    "first, then downgrade."
-                )
-
-        get_supabase_admin().table("profiles") \
-            .update({"subscription_tier": tier}).eq("id", target_user_id).execute()
-        log_account_event(target_user_id, "plan",
-                          f"Plan changed to {SUBSCRIPTION_TIERS[tier]}",
-                          event_subtype="tier_changed",
-                          metadata={"tier": tier, "by": session_user_id()},
-                          owned_only=True)
-        return True, None
-    except Exception as e:
-        print(f"Could not set tier for {target_user_id}: {e}")
+    acc = ensure_account(target_user_id)
+    if not acc:
         return False, "Could not save."
+    return change_account(acc["id"], plan=tier, by=session_user_id())
 
 
 def set_user_role(target_user_id: str, role: str) -> bool:
