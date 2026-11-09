@@ -384,19 +384,19 @@ the only sprint that *is* the gate.
 | ~~S55~~ | ~~AI Act Quick Check — third free check~~ | **Closed 4 Nov.** Built 3 Nov (D-132), then the free check redesign, navigation, more NIS2/AI Act questions and the GDPR Quick Check (D-133 to D-137); live walk-through 4 Nov; real sign-up 4 Nov — four checks, four emails, four leads. New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
 | **S56** | **Enterprise routing + in-app messaging** | **Built 5 Nov (D-145)**: assign tasks and incidents, routing rules per area, comments, inbox. Live test waits for a company with two people. was S55 until D-131; S54 until D-115; S52, S49 before |
 | ~~S57~~ | ~~Buffer/LinkedIn integration~~ | **Closed 6 Nov (D-147, D-149)**: LinkedIn drafts to Buffer — queue, schedule or draft; plain text, source line or first comment (the first comment needs a paid Buffer plan), a real RECOSA mention, a RECOSA image. Tested live. was S56 until D-131; S55 until D-115; S53, S50 before |
-| ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S63). was S57 until D-131; S56 until D-115; S54, S51 before |
-| S59 | Skills matrix and training register | was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
-| S60 | AI Act three-layer inventory | was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
-| S61 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S60 until D-131; S59 until D-115; S57, S54 before. Needs S60's inventory to describe |
-| S62 | Annual compliance report | was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
-| S63 | Localization — languages per country, and a checklist per country added | **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
-| S64 | RoPA consistency checks | was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
-| S65 | Cookie Policy purpose granularity | was S64 until D-131; S63 until D-115; S61, S58 before |
-| S66 | Compliance heartbeat — scheduled checks | was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
-| S67 | Evaluate a Streamlit alternative | was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
-| S68 | Import existing documents into the inventory | New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
-| **S70** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151), next.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
-| S69 | GDPR deletion | New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
+| ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S64 since D-152). was S57 until D-131; S56 until D-115; S54, S51 before |
+| **S59** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). Building.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
+| S60 | Skills matrix and training register | was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
+| S61 | AI Act three-layer inventory | was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
+| S62 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
+| S63 | Annual compliance report | was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
+| S64 | Localization — languages per country, and a checklist per country added | was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
+| S65 | RoPA consistency checks | was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
+| S66 | Cookie Policy purpose granularity | was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
+| S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
+| S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
+| S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
+| S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -615,6 +615,23 @@ their numbers.
 *Only the roadmap tables and the open rows of section 7 were updated, as
 before. Every other mention of S55–S67 in this file uses the numbering in
 force when it was written. `scope/s49_monitoring_sources.md` is now S58.*
+
+### Renumbering, 9 November 2026
+
+By request (D-152). *Customer accounts and subscription history*, scoped as
+S70 the same day, goes in at S59, the first unshipped number after the last
+closed sprint (S58). Every unshipped sprint from the old S59 shifts one
+higher, in the same relative order.
+
+| was | now | why |
+|---|---|---|
+| S70 | S59 | *Customer accounts and subscription history*, built now |
+| S59–S69 | S60–S70 | Straight shift, one higher each |
+
+*As before, only the roadmap tables and the open rows of section 7 were
+updated; every other mention of S59–S69 in this file uses the numbering in
+force when it was written (so D-148's "S63 Localization" is now S64, and
+D-142's "S69 GDPR deletion" is now S70).*
 
 ---
 
@@ -1500,7 +1517,9 @@ template engine plus `document_xlsx.py`, stamped and registered like any other
 document. S27 gives the auditor a register; this gives management a narrative,
 and management-level accountability is an explicit NIS2 duty.
 
-#### S70 — Customer accounts and subscription history — SCOPE LOCK, 9 Nov
+#### S59 — Customer accounts and subscription history — SCOPE LOCK, 9 Nov
+
+*Registered as S70, made S59 the same day (D-152).*
 
 *From the back office review (D-150, points 1–3). Decisions with the user
 on 9 Nov (D-151); the rest proposed here, open to correction before build.*
@@ -1536,7 +1555,7 @@ records when a plan started or ended, and there is no contract contact.
   a paid period) comes with Stripe (S46).
 - **People.** A person belongs to an account through its companies: the owner,
   and members via `workspace_members` / `group_members` (unchanged). The plan
-  fields on `profiles` stop being read; they stay in the table until S70 is
+  fields on `profiles` stop being read; they stay in the table until S59 is
   verified, then are dropped in a later migration.
 - **Sign-up and the free checks.** A self sign-up creates its account at once
   (status `registered`, no company yet), named after the email's domain until
@@ -1566,7 +1585,7 @@ records when a plan started or ended, and there is no contract contact.
   the account and are shown read-only there (changed on Companies).
 - Dashboard counts trials and customers by account.
 - The row menu and sortable tables (review points 4–6) are the next piece of
-  work; S70 uses plain tables so it doesn't wait for them.
+  work; S59 uses plain tables so it doesn't wait for them.
 
 **Migration.** No real customers yet (9 Nov: six accounts, all RECOSA's own
 tests; no groups; no plan history). One account per person who owns
@@ -1576,8 +1595,8 @@ and status, `starts_at` = the person's `created_at`. RLS: an account is
 readable by its owner and by members of its companies (read-only), written
 only through the service role (back office and the sign-up/trial functions).
 
-**Not in S70:** payments, invoices, seats and per-seat prices (S46); future-
-dated changes; deleting an account (S69).
+**Not in S59:** payments, invoices, seats and per-seat prices (S46); future-
+dated changes; deleting an account (S70, GDPR deletion).
 
 **Estimate:** about two days, including the end-to-end re-test of sign-up,
 trial, invitation and the plan gates.
@@ -6505,11 +6524,20 @@ or more companies under it, and every change is a dated period in an
 append-only history. For **Advisory, the consultant's account holds all
 their client companies** (the consultant pays, as today). The **contract
 contact is typed in** by an admin and can be someone without a login (a
-CFO), optionally linked to a user. Built **now, as S70**; S46 (Stripe)
+CFO), optionally linked to a user. Built **now, as S70** (S59 since D-152); S46 (Stripe)
 plugs payments into it later. "Business" in the review meant Professional:
 the four plans stay. Proposed in the scope lock and open to correction:
 Enterprise's account holds the group; one trial per account; changes take
 effect when made.
+
+### D-152 — S70 becomes S59, built now; S59–S69 move one higher, 9 Nov
+
+By the user: build the customer accounts sprint as S59 and push back every
+sprint after it. Renumbering table in section 3. Now: S60 Skills matrix,
+S61 AI Act inventory, S62 AI deployer pack, S63 Annual report, S64
+Localization, S65 RoPA checks, S66 Cookie Policy granularity, S67
+Compliance heartbeat, S68 Streamlit alternative, S69 Import existing
+documents, S70 GDPR deletion.
 
 ---
 
@@ -6910,15 +6938,15 @@ selector. The multi-client selector is Advisory-only (S47).
 |---|---|---|
 | ~~Does S34 come before S28?~~ | — | **Resolved 8 Sept: no. D-70.** Document generation needed a regulation filter, not regulation-aware allocation. **Revisited 18 Sept: brought forward of the beta gate anyway, for unrelated reasons — D-96.** |
 | ~~Task register — which number?~~ | S60, S62, S26C | **Resolved: part of S29.** No longer unnumbered. |
-| Systems grid purpose granularity | S65 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
+| Systems grid purpose granularity | S66 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
 | ~~Belgian DPA cookie guidance + 5-year figure~~ | S27 | **Resolved 18 Sept — D-98.** Primary source found and read: the "dated, versioned, previous copies retained" practice is correctly attributed to the Belgian DPA. The five-year figure is not — no primary source states it, and the comment in `database.py` already correctly called it a working figure rather than law. Nothing to change in the code; the open item was the citation, now closed. |
-| Rolling retention start dates | S64 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
+| Rolling retention start dates | S65 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
 | ~~AI Act role: per client or per system?~~ | S56 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S51. |
 | ~~Art. 4 AI literacy in the catalogue?~~ | S55 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
 | ~~`applies_from` for 2 Dec 2026?~~ | — | **Resolved 18 Sept: yes**, `ai_10`. OJ-text verification against the primary source still outstanding. |
 | ~~`chat.py` says Annex III applies from 2 Aug 2026~~ | — | **Fixed and verified live 18 Sept.** See D-97. |
-| Art. 9(2) coverage | S64 | Both seeded paths use `employment_social_security`; the other nine untested. |
+| Art. 9(2) coverage | S65 | Both seeded paths use `employment_social_security`; the other nine untested. |
 | Anthropic contracting entity | — | Ships as `dpa_status = 'unknown'` rather than an asserted default. |
 | A page refresh logs the user out | S51 | Found 30 Sept. The login lives only in `st.session_state`, which a browser refresh (or opening a URL directly) replaces with a fresh, empty session. `init_auth`'s comment claims the session "survives page refreshes"; it does not. Session hardening is S51's scope (was S40); a fix needs the refresh token to survive the reload somewhere (e.g. a secure cookie). |
 | Ask CCB for full-text access | — | **Idea, logged 27 Sept; premature until RECOSA is up and running.** CCB articles are bot-blocked, so CCB items reach the KB as title/teaser only (D-109). Ask CCB for a full-text feed or an allow-listed monitor, framed as a compliance service quoting them with attribution. |
