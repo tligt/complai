@@ -6618,6 +6618,30 @@ right encoding. Checked against both live sites: 11 ENISA and 3 APD news
 items, each dated. The 11 menu pages already in the queue (9 ENISA topics,
 2 APD pages) were rejected (status only; reversible).
 
+### D-155 — Knowledge Base: two documents never retrieved; edit and delete broken, 9 Nov
+
+Found while moving the page to the shared table. Retrieval matches a
+document's country exactly (EU, plus the company's country), and the
+upload form offered NL, DE and LU as lower-case "nl", "de", "lu". Two
+documents carried a lower-case code and were invisible: **the Belgian NIS2
+law in French (22 passages, "be") for every Belgian company, and 10 of the
+CNIL's 47 passages ("fr") for French ones** — the page showed codes in
+capitals, so nothing looked wrong. Both fixed in Qdrant; ingest, edit and
+retrieval now upper-case the code. Checked: a Belgian NIS2 question in
+French gets the Belgian law in 4 of its 5 supplementary passages; a French
+company does not.
+
+Editing or deleting a document from the page failed: the Qdrant cluster
+refuses a filter on an unindexed field (strict mode), and `source` had no
+index. Added to `rag.ensure_payload_indexes` and created (all six indexes
+reported "created").
+
+The page (2ffa5d3): the documents in the shared table, sortable; a row's ⋮
+menu edits (pop-up) or deletes (pop-up with a warning) it; the Edit and
+Delete tabs and their "select document" boxes are gone. Checked live: 30
+documents, no lower-case country, the edit pop-up opens on the Belgian law;
+nothing saved.
+
 ---
 
 ## 5. Constraints and gotchas
