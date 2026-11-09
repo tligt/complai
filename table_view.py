@@ -27,7 +27,8 @@ root so its styles stay its own.
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timezone
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -194,6 +195,7 @@ export default function(component) {
 """
 
 _component = None
+_TZ = ZoneInfo("Europe/Brussels")
 
 
 def _fmt(v, kind: str | None) -> tuple[str, object]:
@@ -209,8 +211,13 @@ def _fmt(v, kind: str | None) -> tuple[str, object]:
         except ValueError:
             return v, v
     if isinstance(v, datetime):
+        # Shown in the app's time zone, like every other time in RECOSA (the
+        # run history said 13:45 in the table and 14:45 in its pop-up).
+        key = v.astimezone(timezone.utc).isoformat() if v.tzinfo is not None else v.isoformat()
+        if v.tzinfo is not None:
+            v = v.astimezone(_TZ)
         shown = v.strftime("%d %b %Y, %H:%M") if kind == "datetime" else v.strftime("%d %b %Y")
-        return shown, v.isoformat()
+        return shown, key
     if isinstance(v, date):
         return v.strftime("%d %b %Y"), v.isoformat()
     if isinstance(v, bool):
