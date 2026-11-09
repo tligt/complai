@@ -1,4 +1,6 @@
 import streamlit as st
+
+import table_view as tv
 from database import get_supabase_admin, get_token_summary_by_client
 from datetime import datetime, timedelta, timezone
 
@@ -69,7 +71,7 @@ st.subheader("👥 Clients")
 
 try:
     clients_res = admin.table("clients") \
-        .select("id, user_id, company_name, sector, country, regulations, created_at") \
+        .select("id, user_id, account_id, company_name, sector, country, regulations, created_at") \
         .order("created_at", desc=True) \
         .execute()
     clients = clients_res.data or []
@@ -109,51 +111,44 @@ try:
 
         DOC_ABUSE_THRESHOLD = 20
 
-        # Header
-        h1, h2, h3, h4, h5, h6, h7, h8, h9 = st.columns([3, 2, 1, 2, 1, 1, 1, 1, 1])
-        h1.markdown("**Company**")
-        h2.markdown("**Sector**")
-        h3.markdown("**Country**")
-        h4.markdown("**Regulations**")
-        h5.markdown("**Docs**")
-        h6.markdown("**Gaps**")
-        h7.markdown("**Chats**")
-        h8.markdown("**Cost $**")
-        h9.markdown("**Flag**")
-
-        st.divider()
-
+        # The shared table (table_view.py, BO review 9 Nov): sortable; a
+        # row's ⋮ opens the company's account on Companies. It replaced one
+        # row of metric boxes per company. Counts are all time; cost follows
+        # the period above.
+        _rows = []
         for client in clients:
-            cid = client["id"]
-            uid = client["user_id"]
-
-            n_docs  = doc_counts.get(cid, 0)
-            n_gaps  = gap_counts.get(cid, 0)
-            n_chats = chat_counts.get(cid, 0)
-            regs    = ", ".join(client.get("regulations") or [])
-            signup  = str(client.get("created_at", ""))[:10]
-            flagged = n_docs >= DOC_ABUSE_THRESHOLD
-
+            cid, uid = client["id"], client["user_id"]
+            n_docs = doc_counts.get(cid, 0)
             tok = token_by_client.get(cid) or token_by_client.get(uid) or {}
             cost_usd = tok.get("total_cost_usd", 0.0)
-
-            c1, c2, c3, c4, c5, c6, c7, c8, c9 = st.columns([3, 2, 1, 2, 1, 1, 1, 1, 1])
-            c1.markdown(f"**{client.get('company_name', '—')}**")
-            c1.caption(f"Joined {signup}")
-            c2.caption(client.get("sector", "—"))
-            c3.caption(client.get("country", "—"))
-            c4.caption(regs or "—")
-            c5.metric("Docs", n_docs, label_visibility="collapsed")
-            c6.metric("Gaps", n_gaps, label_visibility="collapsed")
-            c7.metric("Chats", n_chats, label_visibility="collapsed")
-            c8.caption(f"${cost_usd:.4f}" if cost_usd > 0 else "—")
-            if flagged:
-                c9.error("⚠️")
-                c9.caption(f">{DOC_ABUSE_THRESHOLD}")
-            else:
-                c9.caption("✅ OK")
-
-            st.divider()
+            _rows.append({"id": cid, "cells": {
+                "company": client.get("company_name"),
+                "joined": client.get("created_at"),
+                "sector": client.get("sector"), "country": client.get("country"),
+                "regs": ", ".join(client.get("regulations") or []),
+                "docs": n_docs, "gaps": gap_counts.get(cid, 0), "chats": chat_counts.get(cid, 0),
+                "cost": (f"${cost_usd:.4f}" if cost_usd > 0 else None, cost_usd),
+                "flag": (f"⚠️ >{DOC_ABUSE_THRESHOLD} documents", 1)
+                        if n_docs >= DOC_ABUSE_THRESHOLD else ("✅ OK", 0),
+            }, "actions": [
+                {"id": "account", "label": "Open its account on Companies", "icon": "🏢",
+                 "disabled": None if client.get("account_id") else "Not linked to an account"},
+            ]})
+        _hit = tv.table(_rows, [
+            {"key": "company", "label": "Company"}, {"key": "joined", "label": "Joined", "kind": "date"},
+            {"key": "sector", "label": "Sector"}, {"key": "country", "label": "Country"},
+            {"key": "regs", "label": "Regulations"},
+            {"key": "docs", "label": "Docs", "kind": "number"},
+            {"key": "gaps", "label": "Gaps", "kind": "number"},
+            {"key": "chats", "label": "Questions", "kind": "number"},
+            {"key": "cost", "label": "AI cost"}, {"key": "flag", "label": "Flag"},
+        ], key="dash_clients", sort=("joined", "desc"))
+        if _hit and _hit["action"] == "account":
+            _c = next((c for c in clients if c["id"] == _hit["row"]), None)
+            if _c and _c.get("account_id"):
+                st.session_state.acc_open = _c["account_id"]
+                st.session_state["_tv_focus_accounts"] = True
+                st.switch_page("pages_admin/companies.py")
 
 except Exception as e:
     st.error(f"Could not load client data: {e}")

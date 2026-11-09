@@ -30,6 +30,7 @@ from database import (
 )
 from email_sender import send_regulatory_alert
 import monitoring_queue as MQ
+import table_view as tv
 from slug_generation import slugify
 
 st.title("Monitoring")
@@ -938,25 +939,40 @@ with tab_sources:
     if not sources:
         st.info(f"No {source_type_tab.lower()} sources configured yet.")
     else:
-        for s in sources:
-            col_name, col_type, col_cat, col_toggle, col_del = st.columns([3, 1, 1, 1, 1])
-            with col_name:
-                st.markdown(f"**{s['name']}**")
-                st.caption(s["url"])
-            with col_type:
-                st.caption(s.get("fetch_type", "rss").upper())
-            with col_cat:
-                st.caption(s.get("category", "—"))
-            with col_toggle:
-                active = s.get("active", True)
-                label  = "🟢 Active" if active else "⚫ Off"
-                if st.button(label, key=f"toggle_{s['id']}", use_container_width=True):
-                    update_monitoring_source(s["id"], {"active": not active})
-                    st.rerun()
-            with col_del:
-                if st.button("🗑️", key=f"del_{s['id']}", use_container_width=True, help="Delete source"):
-                    delete_monitoring_source(s["id"])
-                    st.rerun()
+        # The shared table (BO review 9 Nov): a source's ⋮ menu switches it
+        # on or off, or deletes it (with a confirmation).
+        _src_by_id = {s["id"]: s for s in sources}
+        _s_hit = tv.table(
+            [{"id": s["id"], "cells": {
+                "name": s["name"], "url": s.get("url") or s.get("query"),
+                "type": (s.get("fetch_type") or "rss").upper(), "cat": s.get("category"),
+                "active": "🟢 Active" if s.get("active", True) else "⚫ Off",
+            }, "actions": [
+                {"id": "toggle", "label": "Switch off" if s.get("active", True) else "Switch on",
+                 "icon": "⏸️" if s.get("active", True) else "▶️"},
+                {"id": "delete", "label": "Delete", "icon": "🗑️", "danger": True},
+            ]} for s in sources],
+            [{"key": "name", "label": "Source"}, {"key": "url", "label": "Address or query"},
+             {"key": "type", "label": "Type"}, {"key": "cat", "label": "Category"},
+             {"key": "active", "label": "Status"}],
+            key=f"mon_sources_{monitor_type_key}", sort=("name", "asc"))
+
+        @st.dialog("Delete a source")
+        def _delete_source_dialog(s):
+            st.warning(f"**{s['name']}** will no longer be monitored, and its settings are "
+                       "removed. Items it already found stay in the queue. To pause it "
+                       "instead, switch it off.")
+            if st.button("🗑️ Delete the source", type="primary"):
+                delete_monitoring_source(s["id"])
+                st.rerun()
+
+        if _s_hit and _s_hit["row"] in _src_by_id:
+            _s = _src_by_id[_s_hit["row"]]
+            if _s_hit["action"] == "toggle":
+                update_monitoring_source(_s["id"], {"active": not _s.get("active", True)})
+                st.rerun()
+            elif _s_hit["action"] == "delete":
+                _delete_source_dialog(_s)
 
     st.divider()
 
@@ -1046,7 +1062,9 @@ with tab_runs:
     if not runs:
         st.info("No runs recorded yet.")
     else:
-        for run in runs:
+        # The shared table (BO review 9 Nov): one row per run; click it for
+        # the breakdown in a pop-up. It replaced one expander per run.
+        def _run_facts(run):
             status_icon = {"completed": "✅", "running": "⏳", "failed": "❌"}.get(run.get("status", ""), "❓")
             trigger_icon = "🤖" if run.get("triggered_by") == "cron" else "👤"
             try:
@@ -1086,76 +1104,113 @@ with tab_runs:
                                              if flagged_total else "")
                            if found else "nothing new")
 
-            with st.expander(
-                f"{status_icon} {trigger_icon} {monitor_label} — {started} ({duration}) · {outcome}",
-                expanded=False,
-            ):
 
-                if run.get("monitor_type") == "audit":
-                    # monitor_audits.py reuses the counters: fetched = scheduled
-                    # audits checked, saved = audits run, skipped = not yet due.
-                    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-                    col_s1.metric("Checked",  run.get("total_fetched", 0))
-                    col_s2.metric("Run",      run.get("total_saved", 0))
-                    col_s3.metric("Not due",  run.get("total_skipped", 0))
-                    col_s4.metric("Errors",   run.get("total_errors", 0))
-                else:
-                    col_s1, col_s2, col_s3, col_s4, col_s5, col_s6 = st.columns(6)
-                    col_s1.metric("Fetched",      fetched)
-                    col_s2.metric("Saved",        saved)
-                    col_s3.metric("Flagged",      flagged_total,
-                                  help="Saved with a link to check: in the queue "
-                                       "under the url_flagged filter.")
-                    col_s4.metric("Duplicates",   dupes)
-                    col_s5.metric("Not relevant", not_relevant,
-                                  help="Fetched, then judged off-topic by the analysis "
-                                       "(or could not be analysed).")
-                    col_s6.metric("Errors",       run.get("total_errors", 0))
+            return dict(status_icon=status_icon, trigger_icon=trigger_icon, started=started,
+                        duration=duration, monitor_label=monitor_label,
+                        source_stats=source_stats, flagged_total=flagged_total,
+                        fetched=fetched, saved=saved, dupes=dupes,
+                        not_relevant=not_relevant, outcome=outcome)
 
-                token_usage = run.get("token_usage") or {}
-                if token_usage:
-                    st.caption(
-                        f"Tokens: {token_usage.get('input', 0)} in / "
-                        f"{token_usage.get('output', 0)} out — "
-                        f"${token_usage.get('cost_usd', 0):.4f}"
-                    )
+        @st.dialog("Monitoring run", width="large")
+        def _run_dialog(run):
+            _f = _run_facts(run)
+            source_stats, flagged_total = _f["source_stats"], _f["flagged_total"]
+            fetched, saved, dupes, not_relevant = (_f["fetched"], _f["saved"], _f["dupes"],
+                                                   _f["not_relevant"])
+            st.caption(f"{_f['status_icon']} {_f['trigger_icon']} {_f['monitor_label']} — "
+                       f"{_f['started']} ({_f['duration']}) · {_f['outcome']}")
 
-                if run.get("error_message"):
-                    st.error(run["error_message"])
+            if run.get("monitor_type") == "audit":
+                # monitor_audits.py reuses the counters: fetched = scheduled
+                # audits checked, saved = audits run, skipped = not yet due.
+                col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                col_s1.metric("Checked",  run.get("total_fetched", 0))
+                col_s2.metric("Run",      run.get("total_saved", 0))
+                col_s3.metric("Not due",  run.get("total_skipped", 0))
+                col_s4.metric("Errors",   run.get("total_errors", 0))
+            else:
+                col_s1, col_s2, col_s3, col_s4, col_s5, col_s6 = st.columns(6)
+                col_s1.metric("Fetched",      fetched)
+                col_s2.metric("Saved",        saved)
+                col_s3.metric("Flagged",      flagged_total,
+                              help="Saved with a link to check: in the queue "
+                                   "under the url_flagged filter.")
+                col_s4.metric("Duplicates",   dupes)
+                col_s5.metric("Not relevant", not_relevant,
+                              help="Fetched, then judged off-topic by the analysis "
+                                   "(or could not be analysed).")
+                col_s6.metric("Errors",       run.get("total_errors", 0))
 
-                if source_stats and run.get("monitor_type") == "audit":
-                    # Audit entries are per domain: {domain, score, risk_level}
-                    # or {domain, error}, not the monitors' per-source counts.
-                    st.markdown("**Per-domain breakdown:**")
-                    for stat in source_stats:
-                        domain = stat.get("domain", "—")
-                        if stat.get("error"):
-                            st.caption(f"🔴 {domain}: error: {str(stat['error'])[:80]}")
-                        else:
-                            st.caption(f"🟢 {domain}: score {stat.get('score', '—')}/100, "
-                                       f"{stat.get('risk_level', '—')} risk")
-                elif source_stats:
-                    st.markdown("**Per-source breakdown:**")
-                    for stat in source_stats:
-                        fetched = stat.get("fetched", 0)
-                        saved   = stat.get("saved", 0)
-                        skipped = stat.get("skipped", 0)
-                        flagged = stat.get("flagged", 0)
-                        error   = stat.get("error")
+            token_usage = run.get("token_usage") or {}
+            if token_usage:
+                st.caption(
+                    f"Tokens: {token_usage.get('input', 0)} in / "
+                    f"{token_usage.get('output', 0)} out — "
+                    f"${token_usage.get('cost_usd', 0):.4f}"
+                )
 
-                        flagged_suffix = f" / {flagged} flagged ⚠️" if flagged else ""
+            if run.get("error_message"):
+                st.error(run["error_message"])
 
-                        if error:
-                            icon = "🔴"
-                            detail = f"error: {error[:60]}"
-                        elif saved > 0 or flagged > 0:
-                            icon = "🟢"
-                            detail = f"{fetched} fetched / {saved} new / {skipped} duplicates{flagged_suffix}"
-                        elif fetched > 0:
-                            icon = "🟡"
-                            detail = f"{fetched} fetched / 0 new (all duplicates)"
-                        else:
-                            icon = "🔴"
-                            detail = "0 fetched"
+            if source_stats and run.get("monitor_type") == "audit":
+                # Audit entries are per domain: {domain, score, risk_level}
+                # or {domain, error}, not the monitors' per-source counts.
+                st.markdown("**Per-domain breakdown:**")
+                for stat in source_stats:
+                    domain = stat.get("domain", "—")
+                    if stat.get("error"):
+                        st.caption(f"🔴 {domain}: error: {str(stat['error'])[:80]}")
+                    else:
+                        st.caption(f"🟢 {domain}: score {stat.get('score', '—')}/100, "
+                                   f"{stat.get('risk_level', '—')} risk")
+            elif source_stats:
+                st.markdown("**Per-source breakdown:**")
+                for stat in source_stats:
+                    fetched = stat.get("fetched", 0)
+                    saved   = stat.get("saved", 0)
+                    skipped = stat.get("skipped", 0)
+                    flagged = stat.get("flagged", 0)
+                    error   = stat.get("error")
 
-                        st.caption(f"{icon} {stat['name']}: {detail}")
+                    flagged_suffix = f" / {flagged} flagged ⚠️" if flagged else ""
+
+                    if error:
+                        icon = "🔴"
+                        detail = f"error: {error[:60]}"
+                    elif saved > 0 or flagged > 0:
+                        icon = "🟢"
+                        detail = f"{fetched} fetched / {saved} new / {skipped} duplicates{flagged_suffix}"
+                    elif fetched > 0:
+                        icon = "🟡"
+                        detail = f"{fetched} fetched / 0 new (all duplicates)"
+                    else:
+                        icon = "🔴"
+                        detail = "0 fetched"
+
+                    st.caption(f"{icon} {stat['name']}: {detail}")
+
+
+        _runs_by_id = {r["id"]: r for r in runs}
+        _r_rows = []
+        for run in runs:
+            _f = _run_facts(run)
+            _cost = (run.get("token_usage") or {}).get("cost_usd")
+            _r_rows.append({"id": run["id"], "cells": {
+                "status": f"{_f['status_icon']} {(run.get('status') or '').capitalize()}",
+                "by": f"{_f['trigger_icon']} {'Scheduled' if run.get('triggered_by') == 'cron' else 'By hand'}",
+                "type": _f["monitor_label"], "started": run.get("started_at"),
+                "duration": (_f["duration"], run.get("duration_seconds")),
+                "outcome": _f["outcome"],
+                "errors": run.get("total_errors") or 0,
+                "cost": (f"${_cost:.4f}" if _cost else None, _cost or 0),
+            }, "actions": [{"id": "open", "label": "Breakdown", "icon": "📂"}]})
+        _r_hit = tv.table(_r_rows, [
+            {"key": "status", "label": "Status"}, {"key": "by", "label": "Run"},
+            {"key": "type", "label": "Monitor"},
+            {"key": "started", "label": "Started", "kind": "datetime"},
+            {"key": "duration", "label": "Took"}, {"key": "outcome", "label": "Outcome"},
+            {"key": "errors", "label": "Errors", "kind": "number"},
+            {"key": "cost", "label": "AI cost"},
+        ], key="mon_runs", sort=("started", "desc"))
+        if _r_hit and _r_hit["row"] in _runs_by_id:
+            _run_dialog(_runs_by_id[_r_hit["row"]])
