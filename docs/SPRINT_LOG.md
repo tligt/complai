@@ -385,7 +385,7 @@ the only sprint that *is* the gate.
 | **S56** | **Enterprise routing + in-app messaging** | **Built 5 Nov (D-145)**: assign tasks and incidents, routing rules per area, comments, inbox. Live test waits for a company with two people. was S55 until D-131; S54 until D-115; S52, S49 before |
 | ~~S57~~ | ~~Buffer/LinkedIn integration~~ | **Closed 6 Nov (D-147, D-149)**: LinkedIn drafts to Buffer — queue, schedule or draft; plain text, source line or first comment (the first comment needs a paid Buffer plan), a real RECOSA mention, a RECOSA image. Tested live. was S56 until D-131; S55 until D-115; S53, S50 before |
 | ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S64 since D-152). was S57 until D-131; S56 until D-115; S54, S51 before |
-| **S59** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). Building.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
+| **S59** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). **Built and live 9 Nov** (d679c36, 922e96c): accounts with dated history, Companies page, Users reworked; checked live in both apps. Open: a real sign-up and trial start, and a first plan change saved from Companies.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
 | S60 | Skills matrix and training register | was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
 | S61 | AI Act three-layer inventory | was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
 | S62 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
@@ -6529,6 +6529,16 @@ plugs payments into it later. "Business" in the review meant Professional:
 the four plans stay. Proposed in the scope lock and open to correction:
 Enterprise's account holds the group; one trial per account; changes take
 effect when made.
+
+*Built 9 Nov.* Migration `migration_s59_accounts.sql` applied (4 accounts,
+5 companies linked, one period each). Checked: 19 logic checks against a
+stand-in database; on the live database in a rolled-back transaction, a
+period cannot be edited or deleted, only closed once, and a new company
+gets its creator's account; row security lets a colleague read their
+company's account and nobody write. Both apps checked live. Deploy lesson:
+the client app kept the old `database.py` in memory even after a reboot
+(D-116 again), so `fresh_modules.refresh()` now reloads our shared modules
+when their file is newer than the copy in memory, first thing in both apps.
 
 ### D-152 — S70 becomes S59, built now; S59–S69 move one higher, 9 Nov
 
