@@ -6598,10 +6598,17 @@ knowledge base. Live 9 Nov (2f1b6b5): 39 regulatory and 11 marketing items
 pending; the two EDPB repeats are marked; nothing was rejected — the
 backlog is the user's to clear.
 
-**Noticed, not fixed:** the ENISA scraper saves section headings of the
-ENISA site ("Product Security and Certification", "Vulnerability Services",
-…) as news; they make up a good part of the regulatory backlog. Fixing the
-scraper's selector is a separate task.
+**Scraper fixed the same day.** The two scraped sources (ENISA, APD/GBA)
+gave the first 15 links of their news page, which on both sites are the
+navigation menu: ENISA's topics and APD's "Register of processing
+activities", "Prior DPIA consultation" reached the queue as news since June.
+`monitor.parse_scrape` now keeps only links under the listing page's own
+path (ENISA /news/<slug>, APD /professional/news/2026/…), reads each item's
+date (ENISA's `<time datetime>`, APD's date in the URL) so the freshness
+checks work, decodes HTML entities in titles, and reads the page in the
+right encoding. Checked against both live sites: 11 ENISA and 3 APD news
+items, each dated. The 11 menu pages already in the queue (9 ENISA topics,
+2 APD pages) were rejected (status only; reversible).
 
 ---
 

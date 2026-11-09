@@ -13,6 +13,7 @@ Run via GitHub Actions cron or manually from the admin BO.
 import os
 import json
 import time
+import html as _html
 import re
 import requests
 import xml.etree.ElementTree as ET
@@ -112,6 +113,10 @@ def parse_scrape(url: str, source_config: dict) -> list[dict]:
     try:
         response = requests.get(url, headers=HEADERS, timeout=20)
         response.raise_for_status()
+        # requests falls back to ISO-8859-1 when the header names no charset;
+        # the page itself is UTF-8 (APD/GBA's quotes came out garbled).
+        if "charset" not in (response.headers.get("content-type") or "").lower():
+            response.encoding = response.apparent_encoding or "utf-8"
         html = response.text
 
         results = []
@@ -122,10 +127,22 @@ def parse_scrape(url: str, source_config: dict) -> list[dict]:
 
         seen_urls = set()
         base_url = "/".join(url.split("/")[:3])
+        # 9 Nov: only links UNDER the listing page's own path are news items
+        # (ENISA: /news/<slug>; APD/GBA: /professional/news/2026/…). Before,
+        # the first 15 links on the page were taken, and on both sites those
+        # are the navigation menu — "Product Security and Certification",
+        # "Prior DPIA consultation" reached the review queue as news.
+        listing_path = "/" + "/".join(url.split("?")[0].split("#")[0].split("/")[3:]).strip("/")
 
         for match in link_pattern.finditer(html):
             href = match.group(1).strip()
-            title = re.sub(r'\s+', ' ', match.group(2)).strip()
+            title = _html.unescape(re.sub(r'\s+', ' ', match.group(2))).strip()
+            if listing_path != "/":
+                path = href.split("?")[0].split("#")[0]
+                if path.startswith(base_url):
+                    path = path[len(base_url):]
+                if not path.startswith(listing_path.rstrip("/") + "/"):
+                    continue
 
             if len(title) < 20:
                 continue
@@ -150,11 +167,23 @@ def parse_scrape(url: str, source_config: dict) -> list[dict]:
             if base_url not in href:
                 continue
 
+            # The date: a <time datetime="…"> just after the link (ENISA),
+            # or one in the URL, /2026/04/22/ (APD/GBA). Without it the
+            # freshness checks on the review page had nothing to go on.
+            published = ""
+            t_match = re.search(r'<time[^>]+datetime=["\'](\d{4}-\d{2}-\d{2})',
+                                html[match.end():match.end() + 800])
+            u_match = re.search(r'/(20\d{2})/(\d{2})/(\d{2})/', href)
+            if t_match:
+                published = t_match.group(1)
+            elif u_match:
+                published = "-".join(u_match.groups())
+
             results.append({
                 "title": title,
                 "url": href,
                 "description": "",
-                "published_raw": "",
+                "published_raw": published,
             })
 
             if len(results) >= 15:
