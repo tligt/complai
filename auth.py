@@ -551,7 +551,12 @@ def _check_inbox(email: str, plan: str | None) -> None:
         + (f"\n\nYour {TRIAL_DAYS}-day free trial of **{SUBSCRIPTION_TIERS[plan]}** "
            "has started — no card needed." if plan else "")
     )
-    st.caption("Nothing after a few minutes? Look in your spam folder, or send it again.")
+    # 9 Nov: a company mail server can hold a first email from a new sender
+    # for half an hour (Hostinger did, for recosa.eu); resending doesn't help.
+    st.caption("It usually arrives within a minute. Some company mail servers hold the "
+               "first email from a new sender for up to 30 minutes, so if it isn't there "
+               "yet, check your spam folder and give it a little time. Sending it again "
+               "won't make it arrive sooner.")
     c1, c2 = st.columns(2)
     if c1.button("Send the email again", use_container_width=True, key="signup_resend"):
         try:
@@ -579,7 +584,9 @@ def _forgot_form() -> None:
     if sent:
         st.markdown(f"If an account exists for **{sent}**, we've sent it a link to "
                     "choose a new password. It works once, for one hour.")
-        st.caption("Nothing after a few minutes? Look in your spam folder.")
+        st.caption("It usually arrives within a minute, but some company mail servers hold "
+                   "it for up to 30 minutes. Check your spam folder too. The link stays "
+                   "valid for an hour from when it was sent.")
     else:
         st.caption("Enter the email you signed up with. We'll send you a link to "
                    "choose a new password.")
