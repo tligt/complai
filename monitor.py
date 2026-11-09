@@ -32,6 +32,7 @@ from database import (
     complete_monitor_run,
 )
 from url_validation import validate_items_urls
+from dedup import same_item
 
 # Sentinel UUID for system/monitoring processes (no authenticated user)
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
@@ -384,9 +385,10 @@ def find_covering_update(item: dict, source_name: str, recent: list[dict],
     item_ts = _published_ts({"published_at": parse_published_date(item.get("published_raw", ""))})
 
     for row in recent:
-        # Same source: only an identical title is a repeat (feeds re-list items).
+        # Same source: a repeat is the same title, words in any order
+        # (dedup.same_item — the EDPB feed re-lists items reworded).
         if row.get("source") == source_name:
-            if " ".join((row.get("title") or "").lower().split()) == norm_title:
+            if same_item(row.get("title"), title):
                 return row
             continue
 
@@ -444,11 +446,10 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
     # the name order within each group).
     sources.sort(key=lambda s: bool(s.get("skip_if_covered")))
 
-    # Only needed when a source asks to be checked against the others.
-    recent_updates = (
-        load_recent_regulatory_updates(days=45)
-        if any(s.get("skip_if_covered") for s in sources) else []
-    )
+    # Every source is checked against its own recent items (9 Nov: the EDPB
+    # feed re-lists items reworded, and both copies reached the queue);
+    # skip_if_covered sources are also checked against the other sources.
+    recent_updates = load_recent_regulatory_updates(days=45)
 
     total_fetched  = 0
     total_saved    = 0
@@ -481,6 +482,20 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
             print(f"  {len(raw_items)} items fetched")
             source_stat["fetched"] = len(raw_items)
             total_fetched += len(raw_items)
+
+            # A repeat of this source's own recent items, before summarising
+            # so it costs no Mistral tokens.
+            if not source.get("skip_if_covered"):
+                own = [r for r in recent_updates if r.get("source") == source["name"]]
+                kept = []
+                for item in raw_items:
+                    if any(same_item(r.get("title"), item.get("title")) for r in own + kept):
+                        total_skipped += 1
+                        source_stat["skipped"] += 1
+                        print(f"  ⤷ Repeat skipped: {item['title'][:60]}")
+                    else:
+                        kept.append(item)
+                raw_items = kept
 
             # Before summarising, so covered items cost no Mistral tokens.
             if source.get("skip_if_covered"):

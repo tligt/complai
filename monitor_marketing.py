@@ -30,6 +30,7 @@ from database import (
     complete_monitor_run,
 )
 from url_validation import validate_items_urls
+from dedup import same_item
 
 SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
 MISTRAL_API_BASE = "https://api.mistral.ai/v1"
@@ -394,6 +395,18 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
 
     print(f"Loaded {len(sources)} active marketing sources.")
 
+    # Recent titles per source (any status), so a story the search finds
+    # again, reworded, is skipped before it is analysed (9 Nov, dedup.py).
+    recent_titles: dict[str, list[str]] = {}
+    try:
+        from datetime import timedelta as _td
+        from database import get_supabase_admin as _adm
+        _since = (datetime.now(timezone.utc) - _td(days=45)).isoformat()
+        for r in _adm().table("marketing_updates").select("title, source")                 .gte("created_at", _since).execute().data or []:
+            recent_titles.setdefault(r.get("source") or "", []).append(r.get("title") or "")
+    except Exception as e:
+        print(f"  Could not load recent marketing titles: {e}")
+
     total_fetched = total_saved = total_skipped = total_errors = 0
     total_flagged = 0
     total_in = total_out = 0
@@ -420,6 +433,17 @@ def run_marketing_monitoring(triggered_by: str = "cron") -> dict:
             print(f"  {len(raw_items)} articles found")
             stat["fetched"]  = len(raw_items)
             total_fetched   += len(raw_items)
+
+            seen = recent_titles.setdefault(source["name"], [])
+            fresh = []
+            for it in raw_items:
+                if any(same_item(s, it.get("title")) for s in seen):
+                    total_skipped += 1; stat["skipped"] += 1
+                    print(f"  ⤷ Repeat skipped: {(it.get('title') or '')[:60]}")
+                else:
+                    fresh.append(it)
+                    seen.append(it.get("title") or "")
+            raw_items = fresh
 
             if not raw_items:
                 source_stats.append(stat)

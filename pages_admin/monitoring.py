@@ -29,6 +29,7 @@ from database import (
     get_supabase_admin,
 )
 from email_sender import send_regulatory_alert
+import monitoring_queue as MQ
 from slug_generation import slugify
 
 st.title("Monitoring")
@@ -359,8 +360,11 @@ with tab_reg:
     if not updates:
         st.info("No regulatory updates found.")
     else:
-        st.caption(f"{len(updates)} items")
-        for u in updates:
+        # BO review, 9 Nov: the shared table with bulk rejects (monitoring_queue);
+        # the clicked item is reviewed below, with the same controls as before.
+        _sel = MQ.queue(updates, key="reg", found_field="detected_at",
+                        reject=reject_regulatory_update)
+        for u in ([_sel] if _sel else []):
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
             status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
 
@@ -368,7 +372,7 @@ with tab_reg:
                 f"{severity_icon} {status_icon} "
                 + (f"{u['alert_ref']} · " if u.get("alert_ref") else "")
                 + f"{u.get('title', 'Untitled')} — {u.get('source', '')}",
-                expanded=False
+                expanded=True
             ):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
@@ -706,15 +710,16 @@ with tab_mkt:
     if not mkt_updates:
         st.info("No marketing updates found.")
     else:
-        st.caption(f"{len(mkt_updates)} items")
-        for u in mkt_updates:
+        _msel = MQ.queue(mkt_updates, key="mkt", found_field="created_at",
+                         reject=reject_marketing_update, category=True)
+        for u in ([_msel] if _msel else []):
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
             status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
             cat_badge     = f"[{u.get('category', '')}] " if u.get("category") else ""
 
             with st.expander(
                 f"{severity_icon} {status_icon} {cat_badge}{u.get('title', 'Untitled')} — {u.get('source', '')}",
-                expanded=False,
+                expanded=True,
             ):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
