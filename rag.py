@@ -124,6 +124,9 @@ def ingest_to_qdrant(
     status: str = "in_force",
 ) -> int:
     """Ingest a document via admin interface into Qdrant. Returns number of chunks ingested."""
+    # 9 Nov: retrieval matches the country exactly, so a lower-case code
+    # ("be", once offered for NL/DE/LU) made a document invisible.
+    country = (country or "EU").strip().upper()
     client = get_qdrant_client()
     chunks = chunk_text(text)
     points = []
@@ -173,7 +176,7 @@ def update_source_metadata(
     if new_source:
         payload["source"] = new_source
     if new_country:
-        payload["country"] = new_country
+        payload["country"] = new_country.strip().upper()
     if new_language:
         payload["language"] = new_language
     if new_doc_type:
@@ -276,6 +279,10 @@ def ensure_payload_indexes() -> dict[str, str]:
         "language":          PayloadSchemaType.KEYWORD,
         "country":           PayloadSchemaType.KEYWORD,
         "status":            PayloadSchemaType.KEYWORD,
+        # 9 Nov: the cluster refuses a filter on an unindexed field (strict
+        # mode), so editing or deleting a document from the back office's
+        # Knowledge Base failed with "Index required … source".
+        "source":            PayloadSchemaType.KEYWORD,
     }
     out = {}
     for field, schema in fields.items():
@@ -332,6 +339,9 @@ def retrieve_from_qdrant(
     client = get_qdrant_client()
     query_embedding = get_embeddings([query])[0]
 
+    # Countries are upper-case ISO codes in the payload (normalised on write
+    # since 9 Nov); the caller's value is normalised the same way.
+    country = (country or "EU").strip().upper()
     country_values = ["EU"]
     if country != "EU":
         country_values.append(country)

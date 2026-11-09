@@ -1,13 +1,21 @@
 """
 RECOSA Admin — Knowledge Base Management
 Upload, edit, and delete regulatory documents in the Qdrant vector store.
+
+9 Nov (BO review): the documents are the shared table (table_view.py); a
+row's ⋮ menu edits or deletes it, in a pop-up — the separate Edit and
+Delete tabs with a "select document" box are gone. Country codes are
+upper-case ISO codes: retrieval matches them exactly, and "nl", "de", "lu"
+(offered here until 9 Nov) would have made a document invisible — two
+documents had "be" and "fr" and were never retrieved; fixed the same day.
 """
 
-import os
 import io
+
 import streamlit as st
 from pypdf import PdfReader
-from database import get_supabase_admin
+
+import table_view as tv
 from rag import (
     ingest_to_qdrant,
     get_knowledge_base_summary,
@@ -20,9 +28,12 @@ st.caption("Manage the regulatory documents ingested into Qdrant.")
 
 LANG_OPTIONS   = {"en": "EN — English", "fr": "FR — French", "nl": "NL — Dutch"}
 COUNTRY_OPTIONS = {"EU": "🇪🇺 EU", "BE": "🇧🇪 Belgium", "FR": "🇫🇷 France",
-                   "nl": "🇳🇱 Netherlands", "de": "🇩🇪 Germany", "lu": "🇱🇺 Luxembourg"}
+                   "NL": "🇳🇱 Netherlands", "DE": "🇩🇪 Germany", "LU": "🇱🇺 Luxembourg"}
 DOC_TYPE_OPTIONS = ["core", "supplementary", "guidance", "decision", "other"]
+DOC_TYPE_LABELS = {"core": "📖 Core regulation", "supplementary": "📎 Supplementary",
+                   "guidance": "📝 Guidance", "decision": "⚖️ Decision", "other": "📁 Other"}
 REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT", "EPRIVACY", "EAA", "CONSUMER_RIGHTS", "general"]
+
 
 @st.cache_data(ttl=300, show_spinner="Reading the knowledge base…")
 def _kb_summary():
@@ -32,73 +43,109 @@ def _kb_summary():
     return get_knowledge_base_summary()
 
 
-tab_summary, tab_upload, tab_edit, tab_delete = st.tabs([
-    "📋 Summary", "⬆️ Upload", "✏️ Edit", "🗑️ Delete"
-])
+def _idx(options, value, default=0):
+    return options.index(value) if value in options else default
+
+
+tab_docs, tab_upload = st.tabs(["📋 Documents", "⬆️ Upload"])
 
 
 # ═══════════════════════════════════════════════════════════════
-# TAB 1 — SUMMARY
+# TAB 1 — DOCUMENTS
 # ═══════════════════════════════════════════════════════════════
 
-with tab_summary:
-    st.subheader("Knowledge base contents")
-    st.caption("Documents currently ingested in Qdrant.")
+@st.dialog("Edit a document", width="large")
+def _edit_dialog(meta: dict) -> None:
+    src = meta["source"]
+    same_name = [i for i in _kb_summary() if i["source"] == src]
+    st.caption(f"{src} · {meta.get('chunks', '?')} passages"
+               + (f" — the change applies to all {len(same_name)} entries named “{src}”"
+                  if len(same_name) > 1 else ""))
+    with st.form("kb_edit"):
+        c1, c2 = st.columns(2)
+        new_name = c1.text_input("Source name", value=src)
+        new_doc_type = c1.selectbox("Document type", DOC_TYPE_OPTIONS,
+                                    index=_idx(DOC_TYPE_OPTIONS, meta.get("doc_type")),
+                                    format_func=lambda d: DOC_TYPE_LABELS.get(d, d))
+        new_reg = c1.selectbox("Regulation", REGULATION_OPTIONS,
+                               index=_idx(REGULATION_OPTIONS, meta.get("parent_regulation"),
+                                          REGULATION_OPTIONS.index("general")))
+        langs = list(LANG_OPTIONS)
+        new_lang = c2.selectbox("Language", langs, index=_idx(langs, meta.get("language")),
+                                format_func=LANG_OPTIONS.get)
+        countries = list(COUNTRY_OPTIONS)
+        new_country = c2.selectbox("Country", countries,
+                                   index=_idx(countries, (meta.get("country") or "EU").upper()),
+                                   format_func=COUNTRY_OPTIONS.get)
+        save = st.form_submit_button("💾 Save", type="primary")
+    if save:
+        with st.spinner("Updating…"):
+            new_src = new_name.strip()
+            count = update_source_metadata(
+                old_source=src,
+                new_source=new_src if new_src and new_src != src else None,
+                new_country=new_country, new_language=new_lang,
+                new_doc_type=new_doc_type, new_parent_regulation=new_reg,
+            )
+        _kb_summary.clear()
+        st.session_state.kb_notice = f"✅ Updated {count} passages of “{src}”."
+        st.rerun()
 
-    if st.button("🔄 Refresh", key="refresh_kb"):
+
+@st.dialog("Delete a document")
+def _delete_dialog(meta: dict) -> None:
+    src = meta["source"]
+    st.warning(f"All passages named **{src}** will be removed from the knowledge base. "
+               "This cannot be undone: the file would have to be uploaded again.")
+    if st.button("🗑️ Delete permanently", type="primary"):
+        with st.spinner("Deleting…"):
+            count = delete_source(src)
+        _kb_summary.clear()
+        st.session_state.kb_notice = f"✅ Deleted {count} passages of “{src}”."
+        st.rerun()
+
+
+with tab_docs:
+    c_a, c_b = st.columns([4, 1])
+    c_a.caption("Documents currently ingested in Qdrant. Click a column title to sort; "
+                "a row's ⋮ menu edits or deletes it.")
+    if c_b.button("🔄 Refresh", key="refresh_kb", use_container_width=True):
         _kb_summary.clear()
         st.rerun()
+    notice = st.session_state.pop("kb_notice", None)
+    if notice:
+        st.success(notice)
 
     try:
         kb_summary = _kb_summary()
         if not kb_summary:
             st.info("No documents found in the knowledge base.")
         else:
-            total_chunks = sum(item.get("chunks", 0) for item in kb_summary)
             col1, col2 = st.columns(2)
             col1.metric("Documents", len(kb_summary))
-            col2.metric("Total chunks", total_chunks)
-
-            st.divider()
-
-            current_type = None
-            for item in kb_summary:
-                if item.get("doc_type") != current_type:
-                    current_type = item.get("doc_type")
-                    label = {
-                        "core": "📖 Core Regulations",
-                        "supplementary": "📎 Supplementary Guidance",
-                        "guidance": "📝 Guidance",
-                        "decision": "⚖️ Decisions",
-                    }.get(current_type, f"📁 {current_type}")
-                    st.markdown(f"**{label}**")
-
-                lang    = item.get("language", "en").upper()
-                country = item.get("country", "EU").upper()
-                source  = item.get("source", "—")
-                chunks  = item.get("chunks", 0)
-                reg     = item.get("parent_regulation", "—")
-
-                col_s, col_r, col_l, col_c, col_ch, col_date = st.columns([4, 2, 1, 1, 1, 2])
-                col_s.caption(f"📄 {source}")
-                col_r.caption(reg)
-                col_l.caption(lang)
-                col_c.caption(country)
-                col_ch.caption(f"{chunks} chunks")
-                detected = item.get("detected_at", "")
-                if detected:
-                    try:
-                        from zoneinfo import ZoneInfo
-                        from datetime import datetime as _dt
-                        dt = _dt.fromisoformat(detected.replace("Z", "+00:00"))
-                        col_date.caption(dt.astimezone(ZoneInfo("Europe/Brussels")).strftime("%d %b %Y"))
-                    except Exception:
-                        col_date.caption(str(detected)[:10])
-                else:
-                    col_date.caption("—")
-
+            col2.metric("Passages (chunks)", sum(i.get("chunks", 0) for i in kb_summary))
+            rows = {f"{i['source']}|{i.get('language')}|{i.get('country')}": i for i in kb_summary}
+            hit = tv.table(
+                [{"id": rid, "cells": {
+                    "type": DOC_TYPE_LABELS.get(i.get("doc_type"), i.get("doc_type")),
+                    "source": i.get("source"), "reg": i.get("parent_regulation"),
+                    "lang": (i.get("language") or "").upper(),
+                    "country": (i.get("country") or "").upper(),
+                    "chunks": i.get("chunks", 0), "added": i.get("detected_at") or None,
+                }, "actions": [
+                    {"id": "edit", "label": "Edit", "icon": "✏️"},
+                    {"id": "delete", "label": "Delete", "icon": "🗑️", "danger": True},
+                ]} for rid, i in rows.items()],
+                [{"key": "type", "label": "Type"}, {"key": "source", "label": "Document"},
+                 {"key": "reg", "label": "Regulation"}, {"key": "lang", "label": "Language"},
+                 {"key": "country", "label": "Country"},
+                 {"key": "chunks", "label": "Passages", "kind": "number"},
+                 {"key": "added", "label": "Added", "kind": "date"}],
+                key="kb_docs", sort=("type", "asc"))
+            if hit and hit["row"] in rows:
+                (_edit_dialog if hit["action"] == "edit" else _delete_dialog)(rows[hit["row"]])
     except Exception as e:
-        st.error(f"Could not load KB summary: {e}")
+        st.error(f"Could not load the knowledge base: {e}")
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -156,107 +203,10 @@ with tab_upload:
                             parent_regulation=parent_reg,
                         )
                         if result:
+                            _kb_summary.clear()
                             st.success(f"✅ Ingested {result} chunks for '{source_name}'")
                         else:
                             st.error("Ingestion failed — check Qdrant connection.")
 
                 except Exception as e:
                     st.error(f"Could not ingest: {e}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# TAB 3 — EDIT
-# ═══════════════════════════════════════════════════════════════
-
-with tab_edit:
-    st.subheader("Edit document metadata")
-    st.caption("Update the source name, language, country, or regulation for an existing document.")
-
-    try:
-        kb = _kb_summary()
-        source_names = [item["source"] for item in kb]
-
-        if not source_names:
-            st.info("No documents in knowledge base.")
-        else:
-            selected_source = st.selectbox("Select document", source_names, key="edit_source")
-            meta = next((i for i in kb if i["source"] == selected_source), {})
-
-            col1, col2 = st.columns(2)
-            with col1:
-                new_name = st.text_input("New source name (leave blank to keep)",
-                                          placeholder=selected_source, key="edit_name")
-                new_doc_type = st.selectbox("Document type", DOC_TYPE_OPTIONS,
-                                             index=DOC_TYPE_OPTIONS.index(
-                                                 meta.get("doc_type", "core"))
-                                             if meta.get("doc_type") in DOC_TYPE_OPTIONS else 0,
-                                             key="edit_doctype")
-                new_parent_reg = st.selectbox("Regulation", REGULATION_OPTIONS,
-                                               index=REGULATION_OPTIONS.index(
-                                                   meta.get("parent_regulation", "general"))
-                                               if meta.get("parent_regulation") in REGULATION_OPTIONS else 0,
-                                               key="edit_reg")
-            with col2:
-                new_lang = st.selectbox("Language", list(LANG_OPTIONS.keys()),
-                                         format_func=lambda x: LANG_OPTIONS[x],
-                                         index=list(LANG_OPTIONS.keys()).index(
-                                             meta.get("language", "en"))
-                                         if meta.get("language") in LANG_OPTIONS else 0,
-                                         key="edit_lang")
-                new_country = st.selectbox("Country", list(COUNTRY_OPTIONS.keys()),
-                                            format_func=lambda x: COUNTRY_OPTIONS[x],
-                                            index=list(COUNTRY_OPTIONS.keys()).index(
-                                                meta.get("country", "EU"))
-                                            if meta.get("country") in COUNTRY_OPTIONS else 0,
-                                            key="edit_country")
-
-            st.caption(f"Currently: {meta.get('chunks', '?')} chunks · "
-                       f"{meta.get('language','?').upper()} · {meta.get('country','?').upper()} · "
-                       f"{meta.get('doc_type','?')} · {meta.get('parent_regulation','?')}")
-
-            if st.button("💾 Save changes", type="primary", key="btn_edit"):
-                with st.spinner("Updating..."):
-                    _kb_summary.clear()
-                    count = update_source_metadata(
-                        old_source=selected_source,
-                        new_source=new_name.strip() if new_name.strip() else None,
-                        new_country=new_country,
-                        new_language=new_lang,
-                        new_doc_type=new_doc_type,
-                        new_parent_regulation=new_parent_reg,
-                    )
-                    st.success(f"✅ Updated {count} chunks for '{selected_source}'")
-
-    except Exception as e:
-        st.error(f"Could not load documents: {e}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# TAB 4 — DELETE
-# ═══════════════════════════════════════════════════════════════
-
-with tab_delete:
-    st.subheader("Delete document from knowledge base")
-    st.caption("Permanently removes all chunks for a document from Qdrant.")
-
-    try:
-        kb = _kb_summary()
-        source_names = [item["source"] for item in kb]
-
-        if not source_names:
-            st.info("No documents in knowledge base.")
-        else:
-            del_source = st.selectbox("Select document to delete", source_names, key="del_source")
-            del_meta   = next((i for i in kb if i["source"] == del_source), {})
-            st.caption(f"{del_meta.get('chunks', '?')} chunks will be permanently removed.")
-
-            if st.button("🗑️ Delete permanently", type="secondary",
-                          key="btn_delete", use_container_width=True):
-                with st.spinner("Deleting..."):
-                    _kb_summary.clear()
-                    count = delete_source(del_source)
-                    st.success(f"✅ Deleted {count} chunks for '{del_source}'")
-                    st.rerun()
-
-    except Exception as e:
-        st.error(f"Could not load documents: {e}")
