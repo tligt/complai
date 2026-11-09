@@ -253,6 +253,7 @@ if not acc:
     st.stop()
 
 # ── One account ───────────────────────────────────────────────────────────
+tv.focus("accounts")
 st.divider()
 st.subheader(acc["name"])
 st.caption(f"{SUBSCRIPTION_TIERS.get(acc['plan'], acc['plan'])} · "

@@ -134,6 +134,7 @@ with tab_team:
         st.session_state.team_edit = "new"
         st.rerun()
     edit_id = st.session_state.team_edit
+    tv.focus("incident_team")
     st.markdown("**Add a team member**" if edit_id == "new"
                 else f"**Edit {contact_by_id[edit_id]['name']}**")
     cur = contact_by_id.get(edit_id, {})
@@ -277,6 +278,7 @@ with tab_inc:
     sys_names = [sys_name.get(s, "?") for s in inc.get("system_ids") or []]
 
     # ── Deadlines ──────────────────────────────────────────────────────────
+    tv.focus("incidents")
     st.subheader(inc["title"])
     st.caption(f"{STATUS_LABEL[inc['status']]} · found out {_fmt(inc['discovered_at'])} ({R.TZ_LABEL})"
                + (f" · reported by {inc['reported_by']}" if inc.get("reported_by") else "")

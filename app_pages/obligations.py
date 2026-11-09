@@ -284,6 +284,7 @@ if shown:
     v = verdicts[ob["id"]]
     resp = responses.get(ob["id"]) or {}
     kind = OR.response_kind(ob)
+    tv.focus("obligations")
 
     with st.container(border=True):
         st.markdown(f"**{_STATUS_ICON[v['status']]}  {ob['title']}**")

@@ -266,10 +266,44 @@ def table(rows: list[dict], columns: list[dict], *, key: str,
     if hit.get("n") is not None and st.session_state.get(seen_key) == hit["n"]:
         return None
     st.session_state[seen_key] = hit.get("n")
+    st.session_state[f"_tv_focus_{key}"] = hit.get("n") or True
     return {"row": hit["row"], "action": hit["action"]}
 
 
-def locked(label: str, value, reason: str, key: str | None = None) -> None:
+_SCROLL_JS = r"""
+export default function(component) {
+  const host = component.parentElement && component.parentElement.host;
+  if (host && host.scrollIntoView) {
+    setTimeout(() => host.scrollIntoView({behavior: "smooth", block: "start"}), 50);
+  }
+}
+"""
+_scroller = None
+
+
+def focus(key: str) -> None:
+    """Call where the detail panel of table `key` starts: on the run after
+    a click in that table, the page scrolls to here. Below a long table the
+    panel opened out of sight, and the click seemed to do nothing (9 Nov)."""
+    global _scroller
+    n = st.session_state.pop(f"_tv_focus_{key}", None)
+    if not n:
+        return
+    import streamlit.components.v2 as components_v2
+
+    def mount():
+        return _scroller(key=f"tv_focus_{key}", data={"n": str(n)})
+
+    if _scroller is None:
+        _scroller = components_v2.component("recosa_scroll_here", js=_SCROLL_JS)
+    try:
+        mount()
+    except ValueError:
+        _scroller = components_v2.component("recosa_scroll_here", js=_SCROLL_JS)
+        mount()
+
+
+def locked(label: str, value, reason: str, key: str | None = None) -> None:  # noqa: D401
     """A field shown but not editable, with why (BO review, point 5)."""
     st.text_input(f"🔒 {label}", value="" if value is None else str(value), disabled=True,
                   help=reason, key=key)

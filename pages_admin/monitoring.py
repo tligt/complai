@@ -360,11 +360,14 @@ with tab_reg:
     if not updates:
         st.info("No regulatory updates found.")
     else:
-        # BO review, 9 Nov: the shared table with bulk rejects (monitoring_queue);
-        # the clicked item is reviewed below, with the same controls as before.
+        # BO review, 9 Nov: the shared table with bulk rejects (monitoring_queue).
+        # A click or "Review" opens the item in a pop-up, with the same
+        # controls as before: below a long table it went unnoticed.
         _sel = MQ.queue(updates, key="reg", found_field="detected_at",
                         reject=reject_regulatory_update)
-        for u in ([_sel] if _sel else []):
+
+        @st.dialog("Review a regulatory update", width="large")
+        def _review_reg(u):
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
             status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
 
@@ -521,6 +524,9 @@ with tab_reg:
 
                     else:
                         st.error("Rejected")
+
+        if _sel:
+            _review_reg(_sel)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -712,7 +718,9 @@ with tab_mkt:
     else:
         _msel = MQ.queue(mkt_updates, key="mkt", found_field="created_at",
                          reject=reject_marketing_update, category=True)
-        for u in ([_msel] if _msel else []):
+
+        @st.dialog("Review a marketing item", width="large")
+        def _review_mkt(u):
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
             status_icon   = {"pending": "⏳", "url_flagged": "⚠️", "approved": "✅", "rejected": "❌"}.get(u.get("status", "pending"), "⏳")
             cat_badge     = f"[{u.get('category', '')}] " if u.get("category") else ""
@@ -903,6 +911,9 @@ with tab_mkt:
                             render_send(u, "marketing_updates", _li, None)
                     else:
                         st.error("Rejected")
+
+        if _msel:
+            _review_mkt(_msel)
 
 
 # ═══════════════════════════════════════════════════════════════

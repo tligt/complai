@@ -103,6 +103,7 @@ if open_tasks:
     _selected_key = st.session_state.get("ap_task_dismiss_select")
 
     if _selected_key:
+        tv.focus("ap_tasks")
         f = _tasks_by_key[_selected_key]
         if team:
             with st.container(border=True):

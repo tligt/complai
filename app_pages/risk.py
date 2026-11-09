@@ -190,6 +190,7 @@ if _open:
             st.session_state.risk_item_select = items[0]["id"]
         _sel_id = st.session_state.risk_item_select
         it = _items_by_id[_sel_id]
+        tv.focus("risk_items")
 
         with st.container(border=True):
             if it.get("description"):

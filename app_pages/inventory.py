@@ -451,6 +451,7 @@ with tab_systems:
         st.session_state[_sys_key] = _NEW
         st.rerun()
     _pick = st.session_state[_sys_key]
+    tv.focus(f"inv_systems_{client_id}")
     st.markdown("**Add a system**" if _pick == _NEW
                 else f"**Edit {_sys_by_id[_pick].get('name') or '(unnamed)'}**")
     cur = {} if _pick == _NEW else _sys_by_id[_pick]
@@ -694,6 +695,7 @@ with tab_activities:
     if st.session_state.get("inv_act_select") not in by_id:
         st.session_state["inv_act_select"] = None
     existing = by_id.get(st.session_state["inv_act_select"])
+    tv.focus(f"inv_activities_{client_id}")
     if existing is not None:
         st.markdown(f"**Edit {_activity_label(existing['id'])}**")
         if st.button("➕ Add a new activity", key="inv_act_add"):
@@ -1252,6 +1254,7 @@ with tab_controllers:
     if st.session_state.get("inv_cp_select") not in cp_by_id:
         st.session_state["inv_cp_select"] = None
     cp_existing = cp_by_id.get(st.session_state["inv_cp_select"])
+    tv.focus(f"inv_controllers_{client_id}")
     if cp_existing is not None:
         st.markdown(f"**Edit {cp_existing['legal_name']}**")
         if st.button("➕ Add a controller", key="inv_cp_add"):

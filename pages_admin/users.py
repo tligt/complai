@@ -196,6 +196,7 @@ if hit and hit["row"] in by_id:
         acc, _ = work_of(target["id"])
         if acc:
             st.session_state.acc_open = acc["id"]
+            st.session_state["_tv_focus_accounts"] = True   # land on its panel
             st.switch_page("pages_admin/companies.py")
 
 notice = st.session_state.pop("user_notice", None)
@@ -207,6 +208,7 @@ if not target:
     st.stop()
 acc, comps = work_of(target["id"])
 
+tv.focus("users")
 st.divider()
 with st.container(border=True):
     st.markdown(f"**{target.get('email') or target['id']}**")

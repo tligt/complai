@@ -5,8 +5,9 @@ monitoring_queue.py — the review queue on the back office's Monitoring page
 The queue was one closed expander per item, 39 + 61 deep, with no date and
 no way to act on several at once. Now:
 - the shared table (table_view.py): severity, status, title, source, when
-  it was published and found, and which item it repeats; click a row to
-  review it below, as before (approve, reject, LinkedIn draft, Buffer);
+  it was published and found, and which item it repeats; click a row (or
+  its ⋮ "Review") to review it in a pop-up (approve, reject, LinkedIn
+  draft, Buffer) — below a long table, a panel went unnoticed (9 Nov);
 - bulk actions, rejecting only: the repeats (dedup.mark_duplicates), the
   items found more than N days ago, or a chosen set. Approving stays one
   by one: it can email clients, publish to the Pulse and feed the
@@ -40,7 +41,7 @@ def _dt(v) -> datetime | None:
 def queue(items: list[dict], *, key: str, found_field: str, reject,
           category: bool = False) -> dict | None:
     """Draw the bulk actions and the table; return the item to review below
-    (the clicked one), or None. `reject(id) -> bool` rejects one item."""
+    (the one clicked on this run), or None: the page opens it in a pop-up. `reject(id) -> bool` rejects one item."""
     dups = mark_duplicates(items, order=found_field)
     by_id = {u["id"]: u for u in items}
     open_items = [u for u in items if u.get("status") in OPEN_STATUSES]
@@ -112,15 +113,11 @@ def queue(items: list[dict], *, key: str, found_field: str, reject,
                 st.rerun()
             st.error("Could not reject it.")
         else:
+            # Opened in a pop-up by the page, on this run only: closing the
+            # pop-up leaves the table as it was.
             st.session_state[f"mq_open_{key}"] = hit["row"]
-    sel = by_id.get(st.session_state.get(f"mq_open_{key}") or "")
-    if sel:
-        if st.button("Close the review", key=f"mq_close_{key}"):
-            st.session_state.pop(f"mq_open_{key}", None)
-            st.rerun()
-    else:
-        st.caption("Click an item to review it.")
-    return sel
+            return by_id[hit["row"]]
+    return None
 
 
 def _reject_all(ids: list[str], reject, key: str, what: str) -> None:
