@@ -28,6 +28,8 @@ from datetime import date
 
 import streamlit as st
 
+import table_view as tv
+
 from display import plural
 
 import inventory as INV
@@ -167,34 +169,26 @@ if _open:
     # render for the risk actually being edited, so the table itself never
     # gets wide or wordy regardless of how many risks are recorded.
     if items:
-        st.dataframe(
-            [
-                {
-                    "Risk": labels.get(it["catalogue_code"], it["catalogue_code"]),
-                    "Before measures": (
-                        f"{RA.level_label(it.get('likelihood'), lang)} / "
-                        f"{RA.level_label(it.get('severity'), lang)}"
-                    ),
-                    "After measures": (
-                        RA.level_label(it["residual_severity"], lang)
-                        if it.get("residual_severity") else "Not assessed"
-                    ),
-                }
-                for it in items
-            ],
-            hide_index=True,
-            width="stretch",
-        )
-
+        # The shared table (table_view.py): click a risk to review it below.
+        # It replaced an st.dataframe plus "Select a risk to review or update".
         _items_by_id = {it["id"]: it for it in items}
-        _sel_id = st.selectbox(
-            "Select a risk to review or update",
-            options=list(_items_by_id.keys()),
-            format_func=lambda i: labels.get(
-                _items_by_id[i]["catalogue_code"], _items_by_id[i]["catalogue_code"]
-            ),
-            key="risk_item_select",
-        )
+        _r_hit = tv.table(
+            [{"id": it["id"], "cells": {
+                "risk": labels.get(it["catalogue_code"], it["catalogue_code"]),
+                "before": (f"{RA.level_label(it.get('likelihood'), lang)} / "
+                           f"{RA.level_label(it.get('severity'), lang)}"),
+                "after": (RA.level_label(it["residual_severity"], lang)
+                          if it.get("residual_severity") else "Not assessed"),
+            }, "actions": [{"id": "open", "label": "Review or update", "icon": "✏️"}]}
+             for it in items],
+            [{"key": "risk", "label": "Risk"}, {"key": "before", "label": "Before measures"},
+             {"key": "after", "label": "After measures"}],
+            key="risk_items", current=st.session_state.get("risk_item_select"))
+        if _r_hit:
+            st.session_state.risk_item_select = _r_hit["row"]
+        if st.session_state.get("risk_item_select") not in _items_by_id:
+            st.session_state.risk_item_select = items[0]["id"]
+        _sel_id = st.session_state.risk_item_select
         it = _items_by_id[_sel_id]
 
         with st.container(border=True):

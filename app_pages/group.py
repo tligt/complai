@@ -9,6 +9,8 @@ figure (D-123) side by side, computed the same way as on Home.
 
 import streamlit as st
 
+import table_view as tv
+
 import obligation_view as OV
 from auth import ENTERPRISE_URL, get_user_id
 from cached_reads import load_accessible_clients
@@ -82,17 +84,21 @@ else:
             rows.append(row)
     cols = ["Company", "Your role"] + sorted(
         {k for r in rows for k in r} - {"Company", "Your role", "Open tasks"}) + ["Open tasks"]
-    st.dataframe([{k: r.get(k, "") for k in cols} for r in rows],
-                 hide_index=True, width="stretch")
-    st.caption("% in place per regulation, as on each company's Home page.")
-
-    by_name = {c["company_name"]: c for c in companies}
-    oc1, oc2 = st.columns([3, 1])
-    pick = oc1.selectbox("Open a company", list(by_name), label_visibility="collapsed")
-    if oc2.button("Open", use_container_width=True):
-        chosen = by_name[pick]
-        st.session_state.selected_client = {**chosen, "role": role_on.get(chosen["id"])}
-        st.switch_page("app_pages/dashboard.py")
+    # The shared table (table_view.py): click a company to open it. It
+    # replaced an st.dataframe plus an "Open a company" box and button.
+    _g_hit = tv.table(
+        [{"id": c["id"], "cells": {k: (None if r.get(k) in ("", "⚪ —") else r.get(k)) for k in cols},
+          "actions": [{"id": "open", "label": "Open this company", "icon": "📂"}]}
+         for c, r in zip(companies, rows)],
+        [{"key": k, "label": k, **({"kind": "number"} if k == "Open tasks" else {})} for k in cols],
+        key=f"group_{group['id']}")
+    st.caption("% in place per regulation, as on each company's Home page. Click a company "
+               "to open it.")
+    if _g_hit:
+        chosen = next((c for c in companies if c["id"] == _g_hit["row"]), None)
+        if chosen:
+            st.session_state.selected_client = {**chosen, "role": role_on.get(chosen["id"])}
+            st.switch_page("app_pages/dashboard.py")
 
 # ── People across the group ───────────────────────────────────────────────
 st.markdown("#### People across the group")

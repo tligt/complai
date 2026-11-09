@@ -47,6 +47,8 @@ never existed, so the page was English-only since it shipped.
 import pandas as pd
 import streamlit as st
 
+import table_view as tv
+
 from auth import get_user_id
 from active_client import get_active_client
 import inventory as INV
@@ -421,29 +423,36 @@ with tab_systems:
     def _lbl(labels, code):
         return labels.get(code, code) if code else ""
 
-    if systems:
-        st.dataframe(
-            [{
-                "System": s.get("name") or "",
-                "Category": _lbl(cat_labels, s.get("category")),
-                "What you use it for": s.get("purpose") or "",
-                "DPA": _lbl(dpa_labels, s.get("dpa_status")),
-                "Criticality": _lbl(crit_labels, s.get("criticality")),
-                "May be down": duration_label(s.get("rto_minutes")),
-                "Data that may be lost": duration_label(s.get("rpo_minutes")),
-            } for s in systems],
-            hide_index=True, width="stretch",
-        )
-
+    # The shared table (table_view.py): click a system to edit it below;
+    # "Add a system" for a new one. It replaced an st.dataframe plus an
+    # "Edit a system" box.
     _sys_by_id = {s["id"]: s for s in systems}
     _NEW = "__new__"
-    _pick = st.selectbox(
-        "Edit a system",
-        options=([_NEW] + list(_sys_by_id)),
-        index=1 if systems else 0,
-        format_func=lambda i: "➕ Add a system" if i == _NEW else (_sys_by_id[i].get("name") or "(unnamed)"),
-        key=f"inv_sys_pick_{client_id}",
-    )
+    _sys_key = f"inv_sys_pick_{client_id}"
+    if systems:
+        _s_hit = tv.table(
+            [{"id": s["id"], "cells": {
+                "name": s.get("name"), "cat": _lbl(cat_labels, s.get("category")),
+                "purpose": s.get("purpose"), "dpa": _lbl(dpa_labels, s.get("dpa_status")),
+                "crit": _lbl(crit_labels, s.get("criticality")),
+                "rto": duration_label(s.get("rto_minutes")),
+                "rpo": duration_label(s.get("rpo_minutes")),
+            }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for s in systems],
+            [{"key": "name", "label": "System"}, {"key": "cat", "label": "Category"},
+             {"key": "purpose", "label": "What you use it for"}, {"key": "dpa", "label": "DPA"},
+             {"key": "crit", "label": "Criticality"}, {"key": "rto", "label": "May be down"},
+             {"key": "rpo", "label": "Data that may be lost"}],
+            key=f"inv_systems_{client_id}", current=st.session_state.get(_sys_key))
+        if _s_hit:
+            st.session_state[_sys_key] = _s_hit["row"]
+    if st.session_state.get(_sys_key) not in ([_NEW] + list(_sys_by_id)):
+        st.session_state[_sys_key] = systems[0]["id"] if systems else _NEW
+    if st.session_state[_sys_key] != _NEW and st.button("➕ Add a system", key="inv_sys_add"):
+        st.session_state[_sys_key] = _NEW
+        st.rerun()
+    _pick = st.session_state[_sys_key]
+    st.markdown("**Add a system**" if _pick == _NEW
+                else f"**Edit {_sys_by_id[_pick].get('name') or '(unnamed)'}**")
     cur = {} if _pick == _NEW else _sys_by_id[_pick]
     _fk = lambda n: f"inv_sys_{n}_{_pick}"
 
@@ -626,7 +635,19 @@ with tab_activities:
             # One document language: the column is always blank and reads as a
             # feature the client is failing at rather than one not in use.
             summary = summary.drop(columns=["Translations"])
-        st.dataframe(summary, hide_index=True, width="stretch")
+        # The shared table (table_view.py): click an activity to edit it
+        # below. It replaced an st.dataframe plus "Add new / Edit existing"
+        # and a "Which activity" box.
+        _a_hit = tv.table(
+            [{"id": a["id"], "cells": {c: (None if v in ("", "—") else v)
+                                       for c, v in rec.items()},
+              "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]}
+             for a, rec in zip(activities, summary.to_dict("records"))],
+            [{"key": c, "label": c, **({"kind": "number"} if c == "Systems" else {})}
+             for c in summary.columns],
+            key=f"inv_activities_{client_id}", current=st.session_state.get("inv_act_select"))
+        if _a_hit:
+            st.session_state["inv_act_select"] = _a_hit["row"]
     else:
         st.info("No processing activities yet. Add one below, or seed them from a catalogue tool.")
 
@@ -662,39 +683,25 @@ with tab_activities:
         basis = basis_labels.get(row.get("legal_basis"), row.get("legal_basis") or "no basis")
         return f"{_n} — {basis}, {n} system{'' if n == 1 else 's'}"
 
-    if activities:
-        mode = st.radio(
-            "Mode",
-            options=("Add a new activity", "Edit an existing one"),
-            horizontal=True,
-            key="inv_act_mode",
-            label_visibility="collapsed",
-        )
+    # Since the shared table (9 Nov), inv_act_select is plain state, not a
+    # widget key: the activity open below, None for a new one. A click in the
+    # table sets it; "Add a new activity" clears it; the save handler keeps
+    # an edited activity open through inv_act_keep, and clears it after a
+    # create or a delete (it pops inv_act_select).
+    _keep = st.session_state.pop("inv_act_keep", None)
+    if _keep in by_id:
+        st.session_state["inv_act_select"] = _keep
+    if st.session_state.get("inv_act_select") not in by_id:
+        st.session_state["inv_act_select"] = None
+    existing = by_id.get(st.session_state["inv_act_select"])
+    if existing is not None:
+        st.markdown(f"**Edit {_activity_label(existing['id'])}**")
+        if st.button("➕ Add a new activity", key="inv_act_add"):
+            st.session_state["inv_act_select"] = None
+            st.rerun()
     else:
-        mode = "Add a new activity"
-
-    existing = None
-    if mode == "Edit an existing one":
-        # The default comes from a SEPARATE key, not from the widget's own.
-        #
-        # Streamlit refuses to assign to session_state[k] when k is a widget
-        # key instantiated in the same run, which is why the save handler
-        # originally popped this key rather than setting it. Setting it raises
-        # StreamlitAPIException on the next run.
-        #
-        # So the save handler writes inv_act_keep, and this reads it as an
-        # index. The widget key stays untouched and Streamlit stays happy.
-        _ids = [a["id"] for a in activities]
-        _keep = st.session_state.pop("inv_act_keep", None)
-        _idx = _ids.index(_keep) if _keep in _ids else 0
-        selected = st.selectbox(
-            "Which activity",
-            options=_ids,
-            index=_idx,
-            format_func=_activity_label,
-            key="inv_act_select",
-        )
-        existing = by_id.get(selected)
+        st.markdown("**Add a new activity**"
+                    + (" · or click one in the table above to edit it" if activities else ""))
 
     aid = None if existing is None else existing["id"]
     form_key = f"inv_act_form_{aid or 'new'}"
@@ -1212,20 +1219,20 @@ with tab_controllers:
         activities_by_cp[l["counterparty_id"]] = activities_by_cp.get(l["counterparty_id"], 0) + 1
 
     if counterparties:
-        st.dataframe(
-            pd.DataFrame([
-                {
-                    "Controller": c["legal_name"],
-                    "Country": c.get("country") or "—",
-                    "Contact": c.get("contact_email") or "—",
-                    "DPA": cp_dpa_labels.get(c.get("dpa_status"), c.get("dpa_status") or "—"),
-                    "Activities": activities_by_cp.get(c["id"], 0),
-                }
-                for c in counterparties
-            ]),
-            hide_index=True,
-            width="stretch",
-        )
+        # The shared table (table_view.py): click a controller to edit it.
+        _c_hit = tv.table(
+            [{"id": c["id"], "cells": {
+                "name": c["legal_name"], "country": c.get("country"),
+                "contact": c.get("contact_email"),
+                "dpa": cp_dpa_labels.get(c.get("dpa_status"), c.get("dpa_status")),
+                "acts": activities_by_cp.get(c["id"], 0),
+            }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for c in counterparties],
+            [{"key": "name", "label": "Controller"}, {"key": "country", "label": "Country"},
+             {"key": "contact", "label": "Contact"}, {"key": "dpa", "label": "DPA"},
+             {"key": "acts", "label": "Activities", "kind": "number"}],
+            key=f"inv_controllers_{client_id}", current=st.session_state.get("inv_cp_select"))
+        if _c_hit:
+            st.session_state["inv_cp_select"] = _c_hit["row"]
     else:
         st.info(
             "No controllers recorded. If you only ever decide the purposes of "
@@ -1239,26 +1246,20 @@ with tab_controllers:
     # there is something to pick. See the comment there.
     cp_by_id = {c["id"]: c for c in counterparties}
 
-    if counterparties:
-        cp_mode = st.radio(
-            "Mode",
-            options=("Add a controller", "Edit an existing one"),
-            horizontal=True,
-            key="inv_cp_mode",
-            label_visibility="collapsed",
-        )
+    # inv_cp_select is plain state since the shared table (9 Nov): the
+    # controller open below, None for a new one. The save and delete
+    # handlers clear it (they pop inv_cp_select).
+    if st.session_state.get("inv_cp_select") not in cp_by_id:
+        st.session_state["inv_cp_select"] = None
+    cp_existing = cp_by_id.get(st.session_state["inv_cp_select"])
+    if cp_existing is not None:
+        st.markdown(f"**Edit {cp_existing['legal_name']}**")
+        if st.button("➕ Add a controller", key="inv_cp_add"):
+            st.session_state["inv_cp_select"] = None
+            st.rerun()
     else:
-        cp_mode = "Add a controller"
-
-    cp_existing = None
-    if cp_mode == "Edit an existing one":
-        cp_selected = st.selectbox(
-            "Which controller",
-            options=[c["id"] for c in counterparties],
-            format_func=lambda i: cp_by_id[i]["legal_name"],
-            key="inv_cp_select",
-        )
-        cp_existing = cp_by_id.get(cp_selected)
+        st.markdown("**Add a controller**"
+                    + (" · or click one in the table above to edit it" if counterparties else ""))
 
     cp_id = None if cp_existing is None else cp_existing["id"]
     c = cp_existing or {}

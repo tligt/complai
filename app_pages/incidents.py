@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 import streamlit as st
 
+import table_view as tv
+
 from display import fmt_datetime
 
 import incident_rules as R
@@ -102,24 +104,38 @@ with tab_team:
         "significant NIS2 incident. This list also appears in your incident and breach "
         "notification procedure — regenerate it under Documents after changes."
     )
+    # The shared table (table_view.py): click a person to edit them below.
+    # It replaced an st.dataframe plus an "Add or edit" box.
     if contacts_all:
-        st.dataframe([{
-            "Name": c["name"], "Role": R.ROLES.get(c.get("role"), c.get("role")),
-            "Email": c.get("email") or "", "Phone": c.get("phone") or "",
-            "Alerted": R.ALERT_ON.get(c.get("alert_on"), c.get("alert_on")),
-            "Contract deadline": f"{c['deadline_hours']} h" if c.get("deadline_hours") else "",
-            "Active": "Yes" if c.get("active") else "No",
-        } for c in contacts_all], hide_index=True, width="stretch")
+        _t_hit = tv.table(
+            [{"id": c["id"], "cells": {
+                "name": c["name"], "role": R.ROLES.get(c.get("role"), c.get("role")),
+                "email": c.get("email"), "phone": c.get("phone"),
+                "alerted": R.ALERT_ON.get(c.get("alert_on"), c.get("alert_on")),
+                "deadline": f"{c['deadline_hours']} h" if c.get("deadline_hours") else None,
+                "active": "Yes" if c.get("active") else "No",
+            }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for c in contacts_all],
+            [{"key": "name", "label": "Name"}, {"key": "role", "label": "Role"},
+             {"key": "email", "label": "Email"}, {"key": "phone", "label": "Phone"},
+             {"key": "alerted", "label": "Alerted"}, {"key": "deadline", "label": "Contract deadline"},
+             {"key": "active", "label": "Active"}],
+            key="incident_team", current=st.session_state.get("team_edit"))
+        if _t_hit:
+            st.session_state.team_edit = _t_hit["row"]
     else:
         st.info("No incident team yet. Start with whoever leads incidents and a deputy, then IT, "
                 "your DPO or privacy contact, and management.")
     if not any(c.get("role") == "lead" for c in contacts):
         st.warning("No incident lead on the list. The procedure says to tell them first.")
 
-    _edit_opts = ["new"] + [c["id"] for c in contacts_all]
-    edit_id = st.selectbox("Add or edit", _edit_opts,
-                           format_func=lambda i: "➕ Add a team member" if i == "new"
-                           else f"✏️ {contact_by_id[i]['name']}", key="team_edit")
+    if st.session_state.get("team_edit") not in contact_by_id:
+        st.session_state.team_edit = "new"
+    if st.session_state.team_edit != "new" and st.button("➕ Add a team member", key="team_add"):
+        st.session_state.team_edit = "new"
+        st.rerun()
+    edit_id = st.session_state.team_edit
+    st.markdown("**Add a team member**" if edit_id == "new"
+                else f"**Edit {contact_by_id[edit_id]['name']}**")
     cur = contact_by_id.get(edit_id, {})
     roles, alerts = list(R.ROLES), list(R.ALERT_ON)
     with st.form(f"team_form_{edit_id}"):
@@ -234,10 +250,26 @@ with tab_inc:
              + [i for i in incidents if i["status"] == "closed"])
     ids = [i["id"] for i in order]
     by_id = {i["id"]: i for i in incidents}
-    sel = st.session_state.get("incident_sel")
-    inc_id = st.selectbox("Incident", ids, index=ids.index(sel) if sel in ids else 0,
-                          format_func=lambda i: _label(by_id[i]), key="incident_pick")
-    st.session_state.incident_sel = inc_id
+    # The shared table (table_view.py): open incidents first; click one to
+    # open it below. It replaced an "Incident" picker.
+    def _next(inc):
+        nd = R.next_deadline(_deadlines(inc)) if inc["status"] != "closed" else None
+        return f"{STATE_ICON[nd['state']]} {R.describe_left(nd)}" if nd else None
+
+    _i_hit = tv.table(
+        [{"id": i["id"], "cells": {
+            "status": STATUS_LABEL[i["status"]], "found": R._ts(i["discovered_at"]).astimezone(tz) if i.get("discovered_at") else None,
+            "title": i["title"], "next": _next(i),
+        }, "actions": [{"id": "open", "label": "Open", "icon": "📂"}]} for i in order],
+        [{"key": "status", "label": "Status"},
+         {"key": "found", "label": f"Found out ({R.TZ_LABEL})", "kind": "datetime"},
+         {"key": "title", "label": "Incident"}, {"key": "next", "label": "Next deadline"}],
+        key="incidents", current=st.session_state.get("incident_sel"))
+    if _i_hit:
+        st.session_state.incident_sel = _i_hit["row"]
+    if st.session_state.get("incident_sel") not in ids:
+        st.session_state.incident_sel = ids[0]
+    inc_id = st.session_state.incident_sel
     inc = by_id[inc_id]
     inc_events = events.get(inc_id, [])
     dls = _deadlines(inc)

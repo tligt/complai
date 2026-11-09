@@ -13,6 +13,8 @@ yours, and Open shows a task with its person, its comments and Dismiss.
 
 import streamlit as st
 
+import table_view as tv
+
 import obligation_store as STORE
 import obligation_view as OV
 import tasks as T
@@ -49,56 +51,11 @@ if open_tasks:
                           value=st.session_state.get("ap_only_mine", False)):
         open_tasks = _mine
 
-# ── Tasks ─────────────────────────────────────────────────────────────────
-# Summary table with two real per-row actions — Go fix it and Dismiss — via
-# st.column_config.ButtonColumn, which renders actual clickable buttons
-# inside a cell and fires a Python callback with the clicked row's index.
-# Every finding already carries `link`, the page that actually fixes the
-# underlying thing, so every row gets a fix-it button (on Obligations, where
-# this list used to live, "obligations" rows had none: that was the page).
-#
-# A single narrow icon column measured right in testing and then rendered
-# far too wide in a real browser window: st.dataframe distributes any
-# leftover row width EVENLY across every column once the sum of configured
-# widths is less than the table's own width, including a column pinned at
-# 36px — confirmed in the installed column_config source, not assumed. The
-# icon is folded into the Task text instead, so there is no narrow column
-# for that redistribution to inflate. Due is narrowed the same way, though
-# a normal text column being stretched somewhat is far less visually broken
-# than a one-character column was.
+# The task table is the shared table (table_view.py, BO review point 4,
+# 9 Nov): a click opens the task below; its ⋮ menu offers "Fix it" (the
+# page where it is done) and "Open". It replaced an st.dataframe with a
+# ButtonColumn plus a "select a task" box under it.
 _TASK_LINK_PAGES = OV.TASK_LINK_PAGES
-_FIX_LABEL = "Fix it"
-_OPEN_LABEL = "Open"
-
-
-def _task_actions(f: dict) -> list[str]:
-    acts = []
-    if _TASK_LINK_PAGES.get(f.get("link") or ""):
-        acts.append(_FIX_LABEL)
-    acts.append(_OPEN_LABEL)
-    return acts
-
-
-def _handle_task_action():
-    """ButtonColumn callback. Runs before the rerun it triggers, so it only
-    sets state for the main script body to act on — switch_page itself
-    stays out of the callback, since callbacks execute in their own partial
-    run and are not the documented place to call it.
-    """
-    click = st.session_state.get("ap_task_action_click")
-    if not click:
-        return
-    idx = click.get("row")
-    if idx is None or idx >= len(open_tasks):
-        return
-    f = open_tasks[idx]
-    label = click.get("label") or ""
-    if _OPEN_LABEL in label:
-        st.session_state["ap_task_dismiss_select"] = f["finding_key"]
-    elif _FIX_LABEL in label:
-        page = _TASK_LINK_PAGES.get(f.get("link") or "")
-        if page:
-            st.session_state["_ap_pending_navigate"] = page
 
 
 if open_tasks:
@@ -109,53 +66,6 @@ if open_tasks:
         a = (assignments.get(f["finding_key"]) or {}).get("assignee_id")
         return ("You" if a == user_id else W.name_of(client_id, a)) if a else ""
 
-    st.dataframe(
-        [
-            {
-                "Task": f"{_icon.get(f['severity'], '⚪')} {f['title']}"
-                        + (f"  💬 {_talk[f['finding_key']]}" if _talk.get(f["finding_key"]) else ""),
-                "Detail": f.get("detail") or "",
-                **({"Handled by": _who(f)} if team else {}),
-                "Due": fmt_date(f["due"]) if f.get("due") else "",
-                "Actions": _task_actions(f),
-            }
-            for f in open_tasks
-        ],
-        hide_index=True,
-        # stretch (matches every other table on this page) fills the parent
-        # container and spreads whatever is left over EVENLY across every
-        # column. Task and Detail are given a bigger starting width than Due
-        # and Actions specifically so that, after that even split, they are
-        # still the two columns actually getting the space.
-        width="stretch",
-        column_config={
-            "Task": st.column_config.TextColumn(width=430),
-            "Detail": st.column_config.TextColumn(width=520 if team else 620),
-            "Handled by": st.column_config.TextColumn(width=140),
-            "Due": st.column_config.TextColumn(width=90),
-            # A single Dismiss renders directly at this width; two actions
-            # collapse into a "..." menu rather than both showing inline —
-            # kept deliberately, not a compromise: familiar pattern, and it
-            # means Actions does not need to fight Task/Detail for width.
-            "Actions": st.column_config.ButtonColumn(
-                width=100,
-                on_click=_handle_task_action,
-                key="ap_task_action_click",
-            ),
-        },
-    )
-
-    # Set by the Go fix it button's callback, above. Done here rather than
-    # inside the callback itself — st.switch_page's own docs describe it as
-    # stopping the CURRENT page's execution, which is the main script body,
-    # not the separate partial run a column-button callback executes in.
-    _pending_nav = st.session_state.pop("_ap_pending_navigate", None)
-    if _pending_nav:
-        st.switch_page(_pending_nav)
-
-    # Still a real selector, not just a Dismiss-button landing spot — either
-    # path sets the same key, so clicking Dismiss in the table and picking a
-    # task here do the same thing.
     _tasks_by_key = {f["finding_key"]: f for f in open_tasks}
     # S56: the inbox opens a task here (ap_open_task, set by app_pages/inbox.py).
     _from_inbox = st.session_state.pop("ap_open_task", None)
@@ -163,16 +73,34 @@ if open_tasks:
         st.session_state["ap_task_dismiss_select"] = _from_inbox
     if st.session_state.get("ap_task_dismiss_select") not in _tasks_by_key:
         st.session_state.pop("ap_task_dismiss_select", None)
-    _select_options = [None] + list(_tasks_by_key.keys())
-    _selected_key = st.selectbox(
-        "Open a task" if team else "Dismiss a task",
-        options=_select_options,
-        format_func=lambda k: (
-            ("— Select a task —" if team else "— Select a task to dismiss —")
-            if k is None else _tasks_by_key[k]["title"]
-        ),
-        key="ap_task_dismiss_select",
-    )
+
+    _cols = [{"key": "task", "label": "Task"}, {"key": "detail", "label": "Detail"}]
+    if team:
+        _cols.append({"key": "who", "label": "Handled by"})
+    _cols.append({"key": "due", "label": "Due", "kind": "date"})
+    _hit = tv.table(
+        [{"id": f["finding_key"], "cells": {
+            "task": f"{_icon.get(f['severity'], '⚪')} {f['title']}"
+                    + (f"  💬 {_talk[f['finding_key']]}" if _talk.get(f["finding_key"]) else ""),
+            "detail": f.get("detail"),
+            "who": _who(f) if team else None,
+            "due": f.get("due"),
+        }, "actions": [
+            {"id": "open", "label": "Open" if team else "Open (dismiss, details)", "icon": "📂"},
+            {"id": "fix", "label": "Fix it", "icon": "🛠️",
+             "disabled": None if _TASK_LINK_PAGES.get(f.get("link") or "")
+             else "Done outside RECOSA, or on this page"},
+            {"id": "dismiss", "label": "Dismiss, with a reason", "icon": "🚫"},
+        ]} for f in open_tasks],
+        _cols, key="ap_tasks", current=st.session_state.get("ap_task_dismiss_select"),
+        empty="Nothing outstanding.")
+    if _hit and _hit["row"] in _tasks_by_key:
+        if _hit["action"] == "fix":
+            _page = _TASK_LINK_PAGES.get(_tasks_by_key[_hit["row"]].get("link") or "")
+            if _page:
+                st.switch_page(_page)
+        st.session_state["ap_task_dismiss_select"] = _hit["row"]
+    _selected_key = st.session_state.get("ap_task_dismiss_select")
 
     if _selected_key:
         f = _tasks_by_key[_selected_key]

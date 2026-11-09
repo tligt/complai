@@ -26,6 +26,8 @@ from datetime import date
 
 import streamlit as st
 
+import table_view as tv
+
 from display import fmt_date, plural
 
 import obligation_register as OR
@@ -256,36 +258,28 @@ shown = sorted(
 if not shown:
     st.info("Nothing matches these filters.")
 else:
-    st.dataframe(
-        [
-            {
-                "Status": f"{_STATUS_ICON[verdicts[o['id']]['status']]} {_STATUS_LABEL[verdicts[o['id']]['status']]}",
-                "Obligation": o["title"],
-                "Regulation": REGULATION_LABELS.get(o["regulation"], o["regulation"]),
-                "Legal reference": o.get("article", ""),
-            }
-            for o in shown
-        ],
-        hide_index=True, width="stretch",
-        column_config={
-            "Status": st.column_config.TextColumn(width=150),
-            "Obligation": st.column_config.TextColumn(width=520),
-            "Regulation": st.column_config.TextColumn(width=110),
-            "Legal reference": st.column_config.TextColumn(width=110),
-        },
-    )
+    # The shared table (table_view.py, BO review point 4): click a row to
+    # open it below. It replaced an st.dataframe plus "Open an obligation".
+    _ob_hit = tv.table(
+        [{"id": o["id"], "cells": {
+            "status": f"{_STATUS_ICON[verdicts[o['id']]['status']]} {_STATUS_LABEL[verdicts[o['id']]['status']]}",
+            "title": o["title"],
+            "reg": REGULATION_LABELS.get(o["regulation"], o["regulation"]),
+            "ref": o.get("article"),
+        }, "actions": [{"id": "open", "label": "Open", "icon": "📂"}]} for o in shown],
+        [{"key": "status", "label": "Status"}, {"key": "title", "label": "Obligation"},
+         {"key": "reg", "label": "Regulation"}, {"key": "ref", "label": "Legal reference"}],
+        key="obligations", current=st.session_state.get("ob_select"),
+        empty="Nothing matches these filters.")
+    if _ob_hit:
+        st.session_state["ob_select"] = _ob_hit["row"]
 
 if shown:
     _shown_by_id = {o["id"]: o for o in shown}
     if st.session_state.get("ob_select") not in _shown_by_id:
-        st.session_state.pop("ob_select", None)
-    _sel_id = st.selectbox(
-        "Open an obligation",
-        options=list(_shown_by_id.keys()),
-        format_func=lambda i: (f"{_STATUS_ICON[verdicts[i]['status']]} {_shown_by_id[i]['title']}"
-                               f" · {REGULATION_LABELS.get(_shown_by_id[i]['regulation'], '')}"),
-        key="ob_select",
-    )
+        # The most urgent one, first in the list, until another is clicked.
+        st.session_state["ob_select"] = shown[0]["id"]
+    _sel_id = st.session_state["ob_select"]
     ob = _shown_by_id[_sel_id]
     v = verdicts[ob["id"]]
     resp = responses.get(ob["id"]) or {}

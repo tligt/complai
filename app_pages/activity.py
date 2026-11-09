@@ -1,5 +1,7 @@
 import streamlit as st
 
+import table_view as tv
+
 from display import plural
 from datetime import datetime, timezone
 from auth import get_user_id
@@ -247,18 +249,17 @@ st.caption(
     + (" — filtered" if len(filtered) != len(rows) else "")
 )
 
-st.dataframe(
-    table,
-    hide_index=True,
-    width="stretch",
-    column_config={
-        "When": st.column_config.TextColumn(width="small"),
-        "Action": st.column_config.TextColumn(width="medium"),
-        "What": st.column_config.TextColumn(width="large"),
-        "By": st.column_config.TextColumn(width="medium"),
-        "Details": st.column_config.TextColumn(width="medium"),
-    },
-)
+# The shared table (table_view.py): sortable, newest first. "When" sorts
+# on the real time, shown in the app's time zone.
+tv.table(
+    [{"id": r.get("id") or str(i), "cells": {
+        "when": datetime.fromisoformat(r["created_at"].replace("Z", "+00:00")).astimezone(DISPLAY_TZ),
+        "action": row["Action"], "what": row["What"], "by": row["By"], "details": row["Details"],
+    }} for i, (r, row) in enumerate(zip(filtered, table))],
+    [{"key": "when", "label": "When", "kind": "datetime"}, {"key": "action", "label": "Action"},
+     {"key": "what", "label": "What"}, {"key": "by", "label": "By"},
+     {"key": "details", "label": "Details"}],
+    key="activity_log", sort=("when", "desc"), empty="No activity for this selection.")
 
 # The log is evidence, and evidence gets handed over. A client asked for their
 # activity history by an auditor should not be screenshotting a table.
