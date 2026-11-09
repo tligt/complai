@@ -395,6 +395,7 @@ the only sprint that *is* the gate.
 | S66 | Compliance heartbeat — scheduled checks | was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S67 | Evaluate a Streamlit alternative | was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S68 | Import existing documents into the inventory | New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
+| **S70** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151), next.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
 | S69 | GDPR deletion | New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
@@ -1498,6 +1499,88 @@ regulatory changes affecting the client (S36). Rendered through the existing
 template engine plus `document_xlsx.py`, stamped and registered like any other
 document. S27 gives the auditor a register; this gives management a narrative,
 and management-level accountability is an explicit NIS2 duty.
+
+#### S70 — Customer accounts and subscription history — SCOPE LOCK, 9 Nov
+
+*From the back office review (D-150, points 1–3). Decisions with the user
+on 9 Nov (D-151); the rest proposed here, open to correction before build.*
+
+**The problem.** The plan (`subscription_tier`), the status
+(`subscription_status`) and the trial end live on `profiles` — on a person.
+A company has no plan of its own: the gates read the plan of whoever owns
+it (`tier_gates.client_limit_reached`, `doc_theme.owner_tier`, the Advisory
+and Enterprise checks in `app.py`, `documents.py`, `group.py`). So an
+invited colleague shows "Free account" in a subscribed company, nothing
+records when a plan started or ended, and there is no contract contact.
+
+**The model.**
+- **`accounts`** — the customer, i.e. the contracting party: `name`, `plan`,
+  `status` (registered, trial, active, expired — today's vocabulary, plus
+  `cancelled`), `trial_ends_at`, the **contract contact** typed in by an admin
+  (name, email, phone; optionally linked to a user), a **billing email**,
+  VAT number, notes, `owner_user_id` (the person who manages it in the app),
+  `created_at`. `plan` and `status` are the current values, kept in step with
+  the history by the same function that writes it.
+- **`clients.account_id`** — every company belongs to exactly one account.
+  Starter and Professional: one company. **Advisory: the consultant's account
+  holds all their client companies** (decided 9 Nov — the consultant pays, as
+  today). **Enterprise: the account holds the group's companies** (one
+  contract for the group and its divisions; `client_groups` gets `account_id`).
+- **`account_periods`** — the history: `account_id`, `plan`, `status`,
+  `starts_at`, `ends_at` (null for the current one), `trial_ends_at` when a
+  trial, `note` (why: "upgraded on request", "trial extended 7 days"),
+  `changed_by`, `created_at`. Every change closes the current period and opens
+  the next, so "trial → Professional → Enterprise → back to Professional"
+  reads as four dated rows. Append-only, like the audit trail. Changes take
+  effect when made; a change dated in the future (a downgrade at the end of
+  a paid period) comes with Stripe (S46).
+- **People.** A person belongs to an account through its companies: the owner,
+  and members via `workspace_members` / `group_members` (unchanged). The plan
+  fields on `profiles` stop being read; they stay in the table until S70 is
+  verified, then are dropped in a later migration.
+- **Sign-up and the free checks.** A self sign-up creates its account at once
+  (status `registered`, no company yet), named after the email's domain until
+  the company is set up; starting the trial acts on the account. **One trial
+  per account**, not per person: an invited colleague can't start another.
+  An invited person creates no account.
+
+**What changes in the app.**
+- One reader, `account_for_client(client_id)` (cached per run), replaces every
+  "the owner's profile" read: plan gates, branding (Professional and up),
+  Advisory and Enterprise menus, the sidebar trial countdown, the limited
+  "free account" view (which then follows the account of the active company,
+  so a colleague in a subscribed company is never limited).
+- Profile page: shows the account's plan and status; only the account's
+  owner sees "upgrade" and the trial.
+- The free check → sign-up → trial funnel (S49, S55) keeps working; it is
+  re-tested end to end.
+
+**Back office.**
+- **Companies** page (new, the main page for customers): one row per account
+  — name, plan, status, trial end, customer since, companies, users, contract
+  contact. Detail: the history as a timeline, the companies, the users and
+  their roles, the contact; actions: change plan, set status, extend the trial
+  (a dated period with a note), edit the contact and billing details, notes.
+- **Users** page kept for managing people: their account and companies with
+  roles, invitation state, last sign-in; the plan and status columns come from
+  the account and are shown read-only there (changed on Companies).
+- Dashboard counts trials and customers by account.
+- The row menu and sortable tables (review points 4–6) are the next piece of
+  work; S70 uses plain tables so it doesn't wait for them.
+
+**Migration.** No real customers yet (9 Nov: six accounts, all RECOSA's own
+tests; no groups; no plan history). One account per person who owns
+companies, holding those companies; one per remaining self sign-up; invited
+people get none. Each account starts with one period from its current plan
+and status, `starts_at` = the person's `created_at`. RLS: an account is
+readable by its owner and by members of its companies (read-only), written
+only through the service role (back office and the sign-up/trial functions).
+
+**Not in S70:** payments, invoices, seats and per-seat prices (S46); future-
+dated changes; deleting an account (S69).
+
+**Estimate:** about two days, including the end-to-end re-test of sign-up,
+trial, invitation and the plan gates.
 
 #### S63 — Localization (was Dutch language support) — SCOPE NOTE, 6 Nov
 
@@ -6413,6 +6496,20 @@ and have no history (points 1–3: scope lock first; prepares S46); the table
 component with a row menu, sorting and locked fields (points 4–6, both apps;
 weighs on S67); monitoring duplicates, bulk actions and the backlog (39
 regulatory and 11 marketing pending, 50 marketing links flagged).
+
+### D-151 — S70: the customer account holds the plan, with a dated history, 9 Nov
+
+By the user, from the scope lock (3b): the plan, status, trial and contract
+contact belong to a **customer account** — the contracting party — with one
+or more companies under it, and every change is a dated period in an
+append-only history. For **Advisory, the consultant's account holds all
+their client companies** (the consultant pays, as today). The **contract
+contact is typed in** by an admin and can be someone without a login (a
+CFO), optionally linked to a user. Built **now, as S70**; S46 (Stripe)
+plugs payments into it later. "Business" in the review meant Professional:
+the four plans stay. Proposed in the scope lock and open to correction:
+Enterprise's account holds the group; one trial per account; changes take
+effect when made.
 
 ---
 
