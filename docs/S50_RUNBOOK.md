@@ -23,9 +23,19 @@ pages read the `compliance-pulse` Edge Function through the AnySync plugin
 `supabase/functions/compliance-pulse/index.ts`, copied from the deployed
 version 4 on 27 Oct — and the plugin's URL changes at cutover (C5).
 
-What it moves today (measured 27 Oct): a 19 MB database, 148 files (6.3 MB),
-1 user account, 4,890 knowledge-base points. Small — the work is in getting
-the stack right, not in the copy.
+What it moves (measured 9 Nov): a 20 MB database, 149 files (6.2 MB) in
+three buckets (compliance-files, audit-reports, social-images — the last one
+public: Buffer fetches the LinkedIn images from it), 8 user accounts, about
+4,900 knowledge-base points. Small — the work is in getting the stack right,
+not in the copy. (27 Oct: 19 MB, 148 files, 1 account, 4,890 points.)
+
+*Brought up to date 9 Nov.* Since 27 Oct the app gained login sessions
+(S51), document branding (S52), routing and inbox (S56), Buffer (S57),
+customer accounts (S59) and the KYC company fields (D-156). None changes the
+stack: they are tables in the same database (copied by B8) and settings in
+`deploy/.env` (SESSION_SECRET, BUFFER_API_KEY, BUFFER_PAID_PLAN — all in
+`.env.example`). The scheduled jobs in `deploy/crontab` match the GitHub
+Actions ones one for one.
 
 The files referred to below are in `deploy/`.
 
@@ -47,6 +57,16 @@ instead of in the console (all but the bucket's 35-day expiry rule).
 **A2. SSH key.** Console → Project → Credentials → SSH keys → add your public
 key (`~/.ssh/id_ed25519.pub`; create one with `ssh-keygen -t ed25519` if
 needed).
+
+**A3–A5 by script (9 Nov).** `deploy/provision.sh` creates the
+security group (A4), a flexible IP, the instance (A3) and the backup bucket
+(A5) in the Recosa project with the `scw` CLI. Without `--apply` it only
+shows what it would create; it refuses to run against any other project,
+and running it again reuses what exists. Defaults: BASIC3-X2C-8G (2 vCPU,
+8 GB, about €43 a month; `TYPE=BASIC3-X4C-8G` for 4 vCPU, about €58), a
+40 GB disk, SSH open to the IP you run it from. Left to the console: the
+bucket's 35-day expiry rule. The console steps below stay as the
+reference for what it does.
 
 **A3. Instance.** Console → Instances → Create:
 - Zone: **Paris** (`fr-par-1` or `fr-par-2`).
@@ -95,7 +115,9 @@ relay is used on port **2525** (`SMTP_PORT` in `deploy/.env`). If Brevo's
 Deploy keys → add a **read-only** key generated on the instance (step B2).
 
 **A10. From the current setup, for the copy:**
-- Streamlit Cloud → client app → Settings → **Secrets** (all values).
+- Streamlit Cloud → client app **and back office** → Settings → **Secrets**
+  (all values; the back office has BUFFER_API_KEY and, later,
+  BUFFER_PAID_PLAN that the client app has not).
 - Supabase dashboard → Connect → **Session pooler** connection string, and
   the **database password**.
 - Supabase dashboard → Authentication → Sign In / Providers → Email:

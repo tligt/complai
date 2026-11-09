@@ -368,7 +368,7 @@ the only sprint that *is* the gate.
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
 | **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
-| **S50** | **Migrate to production environment with EU sovereignty** | **Waits until closer to the beta, by choice (5 Nov, D-141)**; Scaleway access and runbook ready, nothing created. New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
+| **S50** | **Migrate to production environment with EU sovereignty** | **Started 9 Nov by request (D-157)**: runbook brought up to date, `deploy/provision.sh` ready (dry run checked); nothing created until the user approves the plan and its cost. Waited until then by choice (5 Nov, D-141). New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | **S51** | **Session hardening** | **Built and live 5 Nov (D-143)**: login kept across reloads and tabs, tested on Streamlit Cloud; left: a token refresh after an hour, in a browser. GDPR deletion moved out to S69. New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
 ### After beta
@@ -6698,6 +6698,30 @@ Netherlands and other EU countries (free; KvK's paid API not now); a
 The six companies created before today have no structured address or phone;
 the back office shows them as missing for KYC until their owners save the
 Company profile.
+
+### D-157 — S50 started: the deployment checked against today's app, the Scaleway resources as a script, 9 Nov
+
+By the user ("prepare the Scaleway production environment"). Checked
+against the app as it is now: every setting the code reads is in
+`deploy/.env.example` except BUFFER_PAID_PLAN, added; the server's crontab
+matches the five GitHub Actions jobs; the image (Python 3.12, LibreOffice,
+DejaVu fonts for the LinkedIn card) runs every module; the copy scripts
+carry the three storage buckets with their public flag; the sign-up and
+reset email templates are in place (invitations use RECOSA's own email).
+The runbook's measurements and secrets list are brought up to date.
+
+Runbook steps A3–A5 are now `deploy/provision.sh` (scw CLI, the
+Recosa project's IAM application): security group (SSH from the admin IP
+only, 80/443 TCP and 443 UDP), flexible IPv4, the instance (Ubuntu 24.04,
+default BASIC3-X2C-8G, 40 GB), a private backup bucket. Dry run by default;
+it refuses any project but Recosa; re-running reuses what exists. Prices
+read from Scaleway 9 Nov: BASIC3-X2C-8G €0.059/h (≈ €43/month),
+BASIC3-X4C-8G €0.079/h (≈ €58), plus disk and IP (≈ €3–4 each).
+
+Nothing is created until the user approves. Still the user's: payment
+method in place, the bucket's 35-day expiry rule, the backup API key (A6),
+DNS records at Hostinger (A7), the Brevo SMTP key (A8), the GitHub deploy
+key (A9).
 
 ---
 
