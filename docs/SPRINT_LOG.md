@@ -6662,6 +6662,43 @@ Delete tabs and their "select document" boxes are gone. Checked live: 30
 documents, no lower-case country, the edit pop-up opens on the Belgian law;
 nothing saved.
 
+### D-156 — KYC details at company setup; FR lookup finished; NL and LU by VAT number, 9 Nov
+
+By the user: the back office must show everything the client was asked for,
+and KYC needs the full address and a phone number. Decided with the user:
+required **at company setup**; the **EU VAT register (VIES)** for the
+Netherlands and other EU countries (free; KvK's paid API not now); a
+**company phone plus an optional direct phone** for the person.
+
+- `clients`: address_street, address_postcode, address_city, phone,
+  vat_number; `profiles.phone`. registered_address stays the text the
+  documents print, composed from the three address fields
+  (`database.compose_address`); `missing_kyc` says what a company lacks
+  (the VAT number is optional: not every company is VAT-registered).
+- Lookup (`company_registry`): FR accepts SIREN or SIRET — the registered
+  office is the address, the SIRET's own site is shown for reference; the VAT
+  number is derived (FR + key + SIREN; BE + enterprise number); NL, LU and
+  the other EU countries go to VIES by VAT number (name and address for
+  most; Germany and Spain never give them: the form says to fill in by
+  hand). Checked live: Danone (SIREN and SIRET, VAT FR27552032534), Retinens
+  (BE), a Delft and a Mamer company (NL, LU), a German number (valid, no
+  details), an invalid NL number.
+- Company setup asks street, postcode, city and the company phone
+  (required), the VAT number and a direct phone (optional), prefilled by the
+  lookup. Netherlands and Luxembourg are now offered as company countries,
+  with a note that documents follow EU-level rules for them until
+  Localization (S64) adds their authorities and rules.
+- Company profile: the same fields, editable; a company saved before 9 Nov
+  gets its old address split as a starting point.
+- Back office, Companies: a KYC column per account; the "Companies and
+  people" tab lists each company (legal name, number, VAT, address, phone,
+  KYC) and its ⋮ "All details" shows everything the client entered —
+  identity, office and contacts, activity, data-protection contacts.
+
+The six companies created before today have no structured address or phone;
+the back office shows them as missing for KYC until their owners save the
+Company profile.
+
 ---
 
 ## 5. Constraints and gotchas

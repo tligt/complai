@@ -17,8 +17,14 @@ REGULATION_LABELS = {
 COUNTRY_LABELS = {
     "BE": "Belgium",
     "FR": "France",
+    # 9 Nov: company lookup by VAT number (EU register). National documents
+    # and authorities for them come with Localization (S64).
+    "NL": "Netherlands",
+    "LU": "Luxembourg",
     "EU": "EU (no specific country)",
 }
+# Countries whose national rules (authority, ePrivacy) RECOSA already has.
+LOCALISED_COUNTRIES = ("BE", "FR")
 
 
 def regulation_label(code: str) -> str:

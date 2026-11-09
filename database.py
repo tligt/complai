@@ -85,7 +85,8 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
     S48: also accepts the registry and website fields client_setup.py
     fills in; only those present are written."""
     optional = ("website_url", "enterprise_number", "legal_name",
-                "legal_form", "registered_address")
+                "legal_form", "registered_address", "address_street",
+                "address_postcode", "address_city", "phone", "vat_number")
     # S59: the company goes into its creator's customer account (a database
     # trigger sets clients.account_id); open the account first if needed.
     ensure_account(user_id)
@@ -148,7 +149,28 @@ CLIENT_PROFILE_FIELDS = (
     "company_name", "legal_name", "legal_form", "enterprise_number",
     "registered_address", "country", "sector", "company_size", "regulations",
     "document_languages", "website_url", "contact_email", "dpo_name", "dpo_email",
+    # KYC (9 Nov): required at company setup.
+    "address_street", "address_postcode", "address_city", "phone", "vat_number",
 )
+
+
+def compose_address(street: str | None, postcode: str | None, city: str | None) -> str | None:
+    """registered_address as the documents print it: street, then postcode
+    and city, on two lines."""
+    town = " ".join(x for x in ((postcode or "").strip(), (city or "").strip()) if x)
+    text = "\n".join(x for x in ((street or "").strip(), town) if x)
+    return text or None
+
+
+KYC_FIELDS = {"address_street": "street", "address_postcode": "postcode",
+              "address_city": "city", "phone": "phone number", "vat_number": "VAT number"}
+
+
+def missing_kyc(client: dict) -> list[str]:
+    """What a company still lacks for KYC (the VAT number is optional: a
+    company that is not VAT-registered has none)."""
+    return [label for f, label in KYC_FIELDS.items()
+            if f != "vat_number" and not (client.get(f) or "").strip()]
 
 
 def update_client_fields(client_id: str, fields: dict) -> bool:

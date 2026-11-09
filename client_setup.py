@@ -7,8 +7,11 @@ adds a company-number lookup and a website scan, which would otherwise have
 had to be added three times.
 
 Flow, all suggestions the user can overwrite before saving:
-  1. Company number + Look up (BE, FR): fills legal name, sector and, where
-     the register has it, the website (company_registry.py).
+  1. Company number + Look up (BE, FR; NL and LU by VAT number in the EU
+     register): fills legal name, sector, the registered office, the VAT
+     number and, where the register has it, the website.
+  2b. KYC (9 Nov): street, postcode, city and the company phone are
+     required; the VAT number and the person's direct phone are not.
   2. Name, sector, country, size, regulations, website.
   3. Create client: saves the client (with the registry details), then, if
      a website was given, scans it and stores the scan (detection.py), so
@@ -23,13 +26,13 @@ from __future__ import annotations
 
 import streamlit as st
 
-from display import COUNTRY_LABELS
+from display import COUNTRY_LABELS, LOCALISED_COUNTRIES
 
 import company_registry as REG
 import detection
 import inventory_store as STORE
 from cached_reads import load_accessible_clients, load_clients
-from database import create_client_record
+from database import compose_address, create_client_record, get_supabase_admin
 
 # L1 (audit): names, not flag emoji — Windows shows flags as bare letters.
 COUNTRY_OPTIONS = COUNTRY_LABELS
@@ -41,8 +44,10 @@ SECTOR_OPTIONS = [
 SIZE_OPTIONS = ["1-10", "11-50", "51-150", "150+"]
 REGULATION_OPTIONS = ["GDPR", "NIS2", "EU_AI_ACT"]
 
-_LOOKUP_COUNTRIES = {"BE": "Enterprise number (e.g. 0783.225.609)",
-                     "FR": "SIREN or SIRET (e.g. 552 032 534)"}
+_LOOKUP_COUNTRIES = {"BE": ("Company number", "Enterprise number (e.g. 0783.225.609)"),
+                     "FR": ("Company number", "SIREN or SIRET (e.g. 552 032 534)"),
+                     "NL": ("VAT number", "BTW-id (e.g. NL004495445B01)"),
+                     "LU": ("VAT number", "TVA (e.g. LU15027442)")}
 
 
 def render_new_client_form(user_id: str, key: str) -> dict | None:
@@ -61,12 +66,18 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
     )
 
     # ── 1. Registry lookup ──────────────────────────────────────────────
+    if country not in LOCALISED_COUNTRIES and country != "EU":
+        st.info(f"RECOSA's documents use Belgian and French rules today. For "
+                f"{COUNTRY_OPTIONS[country]} they follow EU-level rules until the national "
+                "authorities and rules are added.")
+
     rec = st.session_state.get(reg_key)
     if country in _LOOKUP_COUNTRIES:
         c1, c2 = st.columns([3, 1])
+        _lbl, _ph = _LOOKUP_COUNTRIES[country]
         number = c1.text_input(
-            "Company number (optional)", key=k("number"),
-            placeholder=_LOOKUP_COUNTRIES[country],
+            f"{_lbl} (optional)", key=k("number"),
+            placeholder=_ph,
             help="We look the company up in the official register and fill in "
                  "what we find. You can change everything before saving.",
         )
@@ -83,6 +94,12 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
                     st.session_state[k("sector")] = rec.sector
                 if rec.website:
                     st.session_state[k("website")] = rec.website
+            # The address and VAT number (KYC, 9 Nov) — also when the register
+            # had no name (DE/ES via VIES): whatever it gave.
+            for field, value in (("street", rec.street), ("postcode", rec.postcode),
+                                 ("city", rec.city), ("vat", rec.vat_number)):
+                if value:
+                    st.session_state[k(field)] = value.title() if field in ("street", "city") and value.isupper() else value
 
         if rec and rec.country == country:
             if rec.error:
@@ -96,6 +113,9 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
                     + (f"  \nActivity {rec.nace_code}"
                        + (f": {rec.nace_label}" if rec.nace_label else "")
                        if rec.nace_code else "")
+                    + (f"  \nThe SIRET you gave is the site at {rec.site_address}; "
+                       "the registered office above is the company's address."
+                       if rec.site_address else "")
                 )
     else:
         rec = None
@@ -111,12 +131,30 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
              "Nothing is added to your inventory until you confirm it.",
     )
 
+    # KYC (9 Nov): the registered office, a phone number, the VAT number.
+    st.markdown("**Registered office and contact**")
+    street = st.text_input("Street and number ✱", key=k("street"))
+    a1, a2 = st.columns([1, 2])
+    postcode = a1.text_input("Postcode ✱", key=k("postcode"))
+    city = a2.text_input("City ✱", key=k("city"))
+    p1, p2 = st.columns(2)
+    phone = p1.text_input("Company phone ✱", key=k("phone"), placeholder="+32 2 123 45 67")
+    my_phone = p2.text_input("Your direct phone (optional)", key=k("myphone"),
+                             placeholder="+32 470 12 34 56")
+    vat = st.text_input("VAT number", key=k("vat"),
+                        placeholder="BE0783225609 — leave empty if not VAT-registered")
+
     # ── 3. Create ───────────────────────────────────────────────────────
     if not st.button("Create company", type="primary", use_container_width=True,
                      key=k("create")):
         return None
     if not name.strip():
         st.warning("Give the company a name.")
+        return None
+    _missing = [lbl for lbl, v in (("street", street), ("postcode", postcode), ("city", city),
+                                   ("company phone", phone)) if not (v or "").strip()]
+    if _missing:
+        st.warning("Please fill in the " + ", ".join(_missing) + ".")
         return None
 
     profile = {
@@ -126,17 +164,28 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
         "company_size": size,
         "regulations": regs,
         "website_url": website.strip() or None,
+        "address_street": street.strip(),
+        "address_postcode": postcode.strip(),
+        "address_city": city.strip(),
+        "registered_address": compose_address(street, postcode, city),
+        "phone": phone.strip(),
+        "vat_number": (vat or "").replace(" ", "").replace(".", "").upper() or None,
     }
     if rec and not rec.error and rec.country == country:
         profile.update({
-            "enterprise_number": rec.number,
-            "legal_name": rec.legal_name,
+            "enterprise_number": rec.number or None,
+            "legal_name": rec.legal_name or None,
             "legal_form": rec.legal_form or None,
-            "registered_address": rec.registered_address or None,
         })
     created = create_client_record(user_id, profile)
     if not created:
         return None
+    if (my_phone or "").strip():
+        try:
+            get_supabase_admin().table("profiles").update({"phone": my_phone.strip()}) \
+                .eq("id", user_id).execute()
+        except Exception as e:
+            print(f"Could not save the direct phone: {e}")
     load_clients.clear()
     load_accessible_clients.clear()
 
@@ -154,7 +203,8 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
         elif scan.other_services:
             msgs.append(("info", "The website scan found services to review on the **Systems** page."))
     # Reset the form for the next client
-    for name_ in ("registry", "number", "name", "website"):
+    for name_ in ("registry", "number", "name", "website", "street", "postcode", "city",
+                  "phone", "myphone", "vat"):
         st.session_state.pop(k(name_), None)
     st.session_state[flash_key] = msgs
     return created

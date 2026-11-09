@@ -19,7 +19,7 @@ import streamlit as st
 import table_view as tv
 from auth import get_user_id
 from database import (
-    ACCOUNT_STATUSES, SUBSCRIPTION_TIERS, TRIAL_DAYS, change_account, get_all_profiles,
+    ACCOUNT_STATUSES, SUBSCRIPTION_TIERS, TRIAL_DAYS, change_account, get_all_profiles, missing_kyc,
     get_supabase_admin, load_account_periods, load_accounts, update_account_details,
 )
 
@@ -47,7 +47,7 @@ with st.spinner("Loading accounts…"):
     accounts = load_accounts()
     admin = get_supabase_admin()
     try:
-        clients = admin.table("clients").select("id, company_name, user_id, account_id").execute().data or []
+        clients = admin.table("clients").select("*").execute().data or []
         members = admin.table("workspace_members") \
             .select("client_id, member_user_id, invited_email, role, status").execute().data or []
         first_active = {}
@@ -123,6 +123,11 @@ for a in accounts:
         "trial": _dt(a.get("trial_ends_at")) if a["status"] in ("trial", "expired") else None,
         "since": _dt(first_active.get(a["id"])),
         "companies": ", ".join(sorted(c["company_name"] for c in comps)),
+        # KYC (9 Nov): what the account's companies still lack.
+        "kyc": ((("✅ Complete", 0) if comps and not any(missing_kyc(c) for c in comps)
+                 else ("—", 2) if not comps
+                 else ("⚠️ " + "; ".join(f"{c['company_name']}: {', '.join(missing_kyc(c))}"
+                                         for c in comps if missing_kyc(c)), 1))),
         "people": len(ppl),
         "contact": a.get("contact_name") or a.get("contact_email"),
         "opened": _dt(a["created_at"]),
@@ -141,7 +146,8 @@ hit = tv.table(rows, [
     {"key": "name", "label": "Account"}, {"key": "plan", "label": "Plan"},
     {"key": "status", "label": "Status"}, {"key": "trial", "label": "Trial ends", "kind": "date"},
     {"key": "since", "label": "Customer since", "kind": "date"},
-    {"key": "companies", "label": "Companies"}, {"key": "people", "label": "People", "kind": "number"},
+    {"key": "companies", "label": "Companies"}, {"key": "kyc", "label": "KYC"},
+    {"key": "people", "label": "People", "kind": "number"},
     {"key": "contact", "label": "Contract contact"}, {"key": "opened", "label": "Opened", "kind": "date"},
 ], key="accounts", sort=("opened", "desc"), current=st.session_state.get("acc_open"),
     empty="No account matches.")
@@ -287,10 +293,77 @@ with t_hist:
         {"key": "note", "label": "Note"}, {"key": "by", "label": "By"},
     ], key=f"hist_{acc['id']}", sort=("from", "desc"), empty="No history recorded.")
 
+@st.dialog("Company details", width="large")
+def company_dialog(c: dict) -> None:
+    """Everything the client entered for a company (9 Nov: none of it was
+    visible in the back office), grouped as on the Company profile page."""
+    from display import country_label, regulations_text
+    owner = (profiles.get(c.get("user_id") or "") or {})
+    gaps = missing_kyc(c)
+    if gaps:
+        st.warning("Missing for KYC: " + ", ".join(gaps) + ".")
+    else:
+        st.success("KYC details complete.")
+    sections = {
+        "Identity": [
+            ("Company name", c.get("company_name")), ("Legal name", c.get("legal_name")),
+            ("Legal form", c.get("legal_form")), ("Company number", c.get("enterprise_number")),
+            ("VAT number", c.get("vat_number")), ("Country", country_label(c.get("country"))),
+        ],
+        "Registered office and contact": [
+            ("Street and number", c.get("address_street")),
+            ("Postcode and city", " ".join(x for x in (c.get("address_postcode"), c.get("address_city")) if x)),
+            ("As printed in documents", (c.get("registered_address") or "").replace("\n", ", ")),
+            ("Company phone", c.get("phone")),
+            ("Created by", owner.get("email")),
+            ("Their direct phone", owner.get("phone")),
+            ("Website", c.get("website_url")),
+        ],
+        "Activity": [
+            ("Sector", c.get("sector")), ("Employees", c.get("company_size")),
+            ("Regulations", regulations_text(c.get("regulations"))),
+            ("Document languages", ", ".join((x or "").upper() for x in c.get("document_languages") or [])),
+            ("Markets served", ", ".join(c.get("target_markets") or [])),
+            ("NIS2", {True: "In scope", False: "Not in scope"}.get(c.get("nis2_in_scope"), "Not confirmed")
+             + (f" ({c.get('nis2_entity_class')})" if c.get("nis2_entity_class") else "")),
+        ],
+        "Data protection contacts": [
+            ("Contact email for data requests", c.get("contact_email")),
+            ("DPO name", c.get("dpo_name")), ("DPO email", c.get("dpo_email")),
+        ],
+    }
+    for title, fields in sections.items():
+        st.markdown(f"**{title}**")
+        tv.table([{"id": f"{title}_{i}", "cells": {"field": label, "value": value or None}}
+                  for i, (label, value) in enumerate(fields)],
+                 [{"key": "field", "label": "Field", "sortable": False},
+                  {"key": "value", "label": "Value", "sortable": False}],
+                 key=f"cd_{c['id']}_{title}")
+    st.caption(f"Created {_day(c.get('created_at'))} · changed {_day(c.get('updated_at'))}. "
+               "The client edits these on their Company profile page.")
+
+
 with t_people:
     comps = companies_of.get(acc["id"], [])
     st.markdown(f"**Companies ({len(comps)})**")
-    st.write(", ".join(sorted(c["company_name"] for c in comps)) or "None yet.")
+    _c_hit = tv.table(
+        [{"id": c["id"], "cells": {
+            "name": c.get("company_name"), "legal": c.get("legal_name"),
+            "number": c.get("enterprise_number"), "vat": c.get("vat_number"),
+            "city": " ".join(x for x in (c.get("address_postcode"), c.get("address_city")) if x)
+                    or (c.get("registered_address") or "").replace("\n", ", "),
+            "phone": c.get("phone"),
+            "kyc": ("⚠️ Missing " + ", ".join(missing_kyc(c)), 1) if missing_kyc(c) else ("✅ Complete", 0),
+        }, "actions": [{"id": "open", "label": "All details", "icon": "📂"}]} for c in comps],
+        [{"key": "name", "label": "Company"}, {"key": "legal", "label": "Legal name"},
+         {"key": "number", "label": "Company number"}, {"key": "vat", "label": "VAT"},
+         {"key": "city", "label": "Address"}, {"key": "phone", "label": "Phone"},
+         {"key": "kyc", "label": "KYC"}],
+        key=f"acc_companies_{acc['id']}", sort=("name", "asc"), empty="None yet.")
+    if _c_hit:
+        _cc = next((c for c in comps if c["id"] == _c_hit["row"]), None)
+        if _cc:
+            company_dialog(_cc)
     ppl = people_of(acc)
     st.markdown(f"**People ({len(ppl)})**")
     tv.table([{"id": p.get("id") or p["email"], "cells": {

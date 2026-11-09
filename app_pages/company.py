@@ -18,7 +18,7 @@ from active_client import get_active_client
 from auth import get_user_id
 from cached_reads import load_accessible_clients, load_clients
 from client_setup import COUNTRY_OPTIONS, SECTOR_OPTIONS, SIZE_OPTIONS, REGULATION_OPTIONS
-from database import role_label, update_client_fields
+from database import compose_address, role_label, update_client_fields
 from display import country_label, regulation_label, regulations_text
 from tier_gates import client_limit_reached, upsell_dialog
 
@@ -52,8 +52,25 @@ if clients:
                                    key=k("form"), placeholder="SRL, SA, SAS…")
         number = c4.text_input("Company number", value=client.get("enterprise_number") or "",
                                key=k("number"), help="BCE/KBO in Belgium, SIREN or SIRET in France.")
-        address = st.text_area("Registered address", value=client.get("registered_address") or "",
-                               key=k("addr"), height=80)
+        # KYC (9 Nov): the registered office split in street, postcode and
+        # city; a company saved before then has only the two-line text,
+        # split here as a starting point.
+        _st0, _pc0, _ci0 = (client.get("address_street"), client.get("address_postcode"),
+                            client.get("address_city"))
+        if not (_st0 or _pc0 or _ci0) and client.get("registered_address"):
+            _lines = [x.strip() for x in str(client["registered_address"]).splitlines() if x.strip()]
+            _st0 = " ".join(_lines[:-1]) if len(_lines) > 1 else (_lines[0] if _lines else "")
+            if len(_lines) > 1:
+                _pc0, _, _ci0 = _lines[-1].partition(" ")
+        street = st.text_input("Street and number ✱", value=_st0 or "", key=k("street"))
+        a1, a2 = st.columns([1, 2])
+        postcode = a1.text_input("Postcode ✱", value=_pc0 or "", key=k("postcode"))
+        city = a2.text_input("City ✱", value=_ci0 or "", key=k("city"))
+        p1, p2 = st.columns(2)
+        phone = p1.text_input("Company phone ✱", value=client.get("phone") or "", key=k("phone"))
+        vat = p2.text_input("VAT number", value=client.get("vat_number") or "", key=k("vat"),
+                            help="With its country prefix, e.g. BE0783225609. Empty if the "
+                                 "company is not VAT-registered.")
         _countries = list(COUNTRY_OPTIONS.keys())
         c5, c6, c7 = st.columns(3)
         country = c5.selectbox("Country", _countries,
@@ -98,12 +115,19 @@ if clients:
                 st.warning("Choose at least one regulation.")
             elif not langs:
                 st.warning("Choose at least one document language.")
+            elif not all((street.strip(), postcode.strip(), city.strip(), phone.strip())):
+                st.warning("The registered office (street, postcode, city) and the company "
+                           "phone are required.")
             else:
                 fields = {
                     "company_name": name.strip(), "legal_name": legal_name.strip() or None,
                     "legal_form": legal_form.strip() or None,
                     "enterprise_number": number.strip() or None,
-                    "registered_address": address.strip() or None,
+                    "address_street": street.strip(), "address_postcode": postcode.strip(),
+                    "address_city": city.strip(),
+                    "registered_address": compose_address(street, postcode, city),
+                    "phone": phone.strip(),
+                    "vat_number": (vat or "").replace(" ", "").replace(".", "").upper() or None,
                     "country": country, "sector": sector, "company_size": size,
                     "website_url": website.strip() or None, "regulations": regs,
                     "document_languages": langs, "contact_email": contact.strip() or None,
