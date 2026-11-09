@@ -14,6 +14,8 @@ so the gap between claimed and actual urgency stays measurable.
 import os
 
 import streamlit as st
+
+import table_view as tv
 from auth import get_user_id
 from database import (
     load_all_tickets, get_ticket, load_thread_messages,
@@ -326,24 +328,42 @@ rows.sort(key=lambda t: (
     t["created_at"],
 ))
 
-st.caption(f"{len(rows)} ticket{'s' if len(rows) != 1 else ''}")
-
-for t in rows:
-    col_a, col_b = st.columns([6, 1])
-    with col_a:
-        st.markdown(f"**{t['subject']}**")
-        st.caption(
-            f"{_from(t)} · opened {t['created_at'][:10]}  \n"
-            f"{PRIORITY_BADGE.get(t['priority'], '')} · "
-            f"{STATUS_LABELS.get(t['status'], t['status'])} · "
-            f"{CATEGORY_LABELS.get(t['category'], t['category'])} · "
-            f"{CONTEXT_LABELS.get(t['context'], t['context'])} · "
-            f"sev {SEVERITY_SHORT.get(t['severity'], t['severity'])} · "
-            f"updated {t['updated_at'][:10]}"
-        )
-    with col_b:
-        if st.button("Open", key=f"adm_open_{t['id']}",
-                     use_container_width=True):
-            st.session_state.admin_open_ticket = t["id"]
-            st.rerun()
-    st.divider()
+# The shared table (table_view.py, BO review 9 Nov): click a ticket to open
+# it; its ⋮ menu also takes it ("Assign to me") or marks it resolved. In
+# queue order (priority, then severity, then age) until a column is sorted.
+st.caption(f"{len(rows)} ticket{'s' if len(rows) != 1 else ''} · click one to open it, "
+           "or use its ⋮ menu · click a column title to sort")
+_by_id = {t["id"]: t for t in rows}
+_hit = tv.table(
+    [{"id": t["id"], "cells": {
+        "prio": (PRIORITY_BADGE.get(t["priority"], t["priority"]), PRIORITY_RANK.get(t["priority"], 9)),
+        "status": STATUS_LABELS.get(t["status"], t["status"]),
+        "subject": t["subject"], "from": _from(t),
+        "cat": CATEGORY_LABELS.get(t["category"], t["category"]),
+        "ctx": CONTEXT_LABELS.get(t["context"], t["context"]),
+        "sev": (SEVERITY_SHORT.get(t["severity"], t["severity"]), SEVERITY_RANK.get(t["severity"], 9)),
+        "opened": t["created_at"], "updated": t["updated_at"],
+    }, "actions": [
+        {"id": "open", "label": "Open", "icon": "📂"},
+        {"id": "mine", "label": "Assign to me", "icon": "🙋",
+         "disabled": "Already assigned to you" if t.get("assigned_to") == admin_id else None},
+        {"id": "resolve", "label": "Mark resolved (no reply)", "icon": "✅",
+         "disabled": "Already resolved or closed" if t["status"] in ("resolved", "closed") else None},
+    ]} for t in rows],
+    [{"key": "prio", "label": "Priority"}, {"key": "status", "label": "Status"},
+     {"key": "subject", "label": "Subject"}, {"key": "from", "label": "From"},
+     {"key": "cat", "label": "Category"}, {"key": "ctx", "label": "Context"},
+     {"key": "sev", "label": "Severity"},
+     {"key": "opened", "label": "Opened", "kind": "date"},
+     {"key": "updated", "label": "Updated", "kind": "date"}],
+    key="admin_tickets", empty="No ticket matches these filters.")
+if _hit and _hit["row"] in _by_id:
+    if _hit["action"] == "mine":
+        update_ticket(_hit["row"], {"assigned_to": admin_id}, actor_id=admin_id)
+        st.rerun()
+    elif _hit["action"] == "resolve":
+        update_ticket(_hit["row"], {"status": "resolved"}, actor_id=admin_id)
+        st.rerun()
+    else:
+        st.session_state.admin_open_ticket = _hit["row"]
+        st.rerun()

@@ -197,7 +197,10 @@ _component = None
 
 
 def _fmt(v, kind: str | None) -> tuple[str, object]:
-    """(what the cell shows, what it sorts on)."""
+    """(what the cell shows, what it sorts on). A (shown, sort key) tuple sets
+    both, e.g. ("🔴 Urgent", 0) so a priority sorts by rank, not by name."""
+    if isinstance(v, tuple) and len(v) == 2:
+        return ("" if v[0] is None else str(v[0])), v[1]
     if v is None or v == "":
         return "", None
     if kind in ("date", "datetime") and isinstance(v, str):
