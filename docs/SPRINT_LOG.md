@@ -6549,6 +6549,28 @@ Localization, S65 RoPA checks, S66 Cookie Policy granularity, S67
 Compliance heartbeat, S68 Streamlit alternative, S69 Import existing
 documents, S70 GDPR deletion.
 
+### D-153 — The shared table: sort, a ⋮ menu per row, locked shown with why, 9 Nov
+
+From the back office review (D-150, points 4–6). `table_view.py` is a
+components-v2 table (like the S51 cookie bridge): click a column title to
+sort (dates as dates, empty cells last); click a row to open it; the ⋮ menu
+at the end of each row lists what can be done with it. An action that isn't
+available stays in the menu, greyed, with a lock and the reason, and
+`locked()` shows a field that can't be edited, with why — point 5's "show
+it, don't hide it". The menu's actions open Streamlit dialogs; the page
+decides what each does.
+
+Live 9 Nov (45280a2) in the back office: Companies (change plan or status,
+extend a trial — locked unless on trial or ended —, contract and billing;
+history and people tabs), Users (open, change role — your own locked —,
+open their account, send the invitation again — only if never signed in),
+Audit Trail (sortable; filter on a row's company). Checked live: sorting,
+the menu with a locked item, a dialog opened and closed without saving.
+
+**Open:** the client app's tables (Action plan, Obligations, Inventory,
+Incidents, Risk, Group, Activity) still use "select the row below"; moving
+them to `table_view` is the next step of point 4.
+
 ---
 
 ## 5. Constraints and gotchas
