@@ -4,6 +4,11 @@ from dotenv import load_dotenv
 # are already exposed as env vars) — only fills in values for local runs.
 load_dotenv()
 
+# D-116: after a deploy, reload our modules that changed on disk before
+# anything below imports names from them (fresh_modules.py).
+import fresh_modules
+fresh_modules.refresh()
+
 import streamlit as st
 from auth import init_auth, is_logged_in, get_user_id
 from database import (
