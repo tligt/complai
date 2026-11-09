@@ -6567,9 +6567,16 @@ open their account, send the invitation again — only if never signed in),
 Audit Trail (sortable; filter on a row's company). Checked live: sorting,
 the menu with a locked item, a dialog opened and closed without saving.
 
-**Open:** the client app's tables (Action plan, Obligations, Inventory,
-Incidents, Risk, Group, Activity) still use "select the row below"; moving
-them to `table_view` is the next step of point 4.
+**Client app, same day** (71b5725, a486fc8): Action plan (menu: open, Fix
+it — locked when there is no page for it —, dismiss), Obligations, Incidents
+(the list and the incident team), Risk assessments, Inventory (systems,
+activities, controllers; "add new" is a button above the form instead of a
+mode radio), Group and Activity use `table_view`. Checked live on creagent:
+every page loads its table with no error; a task opens on click and closes
+with Cancel. Group not seen live (no group exists yet). Bug found and fixed
+live: the component could hand back the previous click on a later run, so a
+cancelled task reopened; each click now carries its time and is acted on
+once.
 
 ---
 
