@@ -6586,6 +6586,14 @@ scrolls to it (`table_view.focus(key)` at the top of the panel). Checked
 live: the Monitoring pop-up opens and stays closed once closed; Companies
 and the 43-task Action plan land on their panel.
 
+**Tickets, same day (396e689):** the queue is the shared table — priority,
+status, subject, sender, category, context, severity, opened, updated — in
+queue order until a column is sorted (priority and severity sort by rank:
+a cell can now be "(shown, sort key)"). Click a ticket to open it; its ⋮
+menu also assigns it to you or marks it resolved without a reply (locked,
+with why, when already so). Checked live (columns, empty filter) and
+locally with the 3 real tickets.
+
 ### D-154 — Monitoring: repeats stopped at intake, the queue as a table, bulk rejects, 9 Nov
 
 From the back office review (D-150). The EDPB feed re-lists news reworded
