@@ -6578,6 +6578,14 @@ live: the component could hand back the previous click on a later run, so a
 cancelled task reopened; each click now carries its time and is acted on
 once.
 
+**Found by the user, same day (d280081):** below a table of more than a few
+rows, the detail opened out of sight and a click seemed to do nothing. On
+Monitoring, a click or "Review" now opens the item in a large pop-up with
+the same controls. Everywhere else a panel opens under the table, the page
+scrolls to it (`table_view.focus(key)` at the top of the panel). Checked
+live: the Monitoring pop-up opens and stays closed once closed; Companies
+and the 43-task Action plan land on their panel.
+
 ### D-154 — Monitoring: repeats stopped at intake, the queue as a table, bulk rejects, 9 Nov
 
 From the back office review (D-150). The EDPB feed re-lists news reworded
