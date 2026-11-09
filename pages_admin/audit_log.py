@@ -64,17 +64,26 @@ with st.spinner("Loading the trail…"):
         st.error(f"Could not load the audit trail: {e}")
         rows = []
 
-# One row per event (see the module note).
+# One row per event (see the module note). The copies are written one after
+# the other, so they can straddle a second: copies of the same person, type
+# and text within 5 seconds of each other are one event.
+def _ts(r: dict) -> datetime:
+    return datetime.fromisoformat(r["created_at"].replace("Z", "+00:00"))
+
+
 events: dict[tuple, dict] = {}
-for r in rows:
-    key = (r.get("user_id"), r["event_type"], r.get("summary"), r["created_at"][:19])
-    e = events.get(key)
+last: dict[tuple, tuple] = {}       # (person, type, text) -> its newest event key
+for r in rows:                      # newest first
+    base = (r.get("user_id"), r["event_type"], r.get("summary"))
     name = companies.get(r.get("company_id"), "—")
-    if e:
-        if name not in e["companies"]:
-            e["companies"].append(name)
-    else:
-        events[key] = {**r, "companies": [name]}
+    k = last.get(base)
+    if k and (_ts(events[k]) - _ts(r)).total_seconds() <= 5 and name not in events[k]["companies"]:
+        events[k]["companies"].append(name)
+        events[k]["created_at"] = r["created_at"]   # the window follows the copies
+        continue
+    k = base + (r["id"],)
+    events[k] = {**r, "companies": [name]}
+    last[base] = k
 
 types = sorted({e["event_type"] for e in events.values()})
 picked = f3.multiselect("Event types", types, format_func=lambda t: EVENT_LABELS.get(t, t),
