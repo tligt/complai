@@ -61,6 +61,12 @@ python-dotenv==1.2.2
 
 openpyxl==3.1.5
 pandas==3.0.6
+
+# Imported directly by our code but arrived only through other packages,
+# so a reboot could move them (BO review, 9 Nov). Pinned to what both
+# Streamlit Cloud apps ran that day (the Versions page in the back office).
+cryptography==50.0.2   # sessions.py — session encryption (Fernet)
+pillow==12.3.0         # doc_theme.py, linkedin_post.py — logos, LinkedIn card
 #
 # System packages live in packages.txt (currently: libreoffice, required by
 # convert_docx_to_pdf / convert_docx_to_odt in document_generator.py).
