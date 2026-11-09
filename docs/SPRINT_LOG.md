@@ -6578,6 +6578,31 @@ live: the component could hand back the previous click on a later run, so a
 cancelled task reopened; each click now carries its time and is acted on
 once.
 
+### D-154 — Monitoring: repeats stopped at intake, the queue as a table, bulk rejects, 9 Nov
+
+From the back office review (D-150). The EDPB feed re-lists news reworded
+("fined … EUR 100 000" / "… 100 000 EUR"), and the monitor skipped only an
+identical title from the same source, so both copies reached the queue.
+`dedup.py` decides "same item": the same words in any order, or a Jaccard
+similarity of at least 0.85 on titles of four words or more. Both monitors
+now skip a repeat of the same source's recent items (45 days, any status)
+before the AI summary, so a repeat costs nothing. Across sources a shared
+story is not a repeat, except for skip_if_covered sources as before.
+
+The review queue (both feeds) is the shared table — severity, status,
+title, source, published, found, and which item a row repeats — with the
+review below for the clicked item, unchanged. Bulk actions only reject: the
+repeats, items found more than N days ago, or a chosen set. Approving stays
+one by one because it can email clients, publish to the Pulse and feed the
+knowledge base. Live 9 Nov (2f1b6b5): 39 regulatory and 11 marketing items
+pending; the two EDPB repeats are marked; nothing was rejected — the
+backlog is the user's to clear.
+
+**Noticed, not fixed:** the ENISA scraper saves section headings of the
+ENISA site ("Product Security and Certification", "Vulnerability Services",
+…) as news; they make up a good part of the regulatory backlog. Fixing the
+scraper's selector is a separate task.
+
 ---
 
 ## 5. Constraints and gotchas
