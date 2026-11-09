@@ -6374,6 +6374,46 @@ translation sprint, and it is: it changes how templates and labels are
 keyed. Scope note in 3b; a scope lock (fallback rule, migration of today's
 `fr` and `nl` templates, first slice) comes before building.
 
+### D-150 — Back office review; the quick fixes first, 9 Nov
+
+The user asked for a review of the back office (function, UI, UX) with a
+list before any change, and named eight points: a company list with
+subscription history, a user table kept for managing accounts, "Free
+account" shown where a trial was expected and no editable trial end, a ⋮
+row menu instead of "select the row in a dropdown below", locked fields
+shown as locked, the audit trail as a sortable table, whether the Versions
+page is live, and open tickets on the dashboard. The review added about 30
+findings. Chosen order: quick fixes, then the subscription model and a
+Companies page, then a shared table component, then the monitoring
+clean-up.
+
+**Quick fixes, done 9 Nov** (af9588a, c198b44, 7aea5d2), checked live:
+- *AI usage was mostly not recorded.* Monitoring and embedding rows used the
+  system sentinel UUID as `user_id`, a foreign key to `auth.users`; every
+  insert was refused and only printed. Fixed in `log_token_usage`; chat
+  routing, monitoring formatting, LinkedIn drafts, KB embeddings and the
+  marketing agent are now logged too (`log_mistral_usage`), priced per model
+  (`_MISTRAL_PRICES` — an estimate; translation runs on Small). Usage before
+  9 Nov stays incomplete.
+- Dashboard: chats counted per company (they were per owner, so all five
+  showed 15), open tickets, trials running and ending; Home shows open
+  tickets.
+- A trial set by an admin had no end date and so never ended. It now always
+  gets one (14 days by default), editable to extend it, logged.
+- Tickets show the sender's company and email; only admins can be assigned.
+- Audit Trail: an account event is written once per company; the admin view
+  shows it once, as a sortable table with who, period and event-type filters.
+- Versions compares requirements.txt with what runs; `cryptography` and
+  `Pillow`, imported directly but never pinned, are pinned (50.0.2, 12.3.0).
+- Knowledge Base summary read once and cached (three Qdrant reads per load).
+- Sidebar: material icons. The two August test tickets closed.
+
+**Open from the review:** plan and status are per person, not per company,
+and have no history (points 1–3: scope lock first; prepares S46); the table
+component with a row menu, sorting and locked fields (points 4–6, both apps;
+weighs on S67); monitoring duplicates, bulk actions and the backlog (39
+regulatory and 11 marketing pending, 50 marketing links flagged).
+
 ---
 
 ## 5. Constraints and gotchas
