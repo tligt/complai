@@ -62,6 +62,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def load_policy_owner(client_id: str) -> str | None:
+    """Read fresh: the active company is a cached copy, which would show the
+    old value right after saving."""
+    try:
+        rows = (get_supabase().table("clients").select("ai_policy_owner")
+                .eq("id", client_id).execute().data or [])
+        return (rows[0].get("ai_policy_owner") if rows else None) or None
+    except Exception as e:
+        print(f"Could not read AI policy owner: {e}")
+        return None
+
+
 def set_policy_owner(user_id: str, client_id: str, owner: str) -> bool:
     """S62: who approves new AI tools, named in the AI policies."""
     try:
