@@ -97,6 +97,7 @@ def requirement(row: Mapping[str, Any]) -> dict[str, Any]:
         "code": row["code"],
         "label_en": row.get("label_en") or row["code"],
         "label_fr": row.get("label_fr") or row.get("label_en") or row["code"],
+        "label_nl": row.get("label_nl") or row.get("label_en") or row["code"],
         "note_en": row.get("note_en") or "",
         "note_fr": row.get("note_fr") or row.get("note_en") or "",
         "regulation": m.get("regulation"),

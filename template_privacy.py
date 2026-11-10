@@ -289,6 +289,17 @@ _H = {
         "public": "Ces informations étaient accessibles au public",
         "not_recorded": "non renseigné",
     },
+    # S64 (D-163): draft translation, nl-BE.
+    "nl": {
+        "purpose": "Wat wij doen", "basis": "Waarom wij dat mogen",
+        "data": "Welke gegevens wij hebben", "retention": "Hoe lang",
+        "recipient": "Wie", "role": "Wat zij voor ons doen", "capacity": "In welke hoedanigheid",
+        "country": "Waar", "safeguard": "Waarborg",
+        "unassigned": "Andere verwerkingen",
+        "from_others": "Wij hebben deze gegevens van iemand anders dan u ontvangen",
+        "public": "Deze informatie was openbaar toegankelijk",
+        "not_recorded": "niet ingevuld",
+    },
 }
 
 

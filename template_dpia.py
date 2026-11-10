@@ -109,6 +109,14 @@ _H = {
            "purpose": "Finalité", "basis": "Base légale", "data": "Données",
            "system": "Système", "crit": "Criticité", "rto": "Rétabli sous",
            "unassessed": "non évalué", "none": "—"},
+    # S64 (D-163): draft translation, nl-BE.
+    "nl": {"risk": "Wat er kan gebeuren", "case": "In ons geval",
+           "before": "Vóór maatregelen", "controls": "Wat het al vermindert",
+           "measures": "Wat wij zullen doen", "after": "Na maatregelen",
+           "accepted": "Aanvaard door", "activity": "Activiteit",
+           "purpose": "Doel", "basis": "Rechtsgrond", "data": "Gegevens",
+           "system": "Systeem", "crit": "Kritikaliteit", "rto": "Hersteld binnen",
+           "unassessed": "niet beoordeeld", "none": "—"},
 }
 
 

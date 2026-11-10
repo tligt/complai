@@ -91,6 +91,31 @@ _T = {
 }
 
 
+_T["nl"] = {
+    "reg": "Regelgeving", "pct": "Op orde", "detail": "Detail",
+    "detail_fmt": "{i} op orde, {p} gedeeltelijk, van {a} — waarvan {d} alleen op eigen verklaring",
+    "na": "Geen verplichting van kracht",
+    "ob": "Verplichting", "status": "Status",
+    "st": {"partial": "Gedeeltelijk op orde", "missing": "Niet op orde", "unknown": "Niets geregistreerd"},
+    "no_gaps": "Elke verplichting die van kracht is, is op orde of niet van toepassing.",
+    "no_verdicts": "De statussen waren niet beschikbaar toen dit verslag werd opgemaakt.",
+    "doc": "Document", "lang": "Taal", "event": "Wat er gebeurde", "date": "Datum",
+    "adopted": "In werking gesteld", "superseded": "Vervangen",
+    "no_docs": "In de periode werd geen document in werking gesteld of vervangen.",
+    "found": "Ontdekt op", "incident": "Incident", "notif": "Meldingen",
+    "notif_fmt": "{n} verstuurd", "late_fmt": "{n} verstuurd, waarvan {l} te laat",
+    "no_inc": "In de periode werd geen incident geregistreerd.",
+    "inc_st": {"open": "Open", "contained": "Ingeperkt", "closed": "Afgesloten"},
+    "held": "Datum", "session": "Sessie", "covers": "Telt voor", "att": "Deelnemers",
+    "no_train": "In de periode werd geen opleidingssessie geregistreerd.",
+    "train": "Opleiding", "current": "Nu geldig", "cur_fmt": "{c} van {r}",
+    "nobody": "Niemand die is geregistreerd, heeft ze nodig", "no_req": "Er geldt geen opleidingsvereiste.",
+    "risk": "Risicoklasse", "uses": "Toepassingen", "no_ai": "Er is geen gebruik van AI geregistreerd.",
+    "change": "Wijziging in de regelgeving", "regs": "Betreft",
+    "no_reg": "In de periode werd geen wijziging in de regelgeving gemeld.",
+}
+
+
 def _t(lang: str, key: str):
     return _T.get(lang, _T["en"]).get(key, _T["en"][key])
 
@@ -315,9 +340,11 @@ def build_report_context_from(*, client, start, end, verdicts=None, applicable=N
                        if in_period(s.get("held_on"), start, end)], key=lambda s: s["held_on"])
     active = [e for e in tr["employees"] if TR.is_active(e, today)]
     cov = TR.coverage(TR.matrix(active, reqs, tr["sessions"], tr["attendance"], today), reqs) if reqs else {}
-    coverage = [{"label": {"en": r["label_en"], "fr": r["label_fr"]}, "required": cov[r["code"]]["required"],
+    coverage = [{"label": {"en": r["label_en"], "fr": r["label_fr"], "nl": r.get("label_nl") or r["label_en"]},
+                 "required": cov[r["code"]]["required"],
                  "ok": cov[r["code"]][TR.CURRENT] + cov[r["code"]][TR.EXPIRING]} for r in reqs]
-    labels = {r["code"]: {"en": r["label_en"], "fr": r["label_fr"]} for r in tr["requirements"]}
+    labels = {r["code"]: {"en": r["label_en"], "fr": r["label_fr"], "nl": r.get("label_nl") or r["label_en"]}
+              for r in tr["requirements"]}
 
     ai_counts = {k: 0 for k in (AR.PROHIBITED, AR.HIGH, AR.LIMITED, AR.MINIMAL, AR.UNKNOWN)}
     for u in (ai or {}).get("use_cases") or []:

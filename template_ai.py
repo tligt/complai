@@ -110,10 +110,35 @@ _T = {
         "none_notice": "Aucun de nos usages de l'IA ne vous concerne directement.",
     },
 }
+_T["nl"] = {
+    "tool": "Tool", "use": "Toegestaan voor", "use_col": "Gebruik", "pd": "Persoonsgegevens", "risk": "Risico",
+    "pd_yes": "Toegestaan — er is een verwerkersovereenkomst",
+    "pd_no": "Niet toegestaan — geen verwerkersovereenkomst",
+    "pd_na": "Niet toegestaan",
+    "no_use": "Nog geen toegestaan gebruik — niet gebruiken",
+    "practice": "Praktijk", "article": "Referentie",
+    "system": "Systeem", "overseer": "Toezichthouder", "training": "Opleiding",
+    "nobody": "Niet aangewezen", "trained": "Geldig tot {d}", "lapsed": "Verlopen",
+    "untrained": "Niet opgeleid",
+    "none_high": "Er is geen gebruik met een hoog risico geregistreerd. Elk gebruik wordt "
+                 "nog steeds door een persoon nagekeken voordat op het resultaat wordt "
+                 "vertrouwd (punt 4).",
+    "where": "Waar u het tegenkomt", "what": "Wat het doet", "know": "Wat u moet weten",
+    "n_chat": "U communiceert met een AI-systeem, niet met een persoon.",
+    "n_gen": "De inhoud die het maakt, is door AI gegenereerd.",
+    "n_fake": "Beelden, geluid of video die echt lijken, zijn kunstmatig gegenereerd of bewerkt.",
+    "n_text": "Tekst die wordt gepubliceerd om het publiek te informeren, is met AI geschreven.",
+    "n_emotion": "Het herkent emoties of deelt personen in op basis van biometrische "
+                 "gegevens terwijl het werkt.",
+    "none_notice": "Geen van onze toepassingen van AI heeft rechtstreeks met u te maken.",
+}
+
 _RISK = {
     "en": AR.RISK_LABELS,
     "fr": {AR.PROHIBITED: "Interdit", AR.HIGH: "Haut risque", AR.LIMITED: "Obligations de transparence",
            AR.MINIMAL: "Risque minimal", AR.UNKNOWN: "Non évalué"},
+    "nl": {AR.PROHIBITED: "Verboden", AR.HIGH: "Hoog risico", AR.LIMITED: "Transparantieverplichtingen",
+           AR.MINIMAL: "Minimaal risico", AR.UNKNOWN: "Niet beoordeeld"},
 }
 
 
@@ -150,7 +175,7 @@ def render_ai_approved_uses(context: Mapping[str, Any], language: str) -> Block:
 
 
 def render_ai_prohibited(context: Mapping[str, Any], language: str) -> Block:
-    lang = language if language in ("en", "fr") else "en"
+    lang = language if language in ("en", "fr", "nl") else "en"
     block = Block(name="ai_prohibited", headers=[_t(lang, "practice"), _t(lang, "article")])
     for r in context.get("ai_practices") or []:
         block.rows.append([r.get(f"label_{lang}") or r.get("label_en") or r["code"],

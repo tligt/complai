@@ -242,8 +242,8 @@ def _fmt_minutes(m: int | None, language: str) -> str:
         n, plural = int(value), int(value) != 1
     else:
         n, plural = round(value, 1), True
-        if lang == "fr":
-            # French uses a comma as the decimal separator. "1.5 heures" in a
+        if lang in ("fr", "nl"):
+            # French (and Dutch) use a comma as the decimal separator. "1.5 heures" in a
             # French document reads as a typo.
             n = str(n).replace(".", ",")
 
@@ -441,6 +441,35 @@ _TIMELINE = {
          "rapport d'avancement, puis le rapport final dans le mois suivant la "
          "fin de son traitement."),
     ],
+    # S64 (D-163): draft translation, nl-BE.
+    "nl": [
+        ("Binnen 24 uur", "NIS2 — CSIRT",
+         "Vroegtijdige waarschuwing: dat er een incident heeft plaatsgevonden, "
+         "of het kwaadwillig lijkt en of het grensoverschrijdende gevolgen kan "
+         "hebben."),
+        ("Binnen 72 uur", "NIS2 — CSIRT",
+         "Incidentmelding: een beoordeling van ernst en impact, met indicatoren "
+         "van compromittering indien beschikbaar."),
+        ("Binnen 72 uur", "AVG — toezichthoudende autoriteit",
+         "Een inbreuk in verband met persoonsgegevens, tenzij het niet "
+         "waarschijnlijk is dat zij een risico inhoudt voor personen: aard van "
+         "de inbreuk, categorieën en geschatte aantallen betrokkenen en "
+         "gegevensregisters, waarschijnlijke gevolgen, genomen maatregelen. "
+         "Later: de redenen voor de vertraging."),
+        ("Zonder onredelijke vertraging", "AVG — de betrokkenen",
+         "Alleen wanneer de inbreuk waarschijnlijk een hoog risico voor hen "
+         "inhoudt en geen uitzondering van art. 34(3) van toepassing is."),
+        ("Zonder onredelijke vertraging", "NIS2 — afnemers van uw diensten",
+         "Wanneer een significant incident waarschijnlijk gevolgen heeft voor "
+         "de diensten die zij ontvangen."),
+        ("Op verzoek van het CSIRT", "NIS2 — CSIRT",
+         "Tussentijds verslag: relevante stand van zaken."),
+        ("Binnen een maand na de melding", "NIS2 — CSIRT",
+         "Eindverslag: grondoorzaak, toegepaste mitigerende maatregelen, "
+         "grensoverschrijdende impact. Als het incident dan nog wordt "
+         "afgehandeld: een voortgangsverslag, en het eindverslag binnen een "
+         "maand na het einde van de afhandeling."),
+    ],
 }
 
 
@@ -465,12 +494,18 @@ _TEAM_ROLES = {
            "external_it": "Prestataire informatique", "dpo": "DPO / contact vie privée",
            "management": "Direction", "legal": "Juridique", "communications": "Communication",
            "insurer": "Assureur cyber", "other": "Autre"},
+    "nl": {"lead": "Incidentverantwoordelijke", "deputy": "Plaatsvervanger", "it": "IT",
+           "external_it": "Externe IT-dienstverlener", "dpo": "DPO / privacycontact",
+           "management": "Directie", "legal": "Juridisch", "communications": "Communicatie",
+           "insurer": "Cyberverzekeraar", "other": "Andere"},
 }
 _TEAM_ALERT = {
     "en": {"all": "Every incident", "personal_data": "Personal data involved",
            "significant": "Significant incidents (NIS2)", "never": "—"},
     "fr": {"all": "Tout incident", "personal_data": "Données personnelles concernées",
            "significant": "Incidents importants (NIS2)", "never": "—"},
+    "nl": {"all": "Elk incident", "personal_data": "Persoonsgegevens betrokken",
+           "significant": "Significante incidenten (NIS2)", "never": "—"},
 }
 
 
