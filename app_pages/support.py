@@ -5,6 +5,7 @@ Read and continue. Tickets are *created* from the help widget, which is on
 every page and captures context for free; this page is where they're
 followed, replied to and closed. Brevo reply notifications link here.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -57,9 +58,9 @@ def init():
 
 init()
 
-st.title("Support")
-st.caption("Questions and problems, and our replies. We answer here, in the app, "
-           "on working days.")
+st.title(tr("Support"))
+st.caption(tr("Questions and problems, and our replies. We answer here, in the app, "
+           "on working days."))
 
 # Deep links are normally consumed in app.py, which captures the param
 # before the auth stop can discard it. This is a fallback for the case where
@@ -75,13 +76,13 @@ if st.session_state.support_open_ticket:
     ticket = get_ticket(st.session_state.support_open_ticket)
 
     if not ticket:
-        st.warning("That request could not be found.")
-        if st.button("← Back to all requests"):
+        st.warning(tr("That request could not be found."))
+        if st.button(tr("← Back to all requests")):
             st.session_state.support_open_ticket = None
             st.rerun()
         st.stop()
 
-    if st.button("← Back to all requests"):
+    if st.button(tr("← Back to all requests")):
         st.session_state.support_open_ticket = None
         if "ticket" in st.query_params:
             del st.query_params["ticket"]
@@ -110,14 +111,14 @@ if st.session_state.support_open_ticket:
     st.divider()
 
     if ticket["status"] == "closed":
-        st.caption("This request is closed. Open a new one if you need "
-                   "anything further.")
+        st.caption(tr("This request is closed. Open a new one if you need "
+                   "anything further."))
     else:
-        reply = st.text_area("Reply", key="support_reply", height=110,
-                             placeholder="Add to this request…")
+        reply = st.text_area(tr("Reply"), key="support_reply", height=110,
+                             placeholder=tr("Add to this request…"))
         col_send, col_close = st.columns([1, 1])
         with col_send:
-            if st.button("Send reply", type="primary",
+            if st.button(tr("Send reply"), type="primary",
                          use_container_width=True):
                 if reply.strip():
                     post_thread_message(ticket["thread_id"], user_id,
@@ -129,9 +130,9 @@ if st.session_state.support_open_ticket:
                     st.session_state.pop("support_reply", None)
                     st.rerun()
                 else:
-                    st.warning("Nothing to send.")
+                    st.warning(tr("Nothing to send."))
         with col_close:
-            if st.button("Close request", use_container_width=True):
+            if st.button(tr("Close request"), use_container_width=True):
                 update_ticket(ticket["id"], {"status": "closed"},
                               actor_id=user_id)
                 st.rerun()
@@ -144,9 +145,9 @@ if st.session_state.support_open_ticket:
 # usually has a billing or account question rather than a feature-specific
 # one. Feature-specific reports come through the widget, with real context.
 if st.session_state.support_new:
-    st.markdown("### New request")
-    st.caption("Reporting a problem with a specific feature? Use the **Help** "
-               "button on that page instead — it captures the context for you.")
+    st.markdown(tr("### New request"))
+    st.caption(tr("Reporting a problem with a specific feature? Use the **Help** "
+               "button on that page instead — it captures the context for you."))
 
     # create_ticket's client_id is genuinely optional (an account-level
     # question needs no client), so this deliberately does not use
@@ -161,24 +162,24 @@ if st.session_state.support_new:
     )
 
     category = st.selectbox(
-        "What kind of request is this?",
+        tr("What kind of request is this?"),
         options=[c for c, _ in TICKET_CATEGORIES],
         format_func=lambda c: CATEGORY_LABELS[c],
         key="sn_cat",
     )
     severity = st.selectbox(
-        "How much is this affecting you?",
+        tr("How much is this affecting you?"),
         options=[c for c, _ in TICKET_SEVERITIES],
         format_func=lambda c: dict(TICKET_SEVERITIES)[c],
         index=2,
         key="sn_sev",
     )
-    subject = st.text_input("Subject", key="sn_subj")
-    body = st.text_area("Details", key="sn_body", height=140)
+    subject = st.text_input(tr("Subject"), key="sn_subj")
+    body = st.text_area(tr("Details"), key="sn_body", height=140)
 
     col_a, col_b = st.columns([1, 1])
     with col_a:
-        if st.button("Send request", type="primary", use_container_width=True):
+        if st.button(tr("Send request"), type="primary", use_container_width=True):
             if subject.strip() and body.strip():
                 tid = create_ticket(
                     user_id=user_id, subject=subject, body=body,
@@ -190,9 +191,9 @@ if st.session_state.support_new:
                     st.session_state.support_open_ticket = tid
                     st.rerun()
             else:
-                st.warning("A subject and some detail, please.")
+                st.warning(tr("A subject and some detail, please."))
     with col_b:
-        if st.button("Cancel", use_container_width=True):
+        if st.button(tr("Cancel"), use_container_width=True):
             st.session_state.support_new = False
             st.rerun()
 
@@ -202,15 +203,15 @@ if st.session_state.support_new:
 # ── List view ─────────────────────────────────────────────────
 col_title, col_new = st.columns([4, 1])
 with col_new:
-    if st.button("＋ New request", type="primary", use_container_width=True):
+    if st.button(tr("＋ New request"), type="primary", use_container_width=True):
         st.session_state.support_new = True
         st.rerun()
 
 tickets = load_my_tickets(user_id)
 
 if not tickets:
-    st.info("No support requests yet. Use the **Help** button on any page to "
-            "raise one — it'll include what you were doing at the time.")
+    st.info(tr("No support requests yet. Use the **Help** button on any page to "
+            "raise one — it'll include what you were doing at the time."))
     st.stop()
 
 open_tickets = [t for t in tickets if t["status"] not in ("closed", "resolved")]
@@ -228,14 +229,14 @@ def render_row(t: dict):
             f"updated {fmt_date(t['updated_at'])}"
         )
     with col_b:
-        if st.button("Open", key=f"open_{t['id']}", use_container_width=True):
+        if st.button(tr("Open"), key=f"open_{t['id']}", use_container_width=True):
             st.session_state.support_open_ticket = t["id"]
             st.rerun()
     st.divider()
 
 
 if open_tickets:
-    st.markdown("#### Active")
+    st.markdown(tr("#### Active"))
     for t in open_tickets:
         render_row(t)
 

@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import streamlit as st
 
 from display import country_label, fmt_datetime, plural, regulation_label, regulations_text
@@ -9,8 +10,8 @@ from datetime import datetime as _dt
 
 user_id = get_user_id()
 
-st.title("Alerts")
-st.caption("Changes in the regulations that apply to you.")
+st.title(tr("Alerts"))
+st.caption(tr("Changes in the regulations that apply to you."))
 
 
 @st.fragment
@@ -31,11 +32,11 @@ def _alerts_panel(user_id: str):
     h1, h2 = st.columns([3, 1])
     if unread:
         h1.warning(f"You have **{plural(unread, 'unread alert')}**.")
-        if h2.button("✓ Mark all as read", use_container_width=True, key="alerts_mark_all"):
+        if h2.button(tr("✓ Mark all as read"), use_container_width=True, key="alerts_mark_all"):
             mark_all_alerts_read(user_id)
             st.rerun(scope="fragment")
     else:
-        h1.caption("You're up to date — no unread alerts.")
+        h1.caption(tr("You're up to date — no unread alerts."))
 
     # ── Load ──────────────────────────────────────────────────────
     try:
@@ -54,7 +55,7 @@ def _alerts_panel(user_id: str):
         alerts = []
 
     if not alerts:
-        st.info("No regulatory alerts yet. Check back soon — we monitor EU regulatory sources daily.")
+        st.info(tr("No regulatory alerts yet. Check back soon — we monitor EU regulatory sources daily."))
         return
 
     # ── Filters ───────────────────────────────────────────────────
@@ -65,12 +66,12 @@ def _alerts_panel(user_id: str):
 
     all_regs = sorted({r for a in alerts for r in (_upd(a).get("regulations") or [])})
     f1, f2, f3 = st.columns([2, 2, 1])
-    pick_regs = f1.multiselect("Regulation", all_regs, format_func=regulation_label,
-                               placeholder="All regulations", key="alerts_f_reg")
-    pick_sev = f2.multiselect("Importance", list(severity_labels), format_func=severity_labels.get,
-                              placeholder="Any importance", key="alerts_f_sev")
+    pick_regs = f1.multiselect(tr("Regulation"), all_regs, format_func=regulation_label,
+                               placeholder=tr("All regulations"), key="alerts_f_reg")
+    pick_sev = f2.multiselect(tr("Importance"), list(severity_labels), format_func=severity_labels.get,
+                              placeholder=tr("Any importance"), key="alerts_f_sev")
     f3.markdown("<div style='height:1.9rem'></div>", unsafe_allow_html=True)
-    show_unread_only = f3.toggle("Unread only", value=False, key="alerts_unread_toggle")
+    show_unread_only = f3.toggle(tr("Unread only"), value=False, key="alerts_unread_toggle")
 
     def _keep(a):
         u = _upd(a)
@@ -84,7 +85,7 @@ def _alerts_panel(user_id: str):
 
     shown = [a for a in alerts if _keep(a)]
     if not shown:
-        st.info("No alert matches these filters.")
+        st.info(tr("No alert matches these filters."))
         return
 
     # Unread first, then by importance; each group newest first (the query order).
@@ -132,9 +133,9 @@ def _alerts_panel(user_id: str):
                 ])))
             with col_action:
                 if update.get("url"):
-                    st.link_button("🔗 Read more", update["url"], use_container_width=True)
+                    st.link_button(tr("🔗 Read more"), update["url"], use_container_width=True)
                 if not is_read:
-                    if st.button("✓ Mark read", key=f"read_{alert['id']}",
+                    if st.button(tr("✓ Mark read"), key=f"read_{alert['id']}",
                                  use_container_width=True):
                         mark_alert_read(alert["id"], user_id)
                         st.rerun(scope="fragment")

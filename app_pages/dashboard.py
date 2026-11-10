@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import streamlit as st
 from datetime import datetime, timezone
 
@@ -19,14 +20,14 @@ from obligations import (
     split_by_force, applies_from_label,
 )
 
-st.title("Home")
+st.title(tr("Home"))
 from guide import page_tip
 page_tip("dashboard")
-st.caption("What to do next, then where you stand.")
+st.caption(tr("What to do next, then where you stand."))
 
 user_id = get_user_id()
 if not user_id:
-    st.error("Please log in to view your dashboard.")
+    st.error(tr("Please log in to view your dashboard."))
     st.stop()
 
 # ── Load client profile ───────────────────────────────────────
@@ -58,7 +59,7 @@ if _inc_tasks:
                           f"is due {_first['detail']}.")
     _due = [f for f in _inc_tasks if f["severity"] == "due"]
     (st.error if _due else st.warning)("  \n".join(_lines), icon="🚨")
-    if st.button("Open incidents", key="dash_incidents"):
+    if st.button(tr("Open incidents"), key="dash_incidents"):
         st.switch_page("app_pages/incidents.py")
 
 # ── What to do next (usability audit batch 2, H2) ─────────────
@@ -66,7 +67,7 @@ if _inc_tasks:
 # plan takes several seconds, and the status below should not wait for it.
 _start_slot = st.container()
 _next_slot = st.empty()
-_next_slot.caption("Working out what to do next…")
+_next_slot.caption(tr("Working out what to do next…"))
 
 
 company_name = client.get("company_name", "Your company")
@@ -207,7 +208,7 @@ if _ob_state:
     if gap_date:
         _doc_bits.append(f"Last gap assessment: {gap_date}")
     st.caption(" · ".join(_doc_bits + ["Details per obligation on the Obligations page."]))
-    if st.button("Open obligations", key="home_open_obligations"):
+    if st.button(tr("Open obligations"), key="home_open_obligations"):
         st.switch_page("app_pages/obligations.py")
 
 st.divider()
@@ -215,11 +216,11 @@ st.divider()
 # ═══════════════════════════════════════════════════════════════
 # SECTION 2 — Document Checklist
 # ═══════════════════════════════════════════════════════════════
-st.subheader("📋 Document checklist")
+st.subheader(tr("📋 Document checklist"))
 if gap_date:
     st.caption(f"Status from gap assessment run on {gap_date}. Click a row to see details.")
 else:
-    st.caption("Run a gap assessment to see per-document compliance status.")
+    st.caption(tr("Run a gap assessment to see per-document compliance status."))
 
 relevant_docs = {
     k: v for k, v in DOC_CATALOG.items()
@@ -272,44 +273,44 @@ for doc_type, meta in relevant_docs.items():
         # merely produced.
         _st8 = _status["state"]
         if _st8 == REG.IN_FORCE:
-            st.success("✅ In force")
+            st.success(tr("✅ In force"))
         elif _st8 == REG.PARTIAL:
             st.warning("🟡 " + REG.status_note(_status).split(" · ")[0].capitalize())
         elif _st8 == REG.DRAFT:
-            st.warning("🟠 Draft — not adopted")
+            st.warning(tr("🟠 Draft — not adopted"))
         elif _st8 == REG.NOT_AVAILABLE:
             # Ours, not theirs. Blue rather than red, because red on a row the
             # client cannot act on reads as an accusation.
-            st.info("🕓 Not available yet")
+            st.info(tr("🕓 Not available yet"))
         elif _st8 == REG.ARCHIVED:
-            st.info("📁 Archived")
+            st.info(tr("📁 Archived"))
         elif gap_info:
             # Show gap assessment result — most informative
             gs = gap_info["status"]
             if gs == "compliant":
-                st.success("✅ Compliant")
+                st.success(tr("✅ Compliant"))
             elif gs == "partial":
-                st.warning("🟡 Partial")
+                st.warning(tr("🟡 Partial"))
             else:
-                st.error("❌ Not compliant")
+                st.error(tr("❌ Not compliant"))
         elif in_repo or in_history:  # pre-S27 rows with no register entry
             # Document exists but no gap assessment
             source = (client_docs.get(doc_type) or {}).get("source", "")
             if source == "complai_generated":
-                st.success("✅ Generated")
+                st.success(tr("✅ Generated"))
             else:
-                st.info("ℹ️ In repository")
+                st.info(tr("ℹ️ In repository"))
         else:
             # NOT_GENERATED: the template exists, the client has not produced
             # it. Distinct from "not available", which is ours.
-            st.error("➕ Not generated")
+            st.error(tr("➕ Not generated"))
 
     with col_action:
         if not in_repo and not in_history:
-            if st.button("Generate →", key=f"gen_{doc_type}"):
+            if st.button(tr("Generate →"), key=f"gen_{doc_type}"):
                 st.switch_page("app_pages/documents.py")
         else:
-            if st.button("Gap assessment →", key=f"gap_{doc_type}"):
+            if st.button(tr("Gap assessment →"), key=f"gap_{doc_type}"):
                 st.switch_page("app_pages/gap.py")
 
     # Expandable details from gap assessment
@@ -412,8 +413,8 @@ if last_gap:
                     f"`{ob['article']}`"
                 )
                 if not ob.get("statutory", True):
-                    st.caption("↳ Recommended by RECOSA — not a standalone "
-                               "statutory requirement.")
+                    st.caption(tr("↳ Recommended by RECOSA — not a standalone "
+                               "statutory requirement."))
                 explanation = res.get("explanation") or ob["description"]
                 st.caption(explanation)
                 if res.get("recommendation") and status != "compliant":
@@ -422,8 +423,8 @@ if last_gap:
         if forthcoming:
             st.markdown(f"##### 🕓 Not yet in force ({len(forthcoming)})")
             st.caption(
-                "Already law, but not yet binding. Nothing to do today — "
-                "shown so the dates are not a surprise."
+                tr("Already law, but not yet binding. Nothing to do today — "
+                "shown so the dates are not a surprise.")
             )
             for ob in sorted(forthcoming, key=lambda o: o["applies_from"]):
                 st.markdown(
@@ -437,21 +438,21 @@ st.divider()
 # ═══════════════════════════════════════════════════════════════
 # SECTION 3 — Activity Summary
 # ═══════════════════════════════════════════════════════════════
-st.subheader("📌 Activity summary")
+st.subheader(tr("📌 Activity summary"))
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.markdown("**🔔 Regulatory alerts**")
+    st.markdown(tr("**🔔 Regulatory alerts**"))
     if unread_alerts > 0:
         st.warning(plural(unread_alerts, "unread alert"))
-        if st.button("View alerts →"):
+        if st.button(tr("View alerts →")):
             st.switch_page("app_pages/alerts.py")
     else:
-        st.success("All alerts read ✅")
+        st.success(tr("All alerts read ✅"))
 
 with col2:
-    st.markdown("**🔍 Gap assessment**")
+    st.markdown(tr("**🔍 Gap assessment**"))
     if last_gap:
         score_gdpr    = last_gap.get("score_gdpr", "—")
         score_nis2    = last_gap.get("score_nis2", "—")
@@ -467,17 +468,17 @@ with col2:
             _gap_age = 0
         if _gap_age > 30:
             st.caption(f":orange[{_gap_age} days old — rerun it to refresh.]")
-        if st.button("Run new assessment →"):
+        if st.button(tr("Run new assessment →")):
             st.switch_page("app_pages/gap.py")
     else:
-        st.warning("No assessment run yet")
-        if st.button("Run assessment →"):
+        st.warning(tr("No assessment run yet"))
+        if st.button(tr("Run assessment →")):
             st.switch_page("app_pages/gap.py")
 
 with col3:
-    st.markdown("**💬 Assistant**")
-    st.info("Ask any compliance question")
-    if st.button("Open the assistant →"):
+    st.markdown(tr("**💬 Assistant**"))
+    st.info(tr("Ask any compliance question"))
+    if st.button(tr("Open the assistant →")):
         st.switch_page("app_pages/chat.py")
 
 # ── Fill the "What to do next" slot (see the top of the page) ──
@@ -522,23 +523,23 @@ if not all(done for _, done, _, _ in _steps):
             _c1.markdown(("✅ ~~" + _label + "~~") if _done else
                          (f"**{_i + 1}. {_label}**  \n:gray[{_why}]" if _i == _next_step
                           else f"{_i + 1}. {_label}"))
-            if _i == _next_step and _c2.button("Start", key="home_start", type="primary",
+            if _i == _next_step and _c2.button(tr("Start"), key="home_start", type="primary",
                                                use_container_width=True):
                 st.switch_page(_page)
 _alerts_n = count_unread_alerts(user_id)
 _replies_n = _unread_replies(user_id)
 
 with _next_slot.container(border=True):
-    st.markdown("**What to do next**")
+    st.markdown(tr("**What to do next**"))
     if not _next:
-        st.success("Nothing outstanding on the action plan.")
+        st.success(tr("Nothing outstanding on the action plan."))
     _sev_icon = {"blocking": "🔴", "due": "🟠", "open": "⚪"}
     for _i, _f in enumerate(_next):
         _c1, _c2 = st.columns([5, 1])
         _c1.markdown(f"{_sev_icon.get(_f['severity'], '⚪')} **{_f['title']}**"
                      + (f"  \n:gray[{_f['detail']}]" if _f.get("detail") else ""))
         _page = _OV.TASK_LINK_PAGES.get(_f.get("link") or "")
-        if _page and _c2.button("Fix it", key=f"home_fix_{_i}", use_container_width=True):
+        if _page and _c2.button(tr("Fix it"), key=f"home_fix_{_i}", use_container_width=True):
             st.switch_page(_page)
     # S56: what is handled by you, and what is new in your inbox.
     try:

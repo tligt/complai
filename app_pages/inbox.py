@@ -7,6 +7,7 @@ right company.
 D-05: this is the only place the details are shown. The email that points
 here says only that something is new.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -15,10 +16,10 @@ from auth import get_user_id
 from cached_reads import load_accessible_clients
 from display import fmt_date
 
-st.title("Inbox")
-st.caption("Tasks and incidents given to you, and comments on your work, "
+st.title(tr("Inbox"))
+st.caption(tr("Tasks and incidents given to you, and comments on your work, "
            "for every company you work on. Notification emails never include "
-           "the details: they're only here.")
+           "the details: they're only here."))
 
 user_id = get_user_id()
 items = W.inbox(user_id)
@@ -30,12 +31,12 @@ _ICON = {"assigned": "👤", "comment": "💬", "mention": "📣"}
 unread = [n for n in items if not n.get("read_at")]
 c1, c2 = st.columns([3, 1])
 c1.markdown(f"**{len(unread)} new**" if unread else "Nothing new.")
-if unread and c2.button("Mark all as read", use_container_width=True):
+if unread and c2.button(tr("Mark all as read"), use_container_width=True):
     W.mark_read(user_id)
     st.rerun()
 
 if not items:
-    st.info("When someone gives you a task or comments on your work, it appears here.")
+    st.info(tr("When someone gives you a task or comments on your work, it appears here."))
     st.stop()
 
 
@@ -67,9 +68,9 @@ for n in items:
         a.markdown(f"{_ICON.get(n['kind'], '•')} {'**' if new else ''}{line}{'**' if new else ''}"
                    f" · {c['company_name']} · :gray[{fmt_date((n.get('created_at') or '')[:10])}]"
                    f"  \n{n.get('item_title') or ''}")
-        if b.button("Open", key=f"inbox_open_{n['id']}", use_container_width=True,
+        if b.button(tr("Open"), key=f"inbox_open_{n['id']}", use_container_width=True,
                     type="primary" if new else "secondary"):
             _open(n)
 
-st.caption("A task that has since been done no longer appears on the Action plan; "
-           "its notification stays here for the record.")
+st.caption(tr("A task that has since been done no longer appears on the Action plan; "
+           "its notification stays here for the record."))

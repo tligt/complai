@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import os
 import streamlit as st
 from datetime import date
@@ -52,16 +53,16 @@ TEMPLATE_DOC_TYPES = {
 
 user_id = get_user_id()
 
-st.title("Documents")
+st.title(tr("Documents"))
 from guide import page_tip
 page_tip("documents")
 _dc1, _dc2 = st.columns([3, 1])
-_dc1.caption("Your documents, and new ones generated from your company profile. "
+_dc1.caption(tr("Your documents, and new ones generated from your company profile. "
              "Which version of each is in force, and since when, is on the "
-             "Compliance record.")
+             "Compliance record."))
 # Usability audit batch 2: the Compliance record is reached from here, not
 # from the menu.
-if _dc2.button("Compliance record", key="docs_to_record", use_container_width=True, icon="🗄️"):
+if _dc2.button(tr("Compliance record"), key="docs_to_record", use_container_width=True, icon="🗄️"):
     st.switch_page("app_pages/compliance_record.py")
 st.divider()
 
@@ -90,7 +91,7 @@ for key, default in [
 # profile" mode, not be stopped here before get_active_client() ever runs.
 clients = load_accessible_clients(user_id)
 if not clients:
-    st.info("👈 Create a client profile first before generating documents.")
+    st.info(tr("👈 Create a client profile first before generating documents."))
     st.stop()
 
 # Usability audit H5: generating for an outside company is an Advisory
@@ -98,7 +99,7 @@ if not clients:
 from database import get_user_profile as _gup
 if (_gup(user_id).get("subscription_tier") or "professional") == "advisory":
     mode = st.radio(
-        "Generate for:",
+        tr("Generate for:"),
         options=["existing_client", "external_company"],
         format_func=lambda x: "Your company" if x == "existing_client" else "An external company",
         horizontal=True,
@@ -118,7 +119,7 @@ st.divider()
 # Usability audit H5: two views instead of one long page — the documents
 # you have (status, adopt, download) and a short flow to generate a new one.
 _view = st.segmented_control(
-    "View", ["library", "generate"],
+    tr("View"), ["library", "generate"],
     format_func={"library": "📚 Your documents", "generate": "⚡ Generate a document"}.get,
     default="library", key="docs_view", label_visibility="collapsed",
 ) or "library"
@@ -179,7 +180,7 @@ if _view == "generate":
         _offered = [d for d in _offered if d not in ("ropa_processor", "dpa")]
 
     doc_type = st.selectbox(
-        "Document type",
+        tr("Document type"),
         options=_offered,
         format_func=lambda x: DOCUMENT_TYPES[x],
         key="doc_type_select"
@@ -207,7 +208,7 @@ if _view == "generate":
         language = doc_langs[0]
     else:
         language = st.selectbox(
-            "Document language",
+            tr("Document language"),
             options=["en", "fr", "nl"],
             format_func=lambda x: {"en": "EN — English", "fr": "FR — Français", "nl": "NL — Nederlands"}[x],
             key="doc_lang_select"
@@ -281,13 +282,13 @@ if _view == "generate":
         )
     else:
         _co_box = st.container()
-        _co_box.subheader("Company information")
+        _co_box.subheader(tr("Company information"))
     with _co_box:
-        st.caption("Fields marked ✱ are required. Changes are saved to the company profile.")
+        st.caption(tr("Fields marked ✱ are required. Changes are saved to the company profile."))
 
         col1, col2 = st.columns(2)
         col1.text_input(
-            "Legal company name ✱",
+            tr("Legal company name ✱"),
             value=st.session_state.doc_legal_name,
             key="f_legal_name_stable"
         )
@@ -302,7 +303,7 @@ if _view == "generate":
         if default_country not in country_options:
             default_country = "BE"
         country = col2.selectbox(
-            "Country ✱",
+            tr("Country ✱"),
             options=list(country_options.keys()),
             format_func=lambda x: country_options[x],
             index=list(country_options.keys()).index(default_country),
@@ -313,32 +314,32 @@ if _view == "generate":
         default_form = pf.get("legal_form", "")
         default_form_idx = form_options.index(default_form) if default_form in form_options else 0
         legal_form = st.selectbox(
-            "Legal form ✱",
+            tr("Legal form ✱"),
             options=form_options,
             index=default_form_idx,
             key=f"f_legal_form_{mode}_{client_id}"
         )
 
         website_url = st.text_input(
-            "Website URL",
+            tr("Website URL"),
             value=pf.get("website_url", ""),
-            placeholder="https://yourcompany.com",
+            placeholder=tr("https://yourcompany.com"),
             key=f"f_url_{mode}_{client_id}"
         )
 
         col3, col4 = st.columns(2)
         dpo_name = col3.text_input(
-            "DPO name (if appointed)",
+            tr("DPO name (if appointed)"),
             value=pf.get("dpo_name", ""),
             key=f"f_dpo_name_{mode}_{client_id}"
         )
         dpo_email = col4.text_input(
-            "DPO email",
+            tr("DPO email"),
             value=pf.get("dpo_email", ""),
             key=f"f_dpo_email_{mode}_{client_id}"
         )
         st.text_input(
-            "Contact email for data requests ✱",
+            tr("Contact email for data requests ✱"),
             value=st.session_state.doc_contact_email,
             key="f_contact_stable"
         )
@@ -353,45 +354,45 @@ if _view == "generate":
         if use_template:
             col5, col6 = st.columns(2)
             registered_address = col5.text_area(
-                "Registered address ✱",
+                tr("Registered address ✱"),
                 value=pf.get("registered_address", "") or (selected_client or {}).get("registered_address", "") or "",
                 height=80,
-                placeholder="Rue Example 1\n1000 Brussels\nBelgium",
+                placeholder=tr("Rue Example 1\n1000 Brussels\nBelgium"),
                 key=f"f_regaddr_{context_key}",
             )
             enterprise_number = col6.text_input(
-                "Company registration number",
+                tr("Company registration number"),
                 value=pf.get("enterprise_number", "") or (selected_client or {}).get("enterprise_number", "") or "",
                 placeholder="0123.456.789",
-                help="BCE/KBO in Belgium, SIREN or SIRET in France.",
+                help=tr("BCE/KBO in Belgium, SIREN or SIRET in France."),
                 key=f"f_entnum_{context_key}",
             )
 
     # ── Structured field helpers ──────────────────────────────────
 
     def activity_editor():
-        st.markdown("**Processing activities ✱**")
-        st.caption("Add one row per processing activity.")
+        st.markdown(tr("**Processing activities ✱**"))
+        st.caption(tr("Add one row per processing activity."))
 
         for i, act in enumerate(st.session_state.doc_activities):
             with st.expander(f"Activity {i+1}: {act.get('name','Untitled')}", expanded=True):
                 c1, c2 = st.columns(2)
                 st.session_state.doc_activities[i]["name"] = c1.text_input(
-                    "Activity name", value=act.get("name",""), key=f"act_name_{i}_{context_key}",
-                    placeholder="e.g. Customer management"
+                    tr("Activity name"), value=act.get("name",""), key=f"act_name_{i}_{context_key}",
+                    placeholder=tr("e.g. Customer management")
                 )
                 st.session_state.doc_activities[i]["subjects"] = c2.text_input(
-                    "Data subjects", value=act.get("subjects",""), key=f"act_subj_{i}_{context_key}",
-                    placeholder="e.g. Customers, employees"
+                    tr("Data subjects"), value=act.get("subjects",""), key=f"act_subj_{i}_{context_key}",
+                    placeholder=tr("e.g. Customers, employees")
                 )
                 st.session_state.doc_activities[i]["data"] = st.text_input(
-                    "Personal data collected", value=act.get("data",""), key=f"act_data_{i}_{context_key}",
-                    placeholder="e.g. Name, email, phone"
+                    tr("Personal data collected"), value=act.get("data",""), key=f"act_data_{i}_{context_key}",
+                    placeholder=tr("e.g. Name, email, phone")
                 )
                 c3, c4 = st.columns(2)
                 st.session_state.doc_activities[i]["purpose"] = c3.text_input(
-                    "Purpose", value=act.get("purpose",""), key=f"act_purp_{i}_{context_key}",
-                    placeholder="e.g. Service delivery"
+                    tr("Purpose"), value=act.get("purpose",""), key=f"act_purp_{i}_{context_key}",
+                    placeholder=tr("e.g. Service delivery")
                 )
                 legal_bases = [
                     "Contract performance (Art. 6(1)(b))",
@@ -404,14 +405,14 @@ if _view == "generate":
                 current = act.get("legal_basis", legal_bases[0])
                 basis_idx = legal_bases.index(current) if current in legal_bases else 0
                 st.session_state.doc_activities[i]["legal_basis"] = c4.selectbox(
-                    "Legal basis", options=legal_bases, index=basis_idx,
+                    tr("Legal basis"), options=legal_bases, index=basis_idx,
                     key=f"act_basis_{i}_{context_key}"
                 )
                 if st.button(f"Remove", key=f"rm_act_{i}_{context_key}"):
                     st.session_state.doc_activities.pop(i)
                     st.rerun()
 
-        if st.button("➕ Add processing activity", key=f"add_act_{context_key}"):
+        if st.button(tr("➕ Add processing activity"), key=f"add_act_{context_key}"):
             st.session_state.doc_activities.append({
                 "name":"","subjects":"","data":"","purpose":"",
                 "legal_basis":"Contract performance (Art. 6(1)(b))"
@@ -430,34 +431,34 @@ if _view == "generate":
 
 
     def processor_editor():
-        st.markdown("**Third-party processors**")
-        st.caption("Add one row per tool or service that processes personal data on your behalf.")
+        st.markdown(tr("**Third-party processors**"))
+        st.caption(tr("Add one row per tool or service that processes personal data on your behalf."))
 
         for i, proc in enumerate(st.session_state.doc_processors):
             with st.expander(f"Processor {i+1}: {proc.get('name','Untitled')}", expanded=True):
                 c1, c2 = st.columns(2)
                 st.session_state.doc_processors[i]["name"] = c1.text_input(
-                    "Service name", value=proc.get("name",""), key=f"proc_name_{i}_{context_key}",
-                    placeholder="e.g. Google Analytics"
+                    tr("Service name"), value=proc.get("name",""), key=f"proc_name_{i}_{context_key}",
+                    placeholder=tr("e.g. Google Analytics")
                 )
                 st.session_state.doc_processors[i]["country"] = c2.text_input(
-                    "Country", value=proc.get("country",""), key=f"proc_ctry_{i}_{context_key}",
-                    placeholder="e.g. US, EU"
+                    tr("Country"), value=proc.get("country",""), key=f"proc_ctry_{i}_{context_key}",
+                    placeholder=tr("e.g. US, EU")
                 )
                 c3, c4 = st.columns(2)
                 st.session_state.doc_processors[i]["purpose"] = c3.text_input(
-                    "Purpose", value=proc.get("purpose",""), key=f"proc_purp_{i}_{context_key}",
-                    placeholder="e.g. Analytics"
+                    tr("Purpose"), value=proc.get("purpose",""), key=f"proc_purp_{i}_{context_key}",
+                    placeholder=tr("e.g. Analytics")
                 )
                 st.session_state.doc_processors[i]["data"] = c4.text_input(
-                    "Data shared", value=proc.get("data",""), key=f"proc_data_{i}_{context_key}",
-                    placeholder="e.g. IP address"
+                    tr("Data shared"), value=proc.get("data",""), key=f"proc_data_{i}_{context_key}",
+                    placeholder=tr("e.g. IP address")
                 )
-                if st.button("Remove", key=f"rm_proc_{i}_{context_key}"):
+                if st.button(tr("Remove"), key=f"rm_proc_{i}_{context_key}"):
                     st.session_state.doc_processors.pop(i)
                     st.rerun()
 
-        if st.button("➕ Add processor", key=f"add_proc_{context_key}"):
+        if st.button(tr("➕ Add processor"), key=f"add_proc_{context_key}"):
             st.session_state.doc_processors.append({"name":"","country":"","purpose":"","data":""})
             st.rerun()
 
@@ -472,27 +473,27 @@ if _view == "generate":
 
 
     def retention_editor():
-        st.markdown("**Retention periods**")
+        st.markdown(tr("**Retention periods**"))
         if st.session_state.doc_retention:
             c1, c2, c3 = st.columns([3, 3, 1])
-            c1.caption("Data type")
-            c2.caption("Retention duration")
+            c1.caption(tr("Data type"))
+            c2.caption(tr("Retention duration"))
 
         for i, ret in enumerate(st.session_state.doc_retention):
             c1, c2, c3 = st.columns([3, 3, 1])
             st.session_state.doc_retention[i]["data_type"] = c1.text_input(
-                "Data type", value=ret.get("data_type",""), key=f"ret_type_{i}_{context_key}",
-                placeholder="e.g. Customer data", label_visibility="collapsed"
+                tr("Data type"), value=ret.get("data_type",""), key=f"ret_type_{i}_{context_key}",
+                placeholder=tr("e.g. Customer data"), label_visibility="collapsed"
             )
             st.session_state.doc_retention[i]["duration"] = c2.text_input(
-                "Duration", value=ret.get("duration",""), key=f"ret_dur_{i}_{context_key}",
-                placeholder="e.g. 3 years after contract end", label_visibility="collapsed"
+                tr("Duration"), value=ret.get("duration",""), key=f"ret_dur_{i}_{context_key}",
+                placeholder=tr("e.g. 3 years after contract end"), label_visibility="collapsed"
             )
             if c3.button("✕", key=f"rm_ret_{i}_{context_key}"):
                 st.session_state.doc_retention.pop(i)
                 st.rerun()
 
-        if st.button("➕ Add retention rule", key=f"add_ret_{context_key}"):
+        if st.button(tr("➕ Add retention rule"), key=f"add_ret_{context_key}"):
             st.session_state.doc_retention.append({"data_type":"","duration":""})
             st.rerun()
 
@@ -509,14 +510,14 @@ if _view == "generate":
     if (not use_template) and doc_type in ["privacy_policy", "ropa", "cookie_policy"] and (selected_client or mode == "external_company"):
         st.divider()
         col_ai1, col_ai2 = st.columns([3, 1])
-        col_ai1.markdown("**🤖 Let AI suggest processing activities based on your profile**")
+        col_ai1.markdown(tr("**🤖 Let AI suggest processing activities based on your profile**"))
         col_ai1.caption(
-            "RECOSA will analyse your company sector, size and country to suggest "
+            tr("RECOSA will analyse your company sector, size and country to suggest "
             "likely processing activities, processors and retention periods. "
-            "You can then review, edit and complete the list before generating."
+            "You can then review, edit and complete the list before generating.")
         )
-        if col_ai2.button("Suggest activities", type="secondary", use_container_width=True, key=f"btn_suggest_{context_key}"):
-            with st.spinner("Analysing your profile and generating suggestions..."):
+        if col_ai2.button(tr("Suggest activities"), type="secondary", use_container_width=True, key=f"btn_suggest_{context_key}"):
+            with st.spinner(tr("Analysing your profile and generating suggestions...")):
                 try:
                     client_for_suggest = selected_client or {
                         "company_name": st.session_state.get(f"f_legal_name_{mode}_{client_id}", ""),
@@ -565,9 +566,9 @@ if _view == "generate":
         # each needs its own description of what it will pick up.
         if doc_type == "cookie_policy":
             st.caption(
-                "The third-party services in this document are taken from your "
+                tr("The third-party services in this document are taken from your "
                 "systems inventory — every system marked as setting cookies. To "
-                "change what appears, edit the inventory on the Systems page."
+                "change what appears, edit the inventory on the Systems page.")
             )
             try:
                 from template_store import _load_vendor_rows
@@ -585,24 +586,24 @@ if _view == "generate":
                 )
             else:
                 st.warning(
-                    "No systems in your inventory are marked as setting cookies. "
+                    tr("No systems in your inventory are marked as setting cookies. "
                     "The document will state that no third-party cookies are used "
-                    "— make sure that is actually true before publishing it."
+                    "— make sure that is actually true before publishing it.")
                 )
 
         elif doc_type == "ropa_controller":
             st.caption(
-                "This record is built from the processing activities where you "
+                tr("This record is built from the processing activities where you "
                 "determine the purposes and means, together with the systems and "
                 "recipients attached to them. Edit them under *Systems, "
-                "activities and controllers*."
+                "activities and controllers*.")
             )
 
         elif doc_type == "ropa_processor":
             st.caption(
-                "This record is built from the processing activities you carry "
+                tr("This record is built from the processing activities you carry "
                 "out on another controller's behalf, grouped by controller. Edit "
-                "them under *Systems, activities and controllers*."
+                "them under *Systems, activities and controllers*.")
             )
 
         elif doc_type == "dpa":
@@ -611,62 +612,62 @@ if _view == "generate":
             # those activities — and a single flat list above the form would
             # misrepresent both. The gate below already names anything blocking.
             st.caption(
-                "These clauses are built from the processing you carry out on a "
+                tr("These clauses are built from the processing you carry out on a "
                 "customer's behalf. Annex II describes those activities, Schedule "
                 "1 names the sub-processors involved in them, and Annex III lists "
                 "the security measures recorded against them. Nothing you do "
                 "purely as controller appears. Edit any of it under *Systems, "
-                "activities and controllers*."
+                "activities and controllers*.")
             )
 
         elif doc_type == "privacy_policy":
             st.caption(
-                "This notice is built from the processing you decide the purposes "
+                tr("This notice is built from the processing you decide the purposes "
                 "and means of, grouped by who the data is about. Work you carry "
                 "out on a customer's instructions is covered by their notice, not "
                 "yours, and does not appear. Which rights it describes depends on "
-                "the legal bases you have recorded."
+                "the legal bases you have recorded.")
             )
 
         elif doc_type in ("dpia", "nis2_risk_assessment"):
             st.caption(
-                "Built from a risk assessment you have already worked through "
+                tr("Built from a risk assessment you have already worked through "
                 "under *Risk assessments* — the risks, what reduces them, and "
                 "what remains. The conclusion is computed from that register, not "
-                "written here."
+                "written here.")
             )
 
         elif doc_type in ("incident_response_plan", "breach_notification_procedure",
                           "business_continuity_plan"):
             st.caption(
-                "Built from your systems and the wording you have written under "
+                tr("Built from your systems and the wording you have written under "
                 "*Incident and continuity wording*. Recovery objectives come from "
                 "the systems inventory — a continuity plan without them says "
-                "service will be restored without saying how fast."
+                "service will be restored without saying how fast.")
             )
 
         elif doc_type == "annual_report":
             st.caption(
-                "For your management body: where you stand on every regulation, "
+                tr("For your management body: where you stand on every regulation, "
                 "what is not yet in place, and what happened over the period — "
                 "documents, incidents, training, actions, regulatory changes. "
                 "Statuses are as of today; events are those dated in the period. "
-                "It ends with a block for management to sign that they read it."
+                "It ends with a block for management to sign that they read it.")
             )
             from template_report import default_period as _dp
             _p0, _p1 = _dp(date.today())
             _pc1, _pc2 = st.columns(2)
             st.session_state["report_period"] = (
-                _pc1.date_input("Period from", value=_p0, format="DD/MM/YYYY", key="rep_from"),
-                _pc2.date_input("to", value=_p1, format="DD/MM/YYYY", key="rep_to"),
+                _pc1.date_input(tr("Period from"), value=_p0, format="DD/MM/YYYY", key="rep_from"),
+                _pc2.date_input(tr("to"), value=_p1, format="DD/MM/YYYY", key="rep_to"),
             )
 
         elif doc_type in ("ai_acceptable_use", "ai_human_oversight", "ai_transparency"):
             st.caption(
-                "Built from your *AI inventory*: the AI systems, what each is used "
+                tr("Built from your *AI inventory*: the AI systems, what each is used "
                 "for, its risk and who oversees it. Whether personal data may go "
                 "into a tool follows its data processing agreement on the Systems "
-                "page. Who approves new AI tools is set on the AI inventory page."
+                "page. Who approves new AI tools is set on the AI inventory page.")
             )
 
         else:
@@ -674,9 +675,9 @@ if _view == "generate":
             # so plainly rather than describing the wrong document, which is the
             # failure this dispatch exists to fix.
             st.caption(
-                "This document is generated from a reviewed template using your "
+                tr("This document is generated from a reviewed template using your "
                 "systems inventory. Edit the underlying data under *Systems, "
-                "activities and controllers*."
+                "activities and controllers*.")
             )
 
     elif doc_type == "privacy_policy":
@@ -687,7 +688,7 @@ if _view == "generate":
         retention_periods_text = retention_editor()
         st.divider()
         international_transfers = st.checkbox(
-            "Do you transfer personal data outside the EU/EEA?",
+            tr("Do you transfer personal data outside the EU/EEA?"),
             value=bool(pf.get("international_transfers", False)),
             key=f"f_transfers_{context_key}"
         )
@@ -714,16 +715,16 @@ if _view == "generate":
         # / external-company generation, which has no client_id and so no
         # inventory to build Annex II from. Retiring it is a decision for S28.
         processor_name = st.text_input(
-            "Processor name ✱", value=pf.get("processor_name",""),
-            key=f"f_proc_name_{context_key}", placeholder="Company processing data on your behalf"
+            tr("Processor name ✱"), value=pf.get("processor_name",""),
+            key=f"f_proc_name_{context_key}", placeholder=tr("Company processing data on your behalf")
         )
         ca, cb = st.columns(2)
         processor_country = ca.text_input(
-            "Processor country", value=pf.get("processor_country",""),
+            tr("Processor country"), value=pf.get("processor_country",""),
             key=f"f_proc_ctry_{context_key}"
         )
         processing_purpose = cb.text_input(
-            "Purpose of processing ✱", value=pf.get("processing_purpose",""),
+            tr("Purpose of processing ✱"), value=pf.get("processing_purpose",""),
             key=f"f_proc_purp_{context_key}"
         )
         processing_activities_text = activity_editor()
@@ -736,27 +737,27 @@ if _view == "generate":
         retention_periods_text = retention_editor()
         st.divider()
         international_transfers = st.checkbox(
-            "International transfers outside EU/EEA?",
+            tr("International transfers outside EU/EEA?"),
             value=bool(pf.get("international_transfers", False)),
             key=f"f_transfers_{context_key}"
         )
 
     elif doc_type == "incident_response":
         incident_response_contact = st.text_input(
-            "Primary incident response contact ✱",
+            tr("Primary incident response contact ✱"),
             value=pf.get("incident_response_contact",""),
-            placeholder="Name, role, email, phone",
+            placeholder=tr("Name, role, email, phone"),
             key=f"f_ir_{context_key}"
         )
         escalation_procedure = st.text_area(
-            "Escalation chain",
+            tr("Escalation chain"),
             value=pf.get("escalation_procedure",""),
             height=100,
-            placeholder="1. IT Manager → 2. CEO → 3. Legal → 4. CCB/ANSSI (within 24h)",
+            placeholder=tr("1. IT Manager → 2. CEO → 3. Legal → 4. CCB/ANSSI (within 24h)"),
             key=f"f_esc_{context_key}"
         )
         processing_activities_text = st.text_area(
-            "Critical systems and assets",
+            tr("Critical systems and assets"),
             value=pf.get("processing_activities",""),
             height=80,
             key=f"f_sys_{context_key}"
@@ -764,16 +765,16 @@ if _view == "generate":
 
     elif doc_type == "ai_transparency":
         processing_activities_text = st.text_area(
-            "AI system description ✱",
+            tr("AI system description ✱"),
             value=pf.get("processing_activities",""),
             height=120,
-            placeholder="Describe your AI system and how users interact with it...",
+            placeholder=tr("Describe your AI system and how users interact with it..."),
             key=f"f_ai_{context_key}"
         )
         third_party_processors_text = st.text_input(
-            "AI provider / model used",
+            tr("AI provider / model used"),
             value=pf.get("third_party_processors",""),
-            placeholder="e.g. Mistral AI",
+            placeholder=tr("e.g. Mistral AI"),
             key=f"f_aiprov_{context_key}"
         )
 
@@ -781,9 +782,9 @@ if _view == "generate":
     if (not use_template) and doc_type in ["privacy_policy", "ropa"]:
         st.divider()
         st.session_state.doc_confirmed = st.checkbox(
-            "✅ I have reviewed all processing activities and, to the best of my knowledge, "
+            tr("✅ I have reviewed all processing activities and, to the best of my knowledge, "
             "have not missed any significant data processing my organisation carries out. "
-            "I understand this document is a starting point and should be reviewed by a legal professional.",
+            "I understand this document is a starting point and should be reviewed by a legal professional."),
             value=st.session_state.doc_confirmed,
             key=f"f_confirmed_{context_key}"
         )
@@ -807,10 +808,10 @@ if _view == "generate":
                 "inaccurate:**\n\n- " + "\n- ".join(_register_state["blocking"])
             )
             st.caption(
-                "Resolve them under *Systems, activities and controllers*. A record "
+                tr("Resolve them under *Systems, activities and controllers*. A record "
                 "that states a purpose with no legal basis, or names special "
                 "category data with no Art. 9(2) condition, documents a problem "
-                "rather than demonstrating compliance."
+                "rather than demonstrating compliance.")
             )
         elif _register_state["activity_gaps"]:
             st.warning(
@@ -840,10 +841,10 @@ if _view == "generate":
             + "\n- ".join(_dpa_unmeasured)
         )
         st.caption(
-            "Record them under *Systems, activities and controllers*. Clause "
+            tr("Record them under *Systems, activities and controllers*. Clause "
             "7.4(a) commits you to implementing at least what Annex III lists, so "
             "an empty annex is a promise with nothing behind it rather than a "
-            "detail left for later."
+            "detail left for later.")
         )
 
     # ── Generate ──────────────────────────────────────────────────
@@ -914,12 +915,12 @@ if _view == "generate":
             _st = _OV.load_state(user_id, selected_client or {"id": client_id})
             _pf, _pt = st.session_state.get("report_period") or (None, None)
             if _pf and _pt and _pf > _pt:
-                st.error("The period ends before it starts.")
+                st.error(tr("The period ends before it starts."))
                 st.stop()
             _options = {"period_start": _pf, "period_end": _pt, "verdicts": _st["verdicts"],
                         "applicable": _st["applicable"], "open_tasks": _st["open_tasks"]}
 
-        with st.spinner("Generating from template..."):
+        with st.spinner(tr("Generating from template...")):
             outcome = generate_templated_document(
                 user_id=user_id,
                 client_id=client_id,
@@ -932,9 +933,9 @@ if _view == "generate":
             st.error(outcome.message)
             if outcome.missing_required:
                 st.caption(
-                    "Fill these in above and generate again. The document is not "
+                    tr("Fill these in above and generate again. The document is not "
                     "produced with them missing, because a compliance document that "
-                    "cannot identify the company is wrong rather than incomplete."
+                    "cannot identify the company is wrong rather than incomplete.")
                 )
         else:
             st.success(outcome.message)
@@ -950,17 +951,17 @@ if _view == "generate":
                     )
                 if item.get("has_xlsx"):
                     st.caption(
-                        "Saved as both a spreadsheet and a Word document. The "
+                        tr("Saved as both a spreadsheet and a Word document. The "
                         "spreadsheet is the working copy — it filters and sorts, "
-                        "which is what a register is for."
+                        "which is what a register is for.")
                     )
-                with st.expander("Preview", expanded=False):
+                with st.expander(tr("Preview"), expanded=False):
                     st.markdown(item["body"])
 
             st.caption(
-                "Generated from a reviewed template. Files are saved to your "
+                tr("Generated from a reviewed template. Files are saved to your "
                 "document history below. Review with a qualified legal "
-                "professional before publishing."
+                "professional before publishing.")
             )
 
     # ══════════════════════════════════════════════════════════════
@@ -971,16 +972,16 @@ if _view == "generate":
         contact_email = st.session_state.get("f_contact_stable", "") or contact_email or ""
 
         if not legal_name.strip():
-            st.error("Legal company name is required.")
+            st.error(tr("Legal company name is required."))
             st.stop()
         if doc_type in ["privacy_policy", "ropa"] and not contact_email.strip():
-            st.error("Contact email is required.")
+            st.error(tr("Contact email is required."))
             st.stop()
         if doc_type in ["privacy_policy", "ropa"] and not st.session_state.doc_confirmed:
-            st.error("Please confirm you have reviewed all processing activities before generating.")
+            st.error(tr("Please confirm you have reviewed all processing activities before generating."))
             st.stop()
         if doc_type == "privacy_policy" and not st.session_state.doc_activities:
-            st.error("Please add at least one processing activity.")
+            st.error(tr("Please add at least one processing activity."))
             st.stop()
 
         # Helper to safely strip potentially None values
@@ -1038,7 +1039,7 @@ if _view == "generate":
 
         st.success(f"✅ {DOCUMENT_TYPES[doc_type]} generated for {company_display}")
 
-        with st.spinner("Preparing PDF and ODT..."):
+        with st.spinner(tr("Preparing PDF and ODT...")):
             try:
                 pdf_bytes = convert_docx_to_pdf(docx_bytes); pdf_ok = True
             except Exception:
@@ -1061,17 +1062,17 @@ if _view == "generate":
             brand_profile_version=_doc_theme.version_id,
         )
 
-        st.markdown("**Download your document:**")
+        st.markdown(tr("**Download your document:**"))
         fname = f"RECOSA_{doc_type}_{company_display.replace(' ','_')}"
         c1, c2, c3 = st.columns(3)
-        c1.download_button("📝 DOCX", docx_bytes, f"{fname}.docx",
+        c1.download_button(tr("📝 DOCX"), docx_bytes, f"{fname}.docx",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             use_container_width=True, type="primary")
         if pdf_ok:
-            c2.download_button("📄 PDF", pdf_bytes, f"{fname}.pdf",
+            c2.download_button(tr("📄 PDF"), pdf_bytes, f"{fname}.pdf",
                 "application/pdf", use_container_width=True)
         if odt_ok:
-            c3.download_button("📋 ODT", odt_bytes, f"{fname}.odt",
+            c3.download_button(tr("📋 ODT"), odt_bytes, f"{fname}.odt",
                 "application/vnd.oasis.opendocument.text", use_container_width=True)
         if not (pdf_ok and odt_ok):
             # S51: say why a format is missing; the DOCX is complete.
@@ -1082,16 +1083,16 @@ if _view == "generate":
                        "now. The Word file is the complete document.")
 
         st.divider()
-        with st.expander("📖 Preview", expanded=False):
+        with st.expander(tr("📖 Preview"), expanded=False):
             st.markdown(doc_text)
         st.caption(
-            "⚠️ Generated by AI from official EU regulatory sources. "
-            "Review with a qualified legal professional before use."
+            tr("⚠️ Generated by AI from official EU regulatory sources. "
+            "Review with a qualified legal professional before use.")
         )
 
     st.divider()
-    st.caption("Generated documents are listed under **Your documents**, where "
-               "you review them and put them in force.")
+    st.caption(tr("Generated documents are listed under **Your documents**, where "
+               "you review them and put them in force."))
     st.stop()
 
 
@@ -1151,7 +1152,7 @@ def _send_email(to: str, subject: str, body: str, file_bytes: bytes, filename: s
 def _render_send_form(doc, slot_key, label, company):
     """Inline 'send by email' form for one document row."""
     with st.form(key=f"form_send_{slot_key}"):
-        send_to = st.text_input("Recipient email ✱", placeholder="colleague@company.com",
+        send_to = st.text_input(tr("Recipient email ✱"), placeholder=tr("colleague@company.com"),
                                 key=f"to_{slot_key}")
         available = []
         # XLSX first for registers: it is the working copy, and the format a
@@ -1161,16 +1162,16 @@ def _render_send_form(doc, slot_key, label, company):
         if doc.get("file_path_pdf"):  available.append("PDF")
         if doc.get("file_path_odt"):  available.append("ODT")
         if not available:
-            st.caption("No files stored for this document.")
-            st.form_submit_button("Send", disabled=True)
+            st.caption(tr("No files stored for this document."))
+            st.form_submit_button(tr("Send"), disabled=True)
             return
-        send_fmt = st.selectbox("Format", options=available, key=f"fmt_{slot_key}")
-        submitted = st.form_submit_button("📤 Send", type="primary")
+        send_fmt = st.selectbox(tr("Format"), options=available, key=f"fmt_{slot_key}")
+        submitted = st.form_submit_button(tr("📤 Send"), type="primary")
 
     if not submitted:
         return
     if not send_to.strip():
-        st.error("Please enter a recipient email.")
+        st.error(tr("Please enter a recipient email."))
         return
 
     fmt_map = {"DOCX": ("file_path_docx", ".docx"),
@@ -1180,7 +1181,7 @@ def _render_send_form(doc, slot_key, label, company):
     path_key, ext = fmt_map[send_fmt]
     fpath = doc.get(path_key)
     if not fpath:
-        st.error("File not in storage.")
+        st.error(tr("File not in storage."))
         return
     try:
         admin = get_supabase_admin()
@@ -1286,7 +1287,7 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
         # Nothing to attach.
         c5.caption("—")
     elif c5.button("✉", key=f"btn_send_{slot_key}", use_container_width=True,
-                   help="Send by email"):
+                   help=tr("Send by email")):
         st.session_state[open_key] = not st.session_state.get(open_key, False)
         st.rerun()
 
@@ -1307,9 +1308,9 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
         # no room for a second button, so "Discard" was rendered somewhere the
         # reader could not see it.
         _b1, _b2, _b3 = st.columns([1, 1, 4])
-        if _b1.button("Put in force", key=f"btn_adopt_open_{reg['id']}",
+        if _b1.button(tr("Put in force"), key=f"btn_adopt_open_{reg['id']}",
                       use_container_width=True,
-                      help="Record this as the version your organisation operates under"):
+                      help=tr("Record this as the version your organisation operates under")):
             st.session_state[adopt_key] = not st.session_state.get(adopt_key, False)
             st.session_state[f"del_open_{reg['id']}"] = False
             st.rerun()
@@ -1319,9 +1320,9 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
         # drafts — database.delete_draft_document refuses anything else, and
         # the guard lives there rather than here.
         del_key = f"del_open_{reg['id']}"
-        if _b2.button("Discard", key=f"btn_del_open_{reg['id']}",
+        if _b2.button(tr("Discard"), key=f"btn_del_open_{reg['id']}",
                       use_container_width=True,
-                      help="Delete this draft and its files"):
+                      help=tr("Delete this draft and its files")):
             st.session_state[del_key] = not st.session_state.get(del_key, False)
             st.session_state[adopt_key] = False
             st.rerun()
@@ -1329,12 +1330,12 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
         if st.session_state.get(del_key, False):
             with st.container(border=True):
                 st.caption(
-                    "Deleting this draft removes it and its files for good. "
+                    tr("Deleting this draft removes it and its files for good. "
                     "Nothing else is affected — it was never in force, so no "
-                    "version number and no other version depends on it."
+                    "version number and no other version depends on it.")
                 )
                 _d1, _d2 = st.columns(2)
-                if _d1.button("Delete draft", key=f"btn_del_go_{reg['id']}",
+                if _d1.button(tr("Delete draft"), key=f"btn_del_go_{reg['id']}",
                               type="primary"):
                     from database import delete_draft_document
                     if delete_draft_document(reg["id"], reg["user_id"]):
@@ -1342,9 +1343,9 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                         st.rerun()
                     else:
                         st.warning(
-                            "Could not delete the draft. Nothing has changed."
+                            tr("Could not delete the draft. Nothing has changed.")
                         )
-                if _d2.button("Keep it", key=f"btn_del_no_{reg['id']}"):
+                if _d2.button(tr("Keep it"), key=f"btn_del_no_{reg['id']}"):
                     st.session_state[del_key] = False
                     st.rerun()
 
@@ -1376,22 +1377,22 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                 a1, a2 = st.columns([1, 2])
                 with a1:
                     _eff = st.date_input(
-                        "In force from", value=_date.today(),
+                        tr("In force from"), value=_date.today(),
                         key=f"adopt_eff_{reg['id']}",
                         help=(
-                            "The date this version begins to apply — not the "
+                            tr("The date this version begins to apply — not the "
                             "date it was generated. Backdate it if it was "
-                            "already signed or published."
+                            "already signed or published.")
                         ),
                     )
                 with a2:
                     _note = st.text_input(
-                        "What changed (optional)",
+                        tr("What changed (optional)"),
                         key=f"adopt_note_{reg['id']}",
-                        placeholder="e.g. Reviewed by counsel, sub-processor added",
+                        placeholder=tr("e.g. Reviewed by counsel, sub-processor added"),
                     )
 
-                if st.button("Confirm", key=f"btn_adopt_go_{reg['id']}",
+                if st.button(tr("Confirm"), key=f"btn_adopt_go_{reg['id']}",
                              type="primary"):
                     _res = adopt_client_document(
                         reg["id"], user_id=reg["user_id"],
@@ -1406,14 +1407,14 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                         st.rerun()
                     else:
                         st.warning(
-                            "Could not put the document in force. Nothing has "
+                            tr("Could not put the document in force. Nothing has "
                             "changed — the previous version is still the one "
-                            "that counts."
+                            "that counts.")
                         )
 
 
 st.divider()
-st.subheader("📚 Your documents")
+st.subheader(tr("📚 Your documents"))
 
 history = load_document_files(user_id, client_id if mode == "existing_client" else None)
 
@@ -1457,7 +1458,7 @@ def _successor_of(reg: dict | None) -> dict | None:
 
 
 if not history:
-    st.caption("No documents generated yet.")
+    st.caption(tr("No documents generated yet."))
 else:
     # 1. Collapse rows into generations.
     groups: dict[str, list[dict]] = {}

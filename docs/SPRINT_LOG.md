@@ -6953,6 +6953,35 @@ it is loaded, a Dutch DPA is reported as unavailable.
 800 inline strings), Netherlands and Luxembourg country data (authorities,
 channels, sources), the official Dutch SCC text for the DPA.
 
+
+### D-164 — S64 interface slice: a translation layer, French first, 10 Nov
+
+By the user ("Yes, French first"), after finding that the Account page's
+interface language changed almost nothing.
+
+- **`i18n.tr`**: the English text is its own key (gettext style), so code
+  stays readable and an untranslated string shows in English, never blank.
+  Catalogue `i18n/fr.json`, reloaded when it changes. Language: the user's
+  `profiles.ui_language`, put in session state by app.py on every run; kept
+  apart from document languages (D-75, D-163). Named `tr`, not `_`: pages
+  reuse `_` as a throwaway name at module level.
+- **`i18n_tools.py wrap`** wrapped 1,052 literals across app.py, the 24
+  pages and the shared widgets (titles, captions, buttons, labels, help,
+  placeholders, tabs, menu titles) mechanically, refusing to write a file
+  that no longer parses. **`extract` / `missing`** list what needs
+  translating; 880 strings were translated into French (Belgian-neutral
+  wording, "vous", the GDPR's French terms). Left in English on purpose:
+  brand names and internal labels.
+- **Not yet translated:** strings built at runtime (f-strings, status and
+  label dictionaries, messages assembled from parts), the back office, the
+  login page, the free check (quiz app) and the emails. They come next in
+  this slice, by hand: `tr("… {x} …").format(x=…)`.
+- `test_i18n.py` checks every French entry keeps the English placeholders,
+  bold markers, colour tags and headings.
+
+Checked: every page loads without error in English after the wrapping;
+French not yet viewed in the app.
+
 ---
 
 ## 5. Constraints and gotchas

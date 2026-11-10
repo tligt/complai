@@ -10,6 +10,7 @@ obligation_view, never stored as open; dismissing needs a reason.
 S56: with a team, each task shows who handles it, "Only mine" filters to
 yours, and Open shows a task with its person, its comments and Dismiss.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -24,13 +25,13 @@ from active_client import get_active_client
 from auth import get_user_id
 from display import fmt_date, plural
 
-st.title("Action plan")
+st.title(tr("Action plan"))
 from guide import page_tip
 page_tip("action_plan")
 st.caption(
-    "What is outstanding, most urgent first. 🔴 blocks a document, 🟠 is "
+    tr("What is outstanding, most urgent first. 🔴 blocks a document, 🟠 is "
     "past its date, ⚪ is open with no deadline. **Fix it** takes you to the "
-    "page where it is done."
+    "page where it is done.")
 )
 
 user_id = get_user_id()
@@ -47,7 +48,7 @@ if open_tasks:
     h1, h2 = st.columns([3, 1])
     h1.markdown(f"**{plural(len(open_tasks), 'task')}** for {client['company_name']}"
                 + (f" · **{len(_mine)}** handled by you" if team else ""))
-    if team and h2.toggle("Only mine", key="ap_only_mine",
+    if team and h2.toggle(tr("Only mine"), key="ap_only_mine",
                           value=st.session_state.get("ap_only_mine", False)):
         open_tasks = _mine
 
@@ -116,12 +117,12 @@ if open_tasks:
             # A reason is required — the CHECK constraint enforces it, and
             # this is what an auditor asks about.
             why = st.text_input(
-                "Why is this not something you need to do?",
+                tr("Why is this not something you need to do?"),
                 key=f"ap_dis_why_{f['finding_key']}",
-                placeholder="e.g. accepted risk, reviewed and not applicable",
+                placeholder=tr("e.g. accepted risk, reviewed and not applicable"),
             )
             d1, d2 = st.columns(2)
-            if d1.button("Dismiss it", key=f"ap_dis_go_{f['finding_key']}",
+            if d1.button(tr("Dismiss it"), key=f"ap_dis_go_{f['finding_key']}",
                          type="primary", disabled=not (why or "").strip()):
                 STORE.dismiss(user_id, client_id, f["producer"],
                               f["finding_key"], why)
@@ -130,14 +131,14 @@ if open_tasks:
                 # cleared here rather than left to raise on rerun.
                 st.session_state.pop("ap_task_dismiss_select", None)
                 st.rerun()
-            if d2.button("Cancel", key=f"ap_dis_no_{f['finding_key']}"):
+            if d2.button(tr("Cancel"), key=f"ap_dis_no_{f['finding_key']}"):
                 st.session_state.pop("ap_task_dismiss_select", None)
                 st.rerun()
             st.caption(
-                "It comes back if the situation changes — a dismissal "
+                tr("It comes back if the situation changes — a dismissal "
                 "applies to this finding, not to any future one that looks "
-                "like it."
+                "like it.")
             )
 else:
-    st.success("Nothing outstanding.")
+    st.success(tr("Nothing outstanding."))
 

@@ -3,6 +3,7 @@ RECOSA — AI Compliance Chat
 Clean chat interface. Starts fresh each session.
 Previous conversations accessible via the History panel.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import io
 import os
@@ -54,7 +55,7 @@ def extract_text(uploaded_file) -> str:
             doc = docx.Document(io.BytesIO(uploaded_file.read()))
             return "\n\n".join([p.text for p in doc.paragraphs if p.text.strip()])
         except ImportError:
-            st.error("python-docx not installed.")
+            st.error(tr("python-docx not installed."))
             return ""
     return uploaded_file.read().decode("utf-8", errors="replace")
 
@@ -305,10 +306,10 @@ with st.sidebar:
         st.markdown("<div style='font-size:0.75rem;color:#64748B;text-transform:uppercase;letter-spacing:0.05em;margin-top:0.5rem;'>💬 Chat</div>", unsafe_allow_html=True)
         col_h, col_n = st.columns(2)
         with col_h:
-            if st.button("📋 History", key="btn_history", use_container_width=True):
+            if st.button(tr("📋 History"), key="btn_history", use_container_width=True):
                 st.session_state.show_history = not st.session_state.show_history
         with col_n:
-            if st.button("✚ New chat", key="btn_new_chat", use_container_width=True):
+            if st.button(tr("✚ New chat"), key="btn_new_chat", use_container_width=True):
                 start_new_session()
                 st.rerun()
 
@@ -317,7 +318,7 @@ with st.sidebar:
         st.divider()
         col_htitle, col_hclose = st.columns([3, 1])
         with col_htitle:
-            st.markdown("**📋 History**")
+            st.markdown(tr("**📋 History**"))
         with col_hclose:
             if st.button("✕", key="btn_close_hist", use_container_width=True):
                 st.session_state.show_history = False
@@ -327,7 +328,7 @@ with st.sidebar:
                 st.session_state.selected_client["id"], user_id)
 
             if not sessions:
-                st.caption("No saved conversations yet.")
+                st.caption(tr("No saved conversations yet."))
             else:
                 st.caption(f"{len(sessions)} conversation"
                            f"{'s' if len(sessions) != 1 else ''}")
@@ -344,7 +345,7 @@ with st.sidebar:
                         st.warning(f"Delete “{preview}”?")
                         col_y, col_n2 = st.columns(2)
                         with col_y:
-                            if st.button("Delete", type="primary",
+                            if st.button(tr("Delete"), type="primary",
                                          key=f"cdel_yes_{sid}",
                                          use_container_width=True):
                                 delete_chat_session(
@@ -356,7 +357,7 @@ with st.sidebar:
                                 st.session_state.confirm_delete_session = None
                                 st.rerun()
                         with col_n2:
-                            if st.button("Cancel", key=f"cdel_no_{sid}",
+                            if st.button(tr("Cancel"), key=f"cdel_no_{sid}",
                                          use_container_width=True):
                                 st.session_state.confirm_delete_session = None
                                 st.rerun()
@@ -386,15 +387,15 @@ with st.sidebar:
                 st.divider()
 
                 if not st.session_state.get("confirm_delete"):
-                    if st.button("🗑️ Delete all history", key="btn_del_hist",
+                    if st.button(tr("🗑️ Delete all history"), key="btn_del_hist",
                                   use_container_width=True):
                         st.session_state.confirm_delete = True
                         st.rerun()
                 else:
-                    st.warning("Permanently delete ALL messages for this client?")
+                    st.warning(tr("Permanently delete ALL messages for this client?"))
                     col_yes, col_no = st.columns(2)
                     with col_yes:
-                        if st.button("Delete", type="primary", key="btn_confirm_del",
+                        if st.button(tr("Delete"), type="primary", key="btn_confirm_del",
                                       use_container_width=True):
                             clear_chat_history(
                                 st.session_state.selected_client["id"], user_id)
@@ -402,7 +403,7 @@ with st.sidebar:
                             start_new_session()
                             st.rerun()
                     with col_no:
-                        if st.button("Cancel", key="btn_cancel_del",
+                        if st.button(tr("Cancel"), key="btn_cancel_del",
                                       use_container_width=True):
                             st.session_state.confirm_delete = False
                             st.rerun()
@@ -411,41 +412,41 @@ with st.sidebar:
 
     # Audit batch 2 (H11): settings most people never change, folded away and
     # explained. The defaults follow the company: its country, English.
-    with st.expander("Advanced settings"):
-        st.caption("How the assistant searches the regulations. The defaults "
-                   "suit most questions.")
+    with st.expander(tr("Advanced settings")):
+        st.caption(tr("How the assistant searches the regulations. The defaults "
+                   "suit most questions."))
         _country_keys = list(COUNTRY_OPTIONS.keys())
         _client_country = (st.session_state.selected_client or {}).get("country")
         st.session_state.chat_country = st.selectbox(
-            "Country context",
+            tr("Country context"),
             options=_country_keys,
             index=_country_keys.index(_client_country) if _client_country in _country_keys else 0,
             format_func=lambda x: COUNTRY_OPTIONS[x],
             key="country_sel",
-            help="Whose national guidance to include: the data protection "
-                 "authority and laws of this country.",
+            help=tr("Whose national guidance to include: the data protection "
+                 "authority and laws of this country."),
         )
         st.session_state.chat_language = st.selectbox(
-            "Answer language",
+            tr("Answer language"),
             options=["en", "fr", "nl"],
             format_func=lambda x: LANG_LABELS[x],
             key="lang_sel",
         )
         st.session_state.chat_top_k = st.slider(
-            "Sources per answer", min_value=2, max_value=20, value=6, key="topk_sel",
-            help="How many passages of regulation the answer is built from. "
-                 "More is slower and not always better.",
+            tr("Sources per answer"), min_value=2, max_value=20, value=6, key="topk_sel",
+            help=tr("How many passages of regulation the answer is built from. "
+                 "More is slower and not always better."),
         )
 
     st.divider()
 
     # Company document upload
-    st.markdown("**Ask about your own documents**")
-    st.caption("Add a policy or contract (PDF, Word or text) and the assistant "
+    st.markdown(tr("**Ask about your own documents**"))
+    st.caption(tr("Add a policy or contract (PDF, Word or text) and the assistant "
                "will take it into account in this conversation. It is not "
-               "stored or added to your documents.")
+               "stored or added to your documents."))
     uploaded_files = st.file_uploader(
-        "Upload", type=["txt", "pdf", "docx"],
+        tr("Upload"), type=["txt", "pdf", "docx"],
         accept_multiple_files=True, label_visibility="collapsed",
     )
     if uploaded_files:
@@ -476,8 +477,8 @@ selected_client = st.session_state.selected_client
 # the company comes from the sidebar switcher, or is the only one.
 if not selected_client:
     st.info(
-        "You don't have a company profile yet. Set one up on the "
-        "**Company profile** page (Account, in the menu)."
+        tr("You don't have a company profile yet. Set one up on the "
+        "**Company profile** page (Account, in the menu).")
     )
     st.stop()
 
@@ -549,7 +550,7 @@ def render_sources(sources: list[dict], key_suffix: str = ""):
     """Render the citation expander from stored source dicts."""
     if not sources:
         return
-    with st.expander("Sources used"):
+    with st.expander(tr("Sources used")):
         for i, s in enumerate(sources, 1):
             st.markdown(f"**{i}. {s.get('source', 'Unknown source')}**")
             text = s.get("text", "") or ""
@@ -603,15 +604,15 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
         col_state, col_change = st.columns([6, 1])
         with col_state:
             if current == "up":
-                st.markdown(":green[👍 You marked this answer useful]")
+                st.markdown(tr(":green[👍 You marked this answer useful]"))
             else:
                 codes = existing.get("reason_codes") or []
                 detail = (" — " + ", ".join(
                     dict(FEEDBACK_REASONS).get(c, c) for c in codes)) if codes else ""
                 st.markdown(f":orange[👎 You flagged this answer{detail}]")
         with col_change:
-            if st.button("Change", key=f"fb_edit_btn_{key_suffix}",
-                         help="Correct this if you clicked the wrong one"):
+            if st.button(tr("Change"), key=f"fb_edit_btn_{key_suffix}",
+                         help=tr("Correct this if you clicked the wrong one")):
                 st.session_state[f"fb_edit_{key_suffix}"] = True
                 st.rerun()
         return
@@ -624,7 +625,7 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
     with col_up:
         if st.button("👍 ✓" if current == "up" else "👍",
                      key=f"fb_up_{key_suffix}",
-                     help="This answer was useful"):
+                     help=tr("This answer was useful")):
             # Rerun only on success — otherwise the rerun wipes the error
             # message before it can be read.
             if _save("up"):
@@ -633,7 +634,7 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
     with col_down:
         if st.button("👎 ✓" if current == "down" else "👎",
                      key=f"fb_down_{key_suffix}",
-                     help="Something was wrong with this answer"):
+                     help=tr("Something was wrong with this answer")):
             if FEEDBACK_MODE == "beta":
                 st.session_state[f"fb_detail_{key_suffix}"] = True
                 st.rerun()
@@ -642,20 +643,20 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
 
     with col_msg:
         if editing:
-            st.caption("Pick again to correct your feedback.")
+            st.caption(tr("Pick again to correct your feedback."))
 
     with col_msg:
         if current == "up":
-            st.caption("Thanks — noted.")
+            st.caption(tr("Thanks — noted."))
         elif current == "down" and not st.session_state.get(f"fb_detail_{key_suffix}"):
-            st.caption("Thanks — logged for review.")
+            st.caption(tr("Thanks — logged for review."))
 
     # Beta-only detail capture
     if st.session_state.get(f"fb_detail_{key_suffix}"):
         with st.container(border=True):
-            st.caption("What was wrong? This goes straight into improving retrieval.")
+            st.caption(tr("What was wrong? This goes straight into improving retrieval."))
             picked = st.multiselect(
-                "Reasons",
+                tr("Reasons"),
                 options=[code for code, _ in FEEDBACK_REASONS],
                 format_func=lambda c: dict(FEEDBACK_REASONS)[c],
                 default=existing.get("reason_codes") or [],
@@ -663,22 +664,22 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                 label_visibility="collapsed",
             )
             note = st.text_area(
-                "Anything else?",
+                tr("Anything else?"),
                 value=existing.get("comment") or "",
                 key=f"fb_comment_{key_suffix}",
                 height=80,
-                placeholder="Optional — what did you expect instead?",
+                placeholder=tr("Optional — what did you expect instead?"),
             )
             col_s, col_c = st.columns([1, 1])
             with col_s:
-                if st.button("Submit", type="primary",
+                if st.button(tr("Submit"), type="primary",
                              key=f"fb_submit_{key_suffix}",
                              use_container_width=True):
                     if _save("down", reasons=picked, comment=note):
                         st.session_state[f"fb_detail_{key_suffix}"] = False
                         st.rerun()
             with col_c:
-                if st.button("Skip", key=f"fb_skip_{key_suffix}",
+                if st.button(tr("Skip"), key=f"fb_skip_{key_suffix}",
                              use_container_width=True):
                     if _save("down"):
                         st.session_state[f"fb_detail_{key_suffix}"] = False
@@ -697,7 +698,7 @@ def handle_prompt(prompt: str):
         st.markdown(prompt)
 
     with st.chat_message("assistant"):
-        with st.spinner("Thinking…"):
+        with st.spinner(tr("Thinking…")):
             from rag import Chunk, build_index
             company_chunks = []
             for chunks in st.session_state.company_docs.values():
@@ -814,15 +815,15 @@ if not st.session_state.messages:
         """, unsafe_allow_html=True)
 
         hero_input = st.text_input(
-            "hero_input",
-            placeholder="Ask a compliance question…",
+            tr("hero_input"),
+            placeholder=tr("Ask a compliance question…"),
             label_visibility="collapsed",
             key="hero_question",
         )
 
         col_btn1, col_btn2 = st.columns([3, 1])
         with col_btn2:
-            hero_submit = st.button("Ask →", type="primary", use_container_width=True, key="hero_submit")
+            hero_submit = st.button(tr("Ask →"), type="primary", use_container_width=True, key="hero_submit")
 
         if hero_submit and hero_input.strip():
             handle_prompt(hero_input.strip())
@@ -852,6 +853,6 @@ else:
                 question = prior.get("content", "") if prior.get("role") == "user" else ""
                 render_feedback(msg, question, key_suffix=str(idx))
 
-    if prompt := st.chat_input("Ask a compliance question…"):
+    if prompt := st.chat_input(tr("Ask a compliance question…")):
         handle_prompt(prompt)
         st.rerun()

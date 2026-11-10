@@ -9,6 +9,7 @@ Evidence of a plan and of attendance, not of competence: said on the page and
 in both documents, because a client who confuses the two is worse off than one
 with no matrix.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 from datetime import date
 
@@ -22,16 +23,16 @@ from auth import get_user_id
 from display import plural
 from guide import page_tip
 
-st.title("Training")
+st.title(tr("Training"))
 page_tip("training")
 st.caption(
-    "Who needs which training, and who has a current session. Evidence of a "
-    "plan and of attendance, not of competence. RECOSA does not give the training."
+    tr("Who needs which training, and who has a current session. Evidence of a "
+    "plan and of attendance, not of competence. RECOSA does not give the training.")
 )
 
 user_id = get_user_id()
 if not user_id:
-    st.error("Please log in.")
+    st.error(tr("Please log in."))
     st.stop()
 
 client = get_active_client(user_id)
@@ -50,18 +51,18 @@ active = sorted([e for e in employees if TR.is_active(e, today)],
 req_by_code = {r["code"]: r for r in reqs}
 
 if not all_reqs:
-    st.error("The training requirements could not be loaded. Please try again later.")
+    st.error(tr("The training requirements could not be loaded. Please try again later."))
     st.stop()
 if not reqs:
-    st.info("None of this company's regulations asks for staff training that RECOSA tracks. "
-            "Check the regulations on the Company profile.")
+    st.info(tr("None of this company's regulations asks for staff training that RECOSA tracks. "
+            "Check the regulations on the Company profile."))
     st.stop()
 
 mx = TR.matrix(active, reqs, sessions, attendance, today)
 cov = TR.coverage(mx, reqs)
 
 tab_matrix, tab_people, tab_sessions, tab_docs = st.tabs(
-    ["Matrix", f"People ({len(active)})", f"Sessions ({len(sessions)})", "Documents"])
+    [tr("Matrix"), f"People ({len(active)})", f"Sessions ({len(sessions)})", tr("Documents")])
 
 
 def _fd(d) -> str:
@@ -83,7 +84,7 @@ with tab_matrix:
             if r.get("applies_from") and r["applies_from"] > today:
                 st.caption(f"Applies from {_fd(r['applies_from'])}")
             if c["required"]:
-                st.metric("Current", f"{ok} / {c['required']}", label_visibility="collapsed")
+                st.metric(tr("Current"), f"{ok} / {c['required']}", label_visibility="collapsed")
                 parts = []
                 if c[TR.ABSENT]:
                     parts.append(f"{c[TR.ABSENT]} never trained")
@@ -93,11 +94,11 @@ with tab_matrix:
                     parts.append(f"{c[TR.EXPIRING]} lapsing soon")
                 st.caption(" · ".join(parts) or "Everyone is current.")
             else:
-                st.caption("Nobody recorded needs it.")
+                st.caption(tr("Nobody recorded needs it."))
             st.caption(f"{TR.AUDIENCES[r['audience']]} · {r['anchor']}", help=r["note_en"])
 
     if not active:
-        st.info("Record your people on the **People** tab to see who needs what.")
+        st.info(tr("Record your people on the **People** tab to see who needs what."))
     else:
         rows = []
         for e in active:
@@ -131,28 +132,28 @@ def _person_form(key: str, e: dict | None = None) -> dict | None:
     e = e or {}
     with st.form(key, clear_on_submit=not e):
         a, b = st.columns(2)
-        name = a.text_input("Name", value=e.get("name") or "")
-        email = b.text_input("Email (optional)", value=e.get("email") or "")
-        job = a.text_input("Job title", value=e.get("job_title") or "")
-        dept = b.text_input("Department", value=e.get("department") or "")
+        name = a.text_input(tr("Name"), value=e.get("name") or "")
+        email = b.text_input(tr("Email (optional)"), value=e.get("email") or "")
+        job = a.text_input(tr("Job title"), value=e.get("job_title") or "")
+        dept = b.text_input(tr("Department"), value=e.get("department") or "")
         flags = {}
         fc = st.columns(len(_FLAGS))
         for col, (k, lbl, hlp) in zip(fc, _FLAGS):
             flags[k] = col.checkbox(lbl, value=bool(e.get(k, k == "handles_personal_data")),
                                     help=f"Decides: {hlp}")
         c, d = st.columns(2)
-        started = c.date_input("Started on (optional)", value=TR._d(e.get("started_on")),
+        started = c.date_input(tr("Started on (optional)"), value=TR._d(e.get("started_on")),
                                format="DD/MM/YYYY")
-        left = d.date_input("Left on (keeps their record)", value=TR._d(e.get("left_on")),
+        left = d.date_input(tr("Left on (keeps their record)"), value=TR._d(e.get("left_on")),
                             format="DD/MM/YYYY")
-        notes = st.text_input("Notes", value=e.get("notes") or "")
+        notes = st.text_input(tr("Notes"), value=e.get("notes") or "")
         if st.form_submit_button("Save" if e else "Add person", type="primary",
                                  disabled=not editable):
             if not name.strip():
-                st.error("A name is needed.")
+                st.error(tr("A name is needed."))
                 return None
             if started and left and left < started:
-                st.error("They cannot leave before they started.")
+                st.error(tr("They cannot leave before they started."))
                 return None
             return {"name": name, "email": email, "job_title": job, "department": dept,
                     **flags, "started_on": started, "left_on": left, "notes": notes}
@@ -161,9 +162,9 @@ def _person_form(key: str, e: dict | None = None) -> dict | None:
 
 with tab_people:
     if not employees:
-        st.info("No one recorded yet. Add people one by one, or paste a list below.")
+        st.info(tr("No one recorded yet. Add people one by one, or paste a list below."))
     else:
-        show_left = st.toggle("Show people who have left", value=False)
+        show_left = st.toggle(tr("Show people who have left"), value=False)
         listed = [e for e in employees if show_left or TR.is_active(e, today)]
         hit = tv.table(
             [{"id": e["id"], "cells": {
@@ -187,36 +188,36 @@ with tab_people:
                 upd = _person_form(f"tr_edit_{sel['id']}", sel)
                 if upd:
                     if TS.save_employee(user_id, client_id, upd, sel["id"]):
-                        st.success("Saved.")
+                        st.success(tr("Saved."))
                         st.rerun()
-                    st.error("Could not save. If you have read-only access, an admin must do this.")
-                with st.expander("Delete this person"):
-                    st.caption("Deleting removes their training history too. If they left, "
-                               "set **Left on** instead: the record stays as evidence.")
-                    if st.button("Delete permanently", key=f"tr_del_{sel['id']}",
+                    st.error(tr("Could not save. If you have read-only access, an admin must do this."))
+                with st.expander(tr("Delete this person")):
+                    st.caption(tr("Deleting removes their training history too. If they left, "
+                               "set **Left on** instead: the record stays as evidence."))
+                    if st.button(tr("Delete permanently"), key=f"tr_del_{sel['id']}",
                                  disabled=not editable):
                         if TS.delete_employee(user_id, client_id, sel["id"]):
                             st.session_state.pop("tr_person", None)
                             st.rerun()
-                        st.error("Could not delete.")
+                        st.error(tr("Could not delete."))
 
-    st.subheader("Add a person")
+    st.subheader(tr("Add a person"))
     new = _person_form("tr_add")
     if new:
         if TS.save_employee(user_id, client_id, new):
             st.success(f"{new['name']} added.")
             st.rerun()
-        st.error("Could not add. If you have read-only access, an admin must do this.")
+        st.error(tr("Could not add. If you have read-only access, an admin must do this."))
 
-    with st.expander("Paste a list"):
-        st.caption("One person per line: **name; job title; email**. Job title and email are "
+    with st.expander(tr("Paste a list")):
+        st.caption(tr("One person per line: **name; job title; email**. Job title and email are "
                    "optional. Everyone is marked as handling personal data; adjust the rest "
-                   "per person afterwards.")
+                   "per person afterwards."))
         with st.form("tr_bulk", clear_on_submit=True):
-            text = st.text_area("People", height=140,
-                                placeholder="Marie Dupont; Office manager; marie@example.be")
-            ai_all = st.checkbox("They all use AI tools")
-            if st.form_submit_button("Add all", disabled=not editable):
+            text = st.text_area(tr("People"), height=140,
+                                placeholder=tr("Marie Dupont; Office manager; marie@example.be"))
+            ai_all = st.checkbox(tr("They all use AI tools"))
+            if st.form_submit_button(tr("Add all"), disabled=not editable):
                 rows = []
                 for line in text.splitlines():
                     parts = [p.strip() for p in line.split(";")]
@@ -229,7 +230,7 @@ with tab_people:
                 if n:
                     st.success(f"{plural(n, 'person', 'people')} added.")
                     st.rerun()
-                st.error("Nothing added.")
+                st.error(tr("Nothing added."))
 
 
 # ── Sessions ──────────────────────────────────────────────────────────────
@@ -239,41 +240,41 @@ _FMT_KEYS = list(TR.FORMATS)
 def _session_form(key: str, s: dict | None = None, attendee_ids: set[str] | None = None):
     s = s or {}
     with st.form(key, clear_on_submit=not s):
-        title = st.text_input("Title", value=s.get("title") or "",
-                              placeholder="GDPR and phishing awareness, spring session")
+        title = st.text_input(tr("Title"), value=s.get("title") or "",
+                              placeholder=tr("GDPR and phishing awareness, spring session"))
         codes = st.multiselect(
-            "Which training it counts for", [r["code"] for r in reqs],
+            tr("Which training it counts for"), [r["code"] for r in reqs],
             default=[c for c in (s.get("requirement_codes") or []) if c in req_by_code],
             format_func=lambda c: req_by_code[c]["label_en"])
         a, b, c = st.columns(3)
-        held = a.date_input("Held on", value=TR._d(s.get("held_on")) or today, format="DD/MM/YYYY")
-        dur = b.number_input("Duration (minutes)", min_value=0, step=15,
+        held = a.date_input(tr("Held on"), value=TR._d(s.get("held_on")) or today, format="DD/MM/YYYY")
+        dur = b.number_input(tr("Duration (minutes)"), min_value=0, step=15,
                              value=int(s.get("duration_minutes") or 0))
-        fmt = c.selectbox("Format", _FMT_KEYS,
+        fmt = c.selectbox(tr("Format"), _FMT_KEYS,
                           index=_FMT_KEYS.index(s.get("format") or "in_person"),
                           format_func=lambda k: TR.FORMATS[k])
         d, e_ = st.columns(2)
-        provider = d.text_input("Provider", value=s.get("provider") or "",
-                                help="Internal, or the training company.")
-        trainer = e_.text_input("Trainer", value=s.get("trainer") or "")
-        content = st.text_area("What it covered", value=s.get("content") or "", height=80,
-                               help="A few lines: an auditor's first question is what was taught.")
-        until = st.date_input("Counts until (optional)", value=TR._d(s.get("valid_until")),
+        provider = d.text_input(tr("Provider"), value=s.get("provider") or "",
+                                help=tr("Internal, or the training company."))
+        trainer = e_.text_input(tr("Trainer"), value=s.get("trainer") or "")
+        content = st.text_area(tr("What it covered"), value=s.get("content") or "", height=80,
+                               help=tr("A few lines: an auditor's first question is what was taught."))
+        until = st.date_input(tr("Counts until (optional)"), value=TR._d(s.get("valid_until")),
                               format="DD/MM/YYYY",
-                              help="Leave blank to use the default refresh interval.")
+                              help=tr("Leave blank to use the default refresh interval."))
         people_ids = [p["id"] for p in active]
         names = {p["id"]: p["name"] for p in active}
-        attendees = st.multiselect("Who attended", people_ids,
+        attendees = st.multiselect(tr("Who attended"), people_ids,
                                    default=[i for i in (attendee_ids or set()) if i in names],
                                    format_func=lambda i: names[i])
-        add_needed = st.checkbox("Also add everyone who needs the training selected above")
+        add_needed = st.checkbox(tr("Also add everyone who needs the training selected above"))
         if st.form_submit_button("Save" if s else "Record session", type="primary",
                                  disabled=not editable):
             if not title.strip() or not codes:
-                st.error("A title and at least one training it counts for are needed.")
+                st.error(tr("A title and at least one training it counts for are needed."))
                 return None
             if until and until < held:
-                st.error("It cannot stop counting before it was held.")
+                st.error(tr("It cannot stop counting before it was held."))
                 return None
             ids = set(attendees)
             if add_needed:
@@ -291,7 +292,7 @@ with tab_sessions:
     for a_ in attendance:
         att_by_session.setdefault(a_["session_id"], set()).add(a_["employee_id"])
     if not sessions:
-        st.info("No training recorded yet.")
+        st.info(tr("No training recorded yet."))
     else:
         hit = tv.table(
             [{"id": s["id"], "cells": {
@@ -324,36 +325,36 @@ with tab_sessions:
                 res = _session_form(f"tr_ses_{sel['id']}", sel, att_by_session.get(sel["id"], set()))
                 if res:
                     if TS.save_session(user_id, client_id, res[0], res[1], sel["id"]):
-                        st.success("Saved.")
+                        st.success(tr("Saved."))
                         st.rerun()
-                    st.error("Could not save. If you have read-only access, an admin must do this.")
-                with st.expander("Delete this session"):
-                    st.caption("Its attendance goes with it, and the people who attended may no "
-                               "longer count as trained.")
-                    if st.button("Delete permanently", key=f"tr_sdel_{sel['id']}",
+                    st.error(tr("Could not save. If you have read-only access, an admin must do this."))
+                with st.expander(tr("Delete this session")):
+                    st.caption(tr("Its attendance goes with it, and the people who attended may no "
+                               "longer count as trained."))
+                    if st.button(tr("Delete permanently"), key=f"tr_sdel_{sel['id']}",
                                  disabled=not editable):
                         if TS.delete_session(user_id, client_id, sel["id"]):
                             st.session_state.pop("tr_session", None)
                             st.rerun()
-                        st.error("Could not delete.")
+                        st.error(tr("Could not delete."))
 
-    st.subheader("Record a session")
+    st.subheader(tr("Record a session"))
     if not active:
-        st.caption("Add people first, so you can say who attended.")
+        st.caption(tr("Add people first, so you can say who attended."))
     res = _session_form("tr_ses_new")
     if res:
         if TS.save_session(user_id, client_id, res[0], res[1]):
             st.success(f"Recorded, with {plural(len(res[1]), 'attendee', 'attendees')}.")
             st.rerun()
-        st.error("Could not record. If you have read-only access, an admin must do this.")
+        st.error(tr("Could not record. If you have read-only access, an admin must do this."))
 
 
 # ── Documents ─────────────────────────────────────────────────────────────
 with tab_docs:
-    st.markdown("**Training plan**")
-    st.caption("What the law asks of whom, where each person stands, who is due in the next "
+    st.markdown(tr("**Training plan**"))
+    st.caption(tr("What the law asks of whom, where each person stands, who is due in the next "
                "twelve months, and what was given in the last twelve. Built from this page, "
-               "so it can be regenerated at any time.")
+               "so it can be regenerated at any time."))
     from training_docs import build_plan_pdf
     dl = st.columns(len(lang_opts) + 1)
     for col, lg in zip(dl, lang_opts):
@@ -362,5 +363,5 @@ with tab_docs:
             data=build_plan_pdf(client, all_reqs, employees, sessions, attendance, today, lg),
             file_name=f"training_plan_{today:%Y-%m-%d}_{lg}.pdf", mime="application/pdf",
             key=f"tr_plan_{lg}")
-    st.markdown("**Attendance attestations**")
-    st.caption("One per session: open it on the **Sessions** tab.")
+    st.markdown(tr("**Attendance attestations**"))
+    st.caption(tr("One per session: open it on the **Sessions** tab."))

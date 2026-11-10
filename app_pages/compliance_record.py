@@ -37,6 +37,7 @@ the import line rather than at the collision.
 
 A module in pages/ must not share a name with a root module it imports.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -54,19 +55,19 @@ from database import (
 from cached_reads import get_register_status, get_template_languages
 from obligations import DOC_CATALOG, REGULATION_LABELS
 
-if st.button("← Documents", key="record_back"):
+if st.button(tr("← Documents"), key="record_back"):
     st.switch_page("app_pages/documents.py")
-st.title("Compliance Record")
+st.title(tr("Compliance Record"))
 from guide import page_tip
 page_tip("compliance_record")
 st.caption(
-    "What your organisation operates under, and since when. This is the view "
-    "to share with an auditor."
+    tr("What your organisation operates under, and since when. This is the view "
+    "to share with an auditor.")
 )
 
 user_id = get_user_id()
 if not user_id:
-    st.error("Please log in to view the compliance record.")
+    st.error(tr("Please log in to view the compliance record."))
     st.stop()
 
 client = get_active_client(user_id)
@@ -80,16 +81,16 @@ register       = get_register_status(client_id, user_id) if client_id else {}
 template_langs = get_template_languages()
 
 show_drafts = st.toggle(
-    "Include drafts",
+    tr("Include drafts"),
     value=False,
     help=(
-        "Drafts are produced but not adopted — your organisation is not "
+        tr("Drafts are produced but not adopted — your organisation is not "
         "operating under them. Off by default so this page answers only what "
-        "applies."
+        "applies.")
     ),
 )
-st.caption("Off: only the documents in force. On: also the versions generated "
-           "but not adopted yet, marked as drafts.")
+st.caption(tr("Off: only the documents in force. On: also the versions generated "
+           "but not adopted yet, marked as drafts."))
 
 # ── Summary ───────────────────────────────────────────────────────────────
 relevant = {
@@ -116,18 +117,18 @@ cov = REG.coverage(statuses.values())
 try:
     import obligation_view as OV
     OV.render_headline(OV.load_state(user_id, client), explain=False)
-    st.caption("% in place counts every obligation that applies to you, documents "
-               "and practices alike. This page lists the documents part of it.")
+    st.caption(tr("% in place counts every obligation that applies to you, documents "
+               "and practices alike. This page lists the documents part of it."))
 except Exception as e:
     st.warning(f"Could not work out your obligations: {e}")
 
 c1, c3 = st.columns(2)
-c1.metric("Documents in force", f"{cov['covered']} of {cov['required']}")
+c1.metric(tr("Documents in force"), f"{cov['covered']} of {cov['required']}")
 if cov["blocked_on_us"]:
     # Counted separately and never against the client (D-59): a coverage figure
     # that falls because RECOSA has not written a template yet is billing the
     # client for our backlog.
-    c3.metric("Awaiting a RECOSA template", cov["blocked_on_us"])
+    c3.metric(tr("Awaiting a RECOSA template"), cov["blocked_on_us"])
 
 if cov["partly_blocked"]:
     # In force in every language RECOSA can serve, still short one it cannot.
@@ -200,9 +201,9 @@ for doc_type, meta in relevant.items():
         st.caption(document_source_label(src))
         if src in ("client_upload", "client_modified", "client_supplied"):
             st.caption(
-                ":gray[Supplied or reworked by the client. RECOSA holds this "
+                tr(":gray[Supplied or reworked by the client. RECOSA holds this "
                 "document but does not vouch for its contents, and regulatory "
-                "updates are not applied to it.]"
+                "updates are not applied to it.]")
             )
         elif current.get("source_revision"):
             st.caption(
@@ -227,7 +228,7 @@ for doc_type, meta in relevant.items():
         fpath = current.get("file_path")
         url = get_signed_url("compliance-files", fpath, expires_in=300) if fpath else None
         if url:
-            st.link_button("Download", url)
+            st.link_button(tr("Download"), url)
 
         # ── The chain ──────────────────────────────────────────────────────
         previous = [c for c in chain
@@ -236,17 +237,17 @@ for doc_type, meta in relevant.items():
         if previous:
             with st.expander(f"What applied before ({len(previous)})"):
                 st.caption(
-                    "Retained as the record of what your organisation "
+                    tr("Retained as the record of what your organisation "
                     "operated under at the time. A complaint about processing "
                     "in a past year is answered by the version that applied "
-                    "then, not the current one."
+                    "then, not the current one.")
                 )
                 st.caption(
-                    "**Hold** keeps a version past its retention date, for as "
+                    tr("**Hold** keeps a version past its retention date, for as "
                     "long as a complaint, investigation, audit or proceeding "
                     "makes it relevant. Retention periods run on a clock; a "
                     "hold stops that clock, so evidence is not deleted during "
-                    "the proceeding that needs it."
+                    "the proceeding that needs it.")
                 )
                 for old in previous:
                     line = f"**v{old.get('version')}**"
@@ -276,7 +277,7 @@ for doc_type, meta in relevant.items():
                                           old.get("file_path") or "",
                                           expires_in=300) if old.get("file_path") else None
                     if ourl:
-                        ocols[0].link_button("Download", ourl,
+                        ocols[0].link_button(tr("Download"), ourl,
                                              use_container_width=True)
 
                     # Legal hold belongs on superseded versions above all: they
@@ -289,9 +290,9 @@ for doc_type, meta in relevant.items():
                         key=f"hold_{old['id']}",
                         use_container_width=True,
                         help=(
-                            "A hold keeps this version regardless of its "
+                            tr("A hold keeps this version regardless of its "
                             "retention date, for as long as a complaint, "
-                            "investigation, audit or proceeding is live."
+                            "investigation, audit or proceeding is live.")
                         ),
                     ):
                         st.session_state[_hold_form] = not st.session_state.get(
@@ -307,7 +308,7 @@ for doc_type, meta in relevant.items():
                             # whenever it is given, and on release it is the
                             # thing an auditor most wants to see.
                             _reason = st.text_input(
-                                "Reason (optional)",
+                                tr("Reason (optional)"),
                                 key=f"hold_reason_{old['id']}",
                                 placeholder=(
                                     "e.g. matter closed, no proceedings"
@@ -325,7 +326,7 @@ for doc_type, meta in relevant.items():
                                                reason=_reason or "")
                                 st.session_state[_hold_form] = False
                                 st.rerun()
-                            if _hc2.button("Cancel", key=f"hold_no_{old['id']}",
+                            if _hc2.button(tr("Cancel"), key=f"hold_no_{old['id']}",
                                            use_container_width=True):
                                 st.session_state[_hold_form] = False
                                 st.rerun()
@@ -359,11 +360,11 @@ missing = {dt: s for dt, s in statuses.items()
            and not s["in_force"]}
 
 if missing:
-    st.subheader("Not yet in force")
+    st.subheader(tr("Not yet in force"))
     st.caption(
-        "Shown so this page is a complete answer rather than a favourable one. "
+        tr("Shown so this page is a complete answer rather than a favourable one. "
         "A record that lists only what exists tells an auditor nothing about "
-        "what does not."
+        "what does not.")
     )
     for dt, s in missing.items():
         label = DOC_CATALOG[dt]["label"]
@@ -380,7 +381,7 @@ if missing:
 
 st.divider()
 st.caption(
-    "Generated from the RECOSA document register. Versions are numbered when "
+    tr("Generated from the RECOSA document register. Versions are numbered when "
     "they are put in force, so the sequence has no gaps. Superseded versions "
-    "are retained as the record of what applied at the time."
+    "are retained as the record of what applied at the time.")
 )

@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import streamlit as st
 
 import table_view as tv
@@ -158,7 +159,7 @@ def _action(row: dict) -> str:
     return EVENT_LABELS.get(etype, str(etype).replace("_", " ").capitalize())
 
 
-st.title("Activity Log")
+st.title(tr("Activity Log"))
 st.caption(
     "A record of compliance actions taken on your account. "
     f"All times in {TZ_LABEL}."
@@ -183,7 +184,7 @@ except Exception as e:
     rows = []
 
 if not rows:
-    st.info("No activity recorded yet.")
+    st.info(tr("No activity recorded yet."))
     st.stop()
 
 by_email = load_user_emails({r["user_id"] for r in rows if r.get("user_id")})
@@ -205,8 +206,8 @@ by_email = load_user_emails({r["user_id"] for r in rows if r.get("user_id")})
 # that hold — not to read 200 rows in order.
 actions = sorted({_action(r) for r in rows})
 f1, f2 = st.columns([2, 3])
-chosen = f1.multiselect("Action", actions, default=[], placeholder="All actions")
-search = f2.text_input("Search", placeholder="Document name, reason, version…")
+chosen = f1.multiselect(tr("Action"), actions, default=[], placeholder=tr("All actions"))
+search = f2.text_input(tr("Search"), placeholder=tr("Document name, reason, version…"))
 
 filtered = [
     r for r in rows
@@ -273,7 +274,7 @@ for _r in table:
     _w.writerow({k: _r[k] for k in ("When", "Action", "What", "By", "Details")})
 
 st.download_button(
-    "Download as CSV",
+    tr("Download as CSV"),
     _buf.getvalue().encode("utf-8"),
     file_name=f"RECOSA_activity_log_{datetime.now(DISPLAY_TZ).strftime('%Y%m%d')}.csv",
     mime="text/csv",

@@ -16,6 +16,7 @@ Before this, six pages queried `clients` filtered only by user_id with
 `.single()` — correct only because no account had ever had more than one
 client. The first one that did (18 Sept 2026) broke it immediately.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -41,7 +42,7 @@ def render_company_switcher(user_id: str) -> None:
     # just created) recreates the widget showing it.
     widget_key = f"company_switcher_{current['id']}"
     st.selectbox(
-        "Company", options=ids, index=ids.index(current["id"]),
+        tr("Company"), options=ids, index=ids.index(current["id"]),
         format_func=lambda i: by_id[i]["company_name"],
         key=widget_key, on_change=_switch_client, args=(widget_key, clients),
     )
@@ -81,8 +82,8 @@ def get_active_client(user_id: str) -> dict | None:
 
     if not clients:
         st.info(
-            "You don't have a company profile yet. Set one up on the "
-            "**Company profile** page (Account, in the menu)."
+            tr("You don't have a company profile yet. Set one up on the "
+            "**Company profile** page (Account, in the menu).")
         )
         st.stop()
         return None

@@ -180,15 +180,16 @@ def page_tip(key: str) -> None:
     hover, so a closed tip can still be read."""
     if key not in TIPS:
         return
-    title, text = TIPS[key]
+    from i18n import tr  # S64 (D-164)
+    title, text = (tr(x) for x in TIPS[key])
     if key in _dismissed():
         # Streamlit draws the small (?) icon; hovering it shows the tip.
-        st.caption("What is this page for?", help=text)
+        st.caption(tr("What is this page for?"), help=text)
         return
     with st.container(border=True):
         c1, c2 = st.columns([6, 1])
-        c1.markdown(f"💡 **What is this page for?** {text}")
-        if c2.button("Got it", key=f"tip_ok_{key}", use_container_width=True):
+        c1.markdown(f"💡 **{tr('What is this page for?')}** {text}")
+        if c2.button(tr("Got it"), key=f"tip_ok_{key}", use_container_width=True):
             from database import set_dismissed_tips
             from auth import get_user_id
             st.session_state.dismissed_tips = _dismissed() | {key}

@@ -10,6 +10,7 @@ The intake asks what a deployer can answer. Technical attributes (training
 data, accuracy, Annex IV) are the provider's documentation, not questions
 for an SME using a vendor's chatbot.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -20,25 +21,25 @@ from active_client import can_edit_active, get_active_client
 from auth import get_user_id
 from guide import page_tip
 
-st.title("AI inventory")
+st.title(tr("AI inventory"))
 page_tip("ai_inventory")
 st.caption(
-    "Which AI systems you use, what they are built on, and what you use each one "
+    tr("Which AI systems you use, what they are built on, and what you use each one "
     "for. Role and risk attach to the use: the same tool can be minimal risk for "
-    "one purpose and high risk for another."
+    "one purpose and high risk for another.")
 )
 
 user_id = get_user_id()
 if not user_id:
-    st.error("Please log in.")
+    st.error(tr("Please log in."))
     st.stop()
 
 client = get_active_client(user_id)
 client_id = client["id"]
 editable = can_edit_active()
 if "EU_AI_ACT" not in (client.get("regulations") or []):
-    st.info("The EU AI Act is not among this company's regulations, so nothing here feeds "
-            "its obligations. Add it on the Company profile if you use AI.")
+    st.info(tr("The EU AI Act is not among this company's regulations, so nothing here feeds "
+            "its obligations. Add it on the Company profile if you use AI."))
 
 data = AIS.load_all(client_id)
 systems = data["systems"]
@@ -73,16 +74,16 @@ def _tri(col, label, value, key, help=None):
 policy_owner = AIS.load_policy_owner(client_id)
 with st.expander("Who approves new AI tools: " + (policy_owner or "not set yet"),
                  expanded=not policy_owner):
-    st.caption("Named in your AI acceptable use and human oversight policies (Documents): "
+    st.caption(tr("Named in your AI acceptable use and human oversight policies (Documents): "
                "staff ask this person before using a new AI tool, and report problems to them. "
-               "A role is better than a name if people change.")
+               "A role is better than a name if people change."))
     with st.form("ai_owner"):
-        owner = st.text_input("Role or name", value=policy_owner or "",
-                              placeholder="The operations manager")
-        if st.form_submit_button("Save", disabled=not editable):
+        owner = st.text_input(tr("Role or name"), value=policy_owner or "",
+                              placeholder=tr("The operations manager"))
+        if st.form_submit_button(tr("Save"), disabled=not editable):
             if AIS.set_policy_owner(user_id, client_id, owner):
                 st.rerun()
-            st.error("Could not save. If you have read-only access, an admin must do this.")
+            st.error(tr("Could not save. If you have read-only access, an admin must do this."))
 
 tab_uc, tab_sys, tab_models = st.tabs(
     [f"Use cases ({len([u for u in use_cases if AR.active(u)])})",
@@ -94,26 +95,26 @@ def _uc_form(key: str, u: dict | None = None):
     u = u or {}
     new = not u
     with st.form(key, clear_on_submit=new):
-        st.markdown("**The use**")
+        st.markdown(tr("**The use**"))
         a, b = st.columns(2)
         sys_ids = [s["id"] for s in ai_systems]
-        system_id = a.selectbox("AI system", sys_ids,
+        system_id = a.selectbox(tr("AI system"), sys_ids,
                                 index=sys_ids.index(u["system_id"]) if u.get("system_id") in sys_ids else 0,
                                 format_func=lambda i: sys_by_id[i].get("name") or "?")
-        name = b.text_input("Name of the use", value=u.get("name") or "",
-                            placeholder="Answering customer questions on the website")
-        desc = st.text_area("What it does, for whom", value=u.get("description") or "", height=70)
+        name = b.text_input(tr("Name of the use"), value=u.get("name") or "",
+                            placeholder=tr("Answering customer questions on the website"))
+        desc = st.text_area(tr("What it does, for whom"), value=u.get("description") or "", height=70)
         c, d, e_ = st.columns(3)
-        owner = c.text_input("Business owner", value=u.get("business_owner") or "")
+        owner = c.text_input(tr("Business owner"), value=u.get("business_owner") or "")
         stats = ["in_use", "planned", "retired"]
-        status = d.selectbox("Status", stats, index=stats.index(u.get("status") or "in_use"),
+        status = d.selectbox(tr("Status"), stats, index=stats.index(u.get("status") or "in_use"),
                              format_func=lambda s: {"in_use": "In use", "planned": "Planned",
                                                     "retired": "No longer used"}[s])
         roles = [None] + list(AR.ROLES)
-        role = e_.selectbox("Your role for this use", roles, index=roles.index(u.get("role")),
+        role = e_.selectbox(tr("Your role for this use"), roles, index=roles.index(u.get("role")),
                             format_func=lambda r: "Same as the system" if r is None else AR.ROLES[r])
 
-        st.markdown("**Do you become the provider? (Art. 25)**")
+        st.markdown(tr("**Do you become the provider? (Art. 25)**"))
         a, b, c = st.columns(3)
         own = _tri(a, "Your name or trademark on it", u.get("own_name_or_brand"), f"{key}_own")
         mod = _tri(b, "Modified it substantially", u.get("substantially_modified"), f"{key}_mod",
@@ -121,53 +122,53 @@ def _uc_form(key: str, u: dict | None = None):
         purp = _tri(c, "Changed its intended purpose", u.get("purpose_changed"), f"{key}_purp",
                     help="Using it for something the vendor did not intend, in a way that makes it high-risk.")
 
-        st.markdown("**Prohibited practices (Art. 5)**")
+        st.markdown(tr("**Prohibited practices (Art. 5)**"))
         cur_pr = u.get("prohibited_practices")
-        pr = st.multiselect("Does this use do any of these?", [r["code"] for r in practices],
+        pr = st.multiselect(tr("Does this use do any of these?"), [r["code"] for r in practices],
                             default=[c_ for c_ in (cur_pr or []) if c_ in practice_label],
                             format_func=lambda c_: practice_label[c_],
-                            help="Leave empty and tick the box below if none applies.")
-        screened = st.checkbox("I checked: none of these applies", value=cur_pr == [])
+                            help=tr("Leave empty and tick the box below if none applies."))
+        screened = st.checkbox(tr("I checked: none of these applies"), value=cur_pr == [])
 
-        st.markdown("**High risk (Annex III)**")
+        st.markdown(tr("**High risk (Annex III)**"))
         areas = [None, "none"] + [r["code"] for r in annex]
-        area = st.selectbox("Is it used in one of these areas?", areas,
+        area = st.selectbox(tr("Is it used in one of these areas?"), areas,
                             index=areas.index(u.get("annex_iii_area")) if u.get("annex_iii_area") in areas else 0,
                             format_func=lambda c_: {None: "Not answered", "none": "None of these"}.get(
                                 c_, annex_label.get(c_, c_)),
                             help="; ".join(f"{r['label_en']}: {r['note_en']}" for r in annex[:4]) + " …")
         a, b = st.columns(2)
         conds = [None] + list(AR.ART6_3)
-        cond = a.selectbox("Only if an area applies: is it one of the Art. 6(3) exceptions?", conds,
+        cond = a.selectbox(tr("Only if an area applies: is it one of the Art. 6(3) exceptions?"), conds,
                            index=conds.index(u.get("art6_3_condition")),
                            format_func=lambda c_: "No exception" if c_ is None else AR.ART6_3[c_])
         prof = _tri(b, "Does it profile people?", u.get("profiles_people"), f"{key}_prof",
                     help="Profiling always makes an Annex III use high-risk, whatever the exception.")
-        reason = st.text_input("Why the exception applies", value=u.get("art6_3_reason") or "",
-                               help="Art. 6(4): a provider relying on it must document the assessment.")
+        reason = st.text_input(tr("Why the exception applies"), value=u.get("art6_3_reason") or "",
+                               help=tr("Art. 6(4): a provider relying on it must document the assessment."))
 
-        st.markdown("**Transparency (Art. 50)**")
+        st.markdown(tr("**Transparency (Art. 50)**"))
         tcols = st.columns(len(AR.TRANSPARENCY))
         tvals = {k: _tri(col, label, u.get(k), f"{key}_{k}")
                  for col, (k, label, _ob) in zip(tcols, AR.TRANSPARENCY)}
 
-        st.markdown("**If high-risk (Art. 26, from 2 Dec 2027)**")
+        st.markdown(tr("**If high-risk (Art. 26, from 2 Dec 2027)**"))
         a, b = st.columns(2)
         workers = _tri(a, "Used on your workers", u.get("used_on_workers"), f"{key}_work",
                        help="Workers and their representatives must be told first (Art. 26(7)).")
         eids = [None] + list(emp_label)
-        over = b.selectbox("Human overseer", eids,
+        over = b.selectbox(tr("Human overseer"), eids,
                            index=eids.index(u.get("oversight_employee_id")) if u.get("oversight_employee_id") in eids else 0,
                            format_func=lambda i: "Nobody named" if i is None else emp_label[i],
-                           help="From the Training page's people. Mark them there as overseeing a "
-                                "high-risk AI system so their training is tracked.")
-        notes = st.text_input("Notes", value=u.get("notes") or "")
+                           help=tr("From the Training page's people. Mark them there as overseeing a "
+                                "high-risk AI system so their training is tracked."))
+        notes = st.text_input(tr("Notes"), value=u.get("notes") or "")
         if st.form_submit_button("Add use case" if new else "Save", type="primary", disabled=not editable):
             if not name.strip():
-                st.error("A name is needed.")
+                st.error(tr("A name is needed."))
                 return None
             if pr and screened:
-                st.error("You ticked practices and also 'none of these applies'.")
+                st.error(tr("You ticked practices and also 'none of these applies'."))
                 return None
             return {"system_id": system_id, "name": name, "description": desc, "business_owner": owner,
                     "status": status, "role": role, "own_name_or_brand": own,
@@ -181,7 +182,7 @@ def _uc_form(key: str, u: dict | None = None):
 
 with tab_uc:
     if not ai_systems:
-        st.info("No AI system yet. Mark one on the **AI systems** tab first.")
+        st.info(tr("No AI system yet. Mark one on the **AI systems** tab first."))
     else:
         shown = sorted(use_cases, key=lambda u: (not AR.active(u), u.get("name") or ""))
         if shown:
@@ -221,35 +222,35 @@ with tab_uc:
                 upd = _uc_form(f"ai_uc_{sel['id']}", sel)
                 if upd:
                     if AIS.save_use_case(user_id, client_id, upd, sel["id"]):
-                        st.success("Saved.")
+                        st.success(tr("Saved."))
                         st.rerun()
-                    st.error("Could not save. If you have read-only access, an admin must do this.")
-                with st.expander("Delete this use case"):
-                    st.caption("If it stopped, set its status to **No longer used** instead: the "
-                               "record of what you assessed stays.")
-                    if st.button("Delete permanently", key=f"ai_ucdel_{sel['id']}", disabled=not editable):
+                    st.error(tr("Could not save. If you have read-only access, an admin must do this."))
+                with st.expander(tr("Delete this use case")):
+                    st.caption(tr("If it stopped, set its status to **No longer used** instead: the "
+                               "record of what you assessed stays."))
+                    if st.button(tr("Delete permanently"), key=f"ai_ucdel_{sel['id']}", disabled=not editable):
                         if AIS.delete_use_case(user_id, client_id, sel["id"]):
                             st.session_state.pop("ai_uc", None)
                             st.rerun()
 
-        st.subheader("Add a use case")
+        st.subheader(tr("Add a use case"))
         new = _uc_form("ai_uc_new")
         if new:
             if AIS.save_use_case(user_id, client_id, new):
-                st.success("Added.")
+                st.success(tr("Added."))
                 st.rerun()
-            st.error("Could not add. If you have read-only access, an admin must do this.")
-        st.caption("Not asked here: whether the AI is a safety component of a product covered by "
+            st.error(tr("Could not add. If you have read-only access, an admin must do this."))
+        st.caption(tr("Not asked here: whether the AI is a safety component of a product covered by "
                    "EU product law (Art. 6(1), Annex I). That is a provider question; if it may "
-                   "apply to you, ask your provider.")
+                   "apply to you, ask your provider."))
 
 
 # ── AI systems ────────────────────────────────────────────────────────────
 with tab_sys:
-    st.caption("These are your Systems-page systems, marked as AI. Changing the role here "
-               "changes it there.")
+    st.caption(tr("These are your Systems-page systems, marked as AI. Changing the role here "
+               "changes it there."))
     if not systems:
-        st.info("No systems in your inventory yet. Add them on the **Systems** page.")
+        st.info(tr("No systems in your inventory yet. Add them on the **Systems** page."))
     for s in ai_systems:
         with st.container(border=True):
             ucs = [u for u in use_cases if u["system_id"] == s["id"] and AR.active(u)]
@@ -259,31 +260,31 @@ with tab_sys:
             current = [l_["model_id"] for l_ in links if l_["system_id"] == s["id"]]
             with st.form(f"ai_sys_{s['id']}"):
                 a, b = st.columns([2, 1])
-                pick = a.multiselect("Built on", list(model_by_id), default=current,
+                pick = a.multiselect(tr("Built on"), list(model_by_id), default=current,
                                      format_func=lambda i: model_by_id[i]["name"],
-                                     help="Add models on the Models tab.")
+                                     help=tr("Add models on the Models tab."))
                 roles = ["none"] + list(AR.ROLES)
-                role = b.selectbox("Default role", roles, index=roles.index(s.get("ai_role") or "none"),
+                role = b.selectbox(tr("Default role"), roles, index=roles.index(s.get("ai_role") or "none"),
                                    format_func=lambda r: "Not an AI system" if r == "none" else AR.ROLES[r])
-                if st.form_submit_button("Save", disabled=not editable):
+                if st.form_submit_button(tr("Save"), disabled=not editable):
                     ok = AIS.set_system_models(user_id, client_id, s["id"], pick)
                     if role != s.get("ai_role"):
                         ok = AIS.set_ai_role(user_id, client_id, s["id"], role) and ok
                     if ok:
                         st.rerun()
-                    st.error("Could not save.")
+                    st.error(tr("Could not save."))
     others = [s for s in systems if not AR.is_ai_system(s)]
     if others:
-        st.subheader("Mark a system as AI")
+        st.subheader(tr("Mark a system as AI"))
         with st.form("ai_mark"):
             a, b = st.columns([2, 1])
-            sid = a.selectbox("System", [s["id"] for s in others],
+            sid = a.selectbox(tr("System"), [s["id"] for s in others],
                               format_func=lambda i: sys_by_id[i].get("name") or "?")
-            role = b.selectbox("Your role", list(AR.ROLES), format_func=lambda r: AR.ROLES[r])
-            if st.form_submit_button("Mark as AI", disabled=not editable):
+            role = b.selectbox(tr("Your role"), list(AR.ROLES), format_func=lambda r: AR.ROLES[r])
+            if st.form_submit_button(tr("Mark as AI"), disabled=not editable):
                 if AIS.set_ai_role(user_id, client_id, sid, role):
                     st.rerun()
-                st.error("Could not save.")
+                st.error(tr("Could not save."))
 
 
 # ── Models ────────────────────────────────────────────────────────────────
@@ -294,20 +295,20 @@ def _model_form(key: str, m: dict | None = None):
     m = m or {}
     with st.form(key, clear_on_submit=not m):
         a, b, c = st.columns(3)
-        name = a.text_input("Model", value=m.get("name") or "", placeholder="GPT-4o")
-        supplier = b.text_input("Supplier", value=m.get("supplier") or "", placeholder="OpenAI")
-        version = c.text_input("Version", value=m.get("version") or "")
+        name = a.text_input(tr("Model"), value=m.get("name") or "", placeholder=tr("GPT-4o"))
+        supplier = b.text_input(tr("Supplier"), value=m.get("supplier") or "", placeholder=tr("OpenAI"))
+        version = c.text_input(tr("Version"), value=m.get("version") or "")
         a, b = st.columns(2)
         origins = list(_ORIG)
-        origin = a.selectbox("Origin", origins, index=origins.index(m.get("origin") or "third_party"),
+        origin = a.selectbox(tr("Origin"), origins, index=origins.index(m.get("origin") or "third_party"),
                              format_func=lambda o: _ORIG[o])
         gp = _tri(b, "General-purpose model", m.get("general_purpose"), f"{key}_gp",
                   help="A model that can do many distinct tasks (Art. 3(63)), such as a large language model.")
-        doc = st.text_input("Supplier's documentation (URL)", value=m.get("documentation_url") or "")
-        notes = st.text_input("Notes", value=m.get("notes") or "")
+        doc = st.text_input(tr("Supplier's documentation (URL)"), value=m.get("documentation_url") or "")
+        notes = st.text_input(tr("Notes"), value=m.get("notes") or "")
         if st.form_submit_button("Save" if m else "Add model", type="primary", disabled=not editable):
             if not name.strip():
-                st.error("A name is needed.")
+                st.error(tr("A name is needed."))
                 return None
             return {"name": name, "supplier": supplier, "version": version, "origin": origin,
                     "general_purpose": gp, "documentation_url": doc, "notes": notes}
@@ -315,7 +316,7 @@ def _model_form(key: str, m: dict | None = None):
 
 
 with tab_models:
-    st.caption("What your AI systems are built on. One model can sit under several systems.")
+    st.caption(tr("What your AI systems are built on. One model can sit under several systems."))
     for m in models:
         used = [sys_by_id[l_["system_id"]].get("name") for l_ in links
                 if l_["model_id"] == m["id"] and l_["system_id"] in sys_by_id]
@@ -325,14 +326,14 @@ with tab_models:
             if upd:
                 if AIS.save_model(user_id, client_id, upd, m["id"]):
                     st.rerun()
-                st.error("Could not save.")
-            if st.button("Delete this model", key=f"ai_mdel_{m['id']}", disabled=not editable):
+                st.error(tr("Could not save."))
+            if st.button(tr("Delete this model"), key=f"ai_mdel_{m['id']}", disabled=not editable):
                 if AIS.delete_model(user_id, client_id, m["id"]):
                     st.rerun()
-    st.subheader("Add a model")
+    st.subheader(tr("Add a model"))
     new = _model_form("ai_m_new")
     if new:
         if AIS.save_model(user_id, client_id, new):
-            st.success("Added.")
+            st.success(tr("Added."))
             st.rerun()
-        st.error("Could not add.")
+        st.error(tr("Could not add."))

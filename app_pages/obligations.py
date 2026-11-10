@@ -21,6 +21,7 @@ regulation, collapsed, filtered, with the ones needing attention open. A client
 should be able to answer "what do I need to do" without reading anything they
 have already dealt with.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 from datetime import date
 
@@ -39,17 +40,17 @@ from obligations import (
     REGULATION_LABELS, DOCUMENT_TYPES,
 )
 
-st.title("Obligations")
+st.title(tr("Obligations"))
 from guide import page_tip
 page_tip("obligations")
 st.caption(
-    "Everything the regulations you are subject to require of you, and what "
-    "you have recorded against each."
+    tr("Everything the regulations you are subject to require of you, and what "
+    "you have recorded against each.")
 )
 
 user_id = get_user_id()
 if not user_id:
-    st.error("Please log in.")
+    st.error(tr("Please log in."))
     st.stop()
 
 client = get_active_client(user_id)
@@ -76,10 +77,10 @@ from obligations import split_by_force as _split
 _live, _later = _split(applicable)
 counts = OR.counts({o["id"]: verdicts[o["id"]] for o in _live if o["id"] in verdicts})
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("In place", counts["compliant"])
-c2.metric("Partly in place", counts["partial"])
-c3.metric("Not in place", counts["missing"] + counts["unknown"])
-c4.metric("Outstanding tasks", len(open_tasks))
+c1.metric(tr("In place"), counts["compliant"])
+c2.metric(tr("Partly in place"), counts["partial"])
+c3.metric(tr("Not in place"), counts["missing"] + counts["unknown"])
+c4.metric(tr("Outstanding tasks"), len(open_tasks))
 if _later:
     st.caption(f"Not counted yet: {plural(len(_later), 'obligation')} that "
                + ("applies" if len(_later) == 1 else "apply") + " from a later date.")
@@ -117,7 +118,7 @@ if "NIS2" in regulations:
             expanded=not _cls,
         ):
             st.markdown(
-                "NIS2 applies to medium and large companies (50+ staff or "
+                tr("NIS2 applies to medium and large companies (50+ staff or "
                 "€10 million turnover) in the sectors it lists, and to some "
                 "smaller ones regardless of size, such as DNS and trust-service "
                 "providers. If it applies, you are one of two kinds:\n\n"
@@ -130,14 +131,14 @@ if "NIS2" in regulations:
                 "companies in the other listed sectors (postal, waste, food, "
                 "manufacturing, digital providers…). Checked after an incident or "
                 "a complaint.\n\n"
-                "Both owe the same things: security measures and incident reporting."
+                "Both owe the same things: security measures and incident reporting.")
             )
-            st.caption("Legal reference: NIS2 Art. 2–3, Annexes I and II. Your country's "
-                       "law can add entities. Not sure? Ask the Assistant, or Support.")
+            st.caption(tr("Legal reference: NIS2 Art. 2–3, Annexes I and II. Your country's "
+                       "law can add entities. Not sure? Ask the Assistant, or Support."))
             with st.form("nis2_scope"):
                 _opts = [None, "essential", "important", "out_of_scope"]
                 new_cls = st.selectbox(
-                    "Classification",
+                    tr("Classification"),
                     options=_opts,
                     index=_opts.index(_cls) if _cls in _opts else 0,
                     format_func=lambda c: {
@@ -148,18 +149,18 @@ if "NIS2" in regulations:
                     }[c],
                 )
                 sector = st.text_input(
-                    "Sector", value=_row.get("nis2_sector") or "",
-                    placeholder="e.g. digital infrastructure, manufacturing",
+                    tr("Sector"), value=_row.get("nis2_sector") or "",
+                    placeholder=tr("e.g. digital infrastructure, manufacturing"),
                 )
                 note = st.text_area(
-                    "Why", value=_row.get("nis2_scope_note") or "", height=80,
+                    tr("Why"), value=_row.get("nis2_scope_note") or "", height=80,
                     help=(
-                        "An entity that concluded it is out of scope will be asked "
+                        tr("An entity that concluded it is out of scope will be asked "
                         "to justify that, and will not remember. Size thresholds, "
-                        "sector, and any exception you relied on."
+                        "sector, and any exception you relied on.")
                     ),
                 )
-                if st.form_submit_button("Save", type="primary"):
+                if st.form_submit_button(tr("Save"), type="primary"):
                     try:
                         get_supabase().table("clients").update({
                             "nis2_entity_class": new_cls,
@@ -173,15 +174,15 @@ if "NIS2" in regulations:
                             "nis2_sector": sector or None,
                             "nis2_scope_note": note or None,
                         }).eq("id", client_id).execute()
-                        st.success("Saved.")
+                        st.success(tr("Saved."))
                         st.rerun(scope="fragment")
                     except Exception as e:
                         st.error(f"Could not save: {e}")
 
             if _cls == "out_of_scope" and not (_row.get("nis2_scope_note") or "").strip():
                 st.warning(
-                    "Recorded as out of scope with no reason given. That is the "
-                    "first thing an authority asks about."
+                    tr("Recorded as out of scope with no reason given. That is the "
+                    "first thing an authority asks about.")
                 )
 
     _nis2_scope_panel(client_id, client)
@@ -195,10 +196,10 @@ if open_tasks:
     _ac1, _ac2 = st.columns([3, 1])
     _ac1.info(f"**{len(open_tasks)} {'task' if len(open_tasks) == 1 else 'tasks'} outstanding** "
               "— listed by urgency on the Action plan.")
-    if _ac2.button("Open the action plan", key="ob_to_plan", use_container_width=True):
+    if _ac2.button(tr("Open the action plan"), key="ob_to_plan", use_container_width=True):
         st.switch_page("app_pages/action_plan.py")
 else:
-    st.success("Nothing outstanding.")
+    st.success(tr("Nothing outstanding."))
 st.divider()
 
 # ── The register ──────────────────────────────────────────────────────────
@@ -227,11 +228,11 @@ _SOURCE_NOTE = {
 
 f1, f2 = st.columns([2, 3])
 only = f1.multiselect(
-    "Show", [OR.MISSING, OR.UNKNOWN, OR.PARTIAL, OR.COMPLIANT, OR.NOT_APPLICABLE],
+    tr("Show"), [OR.MISSING, OR.UNKNOWN, OR.PARTIAL, OR.COMPLIANT, OR.NOT_APPLICABLE],
     default=[], format_func=lambda s: _STATUS_LABEL[s],
-    placeholder="Everything",
+    placeholder=tr("Everything"),
 )
-search = f2.text_input("Search", placeholder="Article, keyword…")
+search = f2.text_input(tr("Search"), placeholder=tr("Article, keyword…"))
 
 # The Show/Search filters change which obligations are selectable per
 # regulation. If a filter changes on this rerun, the previously selected
@@ -256,7 +257,7 @@ shown = sorted(
                    regulations.index(o["regulation"]) if o["regulation"] in regulations else 9),
 )
 if not shown:
-    st.info("Nothing matches these filters.")
+    st.info(tr("Nothing matches these filters."))
 else:
     # The shared table (table_view.py, BO review point 4): click a row to
     # open it below. It replaced an st.dataframe plus "Open an obligation".
@@ -309,9 +310,9 @@ if shown:
 
         if kind == OR.KIND_DERIVED:
             st.caption(
-                "RECOSA works this out from your systems and activities. "
+                tr("RECOSA works this out from your systems and activities. "
                 "Change it there and this follows — there is nothing to "
-                "fill in here."
+                "fill in here.")
             )
         elif kind == OR.KIND_DOCUMENT:
             dt = ob.get("doc_type")
@@ -341,11 +342,11 @@ if shown:
             with st.form(f"ob_{ob['id']}"):
                 if kind == OR.KIND_ACKNOWLEDGE:
                     who = st.text_input(
-                        "Who confirmed this, and in what capacity",
+                        tr("Who confirmed this, and in what capacity"),
                         value=resp.get("acknowledged_by") or "",
                         help=(
-                            "A name and a date. An unattributed tick is "
-                            "not evidence of anything."
+                            tr("A name and a date. An unattributed tick is "
+                            "not evidence of anything.")
                         ),
                     )
                     if resp.get("acknowledged_at"):
@@ -356,18 +357,18 @@ if shown:
                     who = None
 
                 statement = st.text_area(
-                    "What you do about this",
+                    tr("What you do about this"),
                     value=(resp.get("statement_i18n") or {}).get("en", ""),
                     height=90,
                     help=(
-                        "In your own words. This is what you would show "
-                        "someone who asked."
+                        tr("In your own words. This is what you would show "
+                        "someone who asked.")
                     ),
                 )
 
                 s1, s2 = st.columns(2)
                 new_status = s1.selectbox(
-                    "Status",
+                    tr("Status"),
                     options=["not_started", "in_progress", "compliant",
                              "partial", "not_applicable"],
                     index=["not_started", "in_progress", "compliant",
@@ -382,26 +383,26 @@ if shown:
                     }[s],
                 )
                 review = s2.date_input(
-                    "Review again on",
+                    tr("Review again on"),
                     value=(date.fromisoformat(resp["review_due"])
                            if resp.get("review_due") else None),
-                    help="Leave blank if it does not need revisiting.",
+                    help=tr("Leave blank if it does not need revisiting."),
                 )
 
                 reason = st.text_input(
-                    "If not applicable, why not",
+                    tr("If not applicable, why not"),
                     value=resp.get("not_applicable_reason") or "",
                     help=(
-                        "Required, and the first thing an auditor asks "
-                        "about. It is also what you will not remember."
+                        tr("Required, and the first thing an auditor asks "
+                        "about. It is also what you will not remember.")
                     ),
                 )
 
-                if st.form_submit_button("Save", type="primary"):
+                if st.form_submit_button(tr("Save"), type="primary"):
                     if new_status == "not_applicable" and not reason.strip():
                         st.error(
-                            "A reason is required to mark something not "
-                            "applicable."
+                            tr("A reason is required to mark something not "
+                            "applicable.")
                         )
                     else:
                         ok = STORE.save_response(
@@ -413,7 +414,7 @@ if shown:
                             not_applicable_reason=reason,
                         )
                         if ok:
-                            st.success("Saved.")
+                            st.success(tr("Saved."))
                             # The saved status can move the obligation out of
                             # an active Show filter (e.g. marking a
                             # previously-Missing item Compliant while
@@ -422,10 +423,10 @@ if shown:
                             st.session_state.pop("ob_select", None)
                             st.rerun()
                         else:
-                            st.error("Could not save.")
+                            st.error(tr("Could not save."))
 
 st.divider()
 st.caption(
-    "Statuses RECOSA works out for itself update as your inventory changes. "
-    "Everything else is what you have recorded, and is shown as such."
+    tr("Statuses RECOSA works out for itself update as your inventory changes. "
+    "Everything else is what you have recorded, and is shown as such.")
 )

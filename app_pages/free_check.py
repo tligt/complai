@@ -14,6 +14,7 @@ DECLARED answers — the lowest precedence (obligation_register.py), so any anal
 document or derivation overrides them — and only where the client has
 recorded nothing for that obligation yet.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -33,7 +34,7 @@ clients = load_accessible_clients(user_id) or []
 client = st.session_state.get("selected_client") or (clients[0] if clients else None)
 email = st.session_state.user.email
 
-st.title("Your free check")
+st.title(tr("Your free check"))
 
 
 def _store(result: dict | None) -> None:
@@ -64,23 +65,23 @@ def _add_gdpr(key: str) -> None:
 
 def _add_site(key: str) -> None:
     with st.form(key):
-        url = st.text_input("Website", value=(client or {}).get("website_url") or "",
-                            placeholder="https://yourcompany.com")
-        if st.form_submit_button("Check my website", type="primary"):
+        url = st.text_input(tr("Website"), value=(client or {}).get("website_url") or "",
+                            placeholder=tr("https://yourcompany.com"))
+        if st.form_submit_button(tr("Check my website"), type="primary"):
             from crawler import extract_domain, normalise_url
             pend = funnel.pending_from_params(None, extract_domain(normalise_url(url)))
             if pend:
                 _store({**pending, "tool": pending.get("tool") or funnel.TOOL_WEBSITE,
                         "site": pend["site"]})
             else:
-                st.error("Please enter a valid website address.")
+                st.error(tr("Please enter a valid website address."))
 
 
 # ── No check yet: take one here ───────────────────────────────────────────
 if not any(funnel.has_check(pending, t) for t in funnel.ALL_CHECKS):
-    st.caption("Take one of the free checks to see where you stand.")
-    tab_site, tab_gdpr, tab_quiz, tab_ai = st.tabs(["🌐 Website check", "🔐 GDPR Quick Check",
-                                                    "🛡️ NIS2 Quick Check", "🤖 AI Act Quick Check"])
+    st.caption(tr("Take one of the free checks to see where you stand."))
+    tab_site, tab_gdpr, tab_quiz, tab_ai = st.tabs([tr("🌐 Website check"), tr("🔐 GDPR Quick Check"),
+                                                    tr("🛡️ NIS2 Quick Check"), tr("🤖 AI Act Quick Check")])
     with tab_site:
         _add_site("app_site")
     with tab_gdpr:
@@ -94,7 +95,7 @@ if not any(funnel.has_check(pending, t) for t in funnel.ALL_CHECKS):
 scope = funnel.decode_scope(pending.get("scope"))
 if scope:
     with st.container(border=True):
-        st.markdown("**The rules that apply to you** — a first indication from your answers")
+        st.markdown(tr("**The rules that apply to you** — a first indication from your answers"))
         render_rules(funnel.applicable_rules(scope))
 
 # ── Website check result ──────────────────────────────────────────────────
@@ -134,14 +135,14 @@ if funnel.has_site(pending):
             st.code(f'<meta name="{FD.META_NAME}" content="{token}">', language="html")
             st.markdown(f"**or** a DNS TXT record on {site}:")
             st.code(f"{FD.META_NAME}={token}", language="text")
-            if st.button("Verify the site", type="primary", key="verify_site"):
-                with st.spinner("Looking for it…"):
+            if st.button(tr("Verify the site"), type="primary", key="verify_site"):
+                with st.spinner(tr("Looking for it…")):
                     ok, how = FD.check_site(site, token)
                 if ok:
                     save_pending_result(user_id, {**pending, "site_verified": True, "verified_by": how})
                     st.rerun()
-                st.error("Not found yet. Check the tag is on the homepage itself, or wait for the "
-                         "DNS record to spread (it can take an hour), then try again.")
+                st.error(tr("Not found yet. Check the tag is on the homepage itself, or wait for the "
+                         "DNS record to spread (it can take an hour), then try again."))
     else:
         if not pending.get("audited"):
             save_audit(
@@ -158,7 +159,7 @@ if funnel.has_site(pending):
 if answers is not None:
     if funnel.has_site(pending):
         st.divider()
-    st.subheader("NIS2 Quick Check")
+    st.subheader(tr("NIS2 Quick Check"))
     render_quiz_score(answers)
     render_quiz_breakdown(answers, locked=False)
     if client:
@@ -171,7 +172,7 @@ if answers is not None:
 if gdpr_answers is not None:
     if funnel.has_site(pending) or answers is not None:
         st.divider()
-    st.subheader("GDPR Quick Check")
+    st.subheader(tr("GDPR Quick Check"))
     render_quiz_score(gdpr_answers, funnel.GDPR)
     render_quiz_breakdown(gdpr_answers, locked=False, kind=funnel.GDPR)
     if client:
@@ -184,7 +185,7 @@ if gdpr_answers is not None:
 if ai_answers is not None:
     if funnel.has_site(pending) or answers is not None or gdpr_answers is not None:
         st.divider()
-    st.subheader("AI Act Quick Check")
+    st.subheader(tr("AI Act Quick Check"))
     render_quiz_score(ai_answers, funnel.AI_ACT)
     render_quiz_breakdown(ai_answers, locked=False, kind=funnel.AI_ACT)
     if client:
@@ -198,18 +199,18 @@ if ai_answers is not None:
 # place, and its result is added to this page and emailed like the others.
 if funnel.missing_checks(pending):
     st.write("")
-    st.caption("**Complete your picture** — also free, added to this page and sent to you")
+    st.caption(tr("**Complete your picture** — also free, added to this page and sent to you"))
 if not funnel.has_site(pending):
-    with st.expander("🌐 Website check — 30 seconds"):
+    with st.expander(tr("🌐 Website check — 30 seconds")):
         _add_site("app_site_more")
 if gdpr_answers is None:
-    with st.expander("🔐 GDPR Quick Check — 2 minutes"):
+    with st.expander(tr("🔐 GDPR Quick Check — 2 minutes")):
         _add_gdpr("app_gdpr_more")
 if answers is None:
-    with st.expander("🛡️ NIS2 Quick Check — 3 minutes"):
+    with st.expander(tr("🛡️ NIS2 Quick Check — 3 minutes")):
         _add_quiz("app_quiz_more")
 if ai_answers is None:
-    with st.expander("🤖 AI Act Quick Check — 2 minutes"):
+    with st.expander(tr("🤖 AI Act Quick Check — 2 minutes")):
         _add_ai("app_ai_more")
 
 # The emailed copy (S49 part 2): sent once per check, to a confirmed account

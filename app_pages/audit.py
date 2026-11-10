@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import os
 import streamlit as st
 from auth import is_logged_in, get_user_id
@@ -20,12 +21,12 @@ FREQUENCY_OPTIONS = {"Weekly": 7, "Monthly": 30, "Quarterly": 90}
 
 # ── Page header ───────────────────────────────────────────────────────────────
 
-st.title("Web Audit")
+st.title(tr("Web Audit"))
 from guide import page_tip
 page_tip("audit")
 st.markdown(
-    "Check a website against **GDPR, ePrivacy, Accessibility, Consumer Rights, NIS2, and the EU AI Act** "
-    "in minutes."
+    tr("Check a website against **GDPR, ePrivacy, Accessibility, Consumer Rights, NIS2, and the EU AI Act** "
+    "in minutes.")
 )
 st.divider()
 
@@ -34,7 +35,7 @@ logged_in = is_logged_in()
 # ── Authenticated flow ────────────────────────────────────────────────────────
 if logged_in:
     user_id = get_user_id()
-    st.info("Your plan includes unlimited website audits. Each result is saved to your account.")
+    st.info(tr("Your plan includes unlimited website audits. Each result is saved to your account."))
 
     # S44. Not cached (cached_reads.py), so this is always fresh — no
     # cache-clear needed after Subscribe/Unsubscribe below, just a rerun.
@@ -49,7 +50,7 @@ if logged_in:
                     f"{_freq_label_by_days.get(sub['frequency_days'], sub['frequency_days'])} · "
                     f"last run: {sub.get('last_run_at') or 'never'}"
                 )
-                if sc3.button("Unsubscribe", key=f"unsub_{sub['id']}"):
+                if sc3.button(tr("Unsubscribe"), key=f"unsub_{sub['id']}"):
                     if deactivate_audit_subscription(sub["id"], user_id):
                         st.rerun()
 
@@ -68,7 +69,7 @@ if logged_in:
             st.session_state.auth_url = chosen["website_url"]
 
     selected_client_name = st.selectbox(
-        "Link this audit to a client (optional)",
+        tr("Link this audit to a client (optional)"),
         options=["— No client —"] + list(client_options.keys()),
         key="auth_client_select",
         on_change=_prefill_url_from_client,
@@ -76,16 +77,16 @@ if logged_in:
     selected_client = client_options.get(selected_client_name)
 
     website_url = st.text_input(
-        "Website URL to audit",
-        placeholder="https://yourcompany.com",
+        tr("Website URL to audit"),
+        placeholder=tr("https://yourcompany.com"),
         key="auth_url"
     )
 
-    if st.button("🔍 Run audit", type="primary", use_container_width=True, key="btn_auth_audit"):
+    if st.button(tr("🔍 Run audit"), type="primary", use_container_width=True, key="btn_auth_audit"):
         if not website_url.strip():
-            st.error("Please enter a website URL.")
+            st.error(tr("Please enter a website URL."))
         else:
-            with st.spinner("Crawling website and running compliance checks..."):
+            with st.spinner(tr("Crawling website and running compliance checks...")):
                 crawl_result = crawl(website_url.strip())
                 if crawl_result.error:
                     st.error(crawl_result.error)
@@ -169,15 +170,15 @@ if logged_in:
         )
         render_results(_result["audit_result"], _result["pdf_bytes"], is_authenticated=True)
 
-        with st.expander("🔁 Get this checked automatically"):
+        with st.expander(tr("🔁 Get this checked automatically")):
             st.caption(
                 "Re-run this audit on a schedule and email the results to "
                 f"{st.session_state.user.email}."
             )
             freq_label = st.selectbox(
-                "How often", list(FREQUENCY_OPTIONS.keys()), index=1, key="sub_freq",
+                tr("How often"), list(FREQUENCY_OPTIONS.keys()), index=1, key="sub_freq",
             )
-            if st.button("Subscribe", key="btn_subscribe"):
+            if st.button(tr("Subscribe"), key="btn_subscribe"):
                 ok = create_audit_subscription(
                     user_id=user_id,
                     client_id=_result["client_id"],
@@ -195,7 +196,7 @@ if logged_in:
                     st.session_state.pop("auth_audit_result", None)
                     st.rerun()
                 else:
-                    st.error("Could not create the subscription.")
+                    st.error(tr("Could not create the subscription."))
 
 # ── Public flow ───────────────────────────────────────────────────────────────
 # S49 (D-115): the free, no-login website check lives in the public app
@@ -203,4 +204,4 @@ if logged_in:
 # could never run — app.py gates every page behind is_logged_in() (D-104) — and
 # was removed rather than kept as a second copy to drift.
 else:
-    st.info("Log in to run website audits.")
+    st.info(tr("Log in to run website audits."))

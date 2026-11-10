@@ -43,6 +43,7 @@ never existed, so the page was English-only since it shipped.
 4. BLOCKING vs GAPS. readiness() now separates incomplete-but-truthful from
    would-be-wrong. Only the second stops a RoPA being generated.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import pandas as pd
 import streamlit as st
@@ -56,13 +57,13 @@ import inventory_store as STORE
 import translate as TR
 import detection
 
-st.title("Systems")
+st.title(tr("Systems"))
 from guide import page_tip
 page_tip("inventory")
 st.caption(
-    "Your systems, processing activities and controllers. This inventory is the source for your Record of Processing Activities, "
+    tr("Your systems, processing activities and controllers. This inventory is the source for your Record of Processing Activities, "
     "your Data Processing Agreements and your Cookie Policy. Filling it in "
-    "once means those documents can be generated rather than written."
+    "once means those documents can be generated rather than written.")
 )
 
 # app.py gates on is_logged_in() before navigation runs, so this page never
@@ -70,7 +71,7 @@ st.caption(
 # page being reached some other way.
 user_id = get_user_id()
 if not user_id:
-    st.warning("Please sign in to manage your inventory.")
+    st.warning(tr("Please sign in to manage your inventory."))
     st.stop()
 
 
@@ -196,10 +197,10 @@ counterparty_name = {c["id"]: c["legal_name"] for c in counterparties}
 ready = STORE.readiness(activities, systems, links, cp_links, client_id)
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric("Systems", ready["systems"])
-c2.metric("Activities", ready["activities"])
-c3.metric("Ready for RoPA", f"{ready['complete_activities']}/{ready['activities']}")
-c4.metric("Controllers", len(counterparties))
+c1.metric(tr("Systems"), ready["systems"])
+c2.metric(tr("Activities"), ready["activities"])
+c3.metric(tr("Ready for RoPA"), f"{ready['complete_activities']}/{ready['activities']}")
+c4.metric(tr("Controllers"), len(counterparties))
 
 # The CNIL recommends two separate registers where an organisation is both
 # controller and processor. Saying so here, where the split is visible, beats
@@ -226,13 +227,13 @@ if ready["blocking"]:
 # rather than as a deliberate refusal to guess at their national law.
 _principles = INV.principles_for_display(lang)
 if _principles:
-    with st.expander("How this inventory is filled in"):
+    with st.expander(tr("How this inventory is filled in")):
         for p in _principles:
             st.markdown(f"**{p['title']}**")
             st.caption(p["body"])
 
 tab_systems, tab_activities, tab_controllers = st.tabs(
-    ["Systems", "Processing activities", "Controllers you process for"]
+    [tr("Systems"), tr("Processing activities"), tr("Controllers you process for")]
 )
 
 
@@ -249,28 +250,28 @@ with tab_systems:
     # "Add a common tool" below.
     _scan_key = f"inv_scan_{client_id}"
     _flash_key = f"inv_scan_flash_{client_id}"
-    with st.expander("🔎 Scan your website for tools you use",
+    with st.expander(tr("🔎 Scan your website for tools you use"),
                      expanded=not systems or _scan_key in st.session_state):
         st.caption(
-            "Checks your website and your domain's email records (MX and SPF) "
-            "for tools in our catalogue. Nothing is added until you tick it."
+            tr("Checks your website and your domain's email records (MX and SPF) "
+            "for tools in our catalogue. Nothing is added until you tick it.")
         )
         for _msg_kind, _msg in st.session_state.pop(_flash_key, []):
             getattr(st, _msg_kind)(_msg)
 
         _sc1, _sc2 = st.columns([4, 1])
         _scan_url = _sc1.text_input(
-            "Website", value=_client.get("website_url") or "",
-            placeholder="yourcompany.com", key=f"inv_scan_url_{client_id}",
+            tr("Website"), value=_client.get("website_url") or "",
+            placeholder=tr("yourcompany.com"), key=f"inv_scan_url_{client_id}",
             label_visibility="collapsed",
         )
-        if _sc2.button("Scan", key=f"inv_scan_btn_{client_id}",
+        if _sc2.button(tr("Scan"), key=f"inv_scan_btn_{client_id}",
                        use_container_width=True, disabled=not _scan_url.strip()):
-            with st.spinner("Scanning the website and email records…"):
+            with st.spinner(tr("Scanning the website and email records…")):
                 _fresh = detection.detect(_scan_url)
             st.session_state[_scan_key] = _fresh
             if not STORE.save_website_scan(_fresh, _scan_url, user_id, client_id):
-                st.caption("⚠️ This scan could not be saved to the scan history.")
+                st.caption(tr("⚠️ This scan could not be saved to the scan history."))
 
         # Every scan is kept (date + findings). Without a scan in this
         # session, the last saved one is shown, so its suggestions can still
@@ -324,15 +325,15 @@ with tab_systems:
             if _have:
                 st.caption("Already in your inventory: " + ", ".join(_have))
             if _res.other_services:
-                st.markdown("**Other services found**, not in our catalogue. Add the ones "
-                            "you use; you'll complete their details in the table below.")
+                st.markdown(tr("**Other services found**, not in our catalogue. Add the ones "
+                            "you use; you'll complete their details in the table below."))
                 _names = {(s.get("name") or "").strip().lower() for s in systems}
                 for _h, _how in _res.other_services:
                     _oc1, _oc2 = st.columns([4, 1])
                     _oc1.markdown(f"`{_h}`: {_how}")
                     if _h.lower() in _names:
-                        _oc2.caption("In your inventory")
-                    elif _oc2.button("Add", key=f"inv_scan_other_{client_id}_{_h}",
+                        _oc2.caption(tr("In your inventory"))
+                    elif _oc2.button(tr("Add"), key=f"inv_scan_other_{client_id}_{_h}",
                                      use_container_width=True):
                         _r = STORE.add_detected_service(_h, _how, user_id, client_id)
                         st.session_state[_flash_key] = [
@@ -356,14 +357,14 @@ with tab_systems:
                     st.caption(f"{_d['name']}: " + "; ".join(_d.get("evidence") or []))
 
     if available:
-        with st.expander("Add a common tool", expanded=not systems):
+        with st.expander(tr("Add a common tool"), expanded=not systems):
             st.caption(
-                "Adding a tool from this list pre-fills its vendor details and "
+                tr("Adding a tool from this list pre-fills its vendor details and "
                 "creates the processing activities it usually supports. Every "
-                "value is a starting point — review and correct them."
+                "value is a starting point — review and correct them.")
             )
             choice = st.selectbox(
-                "Tool",
+                tr("Tool"),
                 options=[v["key"] for v in available],
                 format_func=lambda k: next(v["name"] for v in available if v["key"] == k),
                 key="inv_catalogue_choice",
@@ -383,7 +384,7 @@ with tab_systems:
                 if note:
                     st.info(note)
 
-            if st.button("Add to my inventory", type="primary", key="inv_seed_btn"):
+            if st.button(tr("Add to my inventory"), type="primary", key="inv_seed_btn"):
                 res = STORE.seed_from_catalogue(choice, user_id, client_id, lang)
                 if res.get("error"):
                     st.error(res["error"])
@@ -404,7 +405,7 @@ with tab_systems:
     st.divider()
 
     if not systems:
-        st.info("No systems yet. Add one from the list above, or with the form below.")
+        st.info(tr("No systems yet. Add one from the list above, or with the form below."))
 
     cat_codes, cat_labels = INV.options_for("system_category", lang, client_id)
     tm_codes, tm_labels = INV.options_for("transfer_mechanism", lang, client_id)
@@ -447,7 +448,7 @@ with tab_systems:
             st.session_state[_sys_key] = _s_hit["row"]
     if st.session_state.get(_sys_key) not in ([_NEW] + list(_sys_by_id)):
         st.session_state[_sys_key] = systems[0]["id"] if systems else _NEW
-    if st.session_state[_sys_key] != _NEW and st.button("➕ Add a system", key="inv_sys_add"):
+    if st.session_state[_sys_key] != _NEW and st.button(tr("➕ Add a system"), key="inv_sys_add"):
         st.session_state[_sys_key] = _NEW
         st.rerun()
     _pick = st.session_state[_sys_key]
@@ -462,17 +463,17 @@ with tab_systems:
     def _duration_input(label, minutes, key, help_text):
         st.markdown(f"**{label}**", help=help_text)
         d1, d2, d3 = st.columns([2, 2, 3])
-        decided = d1.checkbox("Decided", value=minutes is not None, key=f"{key}_set")
+        decided = d1.checkbox(tr("Decided"), value=minutes is not None, key=f"{key}_set")
         if minutes is None:
             unit, amount = "hours", 4
         else:
             unit = ("days" if minutes and minutes % 1440 == 0 else
                     "hours" if minutes and minutes % 60 == 0 else "minutes")
             amount = minutes // _UNITS[unit]
-        amount = d2.number_input("Amount", min_value=0, value=int(amount), step=1,
+        amount = d2.number_input(tr("Amount"), min_value=0, value=int(amount), step=1,
                                  key=f"{key}_n", label_visibility="collapsed",
                                  disabled=not decided)
-        unit = d3.selectbox("Unit", list(_UNITS), index=list(_UNITS).index(unit),
+        unit = d3.selectbox(tr("Unit"), list(_UNITS), index=list(_UNITS).index(unit),
                             key=f"{key}_u", label_visibility="collapsed", disabled=not decided)
         return int(amount) * _UNITS[unit] if decided else None
 
@@ -483,20 +484,20 @@ with tab_systems:
                                key=key, **kw)
 
     with st.container(border=True):
-        st.markdown("**The tool**")
+        st.markdown(tr("**The tool**"))
         c1, c2 = st.columns(2)
-        f_name = c1.text_input("System ✱", value=cur.get("name") or "", key=_fk("name"))
-        f_vendor = c2.text_input("Vendor legal entity", value=cur.get("vendor_legal_name") or "",
+        f_name = c1.text_input(tr("System ✱"), value=cur.get("name") or "", key=_fk("name"))
+        f_vendor = c2.text_input(tr("Vendor legal entity"), value=cur.get("vendor_legal_name") or "",
                                  key=_fk("vendor"))
         c1, c2 = st.columns(2)
         f_cat = _sel(c1, "Category", cat_codes, cat_labels, cur.get("category"), _fk("cat"))
         f_crit = _sel(c2, "Criticality", crit_codes, crit_labels, cur.get("criticality"), _fk("crit"))
-        f_purpose = st.text_input("What you use it for", value=cur.get("purpose") or "", key=_fk("purpose"))
+        f_purpose = st.text_input(tr("What you use it for"), value=cur.get("purpose") or "", key=_fk("purpose"))
 
-        st.markdown("**Data protection**")
+        st.markdown(tr("**Data protection**"))
         c1, c2, c3 = st.columns(3)
-        f_country = c1.text_input("Where data is processed", value=cur.get("processing_country") or "",
-                                  key=_fk("country"), help="ISO code (BE, US…), or EU for several EEA countries.")
+        f_country = c1.text_input(tr("Where data is processed"), value=cur.get("processing_country") or "",
+                                  key=_fk("country"), help=tr("ISO code (BE, US…), or EU for several EEA countries."))
         f_tm = _sel(c2, "Transfer basis", tm_codes, tm_labels, cur.get("transfer_mechanism"), _fk("tm"),
                     help="Only needed when data leaves the EU.")
         f_dpa = _sel(c3, "Processing agreement (DPA)", dpa_codes, dpa_labels, cur.get("dpa_status"), _fk("dpa"))
@@ -505,16 +506,16 @@ with tab_systems:
         if isinstance(_signed, str) and _signed:
             from datetime import date as _date
             _signed = _date.fromisoformat(_signed[:10])
-        f_signed = c1.date_input("DPA signed on", value=_signed or None, key=_fk("signed"),
+        f_signed = c1.date_input(tr("DPA signed on"), value=_signed or None, key=_fk("signed"),
                                  format="DD/MM/YYYY")
-        f_dpa_url = c2.text_input("DPA link", value=cur.get("dpa_url") or "", key=_fk("dpaurl"))
-        f_pp = c3.text_input("Vendor privacy policy", value=cur.get("privacy_policy_url") or "", key=_fk("pp"))
+        f_dpa_url = c2.text_input(tr("DPA link"), value=cur.get("dpa_url") or "", key=_fk("dpaurl"))
+        f_pp = c3.text_input(tr("Vendor privacy policy"), value=cur.get("privacy_policy_url") or "", key=_fk("pp"))
         c1, c2 = st.columns(2)
         f_ai = _sel(c1, "AI role", ai_codes, ai_labels, cur.get("ai_role"), _fk("ai"))
-        f_cookies = c2.checkbox("Sets cookies on your website", value=bool(cur.get("sets_cookies")),
+        f_cookies = c2.checkbox(tr("Sets cookies on your website"), value=bool(cur.get("sets_cookies")),
                                 key=_fk("cookies"))
 
-        st.markdown("**If it stops working**")
+        st.markdown(tr("**If it stops working**"))
         f_rto = _duration_input("How long it may be down", cur.get("rto_minutes"), _fk("rto"),
                                 "Recovery time objective (RTO): how long this system may be "
                                 "unavailable before it has to be back.")
@@ -522,17 +523,17 @@ with tab_systems:
                                 _fk("rpo"),
                                 "Recovery point objective (RPO): with a nightly backup, up to 1 day "
                                 "of data. 0 means none may be lost.")
-        f_recovery = st.text_input("How it is recovered", value=cur.get("recovery_note") or "",
-                                   key=_fk("recovery"), help="Where the backup is and who restores it.")
-        f_notes = st.text_input("Notes", value=cur.get("notes") or "", key=_fk("notes"))
+        f_recovery = st.text_input(tr("How it is recovered"), value=cur.get("recovery_note") or "",
+                                   key=_fk("recovery"), help=tr("Where the backup is and who restores it."))
+        f_notes = st.text_input(tr("Notes"), value=cur.get("notes") or "", key=_fk("notes"))
 
         b1, b2, b3 = st.columns([1, 2, 1])
         _save = b1.button("Save" if cur else "Add system", type="primary", key=_fk("save"),
                           use_container_width=True)
         _del = False
         if cur:
-            _really = b2.checkbox("I want to remove this system", key=_fk("delchk"))
-            _del = b3.button("Remove", key=_fk("del"), disabled=not _really, use_container_width=True)
+            _really = b2.checkbox(tr("I want to remove this system"), key=_fk("delchk"))
+            _del = b3.button(tr("Remove"), key=_fk("del"), disabled=not _really, use_container_width=True)
 
     if _save or _del:
         row = {
@@ -556,7 +557,7 @@ with tab_systems:
         else:
             rows.append({c: row.get(c) for c in grid_cols})
         if _save and not f_name.strip():
-            st.warning("Give the system a name.")
+            st.warning(tr("Give the system a name."))
         else:
             result = STORE.commit_systems(systems, pd.DataFrame(rows, columns=grid_cols),
                                           user_id, client_id)
@@ -578,8 +579,8 @@ with tab_systems:
 
 with tab_activities:
     st.caption(
-        "One row per purpose you process personal data for. These become the "
-        "rows of your Art. 30 record."
+        tr("One row per purpose you process personal data for. These become the "
+        "rows of your Art. 30 record.")
     )
 
     basis_codes, basis_labels = INV.options_for("legal_basis", lang, client_id)
@@ -650,7 +651,7 @@ with tab_activities:
         if _a_hit:
             st.session_state["inv_act_select"] = _a_hit["row"]
     else:
-        st.info("No processing activities yet. Add one below, or seed them from a catalogue tool.")
+        st.info(tr("No processing activities yet. Add one below, or seed them from a catalogue tool."))
 
     st.divider()
 
@@ -698,7 +699,7 @@ with tab_activities:
     tv.focus(f"inv_activities_{client_id}")
     if existing is not None:
         st.markdown(f"**Edit {_activity_label(existing['id'])}**")
-        if st.button("➕ Add a new activity", key="inv_act_add"):
+        if st.button(tr("➕ Add a new activity"), key="inv_act_add"):
             st.session_state["inv_act_select"] = None
             st.rerun()
     else:
@@ -712,9 +713,9 @@ with tab_activities:
     # OUTSIDE the form on purpose. A widget inside st.form does not trigger a
     # rerun when changed, so role controls for the systems just selected could
     # never appear until after a submit. Selection outside, roles inside.
-    st.markdown("**Systems used for this activity**")
+    st.markdown(tr("**Systems used for this activity**"))
     chosen_systems = st.multiselect(
-        "Systems",
+        tr("Systems"),
         options=list(system_name.keys()),
         default=STORE.systems_for_activity(links, aid) if aid else [],
         format_func=lambda i: system_name.get(i, i),
@@ -723,9 +724,9 @@ with tab_activities:
     )
     if chosen_systems:
         st.caption(
-            "The role each vendor plays for *this* activity. A vendor can be a "
+            tr("The role each vendor plays for *this* activity. A vendor can be a "
             "processor for one activity and a joint controller for another, so "
-            "the role belongs here rather than on the system."
+            "the role belongs here rather than on the system.")
         )
 
     with st.form(form_key):
@@ -762,7 +763,7 @@ with tab_activities:
                 st.markdown(f"**{TR.LANGUAGE_NAMES.get(l, l.upper())}**")
                 for field, label, height in _fields:
                     if (_status.get(field, {}) or {}).get(l) == "machine_unreviewed":
-                        st.caption(":orange[Draft — edit or re-save to confirm]")
+                        st.caption(tr(":orange[Draft — edit or re-save to confirm]"))
                     kwargs = {
                         "value": _i18n_get(a, field, l),
                         "key": f"inv_act_{field}_{l}_{aid or 'new'}",
@@ -774,14 +775,14 @@ with tab_activities:
 
         if len(doc_langs) > 1:
             st.caption(
-                "Fill in whichever language you think in. The others are "
-                "drafted on save and marked until you confirm them."
+                tr("Fill in whichever language you think in. The others are "
+                "drafted on save and marked until you confirm them.")
             )
 
         col_a, col_b = st.columns(2)
         with col_a:
             basis = st.selectbox(
-                "Legal basis (Art. 6)",
+                tr("Legal basis (Art. 6)"),
                 options=basis_codes,
                 index=basis_codes.index(a["legal_basis"]) if a.get("legal_basis") in basis_codes else 0,
                 format_func=lambda c: basis_labels.get(c, c),
@@ -791,19 +792,19 @@ with tab_activities:
                 st.caption(note)
         with col_b:
             ctrl = st.selectbox(
-                "Your role",
+                tr("Your role"),
                 options=role_codes,
                 index=role_codes.index(a["controller_role"]) if a.get("controller_role") in role_codes else 0,
                 format_func=lambda c: role_labels.get(c, c),
             )
 
         li_note = st.text_area(
-            "Balancing test",
+            tr("Balancing test"),
             value=a.get("legitimate_interest_note") or "",
             height=70,
-            help="Required for legitimate interests: your interest, why the "
+            help=tr("Required for legitimate interests: your interest, why the "
                  "processing is necessary, and why it does not override the "
-                 "individual's rights.",
+                 "individual's rights."),
         )
 
         # Per-system roles, driven by the selection made above.
@@ -822,12 +823,12 @@ with tab_activities:
                 )
 
         subjects = st.multiselect(
-            "Categories of data subject", options=subj_codes,
+            tr("Categories of data subject"), options=subj_codes,
             default=[c for c in (a.get("data_subject_categories") or []) if c in subj_codes],
             format_func=lambda c: subj_labels.get(c, c),
         )
         categories = st.multiselect(
-            "Categories of personal data", options=data_codes,
+            tr("Categories of personal data"), options=data_codes,
             default=[c for c in (a.get("data_categories") or []) if c in data_codes],
             format_func=lambda c: data_labels.get(c, c),
         )
@@ -847,13 +848,13 @@ with tab_activities:
         # Multiselect, not a dropdown: an HR record carries data from the
         # employee AND from their referees, and both have to be disclosed.
         sources = st.multiselect(
-            "Where this data came from", options=src_codes,
+            tr("Where this data came from"), options=src_codes,
             default=[c for c in (a.get("data_source_codes") or []) if c in src_codes],
             format_func=lambda c: src_labels.get(c, c),
             help=(
-                "Leave blank only if you do not know yet. Blank is not read as "
+                tr("Leave blank only if you do not know yet. Blank is not read as "
                 "'from the person themselves' — the privacy policy will not "
-                "speak for an activity whose source is unrecorded."
+                "speak for an activity whose source is unrecorded.")
             ),
         )
         if sources:
@@ -867,25 +868,25 @@ with tab_activities:
             # Only on an existing activity. A brand-new form has every field
             # blank and does not need telling.
             st.caption(
-                ":orange[Not recorded.] Your privacy policy cannot describe "
-                "this activity's source until it is."
+                tr(":orange[Not recorded.] Your privacy policy cannot describe "
+                "this activity's source until it is.")
             )
 
         specials = st.multiselect(
-            "Special categories (Art. 9)", options=spec_codes,
+            tr("Special categories (Art. 9)"), options=spec_codes,
             default=[c for c in (a.get("special_categories") or []) if c in spec_codes],
             format_func=lambda c: spec_labels.get(c, c),
-            help="Sick leave and workplace accident records count as health data.",
+            help=tr("Sick leave and workplace accident records count as health data."),
         )
         art9 = st.selectbox(
-            "Art. 9(2) condition",
+            tr("Art. 9(2) condition"),
             options=[None] + art9_codes,
             index=(art9_codes.index(a["art9_condition"]) + 1) if a.get("art9_condition") in art9_codes else 0,
             format_func=lambda c: "—" if c is None else art9_labels.get(c, c),
-            help="Required whenever special category data is selected.",
+            help=tr("Required whenever special category data is selected."),
         )
         criminal = st.multiselect(
-            "Criminal convictions (Art. 10)", options=crim_codes,
+            tr("Criminal convictions (Art. 10)"), options=crim_codes,
             default=[c for c in (a.get("criminal_data") or []) if c in crim_codes],
             format_func=lambda c: crim_labels.get(c, c),
         )
@@ -897,11 +898,11 @@ with tab_activities:
         # ends. The two have different durations AND different bases, and
         # collapsing them either overstates how long data is in use or
         # understates how long it is held.
-        st.markdown("**Retention**")
+        st.markdown(tr("**Retention**"))
         st.caption(
-            "How long the data is actively used, and — separately — how long "
+            tr("How long the data is actively used, and — separately — how long "
             "it is kept afterwards for a legal reason. Most activities have "
-            "only the first."
+            "only the first.")
         )
 
         # Both vocabularies come from reference_values, already ordered by
@@ -918,7 +919,7 @@ with tab_activities:
             c1, c2, c3 = st.columns([1, 1, 3])
             with c1:
                 v = st.number_input(
-                    "Number", min_value=0, step=1,
+                    tr("Number"), min_value=0, step=1,
                     value=int(a.get(f"{prefix}value") or 0),
                     key=f"inv_act_{prefix}value_{aid or 'new'}",
                     help=help_text,
@@ -926,7 +927,7 @@ with tab_activities:
             with c2:
                 _u = a.get(f"{prefix}unit")
                 u = st.selectbox(
-                    "Unit", options=_unit_codes,
+                    tr("Unit"), options=_unit_codes,
                     index=_unit_codes.index(_u) if _u in _unit_codes else 0,
                     format_func=lambda c: "—" if c is None else _unit_labels.get(c, c),
                     key=f"inv_act_{prefix}unit_{aid or 'new'}",
@@ -934,7 +935,7 @@ with tab_activities:
             with c3:
                 _b = a.get(f"{prefix}basis_code")
                 b = st.selectbox(
-                    "Why that period", options=_basis_codes,
+                    tr("Why that period"), options=_basis_codes,
                     index=_basis_codes.index(_b) if _b in _basis_codes else 0,
                     format_func=lambda c: "—" if c is None else _basis_labels.get(c, c),
                     key=f"inv_act_{prefix}basis_{aid or 'new'}",
@@ -977,7 +978,7 @@ with tab_activities:
                 st.caption(_rp["body"])
 
         measures = st.multiselect(
-            "Security measures", options=sec_codes,
+            tr("Security measures"), options=sec_codes,
             default=[c for c in (a.get("security_measures") or []) if c in sec_codes],
             format_func=lambda c: sec_labels.get(c, c),
         )
@@ -986,36 +987,36 @@ with tab_activities:
         # Always shown rather than revealed when the role is 'processor':
         # 'Your role' is a widget inside this same form, so changing it cannot
         # rerun the form to reveal these. The caption carries the condition.
-        st.markdown("**Controllers you carry out this activity for**")
+        st.markdown(tr("**Controllers you carry out this activity for**"))
         st.caption(
-            "Required when your role above is *Processor* (Art. 30(2)(a)). "
+            tr("Required when your role above is *Processor* (Art. 30(2)(a)). "
             "Name each controller, or say where the maintained list is kept — "
-            "the record must be producible on request."
+            "the record must be producible on request.")
         )
         chosen_cps = st.multiselect(
-            "Controllers",
+            tr("Controllers"),
             options=list(counterparty_name.keys()),
             default=STORE.counterparties_for_activity(cp_links, aid) if aid else [],
             format_func=lambda i: counterparty_name.get(i, i),
             label_visibility="collapsed",
-            help="Add controllers in the 'Controllers you process for' tab.",
+            help=tr("Add controllers in the 'Controllers you process for' tab."),
         )
         register_note = st.text_input(
-            "Or: where the controller list is maintained",
+            tr("Or: where the controller list is maintained"),
             value=a.get("counterparty_register_note") or "",
-            placeholder="e.g. Customer register in HubSpot, exportable on request",
-            help="Use this instead of naming each controller when the list "
+            placeholder=tr("e.g. Customer register in HubSpot, exportable on request"),
+            help=tr("Use this instead of naming each controller when the list "
                  "changes constantly. It must point at a list you can actually "
-                 "produce if an authority asks.",
+                 "produce if an authority asks."),
         )
 
-        notes = st.text_area("Notes", value=a.get("notes") or "", height=60)
+        notes = st.text_area(tr("Notes"), value=a.get("notes") or "", height=60)
 
         col_save, col_del = st.columns([3, 1])
         with col_save:
-            saved = st.form_submit_button("Save activity", type="primary")
+            saved = st.form_submit_button(tr("Save activity"), type="primary")
         with col_del:
-            deleted = st.form_submit_button("Delete") if aid else False
+            deleted = st.form_submit_button(tr("Delete")) if aid else False
 
     if saved:
         # --- S26C: assemble the per-language blobs -------------------------
@@ -1090,7 +1091,7 @@ with tab_activities:
         ] if _source else []
 
         if _todo:
-            with st.spinner("Drafting the other language versions…"):
+            with st.spinner(tr("Drafting the other language versions…")):
                 _drafts = TR.translate_fields(
                     {
                         "name": _i18n["name"].get(_source, ""),
@@ -1157,7 +1158,7 @@ with tab_activities:
             for e in errs:
                 st.error(e)
         else:
-            st.success("Saved.")
+            st.success(tr("Saved."))
             # Clearing the selection makes sense after CREATING an activity —
             # staying on a form that has become someone else's row is odd. It
             # makes no sense after editing one, which is exactly when you want
@@ -1208,10 +1209,10 @@ with tab_activities:
 
 with tab_controllers:
     st.caption(
-        "When you process personal data on someone else's instructions — "
+        tr("When you process personal data on someone else's instructions — "
         "hosting a client's data, running payroll for another company — you "
         "are a processor, and Art. 30(2) requires you to record who you act "
-        "for. This is separate from your vendors."
+        "for. This is separate from your vendors.")
     )
 
     cp_dpa_codes, cp_dpa_labels = INV.options_for("dpa_status", lang, client_id)
@@ -1237,9 +1238,9 @@ with tab_controllers:
             st.session_state["inv_cp_select"] = _c_hit["row"]
     else:
         st.info(
-            "No controllers recorded. If you only ever decide the purposes of "
+            tr("No controllers recorded. If you only ever decide the purposes of "
             "your own processing, you are a controller throughout and this tab "
-            "stays empty."
+            "stays empty.")
         )
 
     st.divider()
@@ -1257,7 +1258,7 @@ with tab_controllers:
     tv.focus(f"inv_controllers_{client_id}")
     if cp_existing is not None:
         st.markdown(f"**Edit {cp_existing['legal_name']}**")
-        if st.button("➕ Add a controller", key="inv_cp_add"):
+        if st.button(tr("➕ Add a controller"), key="inv_cp_add"):
             st.session_state["inv_cp_select"] = None
             st.rerun()
     else:
@@ -1269,29 +1270,29 @@ with tab_controllers:
 
     with st.form(f"inv_cp_form_{cp_id or 'new'}"):
         cp_legal = st.text_input(
-            "Legal name", value=c.get("legal_name") or "",
-            help="The registered entity, not the trading name — this is what "
-                 "appears in the record and in any processing agreement.",
+            tr("Legal name"), value=c.get("legal_name") or "",
+            help=tr("The registered entity, not the trading name — this is what "
+                 "appears in the record and in any processing agreement."),
         )
-        cp_trading = st.text_input("Trading name", value=c.get("trading_name") or "")
+        cp_trading = st.text_input(tr("Trading name"), value=c.get("trading_name") or "")
 
         col_1, col_2 = st.columns(2)
         with col_1:
-            cp_contact = st.text_input("Contact name", value=c.get("contact_name") or "")
+            cp_contact = st.text_input(tr("Contact name"), value=c.get("contact_name") or "")
         with col_2:
-            cp_email = st.text_input("Contact email", value=c.get("contact_email") or "")
+            cp_email = st.text_input(tr("Contact email"), value=c.get("contact_email") or "")
 
         cp_address = st.text_area(
-            "Registered address", value=c.get("registered_address") or "", height=70
+            tr("Registered address"), value=c.get("registered_address") or "", height=70
         )
         cp_country = st.text_input(
-            "Country", value=c.get("country") or "", help="ISO code, e.g. BE, FR, DE."
+            tr("Country"), value=c.get("country") or "", help=tr("ISO code, e.g. BE, FR, DE.")
         )
 
         col_3, col_4 = st.columns(2)
         with col_3:
             cp_status = st.selectbox(
-                "Processing agreement",
+                tr("Processing agreement"),
                 options=cp_dpa_codes,
                 index=cp_dpa_codes.index(c["dpa_status"]) if c.get("dpa_status") in cp_dpa_codes else 0,
                 format_func=lambda x: cp_dpa_labels.get(x, x),
@@ -1299,19 +1300,19 @@ with tab_controllers:
         with col_4:
             _signed = c.get("dpa_signed_on")
             cp_signed = st.date_input(
-                "Signed on",
+                tr("Signed on"),
                 value=pd.to_datetime(_signed).date() if _signed else None,
                 format="YYYY-MM-DD",
             )
 
-        cp_url = st.text_input("Agreement link", value=c.get("dpa_url") or "")
-        cp_notes = st.text_area("Notes", value=c.get("notes") or "", height=60)
+        cp_url = st.text_input(tr("Agreement link"), value=c.get("dpa_url") or "")
+        cp_notes = st.text_area(tr("Notes"), value=c.get("notes") or "", height=60)
 
         col_s, col_d = st.columns([3, 1])
         with col_s:
-            cp_saved = st.form_submit_button("Save controller", type="primary")
+            cp_saved = st.form_submit_button(tr("Save controller"), type="primary")
         with col_d:
-            cp_deleted = st.form_submit_button("Delete") if cp_id else False
+            cp_deleted = st.form_submit_button(tr("Delete")) if cp_id else False
 
     if cp_saved:
         cp_row = {
@@ -1328,7 +1329,7 @@ with tab_controllers:
             for e in cp_errs:
                 st.error(e)
         else:
-            st.success("Saved.")
+            st.success(tr("Saved."))
             st.session_state.pop("inv_cp_select", None)
             st.session_state.pop("inv_cp_mode", None)
             st.rerun()

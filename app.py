@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 from dotenv import load_dotenv
 
 # No-op when running on Streamlit Cloud (no .env file there, and secrets
@@ -117,12 +118,12 @@ if (st.query_params.get("type") in ("email", "signup")
 if not is_logged_in():
     import login_page
     if st.session_state.pop("recovery_failed", False):
-        st.warning("That reset link has expired or was already used. Ask for a new one below.")
+        st.warning(tr("That reset link has expired or was already used. Ask for a new one below."))
     if st.session_state.pop("session_ended", False):
-        st.info("You were logged out after a day without activity. Log in again to continue.")
+        st.info(tr("You were logged out after a day without activity. Log in again to continue."))
     if st.session_state.pop("confirm_failed", False):
-        st.info("That confirmation link has expired or was already used. If you've "
-                "confirmed your address already, just log in.")
+        st.info(tr("That confirmation link has expired or was already used. If you've "
+                "confirmed your address already, just log in."))
     login_page.render()
     st.stop()
 
@@ -181,6 +182,10 @@ if not st.session_state.get("signin_logged"):
 # covers them), always get the full app. A profile that can't be read
 # fails open, as before S49.
 _profile = expire_trial_if_due(get_user_profile(user_id))
+# S64 interface slice (D-164): the user's interface language, read by i18n._
+# on every page. The Account page saves it; read here on every run so a
+# change shows at once.
+st.session_state["ui_language"] = (_profile or {}).get("ui_language") or "en"
 _funnel_state = st.session_state.pop("funnel", None)
 if _funnel_state and _funnel_state.get("pending"):
     # Logged in from the free check's link, or already logged in when it
@@ -237,24 +242,24 @@ if (not load_accessible_clients(user_id) and not st.session_state.get("skip_onbo
         and not _came_with_check):
     with st.sidebar:
         from auth import logout
-        if st.button("Log out", use_container_width=True, key="btn_logout"):
+        if st.button(tr("Log out"), use_container_width=True, key="btn_logout"):
             logout()
-    st.title("Welcome to RECOSA")
+    st.title(tr("Welcome to RECOSA"))
     # D-126: most sign-ups are the company itself; only Advisory manages
     # clients.
     if _profile.get("subscription_tier") == "advisory":
-        st.caption("Set up your first client company to get started.")
+        st.caption(tr("Set up your first client company to get started."))
     else:
-        st.caption("Tell us about your company to get started — a company number "
+        st.caption(tr("Tell us about your company to get started — a company number "
                    "or website fills most of it in. Everything can be changed later "
-                   "on Company profile.")
+                   "on Company profile."))
     # S48: the shared form (client_setup.py) — company-number lookup and
     # website scan included. It clears the client caches itself, so the
     # rerun lands straight in the app.
     from client_setup import render_new_client_form
     if render_new_client_form(user_id, key="ob"):
         st.rerun()
-    if st.button("Skip for now", key="ob_skip"):
+    if st.button(tr("Skip for now"), key="ob_skip"):
         st.session_state.skip_onboarding = True
         st.rerun()
     st.stop()
@@ -270,28 +275,28 @@ if (not load_accessible_clients(user_id) and not st.session_state.get("skip_onbo
 # Home first. Pages reached from another page rather than the menu are
 # registered with visibility="hidden" (Compliance Record from Documents,
 # Incident wording from Incidents) so links and switch_page still work.
-home      = st.Page("app_pages/dashboard.py", title="Home",           icon="🏠", default=True)
-plan      = st.Page("app_pages/action_plan.py", title="Action plan",  icon="📋")
-oblig     = st.Page("app_pages/obligations.py", title="Obligations",  icon="✅")
-gap       = st.Page("app_pages/gap.py",       title="Gap Assessment", icon="🔍")
-risk      = st.Page("app_pages/risk.py",      title="Risk assessments", icon="⚖️")
-inventory = st.Page("app_pages/inventory.py", title="Systems",        icon="🗂️")
-training  = st.Page("app_pages/training.py",  title="Training",       icon="🎓")
-ai_inv    = st.Page("app_pages/ai_inventory.py", title="AI inventory", icon="🤖")
-documents = st.Page("app_pages/documents.py", title="Documents",      icon="📄")
-record    = st.Page("app_pages/compliance_record.py", title="Compliance Record",
+home      = st.Page("app_pages/dashboard.py", title=tr("Home"),           icon="🏠", default=True)
+plan      = st.Page("app_pages/action_plan.py", title=tr("Action plan"),  icon="📋")
+oblig     = st.Page("app_pages/obligations.py", title=tr("Obligations"),  icon="✅")
+gap       = st.Page("app_pages/gap.py",       title=tr("Gap Assessment"), icon="🔍")
+risk      = st.Page("app_pages/risk.py",      title=tr("Risk assessments"), icon="⚖️")
+inventory = st.Page("app_pages/inventory.py", title=tr("Systems"),        icon="🗂️")
+training  = st.Page("app_pages/training.py",  title=tr("Training"),       icon="🎓")
+ai_inv    = st.Page("app_pages/ai_inventory.py", title=tr("AI inventory"), icon="🤖")
+documents = st.Page("app_pages/documents.py", title=tr("Documents"),      icon="📄")
+record    = st.Page("app_pages/compliance_record.py", title=tr("Compliance Record"),
                     icon="🗄️", visibility="hidden")
-incidents = st.Page("app_pages/incidents.py", title="Incidents",      icon="🚨")
-wording   = st.Page("app_pages/wording.py",   title="Incident wording",
+incidents = st.Page("app_pages/incidents.py", title=tr("Incidents"),      icon="🚨")
+wording   = st.Page("app_pages/wording.py",   title=tr("Incident wording"),
                     icon="✍️", visibility="hidden")
-audit     = st.Page("app_pages/audit.py",     title="Web Audit",      icon="🌐")
-chat      = st.Page("app_pages/chat.py",      title="Assistant",      icon="💬")
-company   = st.Page("app_pages/company.py",   title="Company profile", icon="🏢")
-profile   = st.Page("app_pages/profile.py",   title="Account",        icon="👤")
-team      = st.Page("app_pages/team.py",      title="Team",           icon="👥")
-group_pg  = st.Page("app_pages/group.py",     title="Group",          icon="🏛️")
-activity  = st.Page("app_pages/activity.py",  title="Activity Log",   icon="🕐")
-glossary  = st.Page("app_pages/glossary.py",  title="Glossary",       icon="📖")
+audit     = st.Page("app_pages/audit.py",     title=tr("Web Audit"),      icon="🌐")
+chat      = st.Page("app_pages/chat.py",      title=tr("Assistant"),      icon="💬")
+company   = st.Page("app_pages/company.py",   title=tr("Company profile"), icon="🏢")
+profile   = st.Page("app_pages/profile.py",   title=tr("Account"),        icon="👤")
+team      = st.Page("app_pages/team.py",      title=tr("Team"),           icon="👥")
+group_pg  = st.Page("app_pages/group.py",     title=tr("Group"),          icon="🏛️")
+activity  = st.Page("app_pages/activity.py",  title=tr("Activity Log"),   icon="🕐")
+glossary  = st.Page("app_pages/glossary.py",  title=tr("Glossary"),       icon="📖")
 
 # NOTE: declaring a Page does nothing on its own — it has to appear in the
 # st.navigation dict below AND in PAGE_CONTEXT at the foot of this file. A page
@@ -319,7 +324,7 @@ def _logout_page():
     logout()
 
 
-logout_pg = st.Page(_logout_page, title="Log out", icon="🚪", url_path="logout")
+logout_pg = st.Page(_logout_page, title=tr("Log out"), icon="🚪", url_path="logout")
 
 # S56: the inbox — tasks given to you, comments, mentions. In the menu once
 # you work with someone on a company, or have anything in it.
@@ -355,14 +360,14 @@ if limited_access:
         return st.Page(render_subscribe, title=page.title, icon=page.icon,
                        url_path=page.url_path or "home", visibility=page.visibility)
 
-    free_check = st.Page("app_pages/free_check.py", title="Your free check",
+    free_check = st.Page("app_pages/free_check.py", title=tr("Your free check"),
                          icon="🎯", default=True)
     _sections = {name: [_locked(p) for p in pages] for name, pages in _sections.items()}
     _sections[""] = [free_check] + _sections[""]
 elif _profile.get("pending_result"):
     # A full account that took a free check (already a client, or logged in
     # from the public app's "Log in instead"): the result is under Account.
-    free_check = st.Page("app_pages/free_check.py", title="Your free check", icon="🎯")
+    free_check = st.Page("app_pages/free_check.py", title=tr("Your free check"), icon="🎯")
     _sections["Account"].append(free_check)
 
 _sections["Account"] = _sections["Account"] + [logout_pg]
@@ -383,7 +388,7 @@ with st.sidebar:
         if not _shown:
             continue
         if _header:
-            st.markdown(f'<div class="nav-group">{_header}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="nav-group">{tr(_header)}</div>', unsafe_allow_html=True)
         for _p in _shown:
             st.page_link(_p, width="stretch")
 

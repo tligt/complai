@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import os
 import re
 from datetime import datetime
@@ -86,9 +87,9 @@ def _progress(answers: dict) -> None:
                     text=f"{done} of {plural(len(answers), 'question')} answered — "
                          "kept as you go, and filled in from your last assessment.")
         if done < len(answers):
-            st.caption(":orange[A question left unanswered counts as not in place.]")
+            st.caption(tr(":orange[A question left unanswered counts as not in place.]"))
 
-st.title("Gap Assessment")
+st.title(tr("Gap Assessment"))
 from guide import page_tip
 page_tip("gap")
 st.divider()
@@ -101,31 +102,31 @@ st.divider()
 
 # ── Two tabs ──────────────────────────────────────────────────
 # M11: say what each mode takes before you start.
-st.caption("**Review a document** — one document against the obligations it should "
+st.caption(tr("**Review a document** — one document against the obligations it should "
            "cover: about 1 minute.  \n**Full compliance check** — all your documents "
-           "and a short questionnaire: about 5 minutes, then 30–60 seconds to run.")
+           "and a short questionnaire: about 5 minutes, then 30–60 seconds to run."))
 tab1, tab2 = st.tabs([
-    "📄 Review a document · ~1 min",
-    "🏢 Full compliance check · ~5 min"
+    tr("📄 Review a document · ~1 min"),
+    tr("🏢 Full compliance check · ~5 min")
 ])
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 1 — Document Review
 # ═══════════════════════════════════════════════════════════════
 with tab1:
-    st.subheader("Review a document")
+    st.subheader(tr("Review a document"))
     st.caption(
-        "Upload a specific document and get a score based only on the obligations "
+        tr("Upload a specific document and get a score based only on the obligations "
         "that document is supposed to cover. "
         "A privacy policy alone typically scores 60-75/100 — some obligations such as "
         "detailed data subject rights procedures and security policies are best covered "
         "in separate documents. Pair your privacy policy with a Data Subject Rights "
-        "Procedure and an Incident Response Plan to reach 80%+."
+        "Procedure and an Incident Response Plan to reach 80%+.")
     )
 
     col1, col2 = st.columns(2)
     doc_type_review = col1.selectbox(
-        "Document type",
+        tr("Document type"),
         # Retired types still resolve to a label so historical rows render,
         # but must not be offered (S29A). Same filter as pages/documents.py.
         options=[d for d in DOCUMENT_TYPES if d not in RETIRED_DOC_TYPES],
@@ -135,7 +136,7 @@ with tab1:
 
     # Show how many obligations will be checked
     n_obs = len(DOC_OBLIGATIONS.get(doc_type_review, []))
-    col2.metric("Obligations checked", n_obs)
+    col2.metric(tr("Obligations checked"), n_obs)
 
     uploaded_review = st.file_uploader(
         f"Upload your {DOCUMENT_TYPES[doc_type_review]}",
@@ -154,7 +155,7 @@ with tab1:
     profile_answers_review = {}
     if relevant_profile_qs:
         st.divider()
-        st.markdown("**A few quick questions:**")
+        st.markdown(tr("**A few quick questions:**"))
         # Asking order (grouped by regulation), not set order
         for q_key in [k for k in PROFILE_QUESTIONS if k in relevant_profile_qs]:
             profile_answers_review[q_key] = _profile_radio(q_key, f"rev_q_{q_key}")
@@ -172,7 +173,7 @@ with tab1:
     if run_review and uploaded_review and require_edit("review documents"):
         doc_text = extract_text_from_upload(uploaded_review)
         if not doc_text.strip():
-            st.error("Could not extract text from this file.")
+            st.error(tr("Could not extract text from this file."))
         else:
             with st.spinner(f"Reviewing {DOCUMENT_TYPES[doc_type_review]}..."):
                 review = run_document_review(
@@ -301,7 +302,7 @@ with tab1:
                 _langs = (selected_client or {}).get("document_languages") or ["en"]
                 _reg_lang = (
                     st.selectbox(
-                        "Language of this document",
+                        tr("Language of this document"),
                         options=_langs,
                         format_func=lambda c: c.upper(),
                         key=f"upload_lang_{doc_type_review}",
@@ -352,11 +353,11 @@ with tab1:
 
                 # Change comment — can be added after saving
                 comment = st.text_input(
-                    "Change comment",
-                    placeholder="e.g. Version reviewed after external audit",
+                    tr("Change comment"),
+                    placeholder=tr("e.g. Version reviewed after external audit"),
                     key="review_comment"
                 )
-                if comment and st.button("💾 Save comment", key="btn_save_comment"):
+                if comment and st.button(tr("💾 Save comment"), key="btn_save_comment"):
                     # S27: keyed on the row id, not file_path. A path is not a
                     # stable key — the same document can be re-uploaded to the
                     # same path, and this update would then rewrite the comment
@@ -365,9 +366,9 @@ with tab1:
                         from database import set_document_comment
                         _row_id = st.session_state.get(f"saved_row_{doc_type_review}")
                         if _row_id and set_document_comment(_row_id, user_id, comment):
-                            st.success("✅ Comment saved.")
+                            st.success(tr("✅ Comment saved."))
                         else:
-                            st.warning("Could not save the comment.")
+                            st.warning(tr("Could not save the comment."))
                     except Exception as e:
                         st.warning(f"Could not save comment: {e}")
 
@@ -375,19 +376,19 @@ with tab1:
 # TAB 2 — Full Compliance Check
 # ═══════════════════════════════════════════════════════════════
 with tab2:
-    st.subheader("Full compliance check")
+    st.subheader(tr("Full compliance check"))
     st.caption(
-        "Assess your overall compliance posture across GDPR, NIS2 and ePrivacy. "
+        tr("Assess your overall compliance posture across GDPR, NIS2 and ePrivacy. "
         "Uses documents already in your repository. "
         "Scores reflect the quality of documents provided — "
-        "missing documents are shown as gaps separately."
+        "missing documents are shown as gaps separately.")
     )
 
     # Load current documents
     current_docs = get_current_client_documents(client_id, user_id) if client_id else {}
 
     # Document repository status
-    st.markdown("**Your document repository:**")
+    st.markdown(tr("**Your document repository:**"))
     # Derived from the catalogue, not hardcoded.
     #
     # This list still contained "ropa" — retired in S26 — and
@@ -426,7 +427,7 @@ with tab2:
         else:
             col_s.markdown("⬜")
             col_i.markdown(f"**{label}**")
-            col_i.caption("Not in repository")
+            col_i.caption(tr("Not in repository"))
 
         # Allow uploading new/updated version
         new_file = col_u.file_uploader(
@@ -445,9 +446,9 @@ with tab2:
                 # Save to repository
                 if client_id:
                     comment = st.text_input(
-                        "Change comment",
+                        tr("Change comment"),
                         key=f"full_comment_{doc_type}",
-                        placeholder="e.g. Updated after audit"
+                        placeholder=tr("e.g. Updated after audit")
                     )
                     ts2 = datetime.now().strftime("%Y%m%d_%H%M%S")
                     safe = re.sub(r"[^a-zA-Z0-9_-]","_",new_file.name)[:30]
@@ -468,8 +469,8 @@ with tab2:
     st.divider()
 
     # Profile questions
-    st.markdown("**Quick profile questions:**")
-    st.caption("These cover obligations that can't be assessed from documents alone.")
+    st.markdown(tr("**Quick profile questions:**"))
+    st.caption(tr("These cover obligations that can't be assessed from documents alone."))
 
     # S45: grouped by regulation, and only the regulations this client has
     # selected. run_gap_assessment leaves unselected ones unscored, so the
@@ -491,14 +492,14 @@ with tab2:
     )
 
     run_full = st.button(
-        "🔍 Run Full Compliance Check",
+        tr("🔍 Run Full Compliance Check"),
         type="primary",
         use_container_width=True,
         key="btn_run_full"
     )
 
     if run_full and require_edit("run a compliance check"):
-        with st.spinner("Running compliance check..."):
+        with st.spinner(tr("Running compliance check...")):
             assessment = run_gap_assessment(
                 current_docs=current_docs,
                 uploaded_docs=uploaded_texts,
@@ -506,11 +507,11 @@ with tab2:
                 client=selected_client or {},
             )
 
-        st.success("✅ Assessment complete!")
+        st.success(tr("✅ Assessment complete!"))
         st.divider()
 
         # Scores
-        st.subheader("Compliance scores")
+        st.subheader(tr("Compliance scores"))
         st.caption(
             f"Scored on the {assessment.get('n_assessed', 0)} of "
             f"{assessment.get('n_total', 0)} obligations that could be assessed. "
@@ -524,7 +525,7 @@ with tab2:
             if s >= 50: return "🟡"
             return "🔴"
 
-        c1.metric("Overall", f"{assessment['score_overall']}/100")
+        c1.metric(tr("Overall"), f"{assessment['score_overall']}/100")
         c2.metric(f"{score_emoji(assessment['score_gdpr'])} GDPR",
                   f"{assessment['score_gdpr']}/100")
         c3.metric(f"{score_emoji(assessment['score_nis2'])} NIS2",
@@ -608,8 +609,8 @@ with tab2:
         st.divider()
 
         # PDF Report
-        st.subheader("Download report")
-        with st.spinner("Generating PDF..."):
+        st.subheader(tr("Download report"))
+        with st.spinner(tr("Generating PDF...")):
             doc_versions = {**current_docs,
                             **{k:{"source":"client_upload","version":1}
                                for k in uploaded_texts}}
@@ -620,7 +621,7 @@ with tab2:
                 doc_versions=doc_versions,
             )
 
-        with st.spinner("Saving..."):
+        with st.spinner(tr("Saving...")):
             save_gap_assessment(
                 user_id=user_id, client_id=client_id,
                 assessment=assessment, profile_answers=profile_answers,
@@ -629,7 +630,7 @@ with tab2:
 
         company = (selected_client or {}).get("company_name","client")
         st.download_button(
-            label="📥 Download Gap Assessment Report (PDF)",
+            label=tr("📥 Download Gap Assessment Report (PDF)"),
             data=pdf_bytes,
             file_name=f"RECOSA_gap_{company.replace(' ','_')}.pdf",
             mime="application/pdf",
@@ -639,7 +640,7 @@ with tab2:
 
 # ── Assessment history ────────────────────────────────────────
 st.divider()
-st.subheader("📋 Assessment history")
+st.subheader(tr("📋 Assessment history"))
 history = load_gap_assessment_history(user_id, client_id)
 
 if history:
@@ -647,9 +648,9 @@ if history:
     from datetime import datetime as _dt
 
     h0,h1,h2,h3,h4,h5 = st.columns([2,1,1,1,1,1])
-    h0.caption("**Date**"); h1.caption("**Overall**")
-    h2.caption("**GDPR**"); h3.caption("**NIS2**")
-    h4.caption("**ePrivacy**"); h5.caption("**Report**")
+    h0.caption(tr("**Date**")); h1.caption(tr("**Overall**"))
+    h2.caption(tr("**GDPR**")); h3.caption(tr("**NIS2**"))
+    h4.caption(tr("**ePrivacy**")); h5.caption(tr("**Report**"))
 
     for rec in history:
         try:
@@ -668,11 +669,11 @@ if history:
         if rec.get("file_path_pdf"):
             url = get_signed_url("compliance-files", rec["file_path_pdf"], expires_in=300)
             if url:
-                c5.link_button("PDF", url, use_container_width=True)
+                c5.link_button(tr("PDF"), url, use_container_width=True)
             else:
                 c5.caption("—")
         else:
             c5.caption("—")
         st.divider()
 else:
-    st.caption("No assessments run yet.")
+    st.caption(tr("No assessments run yet."))

@@ -9,6 +9,7 @@ Until Stripe (S46), the trial is the only self-service step: choosing a paid
 plan, or Advisory, is a request to RECOSA, sent as a billing support ticket,
 and an admin sets the plan by hand (pages_admin/users.py).
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -23,11 +24,11 @@ def render_subscribe() -> None:
     profile = get_user_profile(user_id)
     status = profile.get("subscription_status") or "registered"
 
-    st.title("Unlock RECOSA")
+    st.title(tr("Unlock RECOSA"))
 
     if status == "expired":
-        st.info("Your free trial has ended. Your data is kept — choose a plan to "
-                "continue where you left off.")
+        st.info(tr("Your free trial has ended. Your data is kept — choose a plan to "
+                "continue where you left off."))
     else:
         st.markdown(
             "This part of RECOSA is included in every plan. Start a "
@@ -51,7 +52,7 @@ def render_subscribe() -> None:
                                             profile.get("signup_source"))
                         st.rerun()
                     else:
-                        st.error("Could not start the trial. Please try again.")
+                        st.error(tr("Could not start the trial. Please try again."))
             else:
                 _request_plan(plan, user_id)
     st.caption(f"Larger organisation? [Contact us]({ENTERPRISE_URL}) about Enterprise. "
@@ -65,11 +66,11 @@ def render_trial_cta(profile: dict) -> None:
     if status in ("trial", "active"):
         return
     with st.container(border=True):
-        st.markdown("### Next: the full assessment")
+        st.markdown(tr("### Next: the full assessment"))
         st.markdown(
-            "Your free check is a first read. The full assessment scores you against "
+            tr("Your free check is a first read. The full assessment scores you against "
             "every applicable GDPR, NIS2 and AI Act obligation, generates the documents "
-            "you're missing and turns the gaps into an action plan."
+            "you're missing and turns the gaps into an action plan.")
         )
         if status == "registered":
             if st.button(f"Start {TRIAL_DAYS}-day free trial — no card", type="primary",
@@ -78,16 +79,16 @@ def render_trial_cta(profile: dict) -> None:
                     record_funnel_event("trial_started", None, profile.get("signup_source"))
                     st.rerun()
                 else:
-                    st.error("Could not start the trial. Please try again.")
+                    st.error(tr("Could not start the trial. Please try again."))
         else:
-            st.info("Your trial has ended — open any page in the menu to choose a plan.")
+            st.info(tr("Your trial has ended — open any page in the menu to choose a plan."))
 
 
 def _request_plan(plan: str, user_id: str) -> None:
     """Until S46: a plan request is a billing ticket the team answers."""
     sent_key = f"sub_requested_{plan}"
     if st.session_state.get(sent_key):
-        st.success("Request sent — we'll get back to you by email.")
+        st.success(tr("Request sent — we'll get back to you by email."))
         return
     if st.button(f"Request {plan.title()}", use_container_width=True,
                  key=f"sub_req_{plan}"):

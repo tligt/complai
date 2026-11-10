@@ -14,6 +14,7 @@ HTML (which cannot call into Python). Anchored top-right, below the account
 menu — bottom-right would collide with st.chat_input, which is itself fixed
 to the bottom of the viewport.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 from database import (
@@ -111,47 +112,47 @@ def _render_form(user_id, context, context_ref, client_id, label):
                     f"repl{'y' if unread == 1 else 'ies'} — "
                     f"see **Support** in the menu.")
 
-        st.markdown("**Get help**")
-        st.caption("We'll pick this up and reply in the app.")
+        st.markdown(tr("**Get help**"))
+        st.caption(tr("We'll pick this up and reply in the app."))
 
         category = st.selectbox(
-            "What kind of request is this?",
+            tr("What kind of request is this?"),
             options=[code for code, _ in TICKET_CATEGORIES],
             format_func=lambda c: dict(TICKET_CATEGORIES)[c],
             key=f"hw_cat_{context}",
         )
 
         severity = st.selectbox(
-            "How much is this affecting you?",
+            tr("How much is this affecting you?"),
             options=[code for code, _ in TICKET_SEVERITIES],
             format_func=lambda c: dict(TICKET_SEVERITIES)[c],
             index=2,  # normal
             key=f"hw_sev_{context}",
-            help="Pick honestly — it helps us order the queue.",
+            help=tr("Pick honestly — it helps us order the queue."),
         )
 
         subject = st.text_input(
-            "Subject",
+            tr("Subject"),
             key=f"hw_subj_{context}",
-            placeholder="One line summary",
+            placeholder=tr("One line summary"),
         )
 
         body = st.text_area(
-            "Details",
+            tr("Details"),
             key=f"hw_body_{context}",
             height=120,
-            placeholder="What happened, and what did you expect instead?",
+            placeholder=tr("What happened, and what did you expect instead?"),
         )
 
         st.caption(f"We'll automatically include which page you were on "
                    f"({context.replace('_', ' ')}), so you don't have to explain it.")
 
-        if st.button("Send request", type="primary",
+        if st.button(tr("Send request"), type="primary",
                      use_container_width=True, key=f"hw_send_{context}"):
             if not subject.strip():
-                st.warning("A subject helps us route this — even a few words.")
+                st.warning(tr("A subject helps us route this — even a few words."))
             elif not body.strip():
-                st.warning("Please add some detail.")
+                st.warning(tr("Please add some detail."))
             else:
                 ticket_id = create_ticket(
                     user_id=user_id,
@@ -167,7 +168,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
                     # Clear the form on the next rerun rather than writing to
                     # widget state directly — direct overwrite conflicts.
                     st.session_state[f"hw_clear_{context}"] = True
-                    st.success("Sent. You can follow it under **Support**.")
+                    st.success(tr("Sent. You can follow it under **Support**."))
 
     # Deferred form reset
     if st.session_state.get(f"hw_clear_{context}"):
@@ -180,47 +181,47 @@ def _render_form(user_id, context, context_ref, client_id, label):
                     f"repl{'y' if unread == 1 else 'ies'} — "
                     f"see **Support** in the menu.")
 
-        st.markdown("**Get help**")
-        st.caption("We'll pick this up and reply in the app.")
+        st.markdown(tr("**Get help**"))
+        st.caption(tr("We'll pick this up and reply in the app."))
 
         category = st.selectbox(
-            "What kind of request is this?",
+            tr("What kind of request is this?"),
             options=[code for code, _ in TICKET_CATEGORIES],
             format_func=lambda c: dict(TICKET_CATEGORIES)[c],
             key=f"hw_cat_{context}",
         )
 
         severity = st.selectbox(
-            "How much is this affecting you?",
+            tr("How much is this affecting you?"),
             options=[code for code, _ in TICKET_SEVERITIES],
             format_func=lambda c: dict(TICKET_SEVERITIES)[c],
             index=2,  # normal
             key=f"hw_sev_{context}",
-            help="Pick honestly — it helps us order the queue.",
+            help=tr("Pick honestly — it helps us order the queue."),
         )
 
         subject = st.text_input(
-            "Subject",
+            tr("Subject"),
             key=f"hw_subj_{context}",
-            placeholder="One line summary",
+            placeholder=tr("One line summary"),
         )
 
         body = st.text_area(
-            "Details",
+            tr("Details"),
             key=f"hw_body_{context}",
             height=120,
-            placeholder="What happened, and what did you expect instead?",
+            placeholder=tr("What happened, and what did you expect instead?"),
         )
 
         st.caption(f"We'll automatically include which page you were on "
                    f"({context.replace('_', ' ')}), so you don't have to explain it.")
 
-        if st.button("Send request", type="primary",
+        if st.button(tr("Send request"), type="primary",
                      use_container_width=True, key=f"hw_send_{context}"):
             if not subject.strip():
-                st.warning("A subject helps us route this — even a few words.")
+                st.warning(tr("A subject helps us route this — even a few words."))
             elif not body.strip():
-                st.warning("Please add some detail.")
+                st.warning(tr("Please add some detail."))
             else:
                 ticket_id = create_ticket(
                     user_id=user_id,
@@ -236,7 +237,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
                     # Clear the form on the next rerun rather than writing to
                     # widget state directly — direct overwrite conflicts.
                     st.session_state[f"hw_clear_{context}"] = True
-                    st.success("Sent. You can follow it under **Support**.")
+                    st.success(tr("Sent. You can follow it under **Support**."))
 
     # Deferred form reset
     if st.session_state.get(f"hw_clear_{context}"):

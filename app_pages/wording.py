@@ -22,6 +22,7 @@ drafts: assistance, under review, stored.
 The draft is a STARTING POINT and the page says so. D-43/D-44: RECOSA supplies
 something defensible, the client owns the answer, and it is not scored.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -31,20 +32,20 @@ from database import get_supabase, log_audit_event
 from active_client import get_active_client, require_edit
 from template_nis2 import INSERTS
 
-if st.button("← Incidents", key="wording_back"):
+if st.button(tr("← Incidents"), key="wording_back"):
     st.switch_page("app_pages/incidents.py")
-st.title("Incident wording")
+st.title(tr("Incident wording"))
 from guide import page_tip
 page_tip("wording")
 st.caption(
-    "Five short sections that go into your incident response plan and your "
+    tr("Five short sections that go into your incident response plan and your "
     "business continuity plan. RECOSA drafts each one; you correct it. What "
-    "you save here is what appears in the documents."
+    "you save here is what appears in the documents.")
 )
 
 user_id = get_user_id()
 if not user_id:
-    st.error("Please log in.")
+    st.error(tr("Please log in."))
     st.stop()
 
 client = get_active_client(user_id)
@@ -110,10 +111,10 @@ st.progress(
 
 if _filled < len(INSERTS):
     st.info(
-        "Documents that use a section you have not written yet will refuse to "
+        tr("Documents that use a section you have not written yet will refuse to "
         "generate rather than produce a placeholder. A continuity plan with "
         "**[to complete]** where the testing section should be is worse than "
-        "no continuity plan, because it looks finished."
+        "no continuity plan, because it looks finished.")
     )
 
 st.divider()
@@ -158,18 +159,18 @@ for key, spec in INSERTS.items():
                 st.markdown(f"**{lang.upper()}**")
 
                 if (status.get(key) or {}).get(lang) == "machine_unreviewed":
-                    st.caption(":orange[Draft — edit or re-save to confirm]")
+                    st.caption(tr(":orange[Draft — edit or re-save to confirm]"))
 
                 draft_key = f"draft_{key}_{lang}"
                 pending = st.session_state.get(draft_key)
                 if pending:
                     st.info(pending)
-                    if st.button("Use this", key=f"use_{key}_{lang}",
+                    if st.button(tr("Use this"), key=f"use_{key}_{lang}",
                                  type="primary", use_container_width=True):
                         st.session_state[f"ta_{key}_{lang}"] = pending
                         st.session_state.pop(draft_key, None)
                         st.rerun()
-                    if st.button("Discard", key=f"drop_{key}_{lang}",
+                    if st.button(tr("Discard"), key=f"drop_{key}_{lang}",
                                  use_container_width=True):
                         st.session_state.pop(draft_key, None)
                         st.rerun()
@@ -183,7 +184,7 @@ for key, spec in INSERTS.items():
                     label_visibility="collapsed",
                 )
 
-                if st.button("Draft it for me", key=f"gen_{key}_{lang}",
+                if st.button(tr("Draft it for me"), key=f"gen_{key}_{lang}",
                              use_container_width=True, disabled=bool(pending))                         and require_edit("draft wording"):
                     with st.spinner(f"Drafting in {lang.upper()}…"):
                         out = draft_inserts.draft(
@@ -194,7 +195,7 @@ for key, spec in INSERTS.items():
                         st.session_state[draft_key] = out
                         st.rerun()
                     else:
-                        st.warning("Could not draft this one. Write it yourself.")
+                        st.warning(tr("Could not draft this one. Write it yourself."))
 
         # A word floor, not a character one: "We have no monitoring in place"
         # is six words and legitimate, while a 60-character floor flagged it.
@@ -211,7 +212,7 @@ for key, spec in INSERTS.items():
                 "incident.]"
             )
 
-        if st.button("Save", key=f"save_{key}", type="primary"):
+        if st.button(tr("Save"), key=f"save_{key}", type="primary"):
             blob = dict(client.get(spec["column"]) or {})
             new_status = {k: dict(v) for k, v in status.items()}
             changed = False
@@ -249,15 +250,15 @@ for key, spec in INSERTS.items():
                     )
                 for lang in doc_langs:
                     st.session_state.pop(f"ta_{key}_{lang}", None)
-                st.success("Saved.")
+                st.success(tr("Saved."))
                 st.rerun()
             except Exception as e:
                 st.error(f"Could not save: {e}")
 
 st.divider()
 st.caption(
-    "These are your words, not RECOSA's. Nothing here is scored — the "
+    tr("These are your words, not RECOSA's. Nothing here is scored — the "
     "documents reproduce what you have written, and a section describing "
     "something you do not do is worse than one admitting it is not yet in "
-    "place."
+    "place.")
 )

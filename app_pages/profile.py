@@ -6,6 +6,7 @@ Usability audit batch 2 (M9): this page also held the client list, the new-
 client form and team invitations. Companies moved to Company profile
 (app_pages/company.py), invitations to Team (app_pages/team.py).
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -20,17 +21,17 @@ LANGUAGE_LABELS = {
     "en": "English", "fr": "Français", "nl": "Nederlands", "de": "Deutsch",
 }
 
-st.title("Account")
+st.title(tr("Account"))
 
 user_id = get_user_id()
 profile = get_user_profile(user_id)
 
 # ── Account ──────────────────────────────────────────────────────────────
-st.subheader("Account")
+st.subheader(tr("Account"))
 
-st.text_input("Email", value=st.session_state.user.email, disabled=True,
-               help="Changing the address you sign in with isn't available "
-                    "yet — contact support if you need it updated.")
+st.text_input(tr("Email"), value=st.session_state.user.email, disabled=True,
+               help=tr("Changing the address you sign in with isn't available "
+                    "yet — contact support if you need it updated."))
 
 with st.form("profile_account"):
     # Explicit keys, cleared on a successful save below. Streamlit ignores
@@ -39,52 +40,52 @@ with st.form("profile_account"):
     # activity-language boxes — so without this the field just saved would
     # keep showing what it held before the save, not what got written.
     full_name = st.text_input(
-        "Full name", value=profile.get("full_name") or "", key="profile_full_name",
+        tr("Full name"), value=profile.get("full_name") or "", key="profile_full_name",
     )
 
     _lang_opts = list(INV.LANGUAGES)
     _current_lang = profile.get("ui_language") or "en"
     ui_language = st.selectbox(
-        "Interface language",
+        tr("Interface language"),
         options=_lang_opts,
         index=_lang_opts.index(_current_lang) if _current_lang in _lang_opts else 0,
         format_func=lambda c: LANGUAGE_LABELS.get(c, c.upper()),
         key="profile_ui_language",
-        help="The language labels, captions and menus are shown in — not "
+        help=tr("The language labels, captions and menus are shown in — not "
              "the language your documents are produced in, which is set "
-             "per company on Company profile.",
+             "per company on Company profile."),
     )
 
-    if st.form_submit_button("Save", type="primary"):
+    if st.form_submit_button(tr("Save"), type="primary"):
         if update_user_profile(user_id, full_name=full_name.strip(),
                                 ui_language=ui_language):
-            st.success("Saved.")
+            st.success(tr("Saved."))
             st.session_state.pop("profile_full_name", None)
             st.session_state.pop("profile_ui_language", None)
             st.rerun()
         else:
-            st.error("Could not save.")
+            st.error(tr("Could not save."))
 
 st.divider()
 
 # ── Password ─────────────────────────────────────────────────────────────
-st.subheader("Password")
+st.subheader(tr("Password"))
 
 with st.form("profile_password"):
-    new_pw = st.text_input("New password (min. 8 characters)", type="password")
-    new_pw2 = st.text_input("Confirm new password", type="password")
+    new_pw = st.text_input(tr("New password (min. 8 characters)"), type="password")
+    new_pw2 = st.text_input(tr("Confirm new password"), type="password")
 
-    if st.form_submit_button("Change password", type="primary"):
+    if st.form_submit_button(tr("Change password"), type="primary"):
         if not new_pw:
-            st.warning("Enter a new password.")
+            st.warning(tr("Enter a new password."))
         elif new_pw != new_pw2:
-            st.error("Passwords do not match.")
+            st.error(tr("Passwords do not match."))
         elif len(new_pw) < 8:
-            st.error("Password must be at least 8 characters.")
+            st.error(tr("Password must be at least 8 characters."))
         else:
             ok, err = change_password(new_pw)
             if ok:
-                st.success("Password changed.")
+                st.success(tr("Password changed."))
             else:
                 st.error(f"Could not change password: {err}")
 
@@ -93,7 +94,7 @@ st.divider()
 # ── Plan (usability audit M10) ────────────────────────────────────────────
 # What you have, what it includes, trial days left, and how to change — the
 # old section showed the plan name and "downgrading isn't self-serve" only.
-st.subheader("Plan")
+st.subheader(tr("Plan"))
 
 _tier = profile.get("subscription_tier") or "professional"
 _status = profile.get("subscription_status") or "active"
@@ -126,11 +127,11 @@ PLAN_INCLUDES = {
 with st.container(border=True):
     p1, p2 = st.columns([3, 2])
     if _status in ("registered", "expired"):
-        p1.markdown("**Free account**")
-        p1.caption("The free compliance check and your company profile. The rest "
-                   "of RECOSA opens with a subscription.")
+        p1.markdown(tr("**Free account**"))
+        p1.caption(tr("The free compliance check and your company profile. The rest "
+                   "of RECOSA opens with a subscription."))
         if _status == "expired":
-            p2.warning("Your free trial has ended.")
+            p2.warning(tr("Your free trial has ended."))
     else:
         p1.markdown(f"**{SUBSCRIPTION_TIERS.get(_tier, _tier.title())}**")
         p1.caption(PLAN_INCLUDES.get(_tier, ""))
@@ -145,22 +146,22 @@ with st.container(border=True):
     if _managed_by:
         p1.caption(f"The plan of **{_managed_by}**, the account this company belongs to.")
 
-st.markdown("**Changing plan**")
+st.markdown(tr("**Changing plan**"))
 if _managed_by:
     st.caption(f"The plan is managed by the owner of {_managed_by}.")
 elif _status in ("registered", "expired"):
-    st.caption("To subscribe, write to us through Support.")
-    if st.button("Contact support", key="plan_support"):
+    st.caption(tr("To subscribe, write to us through Support."))
+    if st.button(tr("Contact support"), key="plan_support"):
         st.switch_page("app_pages/support.py")
 elif _tier == "starter":
     # Upgrade only, same reasoning as below: Starter's shape is a subset of
     # Professional's, so gaining room cannot invalidate anything.
-    st.caption("Professional adds several users, unlimited website audits and the "
-               "full document library.")
-    if st.button("Upgrade to Professional", type="primary", key="plan_up_pro"):
+    st.caption(tr("Professional adds several users, unlimited website audits and the "
+               "full document library."))
+    if st.button(tr("Upgrade to Professional"), type="primary", key="plan_up_pro"):
         ok, err = set_user_tier(user_id, "professional")
         if ok:
-            st.success("You're on Professional now.")
+            st.success(tr("You're on Professional now."))
             st.rerun()
         else:
             st.error(err or "Could not upgrade.")
@@ -173,27 +174,27 @@ elif _tier == "professional":
     # carries neither risk: Professional's shape is a strict subset of
     # what Advisory allows, so gaining room can't invalidate anything.
     st.caption("Advisory adds: " + PLAN_INCLUDES["advisory"].split(" · ", 1)[1] + ".")
-    if st.button("Upgrade to Advisory", type="primary"):
+    if st.button(tr("Upgrade to Advisory"), type="primary"):
         ok, err = set_user_tier(user_id, "advisory")
         if ok:
-            st.success("You're on Advisory now.")
+            st.success(tr("You're on Advisory now."))
             st.rerun()
         else:
             st.error(err or "Could not upgrade.")
 elif _tier == "enterprise":
-    st.caption("Your terms are agreed with us: write to us through Support for any change.")
+    st.caption(tr("Your terms are agreed with us: write to us through Support for any change."))
 else:
     st.caption(
-        "Moving back to Professional keeps one company, so we do it with you: "
-        "write to us through Support and say which company to keep."
+        tr("Moving back to Professional keeps one company, so we do it with you: "
+        "write to us through Support and say which company to keep.")
     )
-    if st.button("Contact support", key="plan_support"):
+    if st.button(tr("Contact support"), key="plan_support"):
         st.switch_page("app_pages/support.py")
 
 st.divider()
-st.subheader("Page tips")
-st.caption("The \"What is this page for?\" panels you closed with Got it.")
-if st.button("Show page tips again", key="tips_reset"):
+st.subheader(tr("Page tips"))
+st.caption(tr("The \"What is this page for?\" panels you closed with Got it."))
+if st.button(tr("Show page tips again"), key="tips_reset"):
     from guide import reset_tips
     reset_tips()
-    st.success("Tips are back on every page.")
+    st.success(tr("Tips are back on every page."))

@@ -7,6 +7,7 @@ read-only. Admins (and the owner) invite, change roles and remove; everyone
 else sees who has access. People who reach a company through a group are
 managed on the Group page.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -18,15 +19,15 @@ from database import (
 )
 from cached_reads import load_accessible_clients
 
-st.title("Team")
-st.caption("Who can work on each company, and what they can do. Every change "
-           "here is recorded in the Activity Log.")
+st.title(tr("Team"))
+st.caption(tr("Who can work on each company, and what they can do. Every change "
+           "here is recorded in the Activity Log."))
 
-with st.expander("What the roles mean"):
+with st.expander(tr("What the roles mean")):
     for _r, _label in CLIENT_ROLES.items():
         st.markdown(f"**{_label}** — {CLIENT_ROLE_HELP[_r]}")
-    st.caption("The owner of a company is always an admin, and is the only one "
-               "who can delete it.")
+    st.caption(tr("The owner of a company is always an admin, and is the only one "
+               "who can delete it."))
 
 user_id = get_user_id()
 clients = load_accessible_clients(user_id) or []
@@ -44,7 +45,7 @@ def _refresh():
 
 
 if not clients:
-    st.caption("Set up a company to invite people to work on it with you.")
+    st.caption(tr("Set up a company to invite people to work on it with you."))
 
 # D-146: a message from the last invite survives the rerun that shows the
 # new member in the list.
@@ -58,14 +59,14 @@ for c in clients:
         st.markdown(f"**{c['company_name']}** · your role: {role_label(c.get('role'))}")
         members = list_workspace_members(c["id"])
         if not members:
-            st.caption("No one else has access to this company directly.")
+            st.caption(tr("No one else has access to this company directly."))
         for m in members:
             mc1, mc2, mc3 = st.columns([3, 2, 1])
             mc1.write(m["display_name"])
             _waiting = m["status"] != "active" or never_signed_in(m.get("member_user_id"))
             if _waiting:
-                mc1.caption("Invited — hasn't chosen a password yet")
-                if manage and mc1.button("Resend invite", key=f"resend_{m['id']}",
+                mc1.caption(tr("Invited — hasn't chosen a password yet"))
+                if manage and mc1.button(tr("Resend invite"), key=f"resend_{m['id']}",
                                          type="tertiary"):
                     ok, err = resend_invite(m["invited_email"], c["company_name"], user_id)
                     if ok:
@@ -75,7 +76,7 @@ for c in clients:
             if manage:
                 _key = f"role_{m['id']}"
                 new_role = mc2.selectbox(
-                    "Role", _role_keys, index=_role_keys.index(m.get("role") or "contributor"),
+                    tr("Role"), _role_keys, index=_role_keys.index(m.get("role") or "contributor"),
                     format_func=CLIENT_ROLES.get, key=_key, label_visibility="collapsed",
                 )
                 if new_role != (m.get("role") or "contributor"):
@@ -85,13 +86,13 @@ for c in clients:
                         _refresh()
                     else:
                         st.error(err)
-                if mc3.button("Remove", key=f"rm_member_{m['id']}"):
+                if mc3.button(tr("Remove"), key=f"rm_member_{m['id']}"):
                     if remove_workspace_member(m["id"], user_id):
                         _refresh()
             else:
                 mc2.caption(role_label(m.get("role")))
                 if m.get("member_user_id") == user_id and mc3.button(
-                        "Leave", key=f"leave_{m['id']}"):
+                        tr("Leave"), key=f"leave_{m['id']}"):
                     if remove_workspace_member(m["id"], user_id):
                         st.session_state.pop("selected_client", None)
                         _refresh()
@@ -105,15 +106,15 @@ for c in clients:
         with st.form(f"invite_form_{c['id']}", clear_on_submit=True):
             inv_col1, inv_col2, inv_col3 = st.columns([3, 2, 1])
             inv_email = inv_col1.text_input(
-                "Email", key=f"inv_email_{c['id']}", label_visibility="collapsed",
-                placeholder="colleague@company.com",
+                tr("Email"), key=f"inv_email_{c['id']}", label_visibility="collapsed",
+                placeholder=tr("colleague@company.com"),
             )
             inv_role = inv_col2.selectbox(
-                "Role", _role_keys, index=_role_keys.index("contributor"),
+                tr("Role"), _role_keys, index=_role_keys.index("contributor"),
                 format_func=CLIENT_ROLES.get, key=f"inv_role_{c['id']}",
                 label_visibility="collapsed",
             )
-            if inv_col3.form_submit_button("Invite", use_container_width=True):
+            if inv_col3.form_submit_button(tr("Invite"), use_container_width=True):
                 if inv_email.strip():
                     ok, err = invite_workspace_member(c["id"], user_id, inv_email, inv_role)
                     if ok:
@@ -126,7 +127,7 @@ for c in clients:
                     else:
                         st.error(err or "Could not send the invite.")
                 else:
-                    st.warning("Enter an email address.")
+                    st.warning(tr("Enter an email address."))
 
-st.caption("People with access to every company of a group are managed on the "
-           "**Group** page.")
+st.caption(tr("People with access to every company of a group are managed on the "
+           "**Group** page."))
