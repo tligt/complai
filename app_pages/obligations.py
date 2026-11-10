@@ -293,6 +293,8 @@ if shown:
             st.caption(f"Legal reference: {REGULATION_LABELS.get(ob['regulation'], ob['regulation'])} "
                        f"{ob['article']}")
         note = _SOURCE_NOTE.get(v["source"], "")
+        if kind == OR.KIND_TRACKED and v["source"] == OR.SOURCE_DERIVED:
+            note = "Worked out from your Training page"
         st.markdown(
             f"**{_STATUS_LABEL[v['status']]}**"
             + (f" — {note}" if note else "")

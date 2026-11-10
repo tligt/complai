@@ -71,7 +71,10 @@ def _fd(d) -> str:
 
 # ── Matrix ────────────────────────────────────────────────────────────────
 with tab_matrix:
-    cols = st.columns(len(reqs))
+    # Three per row: five side by side broke the titles mid-word (10 Nov).
+    _per_row = 3
+    cols = [c for i in range(0, len(reqs), _per_row)
+            for c in st.columns(_per_row)][:len(reqs)]
     for col, r in zip(cols, reqs):
         c = cov[r["code"]]
         ok = c[TR.CURRENT] + c[TR.EXPIRING]

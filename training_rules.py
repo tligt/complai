@@ -290,8 +290,8 @@ def findings(client: Mapping[str, Any], reqs: Iterable[Mapping[str, Any]],
             continue
         lapsing = c[EXPIRED] + c[ABSENT]
         if lapsing:
-            detail = (f"{c[ABSENT]} never trained, {c[EXPIRED]} lapsed, "
-                      f"of {c['required']} who need it")
+            parts = ([f"{c[ABSENT]} never trained"] if c[ABSENT] else []) +                     ([f"{c[EXPIRED]} lapsed"] if c[EXPIRED] else [])
+            detail = ", ".join(parts) + f", of {c['required']} who need it"
             sev = DUE if c[EXPIRED] else OPEN
             out.append(_finding("training", r["code"],
                                 f"Training: {r['label_en']} — {lapsing} of {c['required']} not current",
@@ -333,7 +333,10 @@ def verdict(obligation_id: str, ctx: Mapping[str, Any]) -> dict[str, Any] | None
             "training was appropriate is a judgement RECOSA does not make.")
     status = "compliant" if ok == required else ("missing" if ok == 0 else "partial")
     if status == "compliant":
-        detail = f"All {required} people who need {lbl} have a current session recorded." + tail
+        who = "The one person who needs" if required == 1 else f"All {required} people who need"
+        verb = "has" if required == 1 else "have"
+        detail = f"{who} {lbl} {verb} a current session recorded." + tail
     else:
-        detail = f"{ok} of {required} people who need {lbl} have a current session recorded." + tail
+        detail = (f"{ok} of the {required} people who need {lbl} "
+                  f"{'has' if ok == 1 else 'have'} a current session recorded." + tail)
     return {"status": status, "source": "derived", "detail": detail, "evidence": missing}
