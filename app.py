@@ -277,6 +277,7 @@ gap       = st.Page("app_pages/gap.py",       title="Gap Assessment", icon="🔍
 risk      = st.Page("app_pages/risk.py",      title="Risk assessments", icon="⚖️")
 inventory = st.Page("app_pages/inventory.py", title="Systems",        icon="🗂️")
 training  = st.Page("app_pages/training.py",  title="Training",       icon="🎓")
+ai_inv    = st.Page("app_pages/ai_inventory.py", title="AI inventory", icon="🤖")
 documents = st.Page("app_pages/documents.py", title="Documents",      icon="📄")
 record    = st.Page("app_pages/compliance_record.py", title="Compliance Record",
                     icon="🗄️", visibility="hidden")
@@ -332,7 +333,7 @@ _show_inbox = bool(_inbox_n) or any(
 _sections = {
     "":         [home, plan] + ([inbox] if _show_inbox else []),
     "Assess":   [oblig, gap, risk],
-    "Records":  [inventory, training, documents, record],
+    "Records":  [inventory, ai_inv, training, documents, record],
     "Respond":  [incidents, wording],
     "Tools":    [audit, chat],
     "Account":  [company, profile, team, alerts, activity, glossary, support],
@@ -441,6 +442,7 @@ PAGE_CONTEXT = {
     "glossary":  "other",
     "inbox":     "obligations",
     "training":  "obligations",
+    "ai_inventory": "obligations",
 }
 
 # The default page is served at the root, so its url_path is empty.

@@ -294,7 +294,8 @@ if shown:
                        f"{ob['article']}")
         note = _SOURCE_NOTE.get(v["source"], "")
         if kind == OR.KIND_TRACKED and v["source"] == OR.SOURCE_DERIVED:
-            note = "Worked out from your Training page"
+            note = ("Worked out from your AI inventory" if OR.tracked_page(ob["id"]) == "ai_inventory"
+                    else "Worked out from your Training page")
         st.markdown(
             f"**{_STATUS_LABEL[v['status']]}**"
             + (f" — {note}" if note else "")
@@ -322,14 +323,18 @@ if shown:
         if kind == OR.KIND_TRACKED:
             # S60: training. The verdict follows the Training page once people
             # are recorded there; until then the statement below still counts.
-            _tp = OV.TASK_LINK_PAGES.get(OR.tracked_page(ob["id"]) or "")
+            _tk = OR.tracked_page(ob["id"]) or ""
+            _tp = OV.TASK_LINK_PAGES.get(_tk)
+            _tname, _ticon, _twhat = {
+                "training": ("Training", "🎓", "who needs this training and who has a current session"),
+                "ai_inventory": ("AI inventory", "🤖", "your AI systems, how each is used, its role and risk"),
+            }.get(_tk, ("another page", "📂", "the records this depends on"))
             st.caption(
-                "Tracked on the Training page: who needs this training and "
-                "who has a current session. Once people are recorded there, "
-                "this status follows it; until then, what you say below counts."
+                f"Tracked on the {_tname} page: {_twhat}. Once that is filled "
+                "in, this status follows it; until then, what you say below counts."
             )
             if _tp:
-                st.page_link(_tp, label="Open Training", icon="🎓")
+                st.page_link(_tp, label=f"Open {_tname}", icon=_ticon)
         if kind in (OR.KIND_DERIVED, OR.KIND_DOCUMENT):
             pass
         else:

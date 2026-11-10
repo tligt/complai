@@ -30,6 +30,7 @@ TASK_LINK_PAGES = {
     "compliance_record":  "app_pages/compliance_record.py",
     "incidents":          "app_pages/incidents.py",
     "training":           "app_pages/training.py",
+    "ai_inventory":       "app_pages/ai_inventory.py",
 }
 
 
@@ -78,10 +79,19 @@ def load_state(user_id: str, client: dict) -> dict:
         print(f"Training register not loaded: {e}")
         training = None
 
+    # S61. The AI inventory: verdicts for the AI Act obligations it records,
+    # and its tasks.
+    import ai_store as AIS
+    try:
+        ai_data = AIS.load_all(client_id)
+    except Exception as e:
+        print(f"AI inventory not loaded: {e}")
+        ai_data = None
+
     verdicts = OR.evaluate(
         applicable,
         {"client": client, "activities": activities, "systems": systems,
-         "links": links, "training": training},
+         "links": links, "training": training, "ai": ai_data},
         document_status=doc_status,
         gap_results=gap_results,
         responses=responses,
@@ -105,6 +115,9 @@ def load_state(user_id: str, client: dict) -> dict:
         INC.open_findings(user_id, client),
         # S60. Who needs training and does not have a current session.
         TS.open_findings(client, training) if training else [],
+        # S61. AI systems with no use described, uses not assessed, prohibited
+        # uses, high-risk uses with no overseer.
+        AIS.open_findings(client, ai_data) if ai_data else [],
     )
     events = STORE.load_events(client_id, user_id)
     STORE.reconcile(user_id, client_id, findings, events)

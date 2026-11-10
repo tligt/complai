@@ -346,6 +346,15 @@ def _derive_training(ob_id: str) -> Callable[[Mapping[str, Any]], dict[str, Any]
     return fn
 
 
+def _derive_ai(ob_id: str) -> Callable[[Mapping[str, Any]], dict[str, Any] | None]:
+    """S61. What the AI inventory records for this obligation. None without
+    AI inventory data (ctx["ai"]) or nothing to derive from."""
+    def fn(ctx: Mapping[str, Any]) -> dict[str, Any] | None:
+        import ai_rules as AR
+        return AR.verdict(ob_id, ctx)
+    return fn
+
+
 DERIVATIONS: dict[str, Callable[[Mapping[str, Any]], dict | None]] = {
     "gdpr_04": _derive_dpo,
     "gdpr_05": _derive_processor_dpas,
@@ -357,6 +366,9 @@ DERIVATIONS: dict[str, Callable[[Mapping[str, Any]], dict | None]] = {
     "gdpr_13": _derive_training("gdpr_13"),   # S60: data protection training
     "nis2_09": _derive_training("nis2_09"),   # S60: security awareness training
     "ai_01":   _derive_training("ai_01"),     # S60: AI literacy
+    # S61: the AI inventory.
+    **{ob: _derive_ai(ob) for ob in ("ai_02", "ai_03", "ai_06", "ai_07", "ai_08",
+                                      "ai_09", "ai_10", "ai_11", "ai_12")},
 }
 
 
@@ -393,6 +405,9 @@ _TRACKED: dict[str, str] = {
     "gdpr_13": "training",   # employee data protection training
     "nis2_09": "training",   # security awareness training
     "ai_01":   "training",   # AI literacy
+    # S61: the AI inventory (use cases, their role and risk).
+    **{ob: "ai_inventory" for ob in ("ai_02", "ai_03", "ai_06", "ai_07", "ai_08",
+                                      "ai_09", "ai_10", "ai_11", "ai_12")},
 }
 
 

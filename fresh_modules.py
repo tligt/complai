@@ -24,7 +24,14 @@ import sys
 # the ones that import from it.
 MODULES = ("database", "cached_reads", "auth", "tier_gates", "doc_theme", "active_client",
            "table_view", "dedup", "monitoring_queue", "display", "company_registry",
-           "client_setup")
+           "client_setup",
+           # The register and its sources (S60/S61, 10 Nov): pages import
+           # obligation_view, which composes the rest. Not on this list, a
+           # deploy left the old register running without the training and
+           # AI inventory verdicts.
+           "obligations", "tasks", "training_rules", "ai_rules", "obligation_register",
+           "training_store", "ai_store", "training_docs", "guide", "work_items",
+           "obligation_view")
 
 
 def _mtime(path: str | None) -> float | None:

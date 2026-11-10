@@ -37,6 +37,12 @@ TIPS = {
         "per regulation. Run it once to get a baseline, and again after big changes. "
         "Its findings feed the action plan.",
     ),
+    "ai_inventory": (
+        "AI inventory",
+        "The AI systems you use, the models under them, and what you use each one for. "
+        "Answer a few questions per use and RECOSA works out its risk class and your role, "
+        "fills in the AI Act obligations and adds tasks for what is left.",
+    ),
     "training": (
         "Training",
         "Who needs which training under GDPR, NIS2 and the AI Act, and who has a current "

@@ -59,6 +59,8 @@ def area_of_task(task: dict) -> str:
         return _REG_AREA.get(reg, "gdpr")
     if producer == "incident":
         return "incidents"
+    if producer == "ai":
+        return "ai_act"
     if producer == "training":
         # S60: training:<requirement code>, routed with its regulation.
         code = (task.get("finding_key") or "").split(":", 1)[-1]

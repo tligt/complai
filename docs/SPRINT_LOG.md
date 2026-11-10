@@ -387,7 +387,7 @@ the only sprint that *is* the gate.
 | ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S64 since D-152). was S57 until D-131; S56 until D-115; S54, S51 before |
 | **S59** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). **Built and live 9 Nov** (d679c36, 922e96c): accounts with dated history, Companies page, Users reworked; checked live in both apps. Open: a real sign-up and trial start, and a first plan change saved from Companies.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
 | **S60** | **Skills matrix and training register** | **Built 10 Nov (D-159)**: Training page (matrix, people, sessions, documents), five requirements as reference data, register derivation for gdpr_13 / nis2_09 / ai_01, action-plan tasks, training plan and attendance attestation PDFs (EN/FR), monthly content-free reminder. Walked through locally 10 Nov (person, session, attendance, matrix, register, action plan); test data removed. was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before |
-| S61 | AI Act three-layer inventory | was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
+| **S61** | **AI Act three-layer inventory** | **Built 10 Nov (D-160)**: AI inventory page (use cases, AI systems, models); risk class worked out from the answers (Art. 5, Annex III with Art. 6(3) and the profiling rule, Art. 50); role per use with the Art. 25 switch to provider; register derivations for nine AI Act obligations; action-plan tasks. Walked through locally, test data removed. was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before |
 | S62 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | S63 | Annual compliance report | was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
 | S64 | Localization — languages per country, and a checklist per country added | was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
@@ -6775,6 +6775,45 @@ a person, a session and its attendance saved; the matrix, the register
 it: the register said "worked out from your systems" for training, "All 1
 people", zero counts in task details, and five summary cards too narrow to
 read (now three per row). Test data removed.
+
+
+### D-160 — S61 built: the AI Act inventory in three layers, 10 Nov
+
+By the user ("go for s61"). Built to the 3b scope ("AI Act system
+inventory (three-layer)"), with these choices:
+
+- **No second list of systems.** An AI system is an inventory system with
+  `ai_role` other than 'none'; its role is the default for its uses. New
+  tables: `ai_models`, `ai_system_models`, `ai_use_cases`. Role and risk
+  attach to the use case.
+- **The risk class is worked out, never entered** (`ai_rules.classify`):
+  Art. 5 practice -> prohibited; Annex III area without a valid Art. 6(3)
+  exception -> high (profiling defeats the exception); an Art. 50 trigger
+  -> transparency duties; everything answered "no" -> minimal. An
+  unanswered Art. 5 or Annex III question keeps the class unknown (D-60).
+- **Art. 25(1):** own name or trademark, substantial modification or a
+  changed purpose makes the use's role "provider", whatever was entered.
+- **Deployer intake only.** Annex I (safety components, Art. 6(1)) is not
+  asked; the page says to ask the provider.
+- **Reference data:** `ai_annex_iii_area` (8) and `ai_prohibited_practice`
+  (10, with the two Digital Omnibus additions from 2 Dec 2026).
+- **Register:** ai_02, ai_03, ai_06, ai_07, ai_08, ai_09, ai_10, ai_11 and
+  ai_12 are derived from the inventory and tracked on the AI inventory page.
+  ai_06/07/08 become "not applicable" when every use answers no. ai_04/05
+  stay with the transparency notice document. The human overseer (ai_12) is
+  a person from the S60 Training page.
+- **Tasks:** AI systems with no use described, uses still to assess,
+  prohibited uses (blocking), high-risk uses with no overseer (due 2 Dec 2027).
+
+**Found during the walk-through: `fresh_modules.py` did not reload the
+register.** Pages import obligation_view, which was not on the reload list,
+so after a deploy the old register kept running: S60's training verdicts may
+not have reached the live app until a reboot. The register and its sources
+are now on the list.
+
+Migration `migration_s61_ai_inventory.sql`, applied 10 Nov. Tests:
+`test_ai_rules.py`. Walked through locally on creagent (Google Analytics
+marked as AI for the test, then put back; the use case and model deleted).
 
 ---
 
