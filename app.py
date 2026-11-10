@@ -310,13 +310,13 @@ glossary  = st.Page("app_pages/glossary.py",  title=tr("Glossary"),       icon="
 _unread = count_unread_replies(user_id)
 support   = st.Page(
     "app_pages/support.py",
-    title=f"Support ({_unread})" if _unread else "Support",
+    title=f"{tr('Support')} ({_unread})" if _unread else tr("Support"),
     icon="🛟",
 )
 from cached_reads import count_unread_alerts as _count_alerts
 _alerts_n = _count_alerts(user_id)
 alerts    = st.Page("app_pages/alerts.py",
-                    title=f"Alerts ({_alerts_n})" if _alerts_n else "Alerts", icon="🔔")
+                    title=f"{tr('Alerts')} ({_alerts_n})" if _alerts_n else tr("Alerts"), icon="🔔")
 
 
 def _logout_page():
@@ -331,7 +331,7 @@ logout_pg = st.Page(_logout_page, title=tr("Log out"), icon="🚪", url_path="lo
 import work_items as _W
 _inbox_n = _W.unread_count(user_id)
 inbox = st.Page("app_pages/inbox.py",
-                title=f"Inbox ({_inbox_n})" if _inbox_n else "Inbox", icon="📥")
+                title=f"{tr('Inbox')} ({_inbox_n})" if _inbox_n else tr("Inbox"), icon="📥")
 _show_inbox = bool(_inbox_n) or any(
     _W.has_team(c["id"]) for c in (load_accessible_clients(user_id) or [])[:10])
 
