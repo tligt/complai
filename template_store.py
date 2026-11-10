@@ -720,7 +720,9 @@ def load_jurisdiction_map() -> dict[str, dict[str, Any]]:
 
 # S64 (D-163). The locales a language's text is assumed valid for when a
 # version predates the column. Mirrors migration_s64_locales.sql.
-DEFAULT_LOCALES = {"en": ["en"], "fr": ["fr-BE", "fr-FR"], "nl": ["nl-BE"], "de": ["de-BE"]}
+DEFAULT_LOCALES = {"en": ["en"], "fr": ["fr-BE", "fr-FR"], "nl": ["nl-BE", "nl-NL"], "de": ["de-BE"]}
+# nl-NL = nl-BE for now, by the user's decision (10 Nov, D-163): one Dutch
+# text for both until a Netherlands text is written.
 
 _LANG_NAMES = {"en": "English", "fr": "French", "nl": "Dutch", "de": "German"}
 _COUNTRY_NAMES = {"BE": "Belgium", "FR": "France", "NL": "the Netherlands", "LU": "Luxembourg"}

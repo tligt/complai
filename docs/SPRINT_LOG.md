@@ -390,7 +390,7 @@ the only sprint that *is* the gate.
 | **S61** | **AI Act three-layer inventory** | **Built 10 Nov (D-160)**: AI inventory page (use cases, AI systems, models); risk class worked out from the answers (Art. 5, Annex III with Art. 6(3) and the profiling rule, Art. 50); role per use with the Art. 25 switch to provider; register derivations for nine AI Act obligations; action-plan tasks. Walked through locally, test data removed. was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before |
 | **S62** | **AI deployer pack: AUP + Human Oversight + AI Transparency Notice** | **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; page and Documents menu checked in the app 10 Nov. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | **S63** | **Annual compliance report** | **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
-| S64 | Localization — languages per country, and a checklist per country added | was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
+| **S64** | **Localization — languages per country, and a checklist per country added** | **First slice built 10 Nov (D-163)**: documents keyed by locale (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU) in the back office, Dutch labels, and 13 of 14 templates in Dutch as drafts flagged for a Belgian lawyer (the DPA waits for the official Dutch SCC text). Next slices: interface translation, NL/LU country data. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | S65 | RoPA consistency checks | was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | S66 | Cookie Policy purpose granularity | was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
 | S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
@@ -6912,7 +6912,9 @@ document is nl-BE. `document_languages` stays a list of languages, so
 nothing keyed by language today (activity texts, wording inserts) moves.
 Each template version declares the locales it is valid for
 (`document_template_versions.locales`): en -> {en} (any country), fr ->
-{fr-BE, fr-FR}, nl -> {nl-BE}. **Generation never borrows across
+{fr-BE, fr-FR}, nl -> {nl-BE, nl-NL}. **nl-NL = nl-BE for now** (the user,
+later the same day): one Dutch text serves both until a Netherlands text is
+written; the rule below then applies to it. **Generation never borrows across
 countries:** a Dutch document for a Dutch company fails with "no template for
 nl-NL" rather than using the Belgian text (the D-83 principle).
 
@@ -6928,6 +6930,28 @@ item, and shown in the back office.
 standard contractual clauses, reproduced verbatim (S26A). The Dutch must be
 the official Dutch text from the Official Journal, not a translation; until
 it is loaded, a Dutch DPA is reported as unavailable.
+
+**Built the same day (first slice):**
+- `document_template_versions.locales`; `template_store.document_locale`
+  and a strict check in `load_template_version` (`test_locales.py`).
+- `country_checklists`, BE/FR/NL/LU with an honest status per item, and the
+  back office *Countries* page (not yet viewed: the back office needs its own
+  login).
+- Dutch labels: 190 reference values and every document table (NIS2, DPIA,
+  privacy, AI pack, report).
+- 13 templates in Dutch, `templates/nl_BE/*.md`, loaded with
+  `load_template_nl.py`, which refuses a file whose fields, conditionals or
+  tables differ from the live English text, or that lacks the draft banner
+  ("Conceptvertaling — nog niet nagekeken door een Belgische jurist").
+  Generated for creagent from live data by script: 12 of 13 render in Dutch,
+  the DPA is reported unavailable for nl-BE. Remaining English in the output
+  is the company's own activity text not yet translated (already a task).
+- Reviewing: a Belgian lawyer reviews the 13 files (and the 190 labels),
+  removes the banner, and the loader is run again.
+
+**Next slices of S64:** interface and emails (a translation layer for about
+800 inline strings), Netherlands and Luxembourg country data (authorities,
+channels, sources), the official Dutch SCC text for the DPA.
 
 ---
 
