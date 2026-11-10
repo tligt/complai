@@ -52,6 +52,7 @@ def generate_templated_document(
     languages: list[str] | None = None,
     theme: str | None = None,
     make_pdf: bool = True,
+    options: dict[str, Any] | None = None,
 ) -> GenerationOutcome:
     """Render, build and persist one document in every language the client
     issues documents in. All siblings share a document_group_id.
@@ -85,6 +86,7 @@ def generate_templated_document(
         generation_date=date.today(),
         languages=languages,
         theme=theme,
+        options=options,
     )
     if not docs:
         return GenerationOutcome(

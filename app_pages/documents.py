@@ -1,5 +1,6 @@
 import os
 import streamlit as st
+from datetime import date
 
 from display import dates_in_text, fmt_date, fmt_datetime, plural
 from auth import get_user_id
@@ -42,7 +43,9 @@ TEMPLATE_DOC_TYPES = {
         "incident_response_plan,breach_notification_procedure,"
         "business_continuity_plan,dpia,nis2_risk_assessment,"
         # S62: the AI deployer pack, built from the S61 AI inventory.
-        "ai_acceptable_use,ai_human_oversight,ai_transparency",
+        "ai_acceptable_use,ai_human_oversight,ai_transparency,"
+        # S63: the annual report for management.
+        "annual_report",
     ).split(",")
     if t.strip()
 }
@@ -642,6 +645,22 @@ if _view == "generate":
                 "service will be restored without saying how fast."
             )
 
+        elif doc_type == "annual_report":
+            st.caption(
+                "For your management body: where you stand on every regulation, "
+                "what is not yet in place, and what happened over the period — "
+                "documents, incidents, training, actions, regulatory changes. "
+                "Statuses are as of today; events are those dated in the period. "
+                "It ends with a block for management to sign that they read it."
+            )
+            from template_report import default_period as _dp
+            _p0, _p1 = _dp(date.today())
+            _pc1, _pc2 = st.columns(2)
+            st.session_state["report_period"] = (
+                _pc1.date_input("Period from", value=_p0, format="DD/MM/YYYY", key="rep_from"),
+                _pc2.date_input("to", value=_p1, format="DD/MM/YYYY", key="rep_to"),
+            )
+
         elif doc_type in ("ai_acceptable_use", "ai_human_oversight", "ai_transparency"):
             st.caption(
                 "Built from your *AI inventory*: the AI systems, what each is used "
@@ -886,12 +905,27 @@ if _view == "generate":
 
         company_display = f"{_s(legal_name)} {legal_form or ''}".strip()
 
+        # S63: the annual report takes its period, and the obligation
+        # statuses from the Obligations page's own computation, so the two
+        # cannot disagree.
+        _options = None
+        if doc_type == "annual_report":
+            import obligation_view as _OV
+            _st = _OV.load_state(user_id, selected_client or {"id": client_id})
+            _pf, _pt = st.session_state.get("report_period") or (None, None)
+            if _pf and _pt and _pf > _pt:
+                st.error("The period ends before it starts.")
+                st.stop()
+            _options = {"period_start": _pf, "period_end": _pt, "verdicts": _st["verdicts"],
+                        "applicable": _st["applicable"], "open_tasks": _st["open_tasks"]}
+
         with st.spinner("Generating from template..."):
             outcome = generate_templated_document(
                 user_id=user_id,
                 client_id=client_id,
                 doc_type=doc_type,
                 company_name=company_display,
+                options=_options,
             )
 
         if not outcome.ok:

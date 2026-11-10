@@ -72,6 +72,8 @@ DOCUMENT_TYPES = {
     # S62: the AI deployer pack.
     "ai_acceptable_use":  "AI Acceptable Use Policy",
     "ai_human_oversight": "Human Oversight Policy (AI)",
+    # S63: for the management body, over a period.
+    "annual_report": "Annual Compliance Report",
 }
 
 

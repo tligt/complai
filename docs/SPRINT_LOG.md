@@ -389,7 +389,7 @@ the only sprint that *is* the gate.
 | **S60** | **Skills matrix and training register** | **Built 10 Nov (D-159)**: Training page (matrix, people, sessions, documents), five requirements as reference data, register derivation for gdpr_13 / nis2_09 / ai_01, action-plan tasks, training plan and attendance attestation PDFs (EN/FR), monthly content-free reminder. Walked through locally 10 Nov (person, session, attendance, matrix, register, action plan); test data removed. was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before |
 | **S61** | **AI Act three-layer inventory** | **Built 10 Nov (D-160)**: AI inventory page (use cases, AI systems, models); risk class worked out from the answers (Art. 5, Annex III with Art. 6(3) and the profiling rule, Art. 50); role per use with the Art. 25 switch to provider; register derivations for nine AI Act obligations; action-plan tasks. Walked through locally, test data removed. was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before |
 | **S62** | **AI deployer pack: AUP + Human Oversight + AI Transparency Notice** | **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; page and Documents menu checked in the app 10 Nov. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
-| S63 | Annual compliance report | was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
+| **S63** | **Annual compliance report** | **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
 | S64 | Localization — languages per country, and a checklist per country added | was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | S65 | RoPA consistency checks | was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | S66 | Cookie Policy purpose granularity | was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
@@ -6855,6 +6855,40 @@ creagent's live data by script, nothing saved: the notice rendered, the two
 policies blocked on the policy owner as intended. Checked in the app: the
 three types offered with their caption; the policy owner saved, but the page
 showed the old value (it read the cached company), now read fresh.
+
+
+### D-162 — S63 scoped and built: the annual compliance report, 10 Nov
+
+By the user ("ok", after the scope was summarised). The 3b note ("Bilan")
+predated most of what it reports on; scoped against what exists now:
+
+- **For management, over a period.** Chosen on the Documents page, default
+  the last 12 months. Statuses are **as at the generation date**: RECOSA keeps
+  no history of obligation statuses, so a status "at the start of the
+  period" or a trend would be invented. Events are those **dated in the
+  period**: documents put in force or replaced (`client_documents`),
+  incidents and how many notifications went late (the incident clock's own
+  deadlines), training sessions and coverage today, actions opened and
+  closed (`task_events`), regulatory changes notified (`client_alerts`).
+- **One computation of the statuses.** The page runs
+  `obligation_view.load_state` and passes the verdicts in, so the report and
+  the Obligations page cannot disagree. `TS.generate` and
+  `generate_templated_document` gained an `options` argument for this.
+- **Sign-off on paper.** A table for the management body's names and
+  signatures; putting the report in force on the Compliance record records
+  that it was adopted. No in-app sign-off workflow.
+- **Not in scope:** comparison with the previous period (once there is a
+  previous report to compare with), NL (S64), and French names for
+  obligations and document types — the catalogue is English-only, so a
+  French report names them in English, as elsewhere.
+
+Found with live data: the register can hold many rows for one adoption (28
+for one policy on one day at creagent). The report shows one line per
+document, language, event and day.
+
+Tests: `test_template_report.py`. Generated against creagent's live data by
+script with the Obligations page's own statuses (GDPR 68 %, NIS2 47 %, AI
+Act 6 %), nothing saved; the page's period inputs checked in the app.
 
 ---
 

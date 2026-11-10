@@ -1010,6 +1010,11 @@ def build_values(
         from template_ai import apply_ai_values  # noqa: PLC0415
         apply_ai_values(values, client, block_context, language)
 
+    # --- Annual compliance report (S63) -----------------------------------
+    if doc_type == "annual_report":
+        from template_report import apply_report_values  # noqa: PLC0415
+        apply_report_values(values, client, block_context, language)
+
     # --- Risk assessments -------------------------------------------------
     # After the common block: apply_dpia_values composes authority_line from
     # authority_name and authority_url, both populated there.
@@ -1058,6 +1063,12 @@ def build_block_context(
         # the same rows would be three chances to disagree.
         from template_nis2 import build_nis2_block_context  # noqa: PLC0415
         return build_nis2_block_context(client_id, language)
+
+    if doc_type == "annual_report":
+        # S63. The period, and the obligation statuses computed by the
+        # Obligations page's own code, arrive as kwargs from the page.
+        from template_report import build_report_block_context  # noqa: PLC0415
+        return build_report_block_context(client_id, language, **kwargs)
 
     if doc_type in ("ai_acceptable_use", "ai_human_oversight", "ai_transparency"):
         # S62. One context for the pack: the AI inventory, the prohibited
@@ -1118,6 +1129,7 @@ def generate(
     generation_date: str,
     languages: Sequence[str] | None = None,
     theme: str | None = None,
+    options: Mapping[str, Any] | None = None,
 ) -> list[GeneratedDocument]:
     """Render one document in every language the client issues documents in.
 
@@ -1164,7 +1176,9 @@ def generate(
             ))
             continue
 
-        block_context, last_updated = build_block_context(doc_type, client_id, lang)
+        # options: what one generation needs beyond the client — the annual
+        # report's period and the register's statuses (S63).
+        block_context, last_updated = build_block_context(doc_type, client_id, lang, **(options or {}))
         values, codes = build_values(
             client, jurisdictions,
             language=lang,
@@ -1362,3 +1376,13 @@ DOC_BLOCKS["ai_human_oversight"] = HOP_BLOCKS
 FIELD_SPECS["ai_transparency"] = NOTICE_FIELDS
 DOC_BLOCKS["ai_transparency"] = NOTICE_BLOCKS
 DEFAULT_BLOCK_RENDERERS.update(AI_BLOCK_RENDERERS)
+
+
+# ---------------------------------------------------------------------------
+# S63 — Annual compliance report
+# ---------------------------------------------------------------------------
+from template_report import REPORT_BLOCKS, REPORT_BLOCK_RENDERERS, REPORT_FIELDS  # noqa: E402
+
+FIELD_SPECS["annual_report"] = REPORT_FIELDS
+DOC_BLOCKS["annual_report"] = REPORT_BLOCKS
+DEFAULT_BLOCK_RENDERERS.update(REPORT_BLOCK_RENDERERS)
