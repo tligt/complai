@@ -1005,6 +1005,11 @@ def build_values(
         from template_nis2 import apply_nis2_values  # noqa: PLC0415
         apply_nis2_values(values, client, block_context, language)
 
+    # --- AI deployer pack (S62) -------------------------------------------
+    if doc_type in ("ai_acceptable_use", "ai_human_oversight", "ai_transparency"):
+        from template_ai import apply_ai_values  # noqa: PLC0415
+        apply_ai_values(values, client, block_context, language)
+
     # --- Risk assessments -------------------------------------------------
     # After the common block: apply_dpia_values composes authority_line from
     # authority_name and authority_url, both populated there.
@@ -1053,6 +1058,12 @@ def build_block_context(
         # the same rows would be three chances to disagree.
         from template_nis2 import build_nis2_block_context  # noqa: PLC0415
         return build_nis2_block_context(client_id, language)
+
+    if doc_type in ("ai_acceptable_use", "ai_human_oversight", "ai_transparency"):
+        # S62. One context for the pack: the AI inventory, the prohibited
+        # practices, and the overseers' training from the Training page.
+        from template_ai import build_ai_block_context  # noqa: PLC0415
+        return build_ai_block_context(client_id, language)
 
     if doc_type == "dpa":
         # Reuses _load_inventory, but scopes every table to activities the
@@ -1328,3 +1339,26 @@ FIELD_SPECS["nis2_risk_assessment"] = NIS2RA_FIELDS
 DOC_BLOCKS["nis2_risk_assessment"] = NIS2RA_BLOCKS
 
 DEFAULT_BLOCK_RENDERERS.update(DPIA_BLOCK_RENDERERS)
+
+
+# ---------------------------------------------------------------------------
+# S62 — AI deployer pack
+# ---------------------------------------------------------------------------
+# Same placement and import-cycle reason as the blocks above.
+from template_ai import (  # noqa: E402
+    AI_BLOCK_RENDERERS,
+    AUP_BLOCKS,
+    AUP_FIELDS,
+    HOP_BLOCKS,
+    HOP_FIELDS,
+    NOTICE_BLOCKS,
+    NOTICE_FIELDS,
+)
+
+FIELD_SPECS["ai_acceptable_use"] = AUP_FIELDS
+DOC_BLOCKS["ai_acceptable_use"] = AUP_BLOCKS
+FIELD_SPECS["ai_human_oversight"] = HOP_FIELDS
+DOC_BLOCKS["ai_human_oversight"] = HOP_BLOCKS
+FIELD_SPECS["ai_transparency"] = NOTICE_FIELDS
+DOC_BLOCKS["ai_transparency"] = NOTICE_BLOCKS
+DEFAULT_BLOCK_RENDERERS.update(AI_BLOCK_RENDERERS)

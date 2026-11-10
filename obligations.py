@@ -69,6 +69,9 @@ DOCUMENT_TYPES = {
     "dpia": "Data Protection Impact Assessment",
     "nis2_risk_assessment": "Cybersecurity Risk Assessment",
     "ai_transparency":   "AI System Transparency Notice",
+    # S62: the AI deployer pack.
+    "ai_acceptable_use":  "AI Acceptable Use Policy",
+    "ai_human_oversight": "Human Oversight Policy (AI)",
 }
 
 
@@ -985,6 +988,12 @@ DOC_TYPE_REGULATIONS = {
     # for the same reason: scoring it would mark every controller-only client
     # red for a document they have no use for.
     "dpa": ["GDPR"],
+    # S62. Supporting policies of the AI deployer pack. No obligation names
+    # them as its document: ai_01 and ai_12 are evidenced by the Training page
+    # and the AI inventory, and scoring these would mark every AI Act client
+    # red for documents the law does not prescribe.
+    "ai_acceptable_use": ["EU_AI_ACT"],
+    "ai_human_oversight": ["EU_AI_ACT"],
 }
 
 # doc_type -> {"label", "regulations"}, for the dashboard checklist.

@@ -31,7 +31,9 @@ MODULES = ("database", "cached_reads", "auth", "tier_gates", "doc_theme", "activ
            # AI inventory verdicts.
            "obligations", "tasks", "training_rules", "ai_rules", "obligation_register",
            "training_store", "ai_store", "training_docs", "guide", "work_items",
-           "obligation_view")
+           "obligation_view",
+           # The document engine (S62): new document types register here.
+           "template_renderer", "template_ai", "template_store", "docgen_templates")
 
 
 def _mtime(path: str | None) -> float | None:

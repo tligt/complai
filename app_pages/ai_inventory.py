@@ -69,6 +69,23 @@ def _tri(col, label, value, key, help=None):
                          format_func=lambda v: _TRI_LABEL[v], key=key, help=help)
 
 
+# S62: the one name the AI policies need.
+with st.expander("Who approves new AI tools: "
+                 + (client.get("ai_policy_owner") or "not set yet"),
+                 expanded=not client.get("ai_policy_owner")):
+    st.caption("Named in your AI acceptable use and human oversight policies (Documents): "
+               "staff ask this person before using a new AI tool, and report problems to them. "
+               "A role is better than a name if people change.")
+    with st.form("ai_owner"):
+        owner = st.text_input("Role or name", value=client.get("ai_policy_owner") or "",
+                              placeholder="The operations manager")
+        if st.form_submit_button("Save", disabled=not editable):
+            if AIS.set_policy_owner(user_id, client_id, owner):
+                client["ai_policy_owner"] = owner.strip() or None
+                st.session_state.get("selected_client", {}).update(ai_policy_owner=owner.strip() or None)
+                st.rerun()
+            st.error("Could not save. If you have read-only access, an admin must do this.")
+
 tab_uc, tab_sys, tab_models = st.tabs(
     [f"Use cases ({len([u for u in use_cases if AR.active(u)])})",
      f"AI systems ({len(ai_systems)})", f"Models ({len(models)})"])

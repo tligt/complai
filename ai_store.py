@@ -62,6 +62,18 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def set_policy_owner(user_id: str, client_id: str, owner: str) -> bool:
+    """S62: who approves new AI tools, named in the AI policies."""
+    try:
+        get_supabase().table("clients").update({"ai_policy_owner": owner.strip() or None})             .eq("id", client_id).execute()
+        log_audit_event(company_id=client_id, user_id=user_id, event_type="ai_inventory",
+                        event_subtype="policy_owner", summary="AI policy owner set")
+        return True
+    except Exception as e:
+        print(f"Could not set AI policy owner: {e}")
+        return False
+
+
 # ── Systems ───────────────────────────────────────────────────────────────
 
 def set_ai_role(user_id: str, client_id: str, system_id: str, role: str) -> bool:

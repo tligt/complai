@@ -388,7 +388,7 @@ the only sprint that *is* the gate.
 | **S59** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). **Built and live 9 Nov** (d679c36, 922e96c): accounts with dated history, Companies page, Users reworked; checked live in both apps. Open: a real sign-up and trial start, and a first plan change saved from Companies.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
 | **S60** | **Skills matrix and training register** | **Built 10 Nov (D-159)**: Training page (matrix, people, sessions, documents), five requirements as reference data, register derivation for gdpr_13 / nis2_09 / ai_01, action-plan tasks, training plan and attendance attestation PDFs (EN/FR), monthly content-free reminder. Walked through locally 10 Nov (person, session, attendance, matrix, register, action plan); test data removed. was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before |
 | **S61** | **AI Act three-layer inventory** | **Built 10 Nov (D-160)**: AI inventory page (use cases, AI systems, models); risk class worked out from the answers (Art. 5, Annex III with Art. 6(3) and the profiling rule, Art. 50); role per use with the Art. 25 switch to provider; register derivations for nine AI Act obligations; action-plan tasks. Walked through locally, test data removed. was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before |
-| S62 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
+| **S62** | **AI deployer pack: AUP + Human Oversight + AI Transparency Notice** | **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; UI walk-through pending. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | S63 | Annual compliance report | was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
 | S64 | Localization — languages per country, and a checklist per country added | was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | S65 | RoPA consistency checks | was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
@@ -6814,6 +6814,45 @@ are now on the list.
 Migration `migration_s61_ai_inventory.sql`, applied 10 Nov. Tests:
 `test_ai_rules.py`. Walked through locally on creagent (Google Analytics
 marked as AI for the test, then put back; the use case and model deleted).
+
+
+### D-161 — S62 built: the AI deployer pack, 10 Nov
+
+By the user ("ok go"). Three documents on the template engine (Tier 1, D-01),
+EN and FR, drafts for counsel (`template_seed_ai.py`):
+
+- **AI acceptable use policy** (`ai_acceptable_use`): approved tools and
+  uses from the AI inventory, one row per use; personal data allowed only in
+  a tool whose DPA is signed (Systems page); AI systems with no approved use
+  listed as not to be used; prohibited uses excluded; the Art. 5 list from
+  reference data; data never to enter; who approves new tools.
+- **Human oversight policy** (`ai_human_oversight`): each high-risk use you
+  deploy, its overseer (S60 people) and whether their oversight training is
+  current; gaps stated, not hidden (the BCP precedent); Art. 14(4) duties,
+  Art. 26(5) escalation, 26(6) logs, 26(7) workers when relevant.
+- **AI transparency notice** (`ai_transparency`): the uses people meet
+  directly and what each means for them (Art. 50(1), (3), (4)). Was written
+  by the LLM since S28; now templated. The LLM path stays reachable through
+  TEMPLATE_DOC_TYPES (D-11).
+
+*Rejected: prose inserts as in the NIS2 pack.* They are listed and nudged
+for every client, AI user or not. The only new input is
+`clients.ai_policy_owner` (who approves new AI tools), set on the AI
+inventory page; the two policies block until it is.
+
+The two policies map to no obligation (DOC_TYPE_REGULATIONS: EU_AI_ACT):
+ai_01 and ai_12 are evidenced by the Training page and the AI inventory, and
+scoring the policies would mark every AI Act client red for documents the law
+does not prescribe.
+
+No NL bodies, like every other template: that is S64. Templates loaded
+through the API (`load_template_docs.py`, same upserts and checks as the seed
+SQL), since this machine has no SQL client. fresh_modules now also reloads
+the document engine.
+
+Tests: `test_template_ai.py` (both languages, all three). Generated against
+creagent's live data by script, nothing saved: the notice rendered, the two
+policies blocked on the policy owner as intended.
 
 ---
 

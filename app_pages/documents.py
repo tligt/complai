@@ -40,7 +40,9 @@ TEMPLATE_DOC_TYPES = {
         # looks broadly right.
         "cookie_policy,ropa_controller,ropa_processor,dpa,privacy_policy,"
         "incident_response_plan,breach_notification_procedure,"
-        "business_continuity_plan,dpia,nis2_risk_assessment",
+        "business_continuity_plan,dpia,nis2_risk_assessment,"
+        # S62: the AI deployer pack, built from the S61 AI inventory.
+        "ai_acceptable_use,ai_human_oversight,ai_transparency",
     ).split(",")
     if t.strip()
 }
@@ -638,6 +640,14 @@ if _view == "generate":
                 "*Incident and continuity wording*. Recovery objectives come from "
                 "the systems inventory — a continuity plan without them says "
                 "service will be restored without saying how fast."
+            )
+
+        elif doc_type in ("ai_acceptable_use", "ai_human_oversight", "ai_transparency"):
+            st.caption(
+                "Built from your *AI inventory*: the AI systems, what each is used "
+                "for, its risk and who oversees it. Whether personal data may go "
+                "into a tool follows its data processing agreement on the Systems "
+                "page. Who approves new AI tools is set on the AI inventory page."
             )
 
         else:
