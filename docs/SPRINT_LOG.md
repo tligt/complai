@@ -6890,6 +6890,45 @@ Tests: `test_template_report.py`. Generated against creagent's live data by
 script with the Obligations page's own statuses (GDPR 68 %, NIS2 47 %, AI
 Act 6 %), nothing saved; the page's period inputs checked in the app.
 
+
+### D-163 — S64 scope lock: locales for documents, the country checklist, nl-BE first, 10 Nov
+
+Decided with the user (three questions, 10 Nov):
+
+1. **First slice: the locale model for documents, the per-country checklist,
+   and the templates in nl-BE.** Interface translation (about 800 inline
+   strings, no translation layer yet) and the Netherlands/Luxembourg country
+   data are later slices of S64.
+2. **nl-BE templates are released as drafts flagged for review** — translated
+   from the reviewed EN/FR text and marked "draft translation, not yet
+   reviewed by a Belgian lawyer", the status every template already carries
+   (DRAFT FOR LEGAL REVIEW). Replaced by the reviewed text when it exists.
+3. **One French text, marked valid for fr-BE and fr-FR.** Split per template
+   only where the wording really differs.
+
+**The locale model, first slice.** A document's locale is its language plus
+the company's country (`clients.country`): a Belgian company's Dutch
+document is nl-BE. `document_languages` stays a list of languages, so
+nothing keyed by language today (activity texts, wording inserts) moves.
+Each template version declares the locales it is valid for
+(`document_template_versions.locales`): en -> {en} (any country), fr ->
+{fr-BE, fr-FR}, nl -> {nl-BE}. **Generation never borrows across
+countries:** a Dutch document for a Dutch company fails with "no template for
+nl-NL" rather than using the Belgian text (the D-83 principle).
+
+*Not yet:* a second text in the same language (nl-NL beside nl-BE) needs the
+one-in-force-per-language index widened to per-locale; done when the first
+such text exists.
+
+**The country checklist** (the ten items of the 3b note) is stored per
+country (`country_checklists`), BE, FR, NL and LU, with an honest status per
+item, and shown in the back office.
+
+**Not translated by RECOSA: the DPA.** Its body is the Commission's
+standard contractual clauses, reproduced verbatim (S26A). The Dutch must be
+the official Dutch text from the Official Journal, not a translation; until
+it is loaded, a Dutch DPA is reported as unavailable.
+
 ---
 
 ## 5. Constraints and gotchas

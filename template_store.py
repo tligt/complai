@@ -718,7 +718,31 @@ def load_jurisdiction_map() -> dict[str, dict[str, Any]]:
     return {r["code"]: (r.get("metadata") or {}) for r in (res.data or [])}
 
 
-def load_template_version(doc_type: str, language: str) -> TemplateVersion | None:
+# S64 (D-163). The locales a language's text is assumed valid for when a
+# version predates the column. Mirrors migration_s64_locales.sql.
+DEFAULT_LOCALES = {"en": ["en"], "fr": ["fr-BE", "fr-FR"], "nl": ["nl-BE"], "de": ["de-BE"]}
+
+_LANG_NAMES = {"en": "English", "fr": "French", "nl": "Dutch", "de": "German"}
+_COUNTRY_NAMES = {"BE": "Belgium", "FR": "France", "NL": "the Netherlands", "LU": "Luxembourg"}
+
+
+def document_locale(language: str, client: Mapping[str, Any]) -> str:
+    """A document's locale: its language plus the company's country (S64).
+    English is one text for every country."""
+    if language == "en":
+        return "en"
+    country = (client.get("country") or "").upper()
+    return f"{language}-{country}" if country else language
+
+
+def describe_locale(locale: str) -> str:
+    lang, _, country = locale.partition("-")
+    name = _LANG_NAMES.get(lang, lang)
+    return f"{name} for {_COUNTRY_NAMES.get(country, country)}" if country else name
+
+
+def load_template_version(doc_type: str, language: str,
+                          locale: str | None = None) -> TemplateVersion | None:
     """The in-force version for (doc_type, language), or None.
 
     Returns None rather than raising when a language has no in-force body —
@@ -730,7 +754,7 @@ def load_template_version(doc_type: str, language: str) -> TemplateVersion | Non
         sb.table("document_template_versions")
         .select(
             "id, template_id, language, version_no, source_revision, body_md, "
-            "materiality, effective_from, document_templates!inner(doc_type, active)"
+            "materiality, effective_from, locales, document_templates!inner(doc_type, active)"
         )
         .eq("language", language)
         .eq("status", "in_force")
@@ -750,6 +774,12 @@ def load_template_version(doc_type: str, language: str) -> TemplateVersion | Non
         )
 
     r = rows[0]
+    # S64: never borrow across countries. A text written for nl-BE does not
+    # serve a Dutch company; the caller reports the locale as unavailable.
+    if locale:
+        valid = r.get("locales") or DEFAULT_LOCALES.get(language, [])
+        if locale not in valid:
+            return None
     return TemplateVersion(
         id=r["id"],
         template_id=r["template_id"],
@@ -1160,7 +1190,8 @@ def generate(
     out: list[GeneratedDocument] = []
 
     for lang in langs:
-        version = load_template_version(doc_type, lang)
+        locale = document_locale(lang, client)
+        version = load_template_version(doc_type, lang, locale)
         if version is None:
             # Mid-translation or never authored. Recorded, not silently
             # dropped — a client expecting a Dutch policy must be told it is
@@ -1172,7 +1203,8 @@ def generate(
                 source_revision=None,
                 document_group_id=group_id,
                 jurisdictions_applied=[],
-                skipped_reason=f"No in-force {doc_type} template in '{lang}'.",
+                skipped_reason=(f"No in-force {doc_type} template in "
+                                f"{describe_locale(locale)} ({locale})."),
             ))
             continue
 

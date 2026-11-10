@@ -18,6 +18,7 @@ load_dotenv()
 
 from database import get_supabase_admin
 from template_seed_lib import check_bodies
+from template_store import DEFAULT_LOCALES
 
 
 def load(doc) -> None:
@@ -34,7 +35,8 @@ def load(doc) -> None:
             {"template_id": t["id"], "language": lang, "version_no": doc.version_no,
              "source_revision": doc.source_revision, "body_md": body,
              "materiality": doc.materiality, "status": "in_force",
-             "change_note": doc.note, "effective_from": doc.effective_from},
+             "change_note": doc.note, "effective_from": doc.effective_from,
+             "locales": list((doc.locales or {}).get(lang) or DEFAULT_LOCALES.get(lang, []))},
             on_conflict="template_id,language,version_no").execute()
     print(f"{doc.doc_type}: {', '.join(doc.bodies)} loaded")
 

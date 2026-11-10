@@ -83,6 +83,9 @@ class TemplateDoc:
     sprint: str = "S26"
     effective_from: str = field(default_factory=lambda: date.today().isoformat())
     change_note: str | None = None
+    # S64 (D-163): {language: [locales]} this text is valid for. Omitted
+    # languages take template_store.DEFAULT_LOCALES.
+    locales: Mapping[str, list] | None = None
 
     @property
     def note(self) -> str:
@@ -313,16 +316,20 @@ WHERE t.id = v.template_id
   AND v.version_no < {doc.version_no};
 """)
 
+    from template_store import DEFAULT_LOCALES  # noqa: PLC0415
     for lang, body in doc.bodies.items():
         quoted = _dollar_quote(body, f"body_{lang}")
+        # S64 (D-163): the locales this text is valid for.
+        locs = list((doc.locales or {}).get(lang) or DEFAULT_LOCALES.get(lang, []))
+        locs_sql = "'{" + ",".join(locs) + "}'"
         parts.append(f"""
 INSERT INTO document_template_versions
     (template_id, language, version_no, source_revision, body_md,
-     materiality, status, change_note, effective_from)
+     materiality, status, change_note, effective_from, locales)
 SELECT id, '{lang}', {doc.version_no}, {doc.source_revision},
        {quoted},
        '{doc.materiality}', 'in_force', '{doc.note.replace("'", "''")}',
-       DATE '{doc.effective_from}'
+       DATE '{doc.effective_from}', {locs_sql}
 FROM document_templates WHERE doc_type = '{doc.doc_type}'
 ON CONFLICT (template_id, language, version_no) DO UPDATE
 SET source_revision = EXCLUDED.source_revision,
@@ -330,7 +337,8 @@ SET source_revision = EXCLUDED.source_revision,
     materiality     = EXCLUDED.materiality,
     status          = EXCLUDED.status,
     change_note     = EXCLUDED.change_note,
-    effective_from  = EXCLUDED.effective_from;
+    effective_from  = EXCLUDED.effective_from,
+    locales         = EXCLUDED.locales;
 """)
 
     langs = ", ".join(f"'{l}'" for l in doc.bodies)
