@@ -397,6 +397,7 @@ the only sprint that *is* the gate.
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
+| S71 | CRA reporting on the incident clock | **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -6722,6 +6723,23 @@ Nothing is created until the user approves. Still the user's: payment
 method in place, the bucket's 35-day expiry rule, the backup API key (A6),
 DNS records at Hostinger (A7), the Brevo SMTP key (A8), the GitHub deploy
 key (A9).
+
+
+### D-158 — S71 scoped: CRA reporting on the incident clock, 10 Nov
+
+By the user, after ENISA launched the CRA Single Reporting Platform (11
+Sept 2026). The CRA's reporting duty already applies to manufacturers. The
+rest of the CRA applies from Dec 2027. So only Art. 14 is scoped now: a
+CRA track on the S53 clock, with early warning 24 h, notification 72 h, and
+a final report 14 days after a fix (vulnerability) or one month after the
+notification (severe incident). It adds the users notice, a coordinator
+CSIRT per country, and drafts in English (the SRP takes English only).
+
+There is no SRP API, so the drafts are pasted into the portal by hand, as
+for GDPR and NIS2. The EUR-Lex text did not load; check Art. 14 against
+the OJ before the build. Five open questions are in the scope note. The
+first decides everything: does any client make products with digital
+elements?
 
 ---
 
