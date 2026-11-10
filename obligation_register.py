@@ -336,6 +336,16 @@ def _derive_security_measures(ctx: Mapping[str, Any]) -> dict[str, Any] | None:
     )
 
 
+def _derive_training(ob_id: str) -> Callable[[Mapping[str, Any]], dict[str, Any] | None]:
+    """S60. What the training register records for this obligation. None
+    without training data (ctx["training"]) or nobody who needs it, so the
+    register falls through to what the client declared."""
+    def fn(ctx: Mapping[str, Any]) -> dict[str, Any] | None:
+        import training_rules as TR
+        return TR.verdict(ob_id, ctx)
+    return fn
+
+
 DERIVATIONS: dict[str, Callable[[Mapping[str, Any]], dict | None]] = {
     "gdpr_04": _derive_dpo,
     "gdpr_05": _derive_processor_dpas,
@@ -344,6 +354,9 @@ DERIVATIONS: dict[str, Callable[[Mapping[str, Any]], dict | None]] = {
     "gdpr_17": _derive_joint_controllers,
     "gdpr_18": _derive_lia,
     "gdpr_20": _derive_security_measures,
+    "gdpr_13": _derive_training("gdpr_13"),   # S60: data protection training
+    "nis2_09": _derive_training("nis2_09"),   # S60: security awareness training
+    "ai_01":   _derive_training("ai_01"),     # S60: AI literacy
 }
 
 
@@ -367,20 +380,26 @@ KIND_STATEMENT   = "statement"     # the client describes what they do
 _ACKNOWLEDGE = {
     "nis2_11",   # registered with the national NIS2 authority
     "nis2_12",   # management body approved the cybersecurity policy
-    "ai_01",     # AI literacy measures in place for staff using AI
 }
 
 # Tracked elsewhere in the product. The register shows the status and links; it
 # does not hold a second copy, because two places recording the same fact is
 # the divergence pattern.
 #
-# S50 (skills matrix and training register) is not built. Until it is, these
-# fall back to a statement — a link to a page that does not exist is worse than
-# a text box.
+# S60: training lives on the Training page. Its verdict is derived there
+# (DERIVATIONS above); until people are recorded, the client's own statement
+# still counts, so these are offered a statement box AND the link.
 _TRACKED: dict[str, str] = {
-    # "gdpr_13": "training",   # employee data protection training  — S50
-    # "nis2_09": "training",   # security awareness training        — S50
+    "gdpr_13": "training",   # employee data protection training
+    "nis2_09": "training",   # security awareness training
+    "ai_01":   "training",   # AI literacy
 }
+
+
+def tracked_page(obligation_id: str) -> str | None:
+    """The page key (obligation_view.TASK_LINK_PAGES) a tracked obligation
+    lives on."""
+    return _TRACKED.get(obligation_id)
 
 
 def check_ids(catalogue_ids: Iterable[str]) -> list[str]:
@@ -401,10 +420,10 @@ def check_ids(catalogue_ids: Iterable[str]) -> list[str]:
 def response_kind(obligation: Mapping[str, Any]) -> str:
     """Which control this obligation is answered with."""
     ob_id = obligation.get("id", "")
-    if ob_id in DERIVATIONS:
-        return KIND_DERIVED
     if ob_id in _TRACKED:
         return KIND_TRACKED
+    if ob_id in DERIVATIONS:
+        return KIND_DERIVED
     if obligation.get("doc_type"):
         return KIND_DOCUMENT
     if ob_id in _ACKNOWLEDGE:

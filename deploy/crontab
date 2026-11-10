@@ -21,5 +21,7 @@ RUN=cd /opt/recosa/app/deploy && docker compose run --rm -T jobs
 */15 * * * *  root  $RUN python monitor_funnel.py >> /var/log/recosa/monitor_funnel.log 2>&1
 # Incident deadline reminders — hourly, the NIS2 24-hour clock needs it
 7 * * * *     root  $RUN python monitor_incidents.py >> /var/log/recosa/monitor_incidents.log 2>&1
+# Training due reminders (S60) — weekly; the script sends at most monthly per company
+23 7 * * 1    root  $RUN python monitor_training.py >> /var/log/recosa/monitor_training.log 2>&1
 # Nightly backup to Scaleway Object Storage
 30 2 * * *    root  /opt/recosa/app/deploy/backup.sh >> /var/log/recosa/backup.log 2>&1

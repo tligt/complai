@@ -386,7 +386,7 @@ the only sprint that *is* the gate.
 | ~~S57~~ | ~~Buffer/LinkedIn integration~~ | **Closed 6 Nov (D-147, D-149)**: LinkedIn drafts to Buffer — queue, schedule or draft; plain text, source line or first comment (the first comment needs a paid Buffer plan), a real RECOSA mention, a RECOSA image. Tested live. was S56 until D-131; S55 until D-115; S53, S50 before |
 | ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S64 since D-152). was S57 until D-131; S56 until D-115; S54, S51 before |
 | **S59** | **Customer accounts and subscription history** | **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). **Built and live 9 Nov** (d679c36, 922e96c): accounts with dated history, Companies page, Users reworked; checked live in both apps. Open: a real sign-up and trial start, and a first plan change saved from Companies.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
-| S60 | Skills matrix and training register | was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before. High value-to-cost. Feeds the S29 register |
+| **S60** | **Skills matrix and training register** | **Built 10 Nov (D-159)**: Training page (matrix, people, sessions, documents), five requirements as reference data, register derivation for gdpr_13 / nis2_09 / ai_01, action-plan tasks, training plan and attendance attestation PDFs (EN/FR), monthly content-free reminder. Left: a live walk-through in the app. was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before |
 | S61 | AI Act three-layer inventory | was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before. Use case / system / model |
 | S62 | AI deployer pack: AUP + Human Oversight + AI Transparency Notice | was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | S63 | Annual compliance report | was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before. Renders S29 statements |
@@ -6740,6 +6740,37 @@ for GDPR and NIS2. The EUR-Lex text did not load; check Art. 14 against
 the OJ before the build. Five open questions are in the scope note. The
 first decides everything: does any client make products with digital
 elements?
+
+
+### D-159 — S60 built: skills matrix and training register, 10 Nov
+
+By the user ("go for s60"). Built to the S55-era scope (section 3b) with
+four choices made while building:
+
+- **Sessions, not loose records.** `training_sessions` + `training_attendance`
+  instead of one `training_records` row per person: one training given on
+  one date to many people is what the attestation describes, and recording
+  it once is what a client will actually do.
+- **Five requirements, reference data** (`reference_values`,
+  `training_requirement`): GDPR awareness (who handles personal data),
+  NIS2 awareness (all staff), NIS2 management body (Art. 20(2)), AI literacy
+  (AI users, Art. 4), AI oversight (Art. 26(2), from 2 Dec 2027). Refresh
+  12 months, labelled as RECOSA's default: the law says "regular".
+- **The register derives** gdpr_13, nis2_09 and ai_01 from the matrix
+  (`training_rules.verdict`), and links them to the Training page. ai_01
+  leaves the acknowledge list. With no people recorded, nothing is derived
+  and the client's own statement still counts, so the statement box stays.
+- **Documents as PDFs** (reportlab, like the incident file), not through
+  the template engine: both are built from register data with nothing to
+  word, so they are not in the document register.
+
+Reminder: `monitor_training.py`, weekly (GitHub Actions and deploy/crontab),
+emails the company owner at most every 30 days when someone is not trained,
+lapsed or lapsing within 60 days. Content-free (D-05), NOTIFY_ENABLED gate.
+
+Migration `migration_s60_training.sql`, applied 10 Nov. Tests:
+`test_training_rules.py`. Not yet done: a walk-through in the app with a
+real login.
 
 ---
 

@@ -317,8 +317,19 @@ if shown:
                 "Generate or upload it under Documents; its status here "
                 "follows the register."
             )
-        elif kind == OR.KIND_TRACKED:
-            st.caption("Tracked elsewhere in RECOSA.")
+        if kind == OR.KIND_TRACKED:
+            # S60: training. The verdict follows the Training page once people
+            # are recorded there; until then the statement below still counts.
+            _tp = OV.TASK_LINK_PAGES.get(OR.tracked_page(ob["id"]) or "")
+            st.caption(
+                "Tracked on the Training page: who needs this training and "
+                "who has a current session. Once people are recorded there, "
+                "this status follows it; until then, what you say below counts."
+            )
+            if _tp:
+                st.page_link(_tp, label="Open Training", icon="🎓")
+        if kind in (OR.KIND_DERIVED, OR.KIND_DOCUMENT):
+            pass
         else:
             with st.form(f"ob_{ob['id']}"):
                 if kind == OR.KIND_ACKNOWLEDGE:

@@ -29,6 +29,7 @@ TASK_LINK_PAGES = {
     "wording":            "app_pages/wording.py",
     "compliance_record":  "app_pages/compliance_record.py",
     "incidents":          "app_pages/incidents.py",
+    "training":           "app_pages/training.py",
 }
 
 
@@ -68,10 +69,19 @@ def load_state(user_id: str, client: dict) -> dict:
     # never reached the action plan until now. See gap_assessment.py's docstring.
     gap_results = load_latest_gap_results(user_id, client_id)
 
+    # S60. The training register: the verdict for gdpr_13, nis2_09 and ai_01,
+    # and the action-plan tasks. Read once for both.
+    import training_store as TS
+    try:
+        training = TS.load_all(client_id)
+    except Exception as e:
+        print(f"Training register not loaded: {e}")
+        training = None
+
     verdicts = OR.evaluate(
         applicable,
         {"client": client, "activities": activities, "systems": systems,
-         "links": links},
+         "links": links, "training": training},
         document_status=doc_status,
         gap_results=gap_results,
         responses=responses,
@@ -93,6 +103,8 @@ def load_state(user_id: str, client: dict) -> dict:
         T.wording_too_short(client, INSERTS, doc_languages),
         # S53. Every open notification deadline of an incident not yet closed.
         INC.open_findings(user_id, client),
+        # S60. Who needs training and does not have a current session.
+        TS.open_findings(client, training) if training else [],
     )
     events = STORE.load_events(client_id, user_id)
     STORE.reconcile(user_id, client_id, findings, events)

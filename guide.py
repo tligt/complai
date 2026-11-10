@@ -37,6 +37,13 @@ TIPS = {
         "per regulation. Run it once to get a baseline, and again after big changes. "
         "Its findings feed the action plan.",
     ),
+    "training": (
+        "Training",
+        "Who needs which training under GDPR, NIS2 and the AI Act, and who has a current "
+        "session. Record your people once, then each session and who attended. RECOSA "
+        "works out who is due, feeds the Obligations page and the action plan, and makes "
+        "the training plan and attendance attestations. RECOSA does not give the training.",
+    ),
     "risk": (
         "Risk assessments",
         "Which of your activities need a DPIA (a privacy risk assessment), and the "
