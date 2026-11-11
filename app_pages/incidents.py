@@ -47,7 +47,7 @@ nis2 = R.nis2_applies(client)
 
 STATE_ICON = {R.OVERDUE: "🔴", R.DUE_SOON: "🟠", R.TO_DECIDE: "🟡", R.RUNNING: "⏱️",
               R.DONE: "✅", R.NOT_REQUIRED: "⚪"}
-STATUS_LABEL = {"open": tr("Open"), "contained": tr("Contained"), "closed": tr("Closed")}
+STATUS_LABEL = {"open": tr("Ongoing"), "contained": tr("Contained"), "closed": tr("Closed")}
 
 st.title(tr("Incidents"))
 from guide import page_tip
@@ -65,7 +65,7 @@ def _local_input(label: str, key: str, default: datetime | None = None) -> datet
     d0 = (default or datetime.now(tz)).astimezone(tz)
     c1, c2 = st.columns(2)
     d = c1.date_input(tr("{label} — date").format(label=label), value=d0.date(), key=f"{key}_d", format="DD/MM/YYYY")
-    t = c2.time_input(tr("{label} — time ({r_tz_label})").format(label=label, r_tz_label=R.TZ_LABEL), value=d0.time().replace(second=0, microsecond=0),
+    t = c2.time_input(tr("{label} — time ({r_tz_label})").format(label=label, r_tz_label=tr(R.TZ_LABEL)), value=d0.time().replace(second=0, microsecond=0),
                       key=f"{key}_t", step=300)
     return datetime.combine(d, t, tzinfo=tz)
 
@@ -265,7 +265,7 @@ with tab_inc:
             "title": i["title"], "next": _next(i),
         }, "actions": [{"id": "open", "label": tr("Open"), "icon": "📂"}]} for i in order],
         [{"key": "status", "label": tr("Status")},
-         {"key": "found", "label": tr("Found out ({tz})").format(tz=R.TZ_LABEL), "kind": "datetime"},
+         {"key": "found", "label": tr("Found out ({tz})").format(tz=tr(R.TZ_LABEL)), "kind": "datetime"},
          {"key": "title", "label": tr("Incident")}, {"key": "next", "label": tr("Next deadline")}],
         key="incidents", current=st.session_state.get("incident_sel"))
     if _i_hit:
@@ -283,7 +283,7 @@ with tab_inc:
     tv.focus("incidents")
     st.subheader(inc["title"])
     st.caption(f"{STATUS_LABEL[inc['status']]} · "
-               + tr("found out {when} ({tz})").format(when=_fmt(inc['discovered_at']), tz=R.TZ_LABEL)
+               + tr("found out {when} ({tz})").format(when=_fmt(inc['discovered_at']), tz=tr(R.TZ_LABEL))
                + (" · " + tr("reported by {who}").format(who=inc['reported_by']) if inc.get("reported_by") else "")
                + (" · " + tr("systems: {names}").format(names=', '.join(sys_names)) if sys_names else ""))
     if client.get("nis2_in_scope") is None and nis2:
@@ -689,4 +689,4 @@ with tab_inc:
             body = (f"  \n  {e['body']}" if e.get("body") and e["event_type"] in ("decision", "note", "request")
                     else "")
             st.markdown(f"- **{_fmt(e['occurred_at'])}** — {what}{detail}{body}")
-        st.caption(tr("Times in {r_tz_label}. The record cannot be edited: it is the documentation GDPR Art. 33(5) asks for.").format(r_tz_label=R.TZ_LABEL))
+        st.caption(tr("Times in {r_tz_label}. The record cannot be edited: it is the documentation GDPR Art. 33(5) asks for.").format(r_tz_label=tr(R.TZ_LABEL)))

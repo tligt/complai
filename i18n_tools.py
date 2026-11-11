@@ -243,7 +243,8 @@ def extract(paths: list[Path]) -> list[str]:
         import incident_rules as IR
         found += list(IR.ROLES.values()) + list(IR.ALERT_ON.values())
         found += list(IR.GDPR_RISK.values()) + list(IR.SUBJECTS_EXEMPTIONS.values())
-        found += ["Not sure yet", "Yes", "No", "Not decided yet", "None — tell them directly"]
+        found += ["Not sure yet", "Yes", "No", "Not decided yet", "None — tell them directly",
+                  IR.TZ_LABEL]
     except Exception as e:
         print(f"(dictionary labels not extracted: {e})", file=sys.stderr)
     # The page tips are translated where they are shown (guide.page_tip).

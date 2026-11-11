@@ -7090,7 +7090,7 @@ By the user ("Yes, the emails").
 Found while doing D-168: the Incidents page asked `incident_rules` for its
 deadline labels and countdowns in English, whatever the interface language.
 
-- Deadlines, countdowns, the "assess in step 3" warning, the incident table,
+- Deadlines, countdowns, the time zone, the "assess in step 3" warning, the incident table,
   the first-hour steps, the timeline and the team table now follow the
   interface language (French and Dutch).
 - Team roles, alert settings and the assessment choices stay English in
@@ -7099,7 +7099,9 @@ deadline labels and countdowns in English, whatever the interface language.
 - The notification drafts keep their own language choice (English or
   French, from the company's document languages); the incident file PDF is
   unchanged.
-- 77 strings; 1,370 per catalogue.
+- The status "Open" is now "Ongoing": "Open" is also the button, and French
+  needs "Ouvert" for one and "Ouvrir" for the other.
+- 79 strings; 1,372 per catalogue.
 
 ---
 
