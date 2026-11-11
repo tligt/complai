@@ -484,35 +484,37 @@ with tab_inc:
                 who = R.AUTHORITY_OF.get(kind)
                 if who == "gdpr":
                     a = auth["gdpr"]
-                    st.markdown(f"**To:** {a['name']}" + (f" ({a['short']})" if a["short"] else ""))
+                    st.markdown(tr("**To:** {name}").format(name=a['name']) + (f" ({a['short']})" if a["short"] else ""))
                     if a["submit"]:
-                        st.markdown(f"**Submit here:** {a['submit']}")
+                        st.markdown(tr("**Submit here:** {url}").format(url=a['submit']))
                     elif a["site"]:
-                        st.warning("RECOSA has not confirmed this authority's notification channel yet. "
-                                   f"Start from its website: {a['site']}")
+                        st.warning(tr("RECOSA has not confirmed this authority's notification channel yet. "
+                                      "Start from its website: {url}").format(url=a['site']))
                     if a["note"]:
                         st.caption(a["note"])
+                    if a.get("guide"):
+                        st.caption(tr("How to notify, on the authority's site: {url}").format(url=a['guide']))
                 elif who == "nis2":
                     a = auth["nis2"]
-                    st.markdown(f"**To:** {a['name']}" + (f" ({a['short']})" if a["short"] else ""))
+                    st.markdown(tr("**To:** {name}").format(name=a['name']) + (f" ({a['short']})" if a["short"] else ""))
                     if a["submit"]:
-                        st.markdown(f"**Submit here:** {a['submit']}")
+                        st.markdown(tr("**Submit here:** {url}").format(url=a['submit']))
                     if a["note"]:
                         st.caption(a["note"])
                     if a.get("phone") or a.get("email"):
                         st.caption(" · ".join(x for x in (
-                            f"Emergency line: {a['phone']}" if a.get("phone") else "",
-                            f"Email: {a['email']}" if a.get("email") else "") if x))
+                            tr("Emergency line: {phone}").format(phone=a['phone']) if a.get("phone") else "",
+                            tr("Email: {email}").format(email=a['email']) if a.get("email") else "") if x))
                     if a.get("guide"):
-                        st.caption(f"What each report must contain: {a['guide']}")
+                        st.caption(tr("What each report must contain: {url}").format(url=a['guide']))
                 elif kind == R.CONTROLLERS:
                     st.markdown(tr("**To:** each company you process this data for, from your own mailbox:"))
                     for c in controllers:
                         st.markdown(f"- {c.get('legal_name')}" + (
                             f" — {c['contact_email']}" if c.get("contact_email")
-                            else " — *no contact email on record (Systems → counterparties)*"))
+                            else " — " + tr("*no contact email on record (Systems → counterparties)*")))
                     if client.get("breach_notice_hours"):
-                        st.caption(f"Your contracts promise notice within {client['breach_notice_hours']} h.")
+                        st.caption(tr("Your contracts promise notice within {h} h.").format(h=client['breach_notice_hours']))
                 elif kind == R.DATA_SUBJECTS:
                     st.markdown("**To:** " + ("the public — a communication instead of contacting each person "
                                               "(Art. 34(3)(c))." if inc.get("subjects_exemption") == "public"

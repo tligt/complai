@@ -969,7 +969,10 @@ def build_values(
         or auth.get("supervisory_authority_en")
         or auth.get("supervisory_authority_short")
     )
-    values["authority_url"] = auth.get("supervisory_authority_url")
+    # S64 (D-165): the link in the document's language where the authority
+    # has one (the Belgian APD/GBA runs a site per language).
+    values["authority_url"] = (auth.get(f"supervisory_authority_url_{language}")
+                               or auth.get("supervisory_authority_url"))
 
     # S29A. The NIS2 recipient, resolved the same way and from the same row.
     # A different body under a different regime — GDPR Art. 33 goes to the
@@ -980,7 +983,7 @@ def build_values(
         or auth.get("csirt_en")
         or auth.get("csirt_short")
     )
-    values["csirt_url"] = auth.get("csirt_url")
+    values["csirt_url"] = auth.get(f"csirt_url_{language}") or auth.get("csirt_url")
 
     values["has_vendors"] = len(vendors) > 0
 

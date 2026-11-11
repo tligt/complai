@@ -27,7 +27,7 @@ import os
 from pathlib import Path
 
 DIR = Path(__file__).resolve().parent / "i18n"
-LANGUAGES = ("en", "fr")          # interface languages with a catalogue
+LANGUAGES = ("en", "fr", "nl")    # interface languages with a catalogue
 _cache: dict[str, tuple[float, dict[str, str]]] = {}
 
 

@@ -6982,6 +6982,28 @@ interface language changed almost nothing.
 Checked: every page loads without error in English after the wrapping;
 French not yet viewed in the app.
 
+
+### D-165 — S64: the interface in Dutch, and links in the reader's language, 11 Nov
+
+By the user ("if fr ok, go for NL and all local links where needed").
+
+- **Dutch interface:** `i18n/nl.json`, the same 889 strings as French
+  (Belgian Dutch, "u"). Choosing Nederlands on Account now changes the
+  screens; German and English fall back to English. `test_i18n.py` checks
+  both catalogues and that they cover the same strings.
+- **Local links:** a link is read as `<key>_<lang>` before `<key>`
+  (`template_store.build_values`, `incident_rules.authorities`), so a
+  document or a notification screen in Dutch links to Dutch pages. For
+  Belgium, loaded 11 Nov: the APD/GBA home page in nl/fr/de/en, its breach
+  pages in nl/fr; its portal per language is the one each language version
+  of its own site links to (the portals refuse automated visits). Added the
+  missing Dutch filing notes. France: CNIL's English page. **Not localized:**
+  the CCB and Safeonweb (they refuse automated visits; check by hand), and a
+  CNIL breach guide link (not confirmed, so not added).
+- The incident notification block now shows the authority's own "how to
+  notify" page and is translatable (it was English f-strings).
+- `migration_s64_local_links.sql` records the data change.
+
 ---
 
 ## 5. Constraints and gotchas

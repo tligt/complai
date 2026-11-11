@@ -366,24 +366,30 @@ def authorities(jurisdiction: Mapping[str, Any], lang: str = "en") -> dict[str, 
     submission channel was not confirmed on the authority's own site."""
     j = jurisdiction or {}
     l = lang if lang in ("en", "fr", "nl", "de") else "en"
+
+    def link(key: str):
+        # S64 (D-165): the authority's page in this language where it has one.
+        return j.get(f"{key}_{l}") or j.get(key)
+
     return {
         "gdpr": {
             "name": j.get(f"supervisory_authority_{l}") or j.get("supervisory_authority_en") or "[to complete]",
             "short": j.get("supervisory_authority_short") or "",
-            "site": j.get("supervisory_authority_url"),
-            "submit": j.get("breach_portal_url"),
+            "site": link("supervisory_authority_url"),
+            "submit": link("breach_portal_url"),
+            "guide": link("breach_guide_url"),
             "note": j.get(f"breach_portal_note_{l}") or j.get("breach_portal_note_en"),
             "verified": bool(j.get("breach_portal_verified_on")),
         },
         "nis2": {
             "name": j.get(f"csirt_{l}") or j.get("csirt_en") or "[to complete]",
             "short": j.get("csirt_short") or "",
-            "site": j.get("csirt_url"),
-            "submit": j.get("csirt_report_url"),
+            "site": link("csirt_url"),
+            "submit": link("csirt_report_url"),
             "note": j.get(f"csirt_report_note_{l}") or j.get("csirt_report_note_en"),
             "email": j.get("csirt_email"),
             "phone": j.get("csirt_phone"),
-            "guide": j.get("csirt_guide_url"),
+            "guide": link("csirt_guide_url"),
             "verified": bool(j.get("csirt_report_verified_on")),
         },
     }
