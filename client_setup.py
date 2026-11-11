@@ -23,6 +23,7 @@ button has to rerun the page to prefill the fields below it.
 """
 
 from __future__ import annotations
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -61,30 +62,28 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
         getattr(st, kind)(msg)
 
     country = st.selectbox(
-        "Country", list(COUNTRY_OPTIONS.keys()), index=1,
+        tr("Country"), list(COUNTRY_OPTIONS.keys()), index=1,
         format_func=lambda x: COUNTRY_OPTIONS[x], key=k("country"),
     )
 
     # ── 1. Registry lookup ──────────────────────────────────────────────
     if country not in LOCALISED_COUNTRIES and country != "EU":
-        st.info(f"RECOSA's documents use Belgian and French rules today. For "
-                f"{COUNTRY_OPTIONS[country]} they follow EU-level rules until the national "
-                "authorities and rules are added.")
+        st.info(tr("RECOSA's documents use Belgian and French rules today. For {country_options_country} they follow EU-level rules until the national authorities and rules are added.").format(country_options_country=COUNTRY_OPTIONS[country]))
 
     rec = st.session_state.get(reg_key)
     if country in _LOOKUP_COUNTRIES:
         c1, c2 = st.columns([3, 1])
         _lbl, _ph = _LOOKUP_COUNTRIES[country]
         number = c1.text_input(
-            f"{_lbl} (optional)", key=k("number"),
+            tr("{lbl} (optional)").format(lbl=_lbl), key=k("number"),
             placeholder=_ph,
-            help="We look the company up in the official register and fill in "
-                 "what we find. You can change everything before saving.",
+            help=tr("We look the company up in the official register and fill in "
+                 "what we find. You can change everything before saving."),
         )
         c2.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
-        if c2.button("Look up", key=k("lookup"), use_container_width=True,
+        if c2.button(tr("Look up"), key=k("lookup"), use_container_width=True,
                      disabled=not number.strip()):
-            with st.spinner("Looking the company up…"):
+            with st.spinner(tr("Looking the company up…")):
                 rec = REG.lookup(country, number)
             st.session_state[reg_key] = rec
             if not rec.error:
@@ -121,35 +120,35 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
         rec = None
 
     # ── 2. Details (prefilled where the register had them) ──────────────
-    name = st.text_input("Company name", key=k("name"))
-    sector = st.selectbox("Sector", SECTOR_OPTIONS, key=k("sector"))
-    size = st.selectbox("Size", SIZE_OPTIONS, key=k("size"))
-    regs = st.multiselect("Regulations", REGULATION_OPTIONS, default=["GDPR"], key=k("regs"))
+    name = st.text_input(tr("Company name"), key=k("name"))
+    sector = st.selectbox(tr("Sector"), SECTOR_OPTIONS, key=k("sector"))
+    size = st.selectbox(tr("Size"), SIZE_OPTIONS, key=k("size"))
+    regs = st.multiselect(tr("Regulations"), REGULATION_OPTIONS, default=["GDPR"], key=k("regs"))
     website = st.text_input(
-        "Website (optional)", key=k("website"), placeholder="yourcompany.com",
-        help="Scanned when the company is created, to suggest the tools you use. "
-             "Nothing is added to your inventory until you confirm it.",
+        tr("Website (optional)"), key=k("website"), placeholder=tr("yourcompany.com"),
+        help=tr("Scanned when the company is created, to suggest the tools you use. "
+             "Nothing is added to your inventory until you confirm it."),
     )
 
     # KYC (9 Nov): the registered office, a phone number, the VAT number.
-    st.markdown("**Registered office and contact**")
-    street = st.text_input("Street and number ✱", key=k("street"))
+    st.markdown(tr("**Registered office and contact**"))
+    street = st.text_input(tr("Street and number ✱"), key=k("street"))
     a1, a2 = st.columns([1, 2])
-    postcode = a1.text_input("Postcode ✱", key=k("postcode"))
-    city = a2.text_input("City ✱", key=k("city"))
+    postcode = a1.text_input(tr("Postcode ✱"), key=k("postcode"))
+    city = a2.text_input(tr("City ✱"), key=k("city"))
     p1, p2 = st.columns(2)
-    phone = p1.text_input("Company phone ✱", key=k("phone"), placeholder="+32 2 123 45 67")
-    my_phone = p2.text_input("Your direct phone (optional)", key=k("myphone"),
+    phone = p1.text_input(tr("Company phone ✱"), key=k("phone"), placeholder="+32 2 123 45 67")
+    my_phone = p2.text_input(tr("Your direct phone (optional)"), key=k("myphone"),
                              placeholder="+32 470 12 34 56")
-    vat = st.text_input("VAT number", key=k("vat"),
-                        placeholder="BE0783225609 — leave empty if not VAT-registered")
+    vat = st.text_input(tr("VAT number"), key=k("vat"),
+                        placeholder=tr("BE0783225609 — leave empty if not VAT-registered"))
 
     # ── 3. Create ───────────────────────────────────────────────────────
-    if not st.button("Create company", type="primary", use_container_width=True,
+    if not st.button(tr("Create company"), type="primary", use_container_width=True,
                      key=k("create")):
         return None
     if not name.strip():
-        st.warning("Give the company a name.")
+        st.warning(tr("Give the company a name."))
         return None
     _missing = [lbl for lbl, v in (("street", street), ("postcode", postcode), ("city", city),
                                    ("company phone", phone)) if not (v or "").strip()]
@@ -191,7 +190,7 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
 
     msgs = [("success", f"✅ {profile['company_name']} created.")]
     if profile["website_url"]:
-        with st.spinner("Scanning the website for the tools you use…"):
+        with st.spinner(tr("Scanning the website for the tools you use…")):
             scan = detection.detect(profile["website_url"])
         STORE.save_website_scan(scan, profile["website_url"], user_id, created["id"])
         if scan.detected:

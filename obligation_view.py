@@ -8,6 +8,7 @@ Moved out of app_pages/obligations.py unchanged. Same rule as there: verdicts
 come from obligation_register, findings from tasks, I/O from obligation_store;
 this decides nothing, it only gathers.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -49,7 +50,7 @@ def load_state(user_id: str, client: dict) -> dict:
             INVS.load_counterparty_links(user_id, client_id), client_id,
         )
     except Exception as e:
-        st.warning(f"Could not read the inventory: {e}")
+        st.warning(tr("Could not read the inventory: {e}").format(e=e))
         activities, systems, links, readiness = [], [], [], None
 
     responses = STORE.load_responses(client_id, user_id)
@@ -183,9 +184,9 @@ def render_headline(state: dict, explain: bool = True) -> None:
             st.markdown(f"**{regulation_label(reg)}**")
             if sc["percent"] is None:
                 st.markdown("### ⚪ —")
-                st.caption("No obligation in force applies yet.")
+                st.caption(tr("No obligation in force applies yet."))
                 continue
-            st.markdown(f"### {band(sc['percent'])} {sc['percent']}% in place")
+            st.markdown(tr("### {band_sc_percent} {sc_percent}% in place").format(band_sc_percent=band(sc['percent']), sc_percent=sc['percent']))
             st.progress(sc["percent"] / 100)
             bits = [f"{sc['in_place']} of {sc['applicable']} obligations in place"]
             if sc["partly"]:

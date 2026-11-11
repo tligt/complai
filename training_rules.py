@@ -296,11 +296,11 @@ def findings(client: Mapping[str, Any], reqs: Iterable[Mapping[str, Any]],
             detail = ", ".join(parts) + f", of {c['required']} who need it"
             sev = DUE if c[EXPIRED] else OPEN
             out.append(_finding("training", r["code"],
-                                tr("Training: {r_label_en} — {lapsing} of {c_required} not current").format(r_label_en=r['label_en'], lapsing=lapsing, c_required=c['required']),
+                                tr("Training: {r_label_en} — {lapsing} of {c_required} not current").format(r_label_en=label(r, __import__('i18n').current_language()), lapsing=lapsing, c_required=c['required']),
                                 sev, detail, c["first_lapsed"], link="training"))
         elif c[EXPIRING]:
             out.append(_finding("training", r["code"],
-                                tr("Training: {r_label_en} — {c_expiring} lapsing within {expiring_days} days").format(r_label_en=r['label_en'], c_expiring=c[EXPIRING], expiring_days=EXPIRING_DAYS),
+                                tr("Training: {r_label_en} — {c_expiring} lapsing within {expiring_days} days").format(r_label_en=label(r, __import__('i18n').current_language()), c_expiring=c[EXPIRING], expiring_days=EXPIRING_DAYS),
                                 OPEN, tr("Next lapses on {c_next_due:%d/%m/%Y}.").format(c_next_due=c['next_due']),
                                 c["next_due"], link="training"))
     return out

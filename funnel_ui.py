@@ -5,6 +5,7 @@ S55: pass kind=funnel.AI_ACT), drawn the same way in the public app
 
 Streamlit only. No Supabase: the callers decide what to store.
 """
+from i18n import tr  # S64 interface translation (D-164)
 
 import os
 
@@ -42,7 +43,7 @@ def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
     if not submitted:
         return None
     if any(a is None for a in answers):
-        st.warning(f"Answer all {len(questions)} questions to see your result.")
+        st.warning(tr("Answer all {len_questions} questions to see your result.").format(len_questions=len(questions)))
         return None
     return answers
 
@@ -50,7 +51,7 @@ def render_quiz_form(key: str = "nis2_quiz", kind: dict = funnel.NIS2,
 def render_quiz_score(answers: list[int], kind: dict = funnel.NIS2) -> None:
     total = funnel.score(answers)
     label, blurb = funnel.band(total, kind, len(answers))
-    st.subheader(f"Your result: {total}/{funnel.max_score(kind, answers)} — {label}")
+    st.subheader(tr("Your result: {total}/{funnel_max_score_kind_an} — {label}").format(total=total, funnel_max_score_kind_an=funnel.max_score(kind, answers), label=label))
     st.write(blurb)
 
 
@@ -62,14 +63,13 @@ def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.
     if locked:
         weak = funnel.weak_areas(answers)
         st.markdown(
-            f"**Your breakdown by area** — {weak} of {len(rows)} areas "
-            f"{'need' if weak != 1 else 'needs'} attention"
+            tr("**Your breakdown by area** — {weak} of {len_rows} areas {need_if_weak_1_else_need} attention").format(weak=weak, len_rows=len(rows), need_if_weak_1_else_need='need' if weak != 1 else 'needs')
         )
         for r in rows:
             st.markdown(f"🔒 {r['category']}")
         return
 
-    st.markdown(f"**Your {_WORDS.get(len(rows), len(rows))} areas, weakest first**")
+    st.markdown(tr("**Your {words_get_len_rows_len_r} areas, weakest first**").format(words_get_len_rows_len_r=_WORDS.get(len(rows), len(rows))))
     icon = ["🔴", "🟠", "🟡", "🟢"]
     for r in rows:
         with st.container(border=True):
@@ -93,4 +93,4 @@ def render_rules(rules: dict) -> None:
     """The regulations from funnel.applicable_rules(), one line each."""
     for reg, (verdict, why) in rules.items():
         icon, label = _VERDICT[verdict]
-        st.markdown(f"{icon} **{reg}** — {label}  \n:gray[{why}]")
+        st.markdown(tr("{icon} **{reg}** — {label}  \n:gray[{why}]").format(icon=icon, reg=reg, label=label, why=why))

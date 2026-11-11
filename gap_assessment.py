@@ -1,3 +1,4 @@
+from i18n import tr  # S64 interface translation (D-164)
 import os
 import io
 import json
@@ -772,7 +773,7 @@ def save_gap_assessment(user_id: str, client_id: str | None,
         }).execute()
         assessment_id = res.data[0]["id"] if res.data else None
     except Exception as e:
-        st.warning(f"Could not save assessment: {e}")
+        st.warning(tr("Could not save assessment: {e}").format(e=e))
         return None
 
     if pdf_bytes and assessment_id:

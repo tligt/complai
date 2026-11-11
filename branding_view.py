@@ -12,6 +12,7 @@ which version that was.
 """
 
 from __future__ import annotations
+from i18n import tr  # S64 interface translation (D-164)
 
 import html
 
@@ -71,12 +72,12 @@ def _preview(theme: DT.DocTheme, company: str) -> None:
 def render(client: dict, user_id: str) -> None:
     cid = client["id"]
     company = client.get("legal_name") or client.get("company_name") or ""
-    st.subheader("Document branding")
+    st.subheader(tr("Document branding"))
 
     if not DT.branding_allowed(cid):
-        st.caption("Documents for this company use RECOSA's neutral style. With "
-                   "Professional, they carry your logo, colour, font and footer line.")
-        if st.button("Upgrade to brand your documents", key=f"brand_up_{cid}"):
+        st.caption(tr("Documents for this company use RECOSA's neutral style. With "
+                   "Professional, they carry your logo, colour, font and footer line."))
+        if st.button(tr("Upgrade to brand your documents"), key=f"brand_up_{cid}"):
             from tier_gates import upsell_dialog
             upsell_dialog("Document branding is part of Professional, Advisory and "
                           "Enterprise.")
@@ -86,9 +87,9 @@ def render(client: dict, user_id: str) -> None:
     logo = DT.load_logo(row.get("logo_path")) if row else None
     saved = DT.theme_from_row(row, logo) if row else DT.HOUSE
 
-    st.caption("Your logo, colour, font and footer line on every document RECOSA "
+    st.caption(tr("Your logo, colour, font and footer line on every document RECOSA "
                "generates for this company — Word, PDF, ODT and Excel. Documents "
-               "already generated keep their look; generate again to update them.")
+               "already generated keep their look; generate again to update them."))
 
     left, right = st.columns([1, 1], gap="large")
     with right:
@@ -97,7 +98,7 @@ def render(client: dict, user_id: str) -> None:
         if saved.branded:
             from document_generator import build_docx
             st.download_button(
-                "Download a sample document", key=f"brand_sample_{cid}",
+                tr("Download a sample document"), key=f"brand_sample_{cid}",
                 data=build_docx(_SAMPLE, "privacy_policy", company, "en", theme=saved),
                 file_name="RECOSA_branding_sample.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -106,32 +107,32 @@ def render(client: dict, user_id: str) -> None:
 
     with left:
         if not can_edit(client.get("role")):
-            st.info("You can see this company's branding but not change it.")
+            st.info(tr("You can see this company's branding but not change it."))
             return
         with st.form(f"brand_form_{cid}"):
-            enabled = st.toggle("Use my branding on documents",
+            enabled = st.toggle(tr("Use my branding on documents"),
                                 value=bool(row.get("enabled")) if row else True,
                                 key=f"brand_on_{cid}")
-            up = st.file_uploader("Logo (PNG or JPG, up to 5 MB)", type=["png", "jpg", "jpeg"],
+            up = st.file_uploader(tr("Logo (PNG or JPG, up to 5 MB)"), type=["png", "jpg", "jpeg"],
                                   key=f"brand_logo_{cid}",
-                                  help="A wide logo on a transparent or white background "
-                                       "works best. It goes at the top of every page.")
+                                  help=tr("A wide logo on a transparent or white background "
+                                       "works best. It goes at the top of every page."))
             remove = False
             if row and row.get("logo_path"):
-                remove = st.checkbox("Remove the current logo", key=f"brand_rm_{cid}")
+                remove = st.checkbox(tr("Remove the current logo"), key=f"brand_rm_{cid}")
             c1, c2 = st.columns([1, 2])
-            color = c1.color_picker("Main colour", value=(row or {}).get("primary_color")
+            color = c1.color_picker(tr("Main colour"), value=(row or {}).get("primary_color")
                                     or DT.HOUSE_COLOR, key=f"brand_col_{cid}")
-            font = c2.selectbox("Font", DT.FONTS,
+            font = c2.selectbox(tr("Font"), DT.FONTS,
                                 index=DT.FONTS.index((row or {}).get("font") or "Arial")
                                 if (row or {}).get("font") in DT.FONTS else 0,
                                 key=f"brand_font_{cid}")
-            footer = st.text_input("Footer line", value=(row or {}).get("footer_text") or "",
+            footer = st.text_input(tr("Footer line"), value=(row or {}).get("footer_text") or "",
                                    max_chars=200, key=f"brand_foot_{cid}",
-                                   placeholder="Acme SRL · BE 0123.456.789 · privacy@acme.eu",
-                                   help="Shown at the end of each document, before the date "
-                                        "and the review notice.")
-            if st.form_submit_button("Save branding", type="primary"):
+                                   placeholder=tr("Acme SRL · BE 0123.456.789 · privacy@acme.eu"),
+                                   help=tr("Shown at the end of each document, before the date "
+                                        "and the review notice."))
+            if st.form_submit_button(tr("Save branding"), type="primary"):
                 logo_png = None
                 if up is not None:
                     try:
@@ -144,13 +145,13 @@ def render(client: dict, user_id: str) -> None:
                                           font=font, footer_text=footer,
                                           logo_png=logo_png, keep_logo_path=keep)
                 if ok:
-                    st.success("Saved. New documents use it.")
+                    st.success(tr("Saved. New documents use it."))
                     st.rerun()
                 else:
                     st.error(err)
         rgb = DT.hex_to_rgb(color)
         if DT.readable_on_white(rgb) != rgb:
-            st.caption("This colour is light, so headings use a darker shade of it "
-                       "to stay readable. Rules and table headers keep it as chosen.")
-        st.caption("Fonts: the reader's Word or LibreOffice must have the font; "
-                   "Arial, Georgia, Times New Roman and Verdana are on nearly every computer.")
+            st.caption(tr("This colour is light, so headings use a darker shade of it "
+                       "to stay readable. Rules and table headers keep it as chosen."))
+        st.caption(tr("Fonts: the reader's Word or LibreOffice must have the font; "
+                   "Arial, Georgia, Times New Roman and Verdana are on nearly every computer."))

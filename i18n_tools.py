@@ -218,6 +218,11 @@ def extract(paths: list[Path]) -> list[str]:
                     and node.args and isinstance(node.args[0], ast.Constant)
                     and isinstance(node.args[0].value, str)):
                 found.append(node.args[0].value)
+            # guide.notice(key, text): translated inside notice().
+            fname = getattr(getattr(node, "func", None), "attr", None) or getattr(getattr(node, "func", None), "id", None)
+            if (isinstance(node, ast.Call) and fname == "notice" and len(node.args) > 1
+                    and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str)):
+                found.append(node.args[1].value)
     # The menu section headings (app.py _sections keys) and the page tips are
     # translated where they are shown.
     found += ["Assess", "Records", "Respond", "Tools", "Account", "What is this page for?", "Got it"]
@@ -252,7 +257,12 @@ def extract(paths: list[Path]) -> list[str]:
 
 def default_paths() -> list[Path]:
     return [ROOT / "app.py", *sorted((ROOT / "app_pages").glob("*.py")),
-            *(ROOT / f for f in ("active_client.py", "guide.py", "support_widget.py", "subscribe_view.py"))]
+            *(ROOT / f for f in ("active_client.py", "guide.py", "support_widget.py", "subscribe_view.py",
+                                 # Action-plan producers (D-166): task titles and details.
+                                 "tasks.py", "training_rules.py", "ai_rules.py", "incident_rules.py",
+                                 # Shared modules that draw on client pages (D-166).
+                                 "audit_view.py", "branding_view.py", "client_setup.py", "funnel_ui.py",
+                                 "gap_assessment.py", "obligation_view.py", "work_items_view.py"))]
 
 
 if __name__ == "__main__":

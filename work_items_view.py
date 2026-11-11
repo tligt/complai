@@ -5,6 +5,7 @@ and the routing rules section of the Team page.
 """
 
 from __future__ import annotations
+from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
@@ -36,46 +37,45 @@ def render_panel(client: dict, item_type: str, item_key: str, title: str,
     label = lambda i: "Nobody yet" if i is None else (
         W.name_of(cid, i) + (" (you)" if i == user_id else ""))
     if editable and W.has_team(cid):
-        pick = st.selectbox("Handled by", ids, index=ids.index(assignee) if assignee in ids else 0,
+        pick = st.selectbox(tr("Handled by"), ids, index=ids.index(assignee) if assignee in ids else 0,
                             format_func=label, key=f"{k}_who")
         if pick != assignee:
             if W.assign(cid, item_type, item_key, title, pick, user_id):
                 st.toast(f"Given to {label(pick)}." if pick else "Nobody handles it now.")
                 st.rerun()
-            st.error("Couldn't save that. Try again.")
+            st.error(tr("Couldn't save that. Try again."))
     else:
-        st.markdown(f"**Handled by:** {label(assignee)}")
+        st.markdown(tr("**Handled by:** {label_assignee}").format(label_assignee=label(assignee)))
     if current_row:
         how = "routing rule" if current_row.get("source") == "rule" else W.name_of(cid, current_row.get("assigned_by"))
-        st.caption(f"Since {_when(current_row.get('created_at'))}, by {how}.")
+        st.caption(tr("Since {when_current_row_get_cre}, by {how}.").format(when_current_row_get_cre=_when(current_row.get('created_at')), how=how))
 
     # ── Comments ──────────────────────────────────────────────────────────
     thread = W.comments(cid, item_type, item_key)
     st.markdown(f"**Comments** · {len(thread)}" if thread else "**Comments**")
     for c in thread:
-        st.markdown(f"**{W.name_of(cid, c.get('author_id'))}** · "
-                    f":gray[{_when(c.get('created_at'))}]  \n{c['body']}")
+        st.markdown(tr("**{w_name_of_cid_c_get_auth}** · :gray[{when_c_get_created_at}]  \n{c_body}").format(w_name_of_cid_c_get_auth=W.name_of(cid, c.get('author_id')), when_c_get_created_at=_when(c.get('created_at')), c_body=c['body']))
     if not W.has_team(cid) and not thread:
-        st.caption("Comments are for the people working on this company together. "
-                   "Invite someone on the Team page to discuss it here.")
+        st.caption(tr("Comments are for the people working on this company together. "
+                   "Invite someone on the Team page to discuss it here."))
         return
     with st.form(f"{k}_form", clear_on_submit=True):
-        body = st.text_area("Add a comment", key=f"{k}_body", height=80,
-                            placeholder="A question, an update, what's left to do…",
+        body = st.text_area(tr("Add a comment"), key=f"{k}_body", height=80,
+                            placeholder=tr("A question, an update, what's left to do…"),
                             label_visibility="collapsed")
         others = [p for p in W.people(cid) if p["id"] != user_id]
-        mention = st.multiselect("Also notify", [p["id"] for p in others],
+        mention = st.multiselect(tr("Also notify"), [p["id"] for p in others],
                                  format_func=lambda i: W.name_of(cid, i), key=f"{k}_at",
-                                 placeholder="Also notify… (the person handling it and "
-                                             "earlier commenters are told anyway)")
-        if st.form_submit_button("Post comment"):
+                                 placeholder=tr("Also notify… (the person handling it and "
+                                             "earlier commenters are told anyway)"))
+        if st.form_submit_button(tr("Post comment")):
             if W.post_comment(cid, item_type, item_key, title, user_id, body,
                               mention, assignee_id=assignee):
                 st.rerun()
             else:
                 st.warning("Write something first." if not (body or "").strip()
                            else "Couldn't post it. Try again.")
-    st.caption("Comments stay inside RECOSA: notification emails never include them.")
+    st.caption(tr("Comments stay inside RECOSA: notification emails never include them."))
 
 
 def render_rules(client: dict, user_id: str) -> None:
@@ -83,10 +83,10 @@ def render_rules(client: dict, user_id: str) -> None:
     cid = client["id"]
     if not W.has_team(cid):
         return
-    st.markdown("**Who handles what**")
-    st.caption("New action-plan tasks and incidents go to this person automatically, "
+    st.markdown(tr("**Who handles what**"))
+    st.caption(tr("New action-plan tasks and incidents go to this person automatically, "
                "and they're told in their inbox. Anyone who may edit can still give a "
-               "task to someone else.")
+               "task to someone else."))
     rr = W.rules(cid)
     people = W.assignable(cid)
     ids = [None] + [p["id"] for p in people]
@@ -102,6 +102,6 @@ def render_rules(client: dict, user_id: str) -> None:
                 if W.set_rule(cid, area, pick, user_id):
                     st.toast(f"{label}: {'nobody' if pick is None else W.name_of(cid, pick)}.")
                     st.rerun()
-                st.error("Couldn't save that rule.")
+                st.error(tr("Couldn't save that rule."))
         else:
             col.caption(f"{label}: {W.name_of(cid, cur) if cur else 'nobody'}")

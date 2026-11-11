@@ -206,8 +206,8 @@ if _ob_state:
     _OV.render_headline(_ob_state)
     _doc_bits = []
     if gap_date:
-        _doc_bits.append(f"Last gap assessment: {gap_date}")
-    st.caption(" · ".join(_doc_bits + ["Details per obligation on the Obligations page."]))
+        _doc_bits.append(tr("Last gap assessment: {gap_date}").format(gap_date=gap_date))
+    st.caption(" · ".join(_doc_bits + [tr("Details per obligation on the Obligations page.")]))
     if st.button(tr("Open obligations"), key="home_open_obligations"):
         st.switch_page("app_pages/obligations.py")
 

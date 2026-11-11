@@ -211,8 +211,9 @@ def notice(key: str, text: str) -> None:
         return
     with st.container(border=True):
         c1, c2 = st.columns([6, 1])
-        c1.markdown(f"ℹ️ {text}")
-        if c2.button("Got it", key=f"tip_ok_{key}", use_container_width=True):
+        from i18n import tr  # S64 (D-166)
+        c1.markdown(f"ℹ️ {tr(text)}")
+        if c2.button(tr("Got it"), key=f"tip_ok_{key}", use_container_width=True):
             from database import set_dismissed_tips
             from auth import get_user_id
             st.session_state.dismissed_tips = _dismissed() | {key}
