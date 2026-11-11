@@ -27,11 +27,16 @@ ITEMS = {
     "support": ("Support", "Languages support is offered in."),
 }
 STATUS = {"done": "🟢 Done", "partial": "🟡 Partly", "todo": "🔴 To do", "n_a": "– Not applicable"}
-COUNTRIES = {"BE": "Belgium", "FR": "France", "NL": "Netherlands", "LU": "Luxembourg"}
+# "EU" is the baseline every country falls back to: English documents
+# (locale "en", one text for every country), EU-level law and sources.
+COUNTRIES = {"EU": "EU baseline (English)", "BE": "Belgium", "FR": "France",
+             "NL": "Netherlands", "LU": "Luxembourg"}
 
 st.title("Countries")
 st.caption("What is in place for RECOSA to serve each country. A country opens when every "
-           "item is done or not applicable.")
+           "item is done or not applicable. The EU row is the baseline every country falls "
+           "back to: the English documents, EU law and EU sources; each country row is what "
+           "is added on top.")
 
 user_id = get_user_id()
 admin = get_supabase_admin()

@@ -7133,6 +7133,22 @@ There's no business relation between RECOSA and the monitored companies."
   only its phone is missing.
 - `test_client_company.py`. 25 strings in French and Dutch.
 
+
+### D-171 — The EU baseline on the Countries page, 11 Nov
+
+By the user ("there's no en baseline … en_EU locale?").
+
+- Not an `en-EU` locale: English documents carry `en` with no country, which
+  already means "valid for every country"; `en-EU` would only fit companies
+  set to "EU" and break the no-borrowing rule (D-163).
+- Instead an **EU** row in `country_checklists`, first on the page as
+  "EU baseline (English)": what every country falls back to — English
+  documents and interface, EU law, EU bodies and sources, VIES lookup.
+  Breach notification is not applicable (always national). 6 of 10 ready.
+- The 10 Nov source notes were wrong and are corrected: CNIL is monitored
+  (FR); the CCB news and advisories feeds are configured (BE).
+- `migration_s64_eu_baseline.sql` (data, applied).
+
 ---
 
 ## 5. Constraints and gotchas
