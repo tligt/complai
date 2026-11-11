@@ -16,6 +16,8 @@ from datetime import date, datetime, time, timedelta, timezone
 
 import streamlit as st
 
+from i18n import LANGUAGE_NAMES, account_language, person_language
+
 import table_view as tv
 from auth import get_user_id
 from database import (
@@ -130,6 +132,9 @@ for a in accounts:
                                          for c in comps if missing_kyc(c)), 1))),
         "people": len(ppl),
         "contact": a.get("contact_name") or a.get("contact_email"),
+        # S64 (D-167): the language we write to the account in.
+        "language": (lambda l_set: LANGUAGE_NAMES.get(l_set[0], l_set[0]) + ("" if l_set[1] else " (owner's)"))(
+            account_language(a, profiles.get(a.get("owner_user_id") or ""))),
         "opened": _dt(a["created_at"]),
     }, "actions": [
         {"id": "open", "label": "Open", "icon": "📂"},
@@ -148,7 +153,8 @@ hit = tv.table(rows, [
     {"key": "since", "label": "Customer since", "kind": "date"},
     {"key": "companies", "label": "Companies"}, {"key": "kyc", "label": "KYC"},
     {"key": "people", "label": "People", "kind": "number"},
-    {"key": "contact", "label": "Contract contact"}, {"key": "opened", "label": "Opened", "kind": "date"},
+    {"key": "contact", "label": "Contract contact"}, {"key": "language", "label": "Language"},
+    {"key": "opened", "label": "Opened", "kind": "date"},
 ], key="accounts", sort=("opened", "desc"), current=st.session_state.get("acc_open"),
     empty="No account matches.")
 
@@ -211,6 +217,16 @@ def contract_form(acc: dict, where: str) -> None:
         c4, c5 = st.columns(2)
         billing = c4.text_input("Billing email", value=acc.get("billing_email") or "")
         vat = c5.text_input("VAT number", value=acc.get("vat_number") or "")
+        # S64 (D-167): the language contract and billing mail goes out in.
+        _owner_lang = person_language(profiles.get(acc.get("owner_user_id") or ""))
+        _lopts = [None] + list(LANGUAGE_NAMES)
+        language = st.selectbox(
+            "Language we write to this account in", _lopts,
+            index=_lopts.index(acc.get("language")) if acc.get("language") in _lopts else 0,
+            format_func=lambda l: f"Same as the owner ({LANGUAGE_NAMES.get(_owner_lang, _owner_lang)})"
+            if l is None else LANGUAGE_NAMES[l],
+            help="Contract, billing and account mail. Each person is written to in their own "
+                 "language (Users).")
         notes = st.text_area("Notes", value=acc.get("notes") or "", height=90)
         tv.locked("Owner", (profiles.get(acc.get("owner_user_id") or "") or {}).get("email"),
                   "The person who opened the account and manages it in the app. "
@@ -219,7 +235,8 @@ def contract_form(acc: dict, where: str) -> None:
     if save:
         fields = {"name": name, "contact_name": contact_name, "contact_email": contact_email,
                   "contact_phone": contact_phone, "contact_user_id": contact_user,
-                  "billing_email": billing, "vat_number": vat, "notes": notes}
+                  "billing_email": billing, "vat_number": vat, "notes": notes,
+                  "language": language}
         changed = {k: v for k, v in fields.items() if (v or None) != (acc.get(k) or None)}
         if not changed:
             st.info("Nothing changed.")
@@ -353,12 +370,13 @@ with t_people:
             "city": " ".join(x for x in (c.get("address_postcode"), c.get("address_city")) if x)
                     or (c.get("registered_address") or "").replace("\n", ", "),
             "phone": c.get("phone"),
+            "docs": ", ".join((x or "").upper() for x in c.get("document_languages") or []) or None,
             "kyc": ("⚠️ Missing " + ", ".join(missing_kyc(c)), 1) if missing_kyc(c) else ("✅ Complete", 0),
         }, "actions": [{"id": "open", "label": "All details", "icon": "📂"}]} for c in comps],
         [{"key": "name", "label": "Company"}, {"key": "legal", "label": "Legal name"},
          {"key": "number", "label": "Company number"}, {"key": "vat", "label": "VAT"},
          {"key": "city", "label": "Address"}, {"key": "phone", "label": "Phone"},
-         {"key": "kyc", "label": "KYC"}],
+         {"key": "docs", "label": "Documents in"}, {"key": "kyc", "label": "KYC"}],
         key=f"acc_companies_{acc['id']}", sort=("name", "asc"), empty="None yet.")
     if _c_hit:
         _cc = next((c for c in comps if c["id"] == _c_hit["row"]), None)
@@ -371,8 +389,11 @@ with t_people:
         "status": {"active": "Active", "pending": "Invited, not signed in yet"}.get(
             p.get("status"), p.get("status")),
         "companies": "All" if p["companies"] == ["all"] else ", ".join(sorted(p["companies"])),
+        "language": LANGUAGE_NAMES.get(person_language(profiles.get(p.get("id") or "")))
+                    if p.get("id") else None,
     }} for p in ppl], [
         {"key": "email", "label": "Email"}, {"key": "role", "label": "Role"},
+        {"key": "language", "label": "Language"},
         {"key": "status", "label": "Status"}, {"key": "companies", "label": "Companies"},
     ], key=f"people_{acc['id']}", sort=("email", "asc"), empty="Nobody yet.")
 

@@ -15,8 +15,9 @@ import table_view as tv
 from auth import get_user_id
 from database import (
     ACCOUNT_STATUSES, ROLES, SUBSCRIPTION_TIERS, get_all_profiles, get_supabase_admin,
-    load_accounts, resend_invite, set_user_role,
+    load_accounts, resend_invite, set_user_language, set_user_role,
 )
+from i18n import LANGUAGE_NAMES, person_language
 
 SOURCES = {"invite": "Invited", "website_check": "Website check", "nis2_quiz": "NIS2 check",
            "gdpr_quiz": "GDPR check", "ai_quiz": "AI Act check", "website": "Website sign-up",
@@ -98,6 +99,7 @@ for p in profiles:
         "Plan": SUBSCRIPTION_TIERS.get((acc or {}).get("plan"), "—") if acc else "—",
         "Status": ACCOUNT_STATUSES.get((acc or {}).get("status"), "—") if acc else "—",
         "Companies": ", ".join(comps) or "—",
+        "Language": LANGUAGE_NAMES.get(person_language(p), person_language(p)),
         "Last sign-in": signed,
         "Signed in": "Yes" if signed else "Never (invitation pending)" if p.get("signup_source") == "invite" else "Never",
         "Source": SOURCES.get(p.get("signup_source") or "", p.get("signup_source") or "—"),
@@ -111,7 +113,8 @@ by_id = {p["id"]: p for p in profiles}
 
 COLS = [("Email", "email", None), ("Name", "name", None), ("Role", "role", None),
         ("Account", "account", None), ("Plan", "plan", None), ("Status", "status", None),
-        ("Companies", "companies", None), ("Last sign-in", "last", "datetime"),
+        ("Companies", "companies", None), ("Language", "language", None),
+        ("Last sign-in", "last", "datetime"),
         ("Source", "source", None), ("Created", "created", "date")]
 
 
@@ -224,3 +227,17 @@ with st.container(border=True):
         st.caption("No account yet: this person owns no company and works in none.")
     st.caption("Companies: " + (", ".join(comps) or "none"))
     role_form(target, "panel")
+    # S64 (D-167): the language we write to them in — the same setting as
+    # their interface language on the Account page.
+    _langs = list(LANGUAGE_NAMES)
+    _cur = person_language(target)
+    _new = st.selectbox("Language — their interface, and what we write to them in", _langs,
+                        index=_langs.index(_cur) if _cur in _langs else 0,
+                        format_func=LANGUAGE_NAMES.get, key=f"lang_{target['id']}",
+                        help="They can change it themselves on their Account page.")
+    if st.button("Save language", key=f"save_lang_{target['id']}", disabled=_new == _cur):
+        if set_user_language(target["id"], _new, admin_id):
+            st.session_state.user_notice = f"Language set to {LANGUAGE_NAMES[_new]}."
+            st.rerun()
+        else:
+            st.error("Could not save the language.")

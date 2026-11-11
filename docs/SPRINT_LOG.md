@@ -7032,6 +7032,26 @@ counters and catalogue names still in English on Dutch and French screens.
   enforce it.
 - 259 new strings in French and Dutch: 1,148 per catalogue.
 
+
+### D-167 — The language we write to people in, visible in the back office, 11 Nov
+
+By the user ("make sure the lang parameter is available where needed, e.g.
+companies and users: we need to know in which language we communicate").
+
+- **A person:** `profiles.ui_language` is both their interface and the
+  language RECOSA writes to them in. Back office *Users*: a Language column,
+  and the setting editable in the person's panel (they can still change it
+  on their Account page).
+- **An account:** new `accounts.language`, the language for contract,
+  billing and account mail; empty means the owner's language. Back office
+  *Companies*: a Language column ("(owner's)" when inherited), editable in
+  Contract and billing; each company's document languages in its table; each
+  person's language in People.
+- `i18n.person_language` / `account_language` are the single place to ask.
+  **Not yet used by the emails**: sign-up, reset, alerts, reminders and
+  nudges are still English; translating them is the next item, and they
+  will read these two functions.
+
 ---
 
 ## 5. Constraints and gotchas

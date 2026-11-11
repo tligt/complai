@@ -67,3 +67,19 @@ def translate(text: str, lang: str | None = None) -> str:
 
 tr = translate
 _ = translate   # outside pages only: pages reuse "_" as a throwaway name
+
+
+# ── The language we write to someone in (D-167) ──────────────────────────
+LANGUAGE_NAMES = {"en": "English", "fr": "Français", "nl": "Nederlands", "de": "Deutsch"}
+
+
+def person_language(profile: dict | None) -> str:
+    """A person's language: their interface, and what we write to them in."""
+    return ((profile or {}).get("ui_language") or "en")
+
+
+def account_language(account: dict | None, owner_profile: dict | None) -> tuple[str, bool]:
+    """(language, set_on_the_account). An account without its own language
+    is written to in its owner's."""
+    own = (account or {}).get("language")
+    return (own, True) if own else (person_language(owner_profile), False)

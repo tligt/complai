@@ -1444,7 +1444,8 @@ ACCOUNT_STATUSES = {**SUBSCRIPTION_STATUSES, "cancelled": "Cancelled"}
 # Enterprise: a group and its divisions).
 MULTI_COMPANY_PLANS = ("advisory", "enterprise")
 ACCOUNT_DETAIL_FIELDS = ("name", "contact_name", "contact_email", "contact_phone",
-                         "contact_user_id", "billing_email", "vat_number", "notes")
+                         "contact_user_id", "billing_email", "vat_number", "notes",
+                         "language")   # S64 (D-167): the language we write to the account in
 
 
 def _one(rows) -> dict | None:
@@ -3763,3 +3764,15 @@ def load_monitor_runs(monitor_type: str | None = None, limit: int = 20) -> list[
         return q.execute().data or []
     except Exception:
         return []
+
+
+
+def set_user_language(user_id: str, language: str, by: str | None = None) -> bool:
+    """Back office (S64, D-167): a person's language — their interface and
+    the language RECOSA writes to them in."""
+    try:
+        get_supabase_admin().table("profiles").update({"ui_language": language})             .eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Could not set the language: {e}")
+        return False
