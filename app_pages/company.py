@@ -63,12 +63,12 @@ if clients:
             _st0 = " ".join(_lines[:-1]) if len(_lines) > 1 else (_lines[0] if _lines else "")
             if len(_lines) > 1:
                 _pc0, _, _ci0 = _lines[-1].partition(" ")
-        street = st.text_input(tr("Street and number ✱"), value=_st0 or "", key=k("street"))
+        street = st.text_input(tr("Street and number"), value=_st0 or "", key=k("street"))
         a1, a2 = st.columns([1, 2])
-        postcode = a1.text_input(tr("Postcode ✱"), value=_pc0 or "", key=k("postcode"))
-        city = a2.text_input(tr("City ✱"), value=_ci0 or "", key=k("city"))
+        postcode = a1.text_input(tr("Postcode"), value=_pc0 or "", key=k("postcode"))
+        city = a2.text_input(tr("City"), value=_ci0 or "", key=k("city"))
         p1, p2 = st.columns(2)
-        phone = p1.text_input(tr("Company phone ✱"), value=client.get("phone") or "", key=k("phone"))
+        phone = p1.text_input(tr("Company phone"), value=client.get("phone") or "", key=k("phone"))
         vat = p2.text_input(tr("VAT number"), value=client.get("vat_number") or "", key=k("vat"),
                             help=tr("With its country prefix, e.g. BE0783225609. Empty if the "
                                  "company is not VAT-registered."))
@@ -116,18 +116,16 @@ if clients:
                 st.warning(tr("Choose at least one regulation."))
             elif not langs:
                 st.warning(tr("Choose at least one document language."))
-            elif not all((street.strip(), postcode.strip(), city.strip(), phone.strip())):
-                st.warning(tr("The registered office (street, postcode, city) and the company "
-                           "phone are required."))
             else:
                 fields = {
                     "company_name": name.strip(), "legal_name": legal_name.strip() or None,
                     "legal_form": legal_form.strip() or None,
                     "enterprise_number": number.strip() or None,
-                    "address_street": street.strip(), "address_postcode": postcode.strip(),
-                    "address_city": city.strip(),
+                    # Optional since D-170: a monitored company owes RECOSA no KYC.
+                    "address_street": street.strip() or None, "address_postcode": postcode.strip() or None,
+                    "address_city": city.strip() or None,
                     "registered_address": compose_address(street, postcode, city),
-                    "phone": phone.strip(),
+                    "phone": phone.strip() or None,
                     "vat_number": (vat or "").replace(" ", "").replace(".", "").upper() or None,
                     "country": country, "sector": sector, "company_size": size,
                     "website_url": website.strip() or None, "regulations": regs,

@@ -162,15 +162,18 @@ def compose_address(street: str | None, postcode: str | None, city: str | None) 
     return text or None
 
 
-KYC_FIELDS = {"address_street": "street", "address_postcode": "postcode",
-              "address_city": "city", "phone": "phone number", "vat_number": "VAT number"}
+# D-170: KYC is about the CLIENT company — the account, which signs and pays
+# RECOSA. The companies an account monitors have no relation with RECOSA:
+# their details are optional and never counted here. The VAT number and the
+# company number are optional: not every company has them.
+KYC_FIELDS = {"legal_name": "legal name", "country": "country", "address_street": "street",
+              "address_postcode": "postcode", "address_city": "city", "phone": "phone number"}
 
 
-def missing_kyc(client: dict) -> list[str]:
-    """What a company still lacks for KYC (the VAT number is optional: a
-    company that is not VAT-registered has none)."""
+def missing_kyc(account: dict | None) -> list[str]:
+    """What a client company (an account) still lacks for KYC."""
     return [label for f, label in KYC_FIELDS.items()
-            if f != "vat_number" and not (client.get(f) or "").strip()]
+            if not ((account or {}).get(f) or "").strip()]
 
 
 def update_client_fields(client_id: str, fields: dict) -> bool:
@@ -1445,7 +1448,10 @@ ACCOUNT_STATUSES = {**SUBSCRIPTION_STATUSES, "cancelled": "Cancelled"}
 MULTI_COMPANY_PLANS = ("advisory", "enterprise")
 ACCOUNT_DETAIL_FIELDS = ("name", "contact_name", "contact_email", "contact_phone",
                          "contact_user_id", "billing_email", "vat_number", "notes",
-                         "language")   # S64 (D-167): the language we write to the account in
+                         "language",   # S64 (D-167): the language we write to the account in
+                         # D-170: the client company's identity (KYC).
+                         "legal_name", "legal_form", "enterprise_number", "country",
+                         "address_street", "address_postcode", "address_city", "phone")
 
 
 def _one(rows) -> dict | None:

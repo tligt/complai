@@ -10,8 +10,9 @@ Flow, all suggestions the user can overwrite before saving:
   1. Company number + Look up (BE, FR; NL and LU by VAT number in the EU
      register): fills legal name, sector, the registered office, the VAT
      number and, where the register has it, the website.
-  2b. KYC (9 Nov): street, postcode, city and the company phone are
-     required; the VAT number and the person's direct phone are not.
+  2b. The registered office, phone and VAT number: all optional since
+     D-170 — this is a monitored company, not RECOSA's customer; KYC is
+     asked of the account (the client company) before it subscribes.
   2. Name, sector, country, size, regulations, website.
   3. Create client: saves the client (with the registry details), then, if
      a website was given, scans it and stores the scan (detection.py), so
@@ -130,14 +131,14 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
              "Nothing is added to your inventory until you confirm it."),
     )
 
-    # KYC (9 Nov): the registered office, a phone number, the VAT number.
+    # The registered office, a phone number, the VAT number: optional (D-170).
     st.markdown(tr("**Registered office and contact**"))
-    street = st.text_input(tr("Street and number ✱"), key=k("street"))
+    street = st.text_input(tr("Street and number"), key=k("street"))
     a1, a2 = st.columns([1, 2])
-    postcode = a1.text_input(tr("Postcode ✱"), key=k("postcode"))
-    city = a2.text_input(tr("City ✱"), key=k("city"))
+    postcode = a1.text_input(tr("Postcode"), key=k("postcode"))
+    city = a2.text_input(tr("City"), key=k("city"))
     p1, p2 = st.columns(2)
-    phone = p1.text_input(tr("Company phone ✱"), key=k("phone"), placeholder="+32 2 123 45 67")
+    phone = p1.text_input(tr("Company phone"), key=k("phone"), placeholder="+32 2 123 45 67")
     my_phone = p2.text_input(tr("Your direct phone (optional)"), key=k("myphone"),
                              placeholder="+32 470 12 34 56")
     vat = st.text_input(tr("VAT number"), key=k("vat"),
@@ -150,11 +151,6 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
     if not name.strip():
         st.warning(tr("Give the company a name."))
         return None
-    _missing = [lbl for lbl, v in (("street", street), ("postcode", postcode), ("city", city),
-                                   ("company phone", phone)) if not (v or "").strip()]
-    if _missing:
-        st.warning("Please fill in the " + ", ".join(_missing) + ".")
-        return None
 
     profile = {
         "company_name": name.strip(),
@@ -163,11 +159,11 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
         "company_size": size,
         "regulations": regs,
         "website_url": website.strip() or None,
-        "address_street": street.strip(),
-        "address_postcode": postcode.strip(),
-        "address_city": city.strip(),
+        "address_street": (street or "").strip() or None,
+        "address_postcode": (postcode or "").strip() or None,
+        "address_city": (city or "").strip() or None,
         "registered_address": compose_address(street, postcode, city),
-        "phone": phone.strip(),
+        "phone": (phone or "").strip() or None,
         "vat_number": (vat or "").replace(" ", "").replace(".", "").upper() or None,
     }
     if rec and not rec.error and rec.country == country:

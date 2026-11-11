@@ -8,6 +8,9 @@ the menu still shows what RECOSA does, and any click lands here.
 Until Stripe (S46), the trial is the only self-service step: choosing a paid
 plan, or Advisory, is a request to RECOSA, sent as a billing support ticket,
 and an admin sets the plan by hand (pages_admin/users.py).
+
+D-170: requesting a plan needs the client company's details (who signs and
+pays: client_company_view.py). Starting the trial does not.
 """
 from i18n import tr  # S64 interface translation (D-164)
 
@@ -34,6 +37,16 @@ def render_subscribe() -> None:
             tr("This part of RECOSA is included in every plan. Start a **{trial_days}-day free trial** to use all of it — no card needed.").format(trial_days=TRIAL_DAYS)
         )
 
+    # D-170: the company that subscribes, before any plan request.
+    from database import account_for_user, missing_kyc
+    from client_company_view import render_client_company
+    acc = account_for_user(user_id)
+    ready = bool(acc) and not missing_kyc(acc)
+    if acc:
+        with st.expander(tr("Your company — needed to request a plan"),
+                         expanded=status == "expired" and not ready):
+            ready = render_client_company(acc, user_id=user_id)
+
     # D-126: the website's plans, as on the sign-up form. Advisory stays a
     # request, for consultants.
     from auth import PLAN_INFO, ENTERPRISE_URL
@@ -53,9 +66,9 @@ def render_subscribe() -> None:
                     else:
                         st.error(tr("Could not start the trial. Please try again."))
             else:
-                _request_plan(plan, user_id)
+                _request_plan(plan, user_id, ready)
     st.caption(tr("Larger organisation? [Contact us]({enterprise_url}) about Enterprise. Consultant managing several client companies? Ask for Advisory:").format(enterprise_url=ENTERPRISE_URL))
-    _request_plan("advisory", user_id)
+    _request_plan("advisory", user_id, ready)
 
 
 def render_trial_cta(profile: dict) -> None:
@@ -82,14 +95,16 @@ def render_trial_cta(profile: dict) -> None:
             st.info(tr("Your trial has ended — open any page in the menu to choose a plan."))
 
 
-def _request_plan(plan: str, user_id: str) -> None:
-    """Until S46: a plan request is a billing ticket the team answers."""
+def _request_plan(plan: str, user_id: str, ready: bool = True) -> None:
+    """Until S46: a plan request is a billing ticket the team answers.
+    D-170: only once the client company's details are in (ready)."""
     sent_key = f"sub_requested_{plan}"
     if st.session_state.get(sent_key):
         st.success(tr("Request sent — we'll get back to you by email."))
         return
     if st.button(tr("Request {plan_title}").format(plan_title=plan.title()), use_container_width=True,
-                 key=f"sub_req_{plan}"):
+                 key=f"sub_req_{plan}", disabled=not ready,
+                 help=None if ready else tr("Fill in your company first (above).")):
         ticket = create_ticket(
             user_id=user_id,
             subject=f"Plan request: {plan.title()}",

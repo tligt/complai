@@ -7103,6 +7103,36 @@ deadline labels and countdowns in English, whatever the interface language.
   needs "Ouvert" for one and "Ouvrir" for the other.
 - 79 strings; 1,372 per catalogue.
 
+
+### D-170 — Client companies and monitored companies, 11 Nov
+
+By the user: "Client companies are the ones we need to know in detail …
+There's no business relation between RECOSA and the monitored companies."
+
+- **The client company is the account** (chosen over flagging one company:
+  a consultant may not monitor their own firm in RECOSA). `accounts` gained
+  legal name, legal form, company number, country, street, postcode, city
+  and phone (`migration_s64_client_company.sql`); it already had the VAT
+  number and the contract contact.
+- **KYC applies to the client company only:** legal name, country, street,
+  postcode, city, phone (`database.KYC_FIELDS`); VAT and company number
+  optional. The 9 Nov KYC on every company is gone.
+- **Monitored companies:** the companies in an account. Their address and
+  phone are optional again, in the company setup and on Company profile.
+- **When the customer is asked:** before requesting a plan (subscribe page:
+  the request buttons wait for it) and on Account, for the owner
+  (`client_company_view.py`), with "copy from a company you follow" for an
+  SME that monitors itself. Never for the trial.
+- **Back office Companies:** two tabs. *Client companies* (one per account,
+  KYC column on the account, a Monitored count); a click opens a pop-up of
+  its monitored companies with all their details; the ⋮ menu opens the
+  account (client company and contract, subscription, history, people).
+  *Monitored companies*: every company with its client and what we know.
+- Backfill: an account that monitors itself (its only company, or the one
+  named like the account) got that company's identity. creagent.be did;
+  only its phone is missing.
+- `test_client_company.py`. 25 strings in French and Dutch.
+
 ---
 
 ## 5. Constraints and gotchas

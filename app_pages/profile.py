@@ -145,6 +145,15 @@ with st.container(border=True):
     if _managed_by:
         p1.caption(tr("The plan of **{managed_by}**, the account this company belongs to.").format(managed_by=_managed_by))
 
+# D-170: the company that subscribes (the client company), for the owner.
+if not _managed_by:
+    from database import account_for_user
+    from client_company_view import render_client_company
+    _own = account_for_user(user_id)
+    if _own:
+        with st.container(border=True):
+            render_client_company(_own, user_id=user_id)
+
 st.markdown(tr("**Changing plan**"))
 if _managed_by:
     st.caption(tr("The plan is managed by the owner of {managed_by}.").format(managed_by=_managed_by))

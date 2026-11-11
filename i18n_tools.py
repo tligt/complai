@@ -245,6 +245,11 @@ def extract(paths: list[Path]) -> list[str]:
         found += list(IR.GDPR_RISK.values()) + list(IR.SUBJECTS_EXEMPTIONS.values())
         found += ["Not sure yet", "Yes", "No", "Not decided yet", "None — tell them directly",
                   IR.TZ_LABEL]
+        # The KYC field names, in "Please fill in: …" (D-170).
+        import database as DB
+        found += list(DB.KYC_FIELDS.values())
+        from display import COUNTRY_LABELS
+        found += list(COUNTRY_LABELS.values())
     except Exception as e:
         print(f"(dictionary labels not extracted: {e})", file=sys.stderr)
     # The page tips are translated where they are shown (guide.page_tip).
@@ -271,7 +276,9 @@ def default_paths() -> list[Path]:
                                  "audit_view.py", "branding_view.py", "client_setup.py", "funnel_ui.py",
                                  "gap_assessment.py", "obligation_view.py", "work_items_view.py",
                                  # Emails, in the recipient's language (D-168).
-                                 "email_sender.py"))]
+                                 "email_sender.py",
+                                 # The client company form (D-170).
+                                 "client_company_view.py"))]
 
 
 if __name__ == "__main__":

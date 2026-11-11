@@ -36,7 +36,9 @@ MODULES = ("database", "cached_reads", "auth", "tier_gates", "doc_theme", "activ
            "template_renderer", "template_ai", "template_store", "docgen_templates",
            # The emails (D-168): callers pass lang= now, so an old email_sender
            # next to a new database.py would refuse the invite.
-           "i18n", "email_sender", "incident_rules", "incident_store")
+           "i18n", "email_sender", "incident_rules", "incident_store",
+           # The client company (D-170): KYC moved to the account.
+           "client_setup", "client_company_view", "subscribe_view")
 
 
 def _mtime(path: str | None) -> float | None:
