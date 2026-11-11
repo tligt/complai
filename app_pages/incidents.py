@@ -13,7 +13,7 @@ Rules — which regimes apply, the clocks, the draft texts, who to alert —
 live in incident_rules.py, shared with the action plan, the incident file
 and the reminder job.
 """
-from i18n import tr  # S64 interface translation (D-164)
+from i18n import tr, current_language  # S64 interface translation (D-164)
 
 from datetime import datetime, timezone
 
@@ -33,6 +33,7 @@ from inventory_store import load_systems
 user_id = get_user_id()
 client = get_active_client(user_id)
 tz = R.DISPLAY_TZ
+_L = current_language()   # deadline labels and countdowns in the reader's language (D-169)
 
 _langs = client.get("document_languages") or ["en"]
 draft_langs = [l for l in _langs if l in ("en", "fr")] or ["en"]
@@ -46,7 +47,7 @@ nis2 = R.nis2_applies(client)
 
 STATE_ICON = {R.OVERDUE: "🔴", R.DUE_SOON: "🟠", R.TO_DECIDE: "🟡", R.RUNNING: "⏱️",
               R.DONE: "✅", R.NOT_REQUIRED: "⚪"}
-STATUS_LABEL = {"open": "Open", "contained": "Contained", "closed": "Closed"}
+STATUS_LABEL = {"open": tr("Open"), "contained": tr("Contained"), "closed": tr("Closed")}
 
 st.title(tr("Incidents"))
 from guide import page_tip
@@ -74,7 +75,7 @@ def _fmt(ts) -> str:
 
 
 def _contact_line(c) -> str:
-    bits = [f"**{c['name']}** — {R.ROLES.get(c.get('role'), c.get('role'))}"]
+    bits = [f"**{c['name']}** — {tr(R.ROLES.get(c.get('role'), c.get('role') or ''))}"]
     if c.get("phone"):
         bits.append(f"📞 {c['phone']}")
     if c.get("email"):
@@ -110,16 +111,16 @@ with tab_team:
     if contacts_all:
         _t_hit = tv.table(
             [{"id": c["id"], "cells": {
-                "name": c["name"], "role": R.ROLES.get(c.get("role"), c.get("role")),
+                "name": c["name"], "role": tr(R.ROLES.get(c.get("role"), c.get("role") or "")),
                 "email": c.get("email"), "phone": c.get("phone"),
-                "alerted": R.ALERT_ON.get(c.get("alert_on"), c.get("alert_on")),
+                "alerted": tr(R.ALERT_ON.get(c.get("alert_on"), c.get("alert_on") or "")),
                 "deadline": f"{c['deadline_hours']} h" if c.get("deadline_hours") else None,
-                "active": "Yes" if c.get("active") else "No",
-            }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for c in contacts_all],
-            [{"key": "name", "label": "Name"}, {"key": "role", "label": "Role"},
-             {"key": "email", "label": "Email"}, {"key": "phone", "label": "Phone"},
-             {"key": "alerted", "label": "Alerted"}, {"key": "deadline", "label": "Contract deadline"},
-             {"key": "active", "label": "Active"}],
+                "active": tr("Yes") if c.get("active") else tr("No"),
+            }, "actions": [{"id": "open", "label": tr("Edit"), "icon": "✏️"}]} for c in contacts_all],
+            [{"key": "name", "label": tr("Name")}, {"key": "role", "label": tr("Role")},
+             {"key": "email", "label": tr("Email")}, {"key": "phone", "label": tr("Phone")},
+             {"key": "alerted", "label": tr("Alerted")}, {"key": "deadline", "label": tr("Contract deadline")},
+             {"key": "active", "label": tr("Active")}],
             key="incident_team", current=st.session_state.get("team_edit"))
         if _t_hit:
             st.session_state.team_edit = _t_hit["row"]
@@ -136,17 +137,17 @@ with tab_team:
         st.rerun()
     edit_id = st.session_state.team_edit
     tv.focus("incident_team")
-    st.markdown("**Add a team member**" if edit_id == "new"
-                else f"**Edit {contact_by_id[edit_id]['name']}**")
+    st.markdown(tr("**Add a team member**") if edit_id == "new"
+                else tr("**Edit {name}**").format(name=contact_by_id[edit_id]['name']))
     cur = contact_by_id.get(edit_id, {})
     roles, alerts = list(R.ROLES), list(R.ALERT_ON)
     with st.form(f"team_form_{edit_id}"):
         name = st.text_input(tr("Name"), value=cur.get("name", ""))
         c1, c2 = st.columns(2)
         role = c1.selectbox(tr("Role"), roles, index=roles.index(cur.get("role", "other")),
-                            format_func=lambda r: R.ROLES[r])
+                            format_func=lambda r: tr(R.ROLES[r]))
         alert_on = c2.selectbox(tr("Alerted for"), alerts, index=alerts.index(cur.get("alert_on", "all")),
-                                format_func=lambda a: R.ALERT_ON[a])
+                                format_func=lambda a: tr(R.ALERT_ON[a]))
         email = c1.text_input(tr("Email"), value=cur.get("email") or "")
         phone = c2.text_input(tr("Phone (for the first hour)"), value=cur.get("phone") or "")
         hours = st.number_input(
@@ -201,7 +202,7 @@ with tab_inc:
         with st.form("new_incident", clear_on_submit=True):
             title = st.text_input(tr("Short title"), placeholder=tr("e.g. Laptop stolen, phishing email answered, ransomware"))
             desc = st.text_area(tr("What happened"), placeholder=tr("What you saw, and what you know so far."))
-            found = _local_input("When you found out", "new_found")
+            found = _local_input(tr("When you found out"), "new_found")
             reporter = st.text_input(tr("Reported by"), value=st.session_state.user.email)
             sys_ids = st.multiselect(tr("Systems affected"), options=list(sys_name),
                                      format_func=lambda i: sys_name[i])
@@ -245,7 +246,7 @@ with tab_inc:
 
     def _label(inc):
         nd = R.next_deadline(_deadlines(inc)) if inc["status"] != "closed" else None
-        nxt = f" · {STATE_ICON[nd['state']]} {R.describe_left(nd)}" if nd else ""
+        nxt = f" · {STATE_ICON[nd['state']]} {R.describe_left(nd, _L)}" if nd else ""
         return f"{STATUS_LABEL[inc['status']]} · {_fmt(inc['discovered_at'])} · {inc['title']}{nxt}"
 
     order = ([i for i in incidents if i["status"] != "closed"]
@@ -256,16 +257,16 @@ with tab_inc:
     # open it below. It replaced an "Incident" picker.
     def _next(inc):
         nd = R.next_deadline(_deadlines(inc)) if inc["status"] != "closed" else None
-        return f"{STATE_ICON[nd['state']]} {R.describe_left(nd)}" if nd else None
+        return f"{STATE_ICON[nd['state']]} {R.describe_left(nd, _L)}" if nd else None
 
     _i_hit = tv.table(
         [{"id": i["id"], "cells": {
             "status": STATUS_LABEL[i["status"]], "found": R._ts(i["discovered_at"]).astimezone(tz) if i.get("discovered_at") else None,
             "title": i["title"], "next": _next(i),
-        }, "actions": [{"id": "open", "label": "Open", "icon": "📂"}]} for i in order],
-        [{"key": "status", "label": "Status"},
-         {"key": "found", "label": f"Found out ({R.TZ_LABEL})", "kind": "datetime"},
-         {"key": "title", "label": "Incident"}, {"key": "next", "label": "Next deadline"}],
+        }, "actions": [{"id": "open", "label": tr("Open"), "icon": "📂"}]} for i in order],
+        [{"key": "status", "label": tr("Status")},
+         {"key": "found", "label": tr("Found out ({tz})").format(tz=R.TZ_LABEL), "kind": "datetime"},
+         {"key": "title", "label": tr("Incident")}, {"key": "next", "label": tr("Next deadline")}],
         key="incidents", current=st.session_state.get("incident_sel"))
     if _i_hit:
         st.session_state.incident_sel = _i_hit["row"]
@@ -281,9 +282,10 @@ with tab_inc:
     # ── Deadlines ──────────────────────────────────────────────────────────
     tv.focus("incidents")
     st.subheader(inc["title"])
-    st.caption(f"{STATUS_LABEL[inc['status']]} · found out {_fmt(inc['discovered_at'])} ({R.TZ_LABEL})"
-               + (f" · reported by {inc['reported_by']}" if inc.get("reported_by") else "")
-               + (f" · systems: {', '.join(sys_names)}" if sys_names else ""))
+    st.caption(f"{STATUS_LABEL[inc['status']]} · "
+               + tr("found out {when} ({tz})").format(when=_fmt(inc['discovered_at']), tz=R.TZ_LABEL)
+               + (" · " + tr("reported by {who}").format(who=inc['reported_by']) if inc.get("reported_by") else "")
+               + (" · " + tr("systems: {names}").format(names=', '.join(sys_names)) if sys_names else ""))
     if client.get("nis2_in_scope") is None and nis2:
         st.caption(tr("NIS2 deadlines are shown because NIS2 is among this company's regulations. "
                    "Confirm whether NIS2 applies at the top of the Obligations page "
@@ -297,7 +299,8 @@ with tab_inc:
         _arow = _W.current(client["id"], "incident").get(inc_id)
         _n = len(_W.comments(client["id"], "incident", inc_id))
         _who = (_arow or {}).get("assignee_id")
-        with st.expander(f"👤 Handled by {_W.name_of(client['id'], _who) if _who else 'nobody yet'}"
+        with st.expander("👤 " + tr("Handled by {who}").format(
+                             who=_W.name_of(client['id'], _who) if _who else tr("nobody yet"))
                          + (f" · 💬 {_n}" if _n else ""),
                          expanded=st.session_state.pop("incident_open_panel", False)):
             _panel(client, "incident", inc_id, inc["title"], user_id, _arow)
@@ -306,10 +309,10 @@ with tab_inc:
         st.markdown(tr("**Deadlines**"))
 
         def _dl_line(d):
-            due = (f" — due {fmt_datetime(d['due'].astimezone(tz))}"
+            due = (" — " + tr("due {when}").format(when=fmt_datetime(d['due'].astimezone(tz)))
                    if d["due"] and d["state"] != R.DONE else "")
-            st.markdown(f"{STATE_ICON[d['state']]} {R.label(d['kind'], 'en', contact_by_id)} · "
-                        f"**{R.describe_left(d)}**{due}")
+            st.markdown(f"{STATE_ICON[d['state']]} {R.label(d['kind'], _L, contact_by_id)} · "
+                        f"**{R.describe_left(d, _L)}**{due}")
 
         shown_dls = [d for d in dls if not (d["state"] == R.NOT_REQUIRED and d["required"] is False)]
         undecided = [d for d in shown_dls if d["state"] == R.TO_DECIDE]
@@ -318,17 +321,19 @@ with tab_inc:
         # one clock and one instruction, not a list of apparent emergencies.
         if undecided:
             first = min(undecided, key=lambda d: d["due"] or datetime.max.replace(tzinfo=timezone.utc))
+            _which = (tr("Until you do, RECOSA cannot tell which other notifications apply.") if decided
+                      else tr("Until you do, RECOSA cannot tell which notifications apply."))
             st.warning(
-                f"⏱️ **Assess this incident in step 3.** Until you do, RECOSA cannot tell which "
-                f"{'other ' if decided else ''}notifications apply. The earliest of them — "
-                f"{R.label(first['kind'], 'en', contact_by_id)} — is due "
-                f"**{R.describe_left(first)}**"
+                "⏱️ " + tr("**Assess this incident in step 3.**") + " " + _which + " "
+                + tr("The earliest of them — {label} — is due **{left}**").format(
+                    label=R.label(first['kind'], _L, contact_by_id), left=R.describe_left(first, _L))
                 + (f" ({fmt_datetime(first['due'].astimezone(tz))})." if first["due"] else ".")
             )
         for d in decided:
             _dl_line(d)
         if undecided:
-            with st.expander(tr("{len_undecided} possible {deadline_depends_if_len} on the assessment").format(len_undecided=len(undecided), deadline_depends_if_len='deadline depends' if len(undecided) == 1 else 'deadlines depend')):
+            with st.expander(tr("1 possible deadline depends on the assessment") if len(undecided) == 1 else
+                             tr("{n} possible deadlines depend on the assessment").format(n=len(undecided))):
                 for d in undecided:
                     _dl_line(d)
         if all(d["state"] in (R.DONE, R.NOT_REQUIRED) for d in dls):
@@ -345,7 +350,7 @@ with tab_inc:
             st.markdown(tr("✅ Alerted {fmt_e_occurred_at}: {e_get_body}").format(fmt_e_occurred_at=_fmt(e['occurred_at']), e_get_body=e.get('body')))
         pending = R.alert_targets(contacts, inc, inc_events, nis2)
         if pending:
-            st.warning("Not alerted yet: " + ", ".join(c["name"] for c in pending))
+            st.warning(tr("Not alerted yet: {names}").format(names=", ".join(c["name"] for c in pending)))
             if st.button(tr("Alert them now"), type="primary", key="alert_pending"):
                 sent_to = S.alert_team(user_id, inc, client, pending, "manual")
                 if sent_to:
@@ -362,14 +367,14 @@ with tab_inc:
     with s_first:
         lead = [c for c in contacts if c.get("role") in ("lead", "deputy")]
         st.markdown(
-            "Do these in order. Don't wait for anyone to decide whether this is reportable.\n\n"
-            "1. **Contain it.** Disconnect what needs disconnecting. Avoid powering systems off — it destroys evidence.\n"
-            "2. **Write down the time** you found out and what you saw. *(Done — it's on this incident.)*\n"
-            "3. **Tell the person who leads incidents.**"
-            + (" " + "; ".join(f"{c['name']} ({c.get('phone') or c.get('email') or 'no contact details'})"
+            tr("Do these in order. Don't wait for anyone to decide whether this is reportable.") + "\n\n"
+            "1. " + tr("**Contain it.** Disconnect what needs disconnecting. Avoid powering systems off — it destroys evidence.") + "\n"
+            "2. " + tr("**Write down the time** you found out and what you saw. *(Done — it's on this incident.)*") + "\n"
+            "3. " + tr("**Tell the person who leads incidents.**")
+            + (" " + "; ".join(f"{c['name']} ({c.get('phone') or c.get('email') or tr('no contact details')})"
                                 for c in lead) if lead else "") + "\n"
-            "4. **Do not delete anything**, including the thing that caused it.\n"
-            "5. **Do not tell customers or the public yet.** That decision comes with the assessment."
+            "4. " + tr("**Do not delete anything**, including the thing that caused it.") + "\n"
+            "5. " + tr("**Do not tell customers or the public yet.** That decision comes with the assessment.")
         )
         if client.get("nis2_roles_text"):
             st.info(tr("**Who does what** (from your incident wording): {client_nis2_roles_text}").format(client_nis2_roles_text=client['nis2_roles_text']))
@@ -396,14 +401,16 @@ with tab_inc:
                                      format_func=lambda i: sys_name[i])
             st.markdown(tr("**Personal data (GDPR)**"))
             pd = st.radio(tr("Is personal data involved? (lost, exposed, altered or unavailable, even briefly)"),
-                          list(_YN), index=list(_YN).index(_YN_REV[inc.get("personal_data")]), horizontal=True)
+                          list(_YN), index=list(_YN).index(_YN_REV[inc.get("personal_data")]), horizontal=True,
+                          format_func=tr)
             risk = st.radio(
                 tr("What is the risk to the people concerned? (GDPR Art. 33(1): notify the authority unless "
                 "the breach is unlikely to result in a risk)"),
-                list(_RISK), index=list(_RISK).index(_RISK_REV[inc.get("gdpr_risk")]))
+                list(_RISK), index=list(_RISK).index(_RISK_REV[inc.get("gdpr_risk")]), format_func=tr)
             exempt = st.selectbox(
                 tr("If high risk: does an Art. 34(3) exemption apply to telling the people?"),
-                list(_EXEMPT), index=list(_EXEMPT).index(_EXEMPT_REV[inc.get("subjects_exemption")]))
+                list(_EXEMPT), index=list(_EXEMPT).index(_EXEMPT_REV[inc.get("subjects_exemption")]),
+                format_func=tr)
             c1, c2 = st.columns(2)
             scats = c1.text_input(tr("Categories of people"), value=inc.get("subject_categories") or "",
                                   placeholder=tr("e.g. customers, employees, patients"))
@@ -417,11 +424,12 @@ with tab_inc:
                 st.markdown(tr("**Security incident (NIS2)**"))
                 sig = st.radio(tr("Is it a significant incident? (serious disruption of your services, or "
                                "considerable financial, material or other damage)"),
-                               list(_YN), index=list(_YN).index(_YN_REV[inc.get("significant")]), horizontal=True)
+                               list(_YN), index=list(_YN).index(_YN_REV[inc.get("significant")]), horizontal=True,
+                               format_func=tr)
                 rcp = st.radio(tr("Is it likely to affect the users of your services? (they must then be "
                                "informed — NIS2 Art. 23(1))"),
                                list(_YN), index=list(_YN).index(_YN_REV[inc.get("affects_recipients")]),
-                               horizontal=True)
+                               horizontal=True, format_func=tr)
             else:
                 sig, rcp = "No", "No"
                 st.caption(tr("NIS2 does not apply to this company, so there is no NIS2 deadline."))
@@ -477,7 +485,7 @@ with tab_inc:
                 continue
             shown += 1
             late = kind == R.GDPR_AUTHORITY and R.is_late(d)
-            with st.expander(f"{STATE_ICON[d['state']]} {R.label(kind, 'en', contact_by_id)} — {R.describe_left(d)}",
+            with st.expander(f"{STATE_ICON[d['state']]} {R.label(kind, _L, contact_by_id)} — {R.describe_left(d, _L)}",
                              expanded=d["state"] in (R.OVERDUE, R.DUE_SOON)):
                 who = R.AUTHORITY_OF.get(kind)
                 if who == "gdpr":
@@ -514,14 +522,14 @@ with tab_inc:
                     if client.get("breach_notice_hours"):
                         st.caption(tr("Your contracts promise notice within {h} h.").format(h=client['breach_notice_hours']))
                 elif kind == R.DATA_SUBJECTS:
-                    st.markdown("**To:** " + ("the public — a communication instead of contacting each person "
-                                              "(Art. 34(3)(c))." if inc.get("subjects_exemption") == "public"
-                                              else "the people whose data is affected, directly, from your own channels."))
+                    st.markdown(tr("**To:** the public — a communication instead of contacting each person "
+                                   "(Art. 34(3)(c)).") if inc.get("subjects_exemption") == "public"
+                                else tr("**To:** the people whose data is affected, directly, from your own channels."))
                 elif kind == R.NIS2_RECIPIENTS:
                     st.markdown(tr("**To:** the users of your services likely to be affected, from your own channels."))
                 elif kind.startswith(R.CONTACT_PREFIX):
                     c = contact_by_id.get(kind[len(R.CONTACT_PREFIX):], {})
-                    st.markdown("**To:** " + _contact_line(c) if c else "**To:** [removed contact]")
+                    st.markdown(tr("**To:** {who}").format(who=_contact_line(c)) if c else tr("**To:** [removed contact]"))
                     if c.get("notes"):
                         st.caption(c["notes"])
 
@@ -546,12 +554,12 @@ with tab_inc:
 
                 if d["state"] == R.DONE:
                     e = R.sent(inc_events, kind)
-                    st.success(f"Recorded as sent {_fmt(e['occurred_at'])}"
-                               + (f" — reference {e['reference']}" if e.get("reference") else ""))
+                    st.success(tr("Recorded as sent {when}").format(when=_fmt(e['occurred_at']))
+                               + (" — " + tr("reference {ref}").format(ref=e['reference']) if e.get("reference") else ""))
                 else:
                     with st.form(f"sent_{kind}"):
                         st.markdown(tr("**Record it as sent** — the text above is kept as what was sent"))
-                        when = _local_input("Sent", f"sent_{kind}")
+                        when = _local_input(tr("Sent"), f"sent_{kind}")
                         ref = st.text_input(tr("Reference number from the authority (if any)"), key=f"ref_{kind}")
                         if st.form_submit_button(tr("Record as sent")):
                             texts = [(n, st.session_state.get(k, "")) for n, k in text_keys]
@@ -583,12 +591,12 @@ with tab_inc:
         if not sent_kinds:
             st.caption(tr("Available once a notification to an authority has been recorded as sent."))
         else:
-            fk = st.selectbox(tr("Further to"), sent_kinds, format_func=lambda k: R.label(k), key="fu_kind")
+            fk = st.selectbox(tr("Further to"), sent_kinds, format_func=lambda k: R.label(k, _L), key="fu_kind")
             fl = draft_langs[0] if len(draft_langs) == 1 else st.session_state.get("inc_lang", draft_langs[0])
             st.text_area(tr("Draft"), R.draft(fk, inc, client, sys_names, fl, inc_events, followup=True),
                          height=260, key=f"fu_text_{fk}_{fl}")
             with st.form("followup"):
-                when = _local_input("Sent", "fu_sent")
+                when = _local_input(tr("Sent"), "fu_sent")
                 ref = st.text_input(tr("Reference (if any)"))
                 if st.form_submit_button(tr("Record as sent")):
                     if S.add_event(user_id, inc, "followup", kind=fk, occurred_at=when, reference=ref,
@@ -602,7 +610,7 @@ with tab_inc:
             if inc.get("intermediate_due"):
                 st.caption(tr("Requested — due {fmt_inc_intermediate_due}. It is in step 4.").format(fmt_inc_intermediate_due=_fmt(inc['intermediate_due'])))
             with st.form("intermediate"):
-                due = _local_input("Due by", "int_due")
+                due = _local_input(tr("Due by"), "int_due")
                 note = st.text_input(tr("What they asked (optional)"))
                 if st.form_submit_button(tr("Record the request")):
                     if S.update_incident(inc_id, {"intermediate_due": due.astimezone(timezone.utc).isoformat()}):
@@ -619,7 +627,7 @@ with tab_inc:
             if st.form_submit_button(tr("Add to the record")):
                 if note.strip() and S.add_event(user_id, inc, "note", reference=ref, body=note):
                     st.rerun()
-                st.error("Write the note first." if not note.strip() else "Could not save it.")
+                st.error(tr("Write the note first.") if not note.strip() else tr("Could not save it."))
 
     # ── 6. Close ───────────────────────────────────────────────────────────
     with s_close:
@@ -628,8 +636,8 @@ with tab_inc:
         open_required = [d for d in dls if d["state"] in R.OPEN_STATES
                          and d["kind"] not in (R.NIS2_FINAL, R.NIS2_PROGRESS)]
         if open_required and inc["status"] != "closed":
-            st.warning("Still open: " + "; ".join(R.label(d["kind"], "en", contact_by_id)
-                                                   for d in open_required) + ".")
+            st.warning(tr("Still open: {labels}.").format(
+                labels="; ".join(R.label(d["kind"], _L, contact_by_id) for d in open_required)))
         if nis2 and inc.get("significant"):
             st.caption(tr("Closing marks the end of handling: if the NIS2 notification was sent, the final "
                        "report is due one month after it — or one month after closing, if later."))
@@ -662,20 +670,22 @@ with tab_inc:
         )
         st.caption(tr("The facts, the decisions and their reasons, every text sent with its reference, the "
                    "team alerts and the timeline — what an authority or auditor asks for."))
-        st.markdown(f"- **{_fmt(inc['discovered_at'])}** — found out"
+        st.markdown(f"- **{_fmt(inc['discovered_at'])}** — " + tr("found out")
                     + (f" ({inc['reported_by']})" if inc.get("reported_by") else ""))
         for e in inc_events:
             what = {
-                "decision": "Assessment recorded",
-                "notification": f"Sent: {R.label(e.get('kind') or '', 'en', contact_by_id)}",
-                "followup": f"Supplementary information: {R.label(e.get('kind') or '', 'en', contact_by_id)}",
-                "status": f"Marked {e.get('body')}",
-                "reminder": f"Reminder emailed ({e.get('body')})",
-                "alert": f"Team alerted: {e.get('body')}",
-                "request": "Request from an authority",
-                "note": "Note",
+                "decision": tr("Assessment recorded"),
+                "notification": tr("Sent: {label}").format(label=R.label(e.get('kind') or '', _L, contact_by_id)),
+                "followup": tr("Supplementary information: {label}").format(
+                    label=R.label(e.get('kind') or '', _L, contact_by_id)),
+                "status": tr("Marked {status}").format(
+                    status=STATUS_LABEL.get(e.get('body'), e.get('body') or '').lower()),
+                "reminder": tr("Reminder emailed ({stage})").format(stage=e.get('body')),
+                "alert": tr("Team alerted: {who}").format(who=e.get('body')),
+                "request": tr("Request from an authority"),
+                "note": tr("Note"),
             }.get(e["event_type"], e["event_type"])
-            detail = f" — ref. {e['reference']}" if e.get("reference") and e["event_type"] != "alert" else ""
+            detail = " — " + tr("ref. {ref}").format(ref=e['reference']) if e.get("reference") and e["event_type"] != "alert" else ""
             body = (f"  \n  {e['body']}" if e.get("body") and e["event_type"] in ("decision", "note", "request")
                     else "")
             st.markdown(f"- **{_fmt(e['occurred_at'])}** — {what}{detail}{body}")

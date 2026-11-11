@@ -7084,6 +7084,23 @@ By the user ("Yes, the emails").
   `test_email_language.py` renders every email in each language with Brevo
   stubbed.
 
+
+### D-169 — The incident page in the reader's language, 11 Nov
+
+Found while doing D-168: the Incidents page asked `incident_rules` for its
+deadline labels and countdowns in English, whatever the interface language.
+
+- Deadlines, countdowns, the "assess in step 3" warning, the incident table,
+  the first-hour steps, the timeline and the team table now follow the
+  interface language (French and Dutch).
+- Team roles, alert settings and the assessment choices stay English in
+  `incident_rules` and in the answers stored (the decision summary in the
+  record is English, as before); they are translated where shown.
+- The notification drafts keep their own language choice (English or
+  French, from the company's document languages); the incident file PDF is
+  unchanged.
+- 77 strings; 1,370 per catalogue.
+
 ---
 
 ## 5. Constraints and gotchas

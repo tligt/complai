@@ -238,6 +238,12 @@ def extract(paths: list[Path]) -> list[str]:
         found += [label for _k, label, _o in AR.TRANSPARENCY] + ["not recorded"]
         found += list(TRR.AUDIENCES.values()) + list(TRR.FORMATS.values())
         found += list(TRR.STATE_LABELS["en"].values()) + ["the name", "the purpose"]
+        # The incident page (D-169): team roles, alert settings and the
+        # assessment choices, kept in English and shown through tr().
+        import incident_rules as IR
+        found += list(IR.ROLES.values()) + list(IR.ALERT_ON.values())
+        found += list(IR.GDPR_RISK.values()) + list(IR.SUBJECTS_EXEMPTIONS.values())
+        found += ["Not sure yet", "Yes", "No", "Not decided yet", "None — tell them directly"]
     except Exception as e:
         print(f"(dictionary labels not extracted: {e})", file=sys.stderr)
     # The page tips are translated where they are shown (guide.page_tip).
