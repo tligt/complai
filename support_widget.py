@@ -108,9 +108,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
 
     with st.popover(button_label, use_container_width=True):
         if unread:
-            st.info(f"You have {unread} unread "
-                    f"repl{'y' if unread == 1 else 'ies'} — "
-                    f"see **Support** in the menu.")
+            st.info(tr("You have {unread} unread repl{y_if_unread_1_else_ies} — see **Support** in the menu.").format(unread=unread, y_if_unread_1_else_ies='y' if unread == 1 else 'ies'))
 
         st.markdown(tr("**Get help**"))
         st.caption(tr("We'll pick this up and reply in the app."))
@@ -144,8 +142,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
             placeholder=tr("What happened, and what did you expect instead?"),
         )
 
-        st.caption(f"We'll automatically include which page you were on "
-                   f"({context.replace('_', ' ')}), so you don't have to explain it.")
+        st.caption(tr("We'll automatically include which page you were on ({context_replace}), so you don't have to explain it.").format(context_replace=context.replace('_', ' ')))
 
         if st.button(tr("Send request"), type="primary",
                      use_container_width=True, key=f"hw_send_{context}"):
@@ -177,9 +174,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
         st.session_state[f"hw_clear_{context}"] = False
 
         if unread:
-            st.info(f"You have {unread} unread "
-                    f"repl{'y' if unread == 1 else 'ies'} — "
-                    f"see **Support** in the menu.")
+            st.info(tr("You have {unread} unread repl{y_if_unread_1_else_ies} — see **Support** in the menu.").format(unread=unread, y_if_unread_1_else_ies='y' if unread == 1 else 'ies'))
 
         st.markdown(tr("**Get help**"))
         st.caption(tr("We'll pick this up and reply in the app."))
@@ -213,8 +208,7 @@ def _render_form(user_id, context, context_ref, client_id, label):
             placeholder=tr("What happened, and what did you expect instead?"),
         )
 
-        st.caption(f"We'll automatically include which page you were on "
-                   f"({context.replace('_', ' ')}), so you don't have to explain it.")
+        st.caption(tr("We'll automatically include which page you were on ({context_replace}), so you don't have to explain it.").format(context_replace=context.replace('_', ' ')))
 
         if st.button(tr("Send request"), type="primary",
                      use_container_width=True, key=f"hw_send_{context}"):

@@ -56,7 +56,7 @@ if _note:
 for c in clients:
     manage = can_manage_people(c.get("role"))
     with st.container(border=True):
-        st.markdown(f"**{c['company_name']}** · your role: {role_label(c.get('role'))}")
+        st.markdown(tr("**{c_company_name}** · your role: {role_label_c_get_role}").format(c_company_name=c['company_name'], role_label_c_get_role=role_label(c.get('role'))))
         members = list_workspace_members(c["id"])
         if not members:
             st.caption(tr("No one else has access to this company directly."))
@@ -70,7 +70,7 @@ for c in clients:
                                          type="tertiary"):
                     ok, err = resend_invite(m["invited_email"], c["company_name"], user_id)
                     if ok:
-                        st.toast(f"A new link was sent to {m['invited_email']}.")
+                        st.toast(tr("A new link was sent to {m_invited_email}.").format(m_invited_email=m['invited_email']))
                     else:
                         st.warning(err)
             if manage:
@@ -82,7 +82,7 @@ for c in clients:
                 if new_role != (m.get("role") or "contributor"):
                     ok, err = set_workspace_member_role(m["id"], new_role, user_id)
                     if ok:
-                        st.toast(f"{m['display_name']} is now {CLIENT_ROLES[new_role]}.")
+                        st.toast(tr("{m_display_name} is now {client_roles_new_role}.").format(m_display_name=m['display_name'], client_roles_new_role=CLIENT_ROLES[new_role]))
                         _refresh()
                     else:
                         st.error(err)
@@ -122,7 +122,7 @@ for c in clients:
                             st.session_state.team_invite_note = (
                                 f"{inv_email.strip()} has access as {CLIENT_ROLES[inv_role]}. " + err)
                         else:
-                            st.toast(f"Invited {inv_email.strip()} as {CLIENT_ROLES[inv_role]}.")
+                            st.toast(tr("Invited {inv_email_strip} as {client_roles_inv_role}.").format(inv_email_strip=inv_email.strip(), client_roles_inv_role=CLIENT_ROLES[inv_role]))
                         _refresh()
                     else:
                         st.error(err or "Could not send the invite.")

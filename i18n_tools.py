@@ -114,6 +114,98 @@ def _add_import(src: str) -> str:
     return "".join(lines)
 
 
+# ── f-strings (D-166) ─────────────────────────────────────────────────────
+
+def _placeholder(expr_src: str, used: set[str]) -> str:
+    base = re.sub(r"[^0-9a-zA-Z_]+", "_", expr_src).strip("_").lower() or "x"
+    base = re.sub(r"_+", "_", base)[:24].strip("_") or "x"
+    if base[0].isdigit():
+        base = "x_" + base
+    name, i = base, 2
+    while name in used:
+        name, i = f"{base}{i}", i + 1
+    used.add(name)
+    return name
+
+
+def fstring_template(node: ast.JoinedStr, src: str):
+    """(template, [(name, expr_source)]) or None when there is nothing to
+    translate (no words, or HTML)."""
+    parts, args, used = [], [], set()
+    text = ""
+    for v in node.values:
+        if isinstance(v, ast.Constant):
+            text += v.value
+            parts.append(v.value.replace("{", "{{").replace("}", "}}"))
+        elif isinstance(v, ast.FormattedValue):
+            expr = ast.get_source_segment(src, v.value)
+            if expr is None:
+                return None
+            name = _placeholder(expr, used)
+            conv = {-1: "", 115: "!s", 114: "!r", 97: "!a"}[v.conversion]
+            spec = ""
+            if v.format_spec is not None:
+                if not all(isinstance(x, ast.Constant) for x in v.format_spec.values):
+                    return None
+                spec = ":" + "".join(x.value for x in v.format_spec.values)
+            parts.append("{" + name + conv + spec + "}")
+            args.append((name, expr))
+        else:
+            return None
+    if not re.search(r"[A-Za-z]{2,}", text) or "<" in text:
+        return None
+    return "".join(parts), args
+
+
+def _fstring_targets(tree: ast.AST, extra_funcs: set[str]) -> list[ast.JoinedStr]:
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        f = node.func
+        name = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else None)
+        if isinstance(f, ast.Attribute) and name in ST_FUNCS:
+            cands = node.args[:1] + [k.value for k in node.keywords if k.arg in LABEL_KWARGS]
+        elif name in extra_funcs:
+            # _finding(producer, key, title, severity, detail, …): only the
+            # title (2) and detail (4). The key is an identifier and must
+            # never change with the language.
+            cands = [a for i, a in enumerate(node.args) if i in (2, 4)] +                     [k.value for k in node.keywords if k.arg in ("title", "detail")]
+        else:
+            continue
+        out += [c for c in cands if isinstance(c, ast.JoinedStr)]
+    return out
+
+
+def wrapf_file(path: Path, extra_funcs: set[str] = frozenset()) -> int:
+    src = path.read_text(encoding="utf-8")
+    tree = ast.parse(src)
+    lines = src.splitlines(keepends=True)
+    starts = _offsets(src)
+
+    def off(lineno: int, col: int) -> int:
+        line = lines[lineno - 1].encode("utf-8")
+        return starts[lineno - 1] + len(line[:col].decode("utf-8"))
+
+    edits = []
+    for n in _fstring_targets(tree, set(extra_funcs)):
+        t = fstring_template(n, src)
+        if not t:
+            continue
+        template, args = t
+        call = "tr(" + json.dumps(template, ensure_ascii=False) + ")"
+        if args:
+            call += ".format(" + ", ".join(f"{k}={e}" for k, e in args) + ")"
+        edits.append((off(n.lineno, n.col_offset), off(n.end_lineno, n.end_col_offset), call))
+    for a, b, call in sorted(edits, reverse=True):
+        src = src[:a] + call + src[b:]
+    if edits and "from i18n import tr" not in src:
+        src = _add_import(src)
+    ast.parse(src)
+    path.write_text(src, encoding="utf-8", newline="")
+    return len(edits)
+
+
 def extract(paths: list[Path]) -> list[str]:
     found: list[str] = []
     for p in paths:
@@ -129,6 +221,20 @@ def extract(paths: list[Path]) -> list[str]:
     # The menu section headings (app.py _sections keys) and the page tips are
     # translated where they are shown.
     found += ["Assess", "Records", "Respond", "Tools", "Account", "What is this page for?", "Got it"]
+    # Labels kept in dictionaries and read through tr() where shown (D-166):
+    # the catalogue (obligations._Translated), AI and training labels.
+    try:
+        import obligations as O
+        import ai_rules as AR
+        import training_rules as TRR
+        found += [dict(o)["title"] for o in O.OBLIGATIONS]
+        found += list(dict(O.DOCUMENT_TYPES).values()) + list(dict(O.REGULATION_LABELS).values())
+        found += list(AR.RISK_LABELS.values()) + list(AR.ROLES.values()) + list(AR.ART6_3.values())
+        found += [label for _k, label, _o in AR.TRANSPARENCY] + ["not recorded"]
+        found += list(TRR.AUDIENCES.values()) + list(TRR.FORMATS.values())
+        found += list(TRR.STATE_LABELS["en"].values()) + ["name", "purpose"]
+    except Exception as e:
+        print(f"(dictionary labels not extracted: {e})", file=sys.stderr)
     # The page tips are translated where they are shown (guide.page_tip).
     try:
         import guide
@@ -158,6 +264,14 @@ if __name__ == "__main__":
             total += n
             print(f"{f}: {n}")
         print(f"wrapped {total}")
+    elif cmd == "wrapf":
+        extra = {"_finding"}
+        total = 0
+        for f in rest:
+            n = wrapf_file(Path(f), extra)
+            total += n
+            print(f"{f}: {n}")
+        print(f"converted {total}")
     elif cmd == "extract":
         for s in extract(default_paths()):
             print(json.dumps(s, ensure_ascii=False))

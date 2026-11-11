@@ -31,7 +31,7 @@ def _alerts_panel(user_id: str):
 
     h1, h2 = st.columns([3, 1])
     if unread:
-        h1.warning(f"You have **{plural(unread, 'unread alert')}**.")
+        h1.warning(tr("You have **{plural_unread_unread_ale}**.").format(plural_unread_unread_ale=plural(unread, 'unread alert')))
         if h2.button(tr("✓ Mark all as read"), use_container_width=True, key="alerts_mark_all"):
             mark_all_alerts_read(user_id)
             st.rerun(scope="fragment")
@@ -51,7 +51,7 @@ def _alerts_panel(user_id: str):
                   .limit(300)
                   .execute().data) or []
     except Exception as e:
-        st.error(f"Could not load alerts: {e}")
+        st.error(tr("Could not load alerts: {e}").format(e=e))
         alerts = []
 
     if not alerts:
@@ -121,7 +121,7 @@ def _alerts_panel(user_id: str):
                 if full and update.get("summary"):
                     st.caption(update["summary"])
                 if full and update.get("action_description"):
-                    st.info(f"**What to do:** {update['action_description']}")
+                    st.info(tr("**What to do:** {update_action_descriptio}").format(update_action_descriptio=update['action_description']))
                 countries = update.get("countries") or []
                 st.caption(" · ".join(filter(None, [
                     f"🏢 {_co_names.get(alert.get('client_id'), '')}" if _many else "",
@@ -144,7 +144,7 @@ def _alerts_panel(user_id: str):
     for alert in fresh:
         _card(alert, full=True)
     if older:
-        with st.expander(f"Read alerts ({len(older)})", expanded=not fresh):
+        with st.expander(tr("Read alerts ({len_older})").format(len_older=len(older)), expanded=not fresh):
             for alert in older:
                 _card(alert, full=False)
 

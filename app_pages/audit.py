@@ -41,14 +41,13 @@ if logged_in:
     # cache-clear needed after Subscribe/Unsubscribe below, just a rerun.
     subscriptions = list_audit_subscriptions(user_id)
     if subscriptions:
-        with st.expander(f"🔁 Your recurring audits ({len(subscriptions)})"):
+        with st.expander(tr("🔁 Your recurring audits ({len_subscriptions})").format(len_subscriptions=len(subscriptions))):
             _freq_label_by_days = {v: k for k, v in FREQUENCY_OPTIONS.items()}
             for sub in subscriptions:
                 sc1, sc2, sc3 = st.columns([3, 2, 1])
                 sc1.write(sub["site_domain"])
                 sc2.caption(
-                    f"{_freq_label_by_days.get(sub['frequency_days'], sub['frequency_days'])} · "
-                    f"last run: {sub.get('last_run_at') or 'never'}"
+                    tr("{freq_label_by_days_get_s} · last run: {sub_get_last_run_at_or_n}").format(freq_label_by_days_get_s=_freq_label_by_days.get(sub['frequency_days'], sub['frequency_days']), sub_get_last_run_at_or_n=sub.get('last_run_at') or 'never')
                 )
                 if sc3.button(tr("Unsubscribe"), key=f"unsub_{sub['id']}"):
                     if deactivate_audit_subscription(sub["id"], user_id):
@@ -165,15 +164,13 @@ if logged_in:
     _result = st.session_state.get("auth_audit_result")
     if _result:
         st.success(
-            f"Audit complete — {_result['audit_result'].risk_level} risk, "
-            f"score {_result['audit_result'].score}/100"
+            tr("Audit complete — {result_audit_result_risk} risk, score {result_audit_result_scor}/100").format(result_audit_result_risk=_result['audit_result'].risk_level, result_audit_result_scor=_result['audit_result'].score)
         )
         render_results(_result["audit_result"], _result["pdf_bytes"], is_authenticated=True)
 
         with st.expander(tr("🔁 Get this checked automatically")):
             st.caption(
-                "Re-run this audit on a schedule and email the results to "
-                f"{st.session_state.user.email}."
+                tr("Re-run this audit on a schedule and email the results to {st_session_state_user_em}.").format(st_session_state_user_em=st.session_state.user.email)
             )
             freq_label = st.selectbox(
                 tr("How often"), list(FREQUENCY_OPTIONS.keys()), index=1, key="sub_freq",
@@ -189,9 +186,7 @@ if logged_in:
                 )
                 if ok:
                     st.success(
-                        f"Subscribed — {_result['site_domain']} will be "
-                        f"checked {freq_label.lower()} and results emailed "
-                        f"to you."
+                        tr("Subscribed — {result_site_domain} will be checked {freq_label_lower} and results emailed to you.").format(result_site_domain=_result['site_domain'], freq_label_lower=freq_label.lower())
                     )
                     st.session_state.pop("auth_audit_result", None)
                     st.rerun()

@@ -309,7 +309,7 @@ def save_document_with_files(
             event_type="document_generated",
             event_subtype=document_type,
             resource_id=doc_id,
-            summary=f"Generated {DOCUMENT_TYPES.get(document_type, document_type)} document",
+            summary=f"Generated {dict(DOCUMENT_TYPES).get(document_type, document_type)} document",
         )
 
     return doc_id
@@ -824,7 +824,9 @@ def build_docx(document_text: str, document_type: str,
     TITLE = RGBColor(*theme.text)            # titles and headings, readable on white
     RULE = rgb_to_hex(theme.fill)[1:]        # the colour as chosen, for rules
 
-    doc_title = DOCUMENT_TYPES.get(document_type, "Compliance Document")
+    # S64 (D-166): the title in the document's language, not the reader's.
+    from i18n import translate as _tr  # noqa: PLC0415
+    doc_title = _tr(dict(DOCUMENT_TYPES).get(document_type, "Compliance Document"), language)
 
     # Date in the document's language. strftime('%B') is English regardless of
     # locale unless the locale is installed, which is not guaranteed on

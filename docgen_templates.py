@@ -156,7 +156,7 @@ def generate_templated_document(
                     # record_type is the template's own translated title.
                     # DOCUMENT_TYPES is English-only, so using it put an
                     # English heading on a French register.
-                    title=f"{d.title or DOCUMENT_TYPES.get(doc_type, doc_type)}"
+                    title=f"{d.title or __import__('i18n').translate(dict(DOCUMENT_TYPES).get(doc_type, doc_type), d.language)}"
                           f" \u2014 {company_name}",
                     prose=d.result.body,
                     metadata=[

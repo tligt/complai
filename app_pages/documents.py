@@ -375,7 +375,7 @@ if _view == "generate":
         st.caption(tr("Add one row per processing activity."))
 
         for i, act in enumerate(st.session_state.doc_activities):
-            with st.expander(f"Activity {i+1}: {act.get('name','Untitled')}", expanded=True):
+            with st.expander(tr("Activity {i_1}: {act_get_name_untitled}").format(i_1=i+1, act_get_name_untitled=act.get('name','Untitled')), expanded=True):
                 c1, c2 = st.columns(2)
                 st.session_state.doc_activities[i]["name"] = c1.text_input(
                     tr("Activity name"), value=act.get("name",""), key=f"act_name_{i}_{context_key}",
@@ -408,7 +408,7 @@ if _view == "generate":
                     tr("Legal basis"), options=legal_bases, index=basis_idx,
                     key=f"act_basis_{i}_{context_key}"
                 )
-                if st.button(f"Remove", key=f"rm_act_{i}_{context_key}"):
+                if st.button(tr("Remove"), key=f"rm_act_{i}_{context_key}"):
                     st.session_state.doc_activities.pop(i)
                     st.rerun()
 
@@ -435,7 +435,7 @@ if _view == "generate":
         st.caption(tr("Add one row per tool or service that processes personal data on your behalf."))
 
         for i, proc in enumerate(st.session_state.doc_processors):
-            with st.expander(f"Processor {i+1}: {proc.get('name','Untitled')}", expanded=True):
+            with st.expander(tr("Processor {i_1}: {proc_get_name_untitled}").format(i_1=i+1, proc_get_name_untitled=proc.get('name','Untitled')), expanded=True):
                 c1, c2 = st.columns(2)
                 st.session_state.doc_processors[i]["name"] = c1.text_input(
                     tr("Service name"), value=proc.get("name",""), key=f"proc_name_{i}_{context_key}",
@@ -532,18 +532,15 @@ if _view == "generate":
                     st.session_state.doc_retention = suggestions.get("retention", [])
                     st.session_state.doc_confirmed = False
                     st.success(
-                        f"✅ Suggested {len(st.session_state.doc_activities)} activities, "
-                        f"{len(st.session_state.doc_processors)} processors and "
-                        f"{len(st.session_state.doc_retention)} retention rules. "
-                        "Review and edit below, then confirm before generating."
+                        tr("✅ Suggested {len_st_session_state_doc} activities, {len_st_session_state_doc2} processors and {len_st_session_state_doc3} retention rules. Review and edit below, then confirm before generating.").format(len_st_session_state_doc=len(st.session_state.doc_activities), len_st_session_state_doc2=len(st.session_state.doc_processors), len_st_session_state_doc3=len(st.session_state.doc_retention))
                     )
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Could not generate suggestions: {e}")
+                    st.error(tr("Could not generate suggestions: {e}").format(e=e))
 
     # ── Document-specific sections ────────────────────────────────
     st.divider()
-    st.markdown(f"**{DOCUMENT_TYPES[doc_type]} — specific information**")
+    st.markdown(tr("**{document_types_doc_type} — specific information**").format(document_types_doc_type=DOCUMENT_TYPES[doc_type]))
 
     processor_name = processor_country = processing_purpose = None
     incident_response_contact = escalation_procedure = None
@@ -575,7 +572,7 @@ if _view == "generate":
                 _preview_vendors = _load_vendor_rows(client_id, language)
             except Exception as e:
                 _preview_vendors = []
-                st.warning(f"Could not read the inventory: {e}")
+                st.warning(tr("Could not read the inventory: {e}").format(e=e))
 
             if _preview_vendors:
                 st.markdown(
@@ -850,7 +847,7 @@ if _view == "generate":
     # ── Generate ──────────────────────────────────────────────────
     st.divider()
     generate = st.button(
-        f"⚡ Generate {DOCUMENT_TYPES[doc_type]}",
+        tr("⚡ Generate {document_types_doc_type}").format(document_types_doc_type=DOCUMENT_TYPES[doc_type]),
         type="primary",
         use_container_width=True,
         key=f"btn_gen_{context_key}",
@@ -1021,7 +1018,7 @@ if _view == "generate":
 
         company_display = f"{s(legal_name)} {legal_form or ''}".strip()
 
-        with st.spinner(f"Generating {DOCUMENT_TYPES[doc_type]}..."):
+        with st.spinner(tr("Generating {document_types_doc_type}...").format(document_types_doc_type=DOCUMENT_TYPES[doc_type])):
             reg_context = get_regulatory_context(doc_type, language, country)
             doc_text = generate_document_text(
                 document_type=doc_type,
@@ -1037,7 +1034,7 @@ if _view == "generate":
             docx_bytes = build_docx(doc_text, doc_type, company_display, language,
                                     theme=_doc_theme)
 
-        st.success(f"✅ {DOCUMENT_TYPES[doc_type]} generated for {company_display}")
+        st.success(tr("✅ {document_types_doc_type} generated for {company_display}").format(document_types_doc_type=DOCUMENT_TYPES[doc_type], company_display=company_display))
 
         with st.spinner(tr("Preparing PDF and ODT...")):
             try:
@@ -1195,13 +1192,13 @@ def _render_send_form(doc, slot_key, label, company):
             filename=fname,
         )
         if err is None:
-            st.success(f"✅ Sent to {send_to.strip()}")
+            st.success(tr("✅ Sent to {send_to_strip}").format(send_to_strip=send_to.strip()))
             st.session_state[f"send_open_{slot_key}"] = False
             st.rerun()
         else:
-            st.error(f"Send failed — {err}")
+            st.error(tr("Send failed — {err}").format(err=err))
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(tr("Error: {e}").format(e=e))
 
 
 def _render_language_row(doc, slot_key, label, company, reg=None,
@@ -1362,16 +1359,11 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
             with st.container(border=True):
                 if _live_here:
                     st.caption(
-                        f"This supersedes v{_live_here.get('version')} "
-                        f"({reg['language'].upper()}), in force since "
-                        f"{fmt_date(_live_here.get('effective_from')) or 'an unrecorded date'}. "
-                        "That version is kept as the record of what applied "
-                        "until now."
+                        tr("This supersedes v{live_here_get_version} ({reg_language_upper}), in force since {fmt_date_live_here_get_e}. That version is kept as the record of what applied until now.").format(live_here_get_version=_live_here.get('version'), reg_language_upper=reg['language'].upper(), fmt_date_live_here_get_e=fmt_date(_live_here.get('effective_from')) or 'an unrecorded date')
                     )
                 else:
                     st.caption(
-                        f"Nothing is in force for this document in "
-                        f"{reg['language'].upper()} yet."
+                        tr("Nothing is in force for this document in {reg_language_upper} yet.").format(reg_language_upper=reg['language'].upper())
                     )
 
                 a1, a2 = st.columns([1, 2])
@@ -1401,8 +1393,7 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                     if _res:
                         st.session_state[adopt_key] = False
                         st.success(
-                            f"In force as v{_res.get('version')} "
-                            f"({reg['language'].upper()}) from {_eff.isoformat()}."
+                            tr("In force as v{res_get_version} ({reg_language_upper}) from {eff_isoformat}.").format(res_get_version=_res.get('version'), reg_language_upper=reg['language'].upper(), eff_isoformat=_eff.isoformat())
                         )
                         st.rerun()
                     else:
@@ -1541,7 +1532,7 @@ else:
 
         older = generations[1:]
         if older:
-            with st.expander(f"Previous versions ({len(older)})"):
+            with st.expander(tr("Previous versions ({len_older})").format(len_older=len(older))):
                 for gid, rows in older:
                     langs = sorted({(r.get("language") or "").upper()
                                     for r in rows if r.get("language")})

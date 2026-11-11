@@ -52,8 +52,9 @@ model_by_id = {m["id"]: m for m in models}
 
 annex = AIS.load_reference("ai_annex_iii_area")
 practices = AIS.load_reference("ai_prohibited_practice")
-annex_label = {r["code"]: r["label_en"] for r in annex}
-practice_label = {r["code"]: r["label_en"] for r in practices}
+from i18n import current_language as _ui_lang
+annex_label = {r["code"]: r.get(f"label_{_ui_lang()}") or r["label_en"] for r in annex}
+practice_label = {r["code"]: r.get(f"label_{_ui_lang()}") or r["label_en"] for r in practices}
 try:
     import training_store as TS
     employees = [e for e in TS.load_employees(client_id) if not e.get("left_on")]
@@ -112,7 +113,7 @@ def _uc_form(key: str, u: dict | None = None):
                                                     "retired": "No longer used"}[s])
         roles = [None] + list(AR.ROLES)
         role = e_.selectbox(tr("Your role for this use"), roles, index=roles.index(u.get("role")),
-                            format_func=lambda r: "Same as the system" if r is None else AR.ROLES[r])
+                            format_func=lambda r: tr("Same as the system") if r is None else tr(AR.ROLES[r]))
 
         st.markdown(tr("**Do you become the provider? (Art. 25)**"))
         a, b, c = st.columns(3)
@@ -141,7 +142,7 @@ def _uc_form(key: str, u: dict | None = None):
         conds = [None] + list(AR.ART6_3)
         cond = a.selectbox(tr("Only if an area applies: is it one of the Art. 6(3) exceptions?"), conds,
                            index=conds.index(u.get("art6_3_condition")),
-                           format_func=lambda c_: "No exception" if c_ is None else AR.ART6_3[c_])
+                           format_func=lambda c_: tr("No exception") if c_ is None else tr(AR.ART6_3[c_]))
         prof = _tri(b, "Does it profile people?", u.get("profiles_people"), f"{key}_prof",
                     help="Profiling always makes an Annex III use high-risk, whatever the exception.")
         reason = st.text_input(tr("Why the exception applies"), value=u.get("art6_3_reason") or "",
@@ -149,7 +150,7 @@ def _uc_form(key: str, u: dict | None = None):
 
         st.markdown(tr("**Transparency (Art. 50)**"))
         tcols = st.columns(len(AR.TRANSPARENCY))
-        tvals = {k: _tri(col, label, u.get(k), f"{key}_{k}")
+        tvals = {k: _tri(col, tr(label), u.get(k), f"{key}_{k}")
                  for col, (k, label, _ob) in zip(tcols, AR.TRANSPARENCY)}
 
         st.markdown(tr("**If high-risk (Art. 26, from 2 Dec 2027)**"))
@@ -191,10 +192,10 @@ with tab_uc:
                 c = AR.classify(u)
                 role, _ = AR.effective_role(u, sys_by_id.get(u["system_id"]))
                 rows.append({"id": u["id"], "cells": {
-                    "risk": f"{AR.RISK_ICON[c['risk']]} {AR.RISK_LABELS[c['risk']]}",
+                    "risk": f"{AR.RISK_ICON[c['risk']]} {tr(AR.RISK_LABELS[c['risk']])}",
                     "name": u["name"] + ("" if AR.active(u) else " (no longer used)"),
                     "system": (sys_by_id.get(u["system_id"]) or {}).get("name"),
-                    "role": AR.ROLES.get(role, "—").split(" —")[0] if role else "—",
+                    "role": tr(AR.ROLES.get(role, "—")).split(" —")[0] if role else "—",
                 }, "actions": [{"id": "open", "label": "Open", "icon": "📂"}]})
             hit = tv.table(rows, [{"key": "risk", "label": "Risk"}, {"key": "name", "label": "Use"},
                                   {"key": "system", "label": "AI system"}, {"key": "role", "label": "Role"}],
@@ -207,16 +208,16 @@ with tab_uc:
             c = AR.classify(sel, annex_label)
             role, why = AR.effective_role(sel, sys_by_id.get(sel["system_id"]))
             with st.container(border=True):
-                st.markdown(f"**{AR.RISK_ICON[c['risk']]} {sel['name']}** — {AR.RISK_LABELS[c['risk']]}")
+                st.markdown(f"**{AR.RISK_ICON[c['risk']]} {sel['name']}** — {tr(AR.RISK_LABELS[c['risk']])}")
                 for r in c["reasons"]:
                     st.caption(r)
                 if c["open"]:
                     st.caption("Still to answer: " + "; ".join(c["open"]))
-                st.caption(f"Role: **{AR.ROLES.get(role, 'not recorded')}**. {why}")
+                st.caption(tr("Role: **{ar_roles_get_role_not_re}**. {why}").format(ar_roles_get_role_not_re=tr(AR.ROLES.get(role, 'not recorded')), why=why))
                 from obligations import OBLIGATION_BY_ID
                 duties = [OBLIGATION_BY_ID[o] for o in AR.duties(sel, sys_by_id.get(sel["system_id"]))
                           if o in OBLIGATION_BY_ID]
-                with st.expander(f"What this use brings into play ({len(duties)} obligations)"):
+                with st.expander(tr("What this use brings into play ({len_duties} obligations)").format(len_duties=len(duties))):
                     for o in duties:
                         st.markdown(f"- {o['title']} ({o['article']})")
                 upd = _uc_form(f"ai_uc_{sel['id']}", sel)
@@ -255,8 +256,7 @@ with tab_sys:
         with st.container(border=True):
             ucs = [u for u in use_cases if u["system_id"] == s["id"] and AR.active(u)]
             st.markdown(f"**{s.get('name')}** · {s.get('vendor_legal_name') or ''}")
-            st.caption(f"Default role: {AR.ROLES.get(s.get('ai_role'), s.get('ai_role'))} · "
-                       f"{len(ucs)} use{'s' if len(ucs) != 1 else ''}")
+            st.caption(tr("Default role: {ar_roles_get_s_get_ai_ro} · {len_ucs} use{s_if_len_ucs_1_else}").format(ar_roles_get_s_get_ai_ro=tr(AR.ROLES.get(s.get('ai_role'), s.get('ai_role'))), len_ucs=len(ucs), s_if_len_ucs_1_else='s' if len(ucs) != 1 else ''))
             current = [l_["model_id"] for l_ in links if l_["system_id"] == s["id"]]
             with st.form(f"ai_sys_{s['id']}"):
                 a, b = st.columns([2, 1])
@@ -265,7 +265,7 @@ with tab_sys:
                                      help=tr("Add models on the Models tab."))
                 roles = ["none"] + list(AR.ROLES)
                 role = b.selectbox(tr("Default role"), roles, index=roles.index(s.get("ai_role") or "none"),
-                                   format_func=lambda r: "Not an AI system" if r == "none" else AR.ROLES[r])
+                                   format_func=lambda r: tr("Not an AI system") if r == "none" else tr(AR.ROLES[r]))
                 if st.form_submit_button(tr("Save"), disabled=not editable):
                     ok = AIS.set_system_models(user_id, client_id, s["id"], pick)
                     if role != s.get("ai_role"):
@@ -280,7 +280,7 @@ with tab_sys:
             a, b = st.columns([2, 1])
             sid = a.selectbox(tr("System"), [s["id"] for s in others],
                               format_func=lambda i: sys_by_id[i].get("name") or "?")
-            role = b.selectbox(tr("Your role"), list(AR.ROLES), format_func=lambda r: AR.ROLES[r])
+            role = b.selectbox(tr("Your role"), list(AR.ROLES), format_func=lambda r: tr(AR.ROLES[r]))
             if st.form_submit_button(tr("Mark as AI"), disabled=not editable):
                 if AIS.set_ai_role(user_id, client_id, sid, role):
                     st.rerun()
@@ -320,8 +320,7 @@ with tab_models:
     for m in models:
         used = [sys_by_id[l_["system_id"]].get("name") for l_ in links
                 if l_["model_id"] == m["id"] and l_["system_id"] in sys_by_id]
-        with st.expander(f"{m['name']} · {m.get('supplier') or ''} — used by "
-                         f"{', '.join(used) if used else 'no system yet'}"):
+        with st.expander(tr("{m_name} · {m_get_supplier_or} — used by {join_used_if_used_else_n}").format(m_name=m['name'], m_get_supplier_or=m.get('supplier') or '', join_used_if_used_else_n=', '.join(used) if used else 'no system yet')):
             upd = _model_form(f"ai_m_{m['id']}", m)
             if upd:
                 if AIS.save_model(user_id, client_id, upd, m["id"]):

@@ -7004,6 +7004,34 @@ By the user ("if fr ok, go for NL and all local links where needed").
   notify" page and is translatable (it was English f-strings).
 - `migration_s64_local_links.sql` records the data change.
 
+
+### D-166 — Runtime-built text translated; the catalogue translates on read, 11 Nov
+
+By the user ("Yes, convert them"), after the live check showed task titles,
+counters and catalogue names still in English on Dutch and French screens.
+
+- **`i18n_tools.py wrapf`** turns f-strings in Streamlit calls into
+  templates: `f"Action plan ({n})"` -> `tr("Action plan ({len_tasks})")
+  .format(len_tasks=…)`, with readable placeholder names; 192 converted, plus
+  the task titles and details of the action-plan producers (tasks.py,
+  training_rules, ai_rules). **Task keys are never wrapped**: the first run
+  wrapped `_finding`'s key too and was reverted; the tool now takes only the
+  title and detail arguments.
+- **The catalogue translates on read** (`obligations._Translated`):
+  `DOCUMENT_TYPES[x]`, `REGULATION_LABELS[x]`, an obligation's `["title"]`
+  and DOC_CATALOG labels return the reader's language; `dict(obj)`,
+  iteration and items() keep the stored English, so keys, scoring and
+  pickling do not change. Documents use the document's language instead:
+  the annual report, the xlsx/docx titles (`raw=True` /
+  `i18n.translate(text, lang)`); the audit-log summary stays English.
+- Label dictionaries also used by documents (AI risk classes and roles,
+  training audiences and formats) are translated at the page, not at the
+  source, so an English document never picks up the reader's language.
+- Placeholders: a translation may leave one out (`.format()` ignores unused
+  arguments — an English plural "s"), never add one; test and merge check
+  enforce it.
+- 259 new strings in French and Dutch: 1,148 per catalogue.
+
 ---
 
 ## 5. Constraints and gotchas

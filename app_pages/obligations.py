@@ -177,7 +177,7 @@ if "NIS2" in regulations:
                         st.success(tr("Saved."))
                         st.rerun(scope="fragment")
                     except Exception as e:
-                        st.error(f"Could not save: {e}")
+                        st.error(tr("Could not save: {e}").format(e=e))
 
             if _cls == "out_of_scope" and not (_row.get("nis2_scope_note") or "").strip():
                 st.warning(
@@ -194,8 +194,7 @@ st.divider()
 # the count and the way there, so the register is not pushed below the fold.
 if open_tasks:
     _ac1, _ac2 = st.columns([3, 1])
-    _ac1.info(f"**{len(open_tasks)} {'task' if len(open_tasks) == 1 else 'tasks'} outstanding** "
-              "— listed by urgency on the Action plan.")
+    _ac1.info(tr("**{len_open_tasks} {task_if_len_open_tasks_1} outstanding** — listed by urgency on the Action plan.").format(len_open_tasks=len(open_tasks), task_if_len_open_tasks_1='task' if len(open_tasks) == 1 else 'tasks'))
     if _ac2.button(tr("Open the action plan"), key="ob_to_plan", use_container_width=True):
         st.switch_page("app_pages/action_plan.py")
 else:
@@ -291,8 +290,7 @@ if shown:
         st.markdown(f"**{_STATUS_ICON[v['status']]}  {ob['title']}**")
         st.markdown(ob.get("description") or "")
         if ob.get("article"):
-            st.caption(f"Legal reference: {REGULATION_LABELS.get(ob['regulation'], ob['regulation'])} "
-                       f"{ob['article']}")
+            st.caption(tr("Legal reference: {regulation_labels_get_ob} {ob_article}").format(regulation_labels_get_ob=REGULATION_LABELS.get(ob['regulation'], ob['regulation']), ob_article=ob['article']))
         note = _SOURCE_NOTE.get(v["source"], "")
         if kind == OR.KIND_TRACKED and v["source"] == OR.SOURCE_DERIVED:
             note = ("Worked out from your AI inventory" if OR.tracked_page(ob["id"]) == "ai_inventory"
@@ -317,9 +315,7 @@ if shown:
         elif kind == OR.KIND_DOCUMENT:
             dt = ob.get("doc_type")
             st.caption(
-                f"Satisfied by a **{DOCUMENT_TYPES.get(dt, dt)}**. "
-                "Generate or upload it under Documents; its status here "
-                "follows the register."
+                tr("Satisfied by a **{document_types_get_dt_dt}**. Generate or upload it under Documents; its status here follows the register.").format(document_types_get_dt_dt=DOCUMENT_TYPES.get(dt, dt))
             )
         if kind == OR.KIND_TRACKED:
             # S60: training. The verdict follows the Training page once people
@@ -331,11 +327,10 @@ if shown:
                 "ai_inventory": ("AI inventory", "🤖", "your AI systems, how each is used, its role and risk"),
             }.get(_tk, ("another page", "📂", "the records this depends on"))
             st.caption(
-                f"Tracked on the {_tname} page: {_twhat}. Once that is filled "
-                "in, this status follows it; until then, what you say below counts."
+                tr("Tracked on the {tname} page: {twhat}. Once that is filled in, this status follows it; until then, what you say below counts.").format(tname=_tname, twhat=_twhat)
             )
             if _tp:
-                st.page_link(_tp, label=f"Open {_tname}", icon=_ticon)
+                st.page_link(_tp, label=tr("Open {tname}").format(tname=_tname), icon=_ticon)
         if kind in (OR.KIND_DERIVED, OR.KIND_DOCUMENT):
             pass
         else:
@@ -351,7 +346,7 @@ if shown:
                     )
                     if resp.get("acknowledged_at"):
                         st.caption(
-                            f"Confirmed {fmt_date(str(resp['acknowledged_at']))}"
+                            tr("Confirmed {fmt_date_str_resp_acknow}").format(fmt_date_str_resp_acknow=fmt_date(str(resp['acknowledged_at'])))
                         )
                 else:
                     who = None

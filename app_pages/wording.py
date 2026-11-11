@@ -141,11 +141,7 @@ for key, spec in INSERTS.items():
         if orphan:
             _lang, _txt = orphan
             st.warning(
-                f"**Written in {_lang.upper()}**, which is not one of your "
-                f"document languages:\n\n*{_txt}*\n\nYour documents fall back "
-                "to it, so this text is what currently appears in them. Copy "
-                "it into the right column below — or write something new — and "
-                "it stops being a fallback."
+                tr("**Written in {lang_upper}**, which is not one of your document languages:\n\n*{txt}*\n\nYour documents fall back to it, so this text is what currently appears in them. Copy it into the right column below — or write something new — and it stops being a fallback.").format(lang_upper=_lang.upper(), txt=_txt)
             )
 
         # One column per document language, same shape as the activity form
@@ -176,7 +172,7 @@ for key, spec in INSERTS.items():
                         st.rerun()
 
                 entered[lang] = st.text_area(
-                    f"Text ({lang.upper()})",
+                    tr("Text ({lang_upper})").format(lang_upper=lang.upper()),
                     value=st.session_state.get(f"ta_{key}_{lang}",
                                                _text(key, lang)),
                     key=f"ta_{key}_{lang}",
@@ -186,7 +182,7 @@ for key, spec in INSERTS.items():
 
                 if st.button(tr("Draft it for me"), key=f"gen_{key}_{lang}",
                              use_container_width=True, disabled=bool(pending))                         and require_edit("draft wording"):
-                    with st.spinner(f"Drafting in {lang.upper()}…"):
+                    with st.spinner(tr("Drafting in {lang_upper}…").format(lang_upper=lang.upper())):
                         out = draft_inserts.draft(
                             key, client, language=lang,
                             user_id=user_id, client_id=client_id,
@@ -253,7 +249,7 @@ for key, spec in INSERTS.items():
                 st.success(tr("Saved."))
                 st.rerun()
             except Exception as e:
-                st.error(f"Could not save: {e}")
+                st.error(tr("Could not save: {e}").format(e=e))
 
 st.divider()
 st.caption(

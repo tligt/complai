@@ -47,6 +47,34 @@ while keeping scoring honest.
 
 import datetime as _dt
 
+
+class _Translated(dict):
+    """A catalogue entry whose display text is translated when read (S64,
+    D-166). `obj[k]` and `obj.get(k)` return the user's language for the
+    given keys (all string values when keys is None); iteration, items(),
+    dict(obj) and {**obj} keep the stored English, so identifiers, scoring,
+    filenames and documents built from the catalogue never change with the
+    interface language."""
+
+    def __init__(self, data, keys=None):
+        super().__init__(data)
+        self._keys = keys
+
+    def _t(self, k, v):
+        if isinstance(v, str) and (self._keys is None or k in self._keys):
+            from i18n import tr  # noqa: PLC0415
+            return tr(v)
+        return v
+
+    def __getitem__(self, k):
+        return self._t(k, super().__getitem__(k))
+
+    def get(self, k, default=None):
+        return self._t(k, super().__getitem__(k)) if k in self else default
+
+    def __reduce__(self):
+        return (_Translated, (dict(self), self._keys))
+
 # ── Document types ────────────────────────────────────────────────────────
 DOCUMENT_TYPES = {
     "privacy_policy":    "Privacy Policy",
@@ -75,6 +103,7 @@ DOCUMENT_TYPES = {
     # S63: for the management body, over a period.
     "annual_report": "Annual Compliance Report",
 }
+DOCUMENT_TYPES = _Translated(DOCUMENT_TYPES)  # S64 (D-166): labels in the user's language
 
 
 # Doc types that still resolve to a label but must never be OFFERED.
@@ -108,11 +137,15 @@ RETIRED_DOCUMENT_TYPES = {
 }
 
 
-def document_label(doc_type: str) -> str:
+def document_label(doc_type: str, raw: bool = False) -> str:
     """Label for any doc_type, live or retired. Falls back to the raw code so
-    an unrecognised value is visibly odd rather than blank."""
+    an unrecognised value is visibly odd rather than blank.
+
+    raw=True: the stored English, for documents that translate it into
+    their own language rather than the reader's (S64, D-166)."""
+    types = dict(DOCUMENT_TYPES) if raw else DOCUMENT_TYPES
     return (
-        DOCUMENT_TYPES.get(doc_type)
+        types.get(doc_type)
         or RETIRED_DOCUMENT_TYPES.get(doc_type)
         or doc_type
     )
@@ -128,6 +161,7 @@ REGULATION_LABELS = {
     "EPRIVACY":  "ePrivacy",
     "EU_AI_ACT": "EU AI Act",
 }
+REGULATION_LABELS = _Translated(REGULATION_LABELS)  # S64 (D-166): labels in the user's language
 
 KIND_DOCUMENT    = "document"
 KIND_OPERATIONAL = "operational"
@@ -935,6 +969,8 @@ def profile_questions_for(regulations) -> list:
 # ── Derived views ─────────────────────────────────────────────────────────
 # Nothing below is maintained by hand. Edit OBLIGATIONS above instead.
 
+# S64 (D-166): titles shown in the user's language; see _Translated.
+OBLIGATIONS = [_Translated(o, {"title"}) for o in OBLIGATIONS]
 OBLIGATION_BY_ID = {o["id"]: o for o in OBLIGATIONS}
 
 DOCUMENT_OBLIGATIONS = [o for o in OBLIGATIONS if o["kind"] == KIND_DOCUMENT]
@@ -1000,13 +1036,13 @@ DOC_TYPE_REGULATIONS = {
 
 # doc_type -> {"label", "regulations"}, for the dashboard checklist.
 DOC_CATALOG = {
-    dt: {
+    dt: _Translated({
         "label": label,
         "regulations": sorted({
             _client_regulation(o["regulation"])
             for o in OBLIGATIONS if o["doc_type"] == dt
         }) or DOC_TYPE_REGULATIONS.get(dt, []),
-    }
+    }, {"label"})
     for dt, label in DOCUMENT_TYPES.items()
 }
 

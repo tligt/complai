@@ -65,9 +65,7 @@ for n in items:
     new = not n.get("read_at")
     with st.container(border=True):
         a, b = st.columns([5, 1])
-        a.markdown(f"{_ICON.get(n['kind'], '•')} {'**' if new else ''}{line}{'**' if new else ''}"
-                   f" · {c['company_name']} · :gray[{fmt_date((n.get('created_at') or '')[:10])}]"
-                   f"  \n{n.get('item_title') or ''}")
+        a.markdown(tr("{icon_get_n_kind} {if_new_else}{line}{if_new_else2} · {c_company_name} · :gray[{fmt_date_n_get_created_a}]  \n{n_get_item_title_or}").format(icon_get_n_kind=_ICON.get(n['kind'], '•'), if_new_else='**' if new else '', line=line, if_new_else2='**' if new else '', c_company_name=c['company_name'], fmt_date_n_get_created_a=fmt_date((n.get('created_at') or '')[:10]), n_get_item_title_or=n.get('item_title') or ''))
         if b.button(tr("Open"), key=f"inbox_open_{n['id']}", use_container_width=True,
                     type="primary" if new else "secondary"):
             _open(n)

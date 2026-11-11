@@ -24,8 +24,11 @@ for en, fr in pairs:
     if not fr.strip():
         failures.append(f"empty: {en[:60]!r}")
         continue
-    if sorted(re.findall(r"\{[a-z_0-9]*\}", en)) != sorted(re.findall(r"\{[a-z_0-9]*\}", fr)):
-        failures.append(f"placeholders differ: {en[:60]!r}")
+    # A translation may leave a placeholder out (str.format ignores unused
+    # arguments, e.g. an English plural "s"), but never add one.
+    ph = lambda t: set(re.findall(r"\{[a-z_0-9]*(?:![rsa])?(?::[^}]*)?\}", t))  # noqa: E731
+    if not ph(fr) <= ph(en):
+        failures.append(f"placeholder not in the English: {en[:60]!r}")
     if en.count("**") != fr.count("**"):
         failures.append(f"bold markers differ: {en[:60]!r}")
     if re.findall(r":[a-z]+\[", en) != re.findall(r":[a-z]+\[", fr):

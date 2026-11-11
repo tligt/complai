@@ -109,11 +109,11 @@ if funnel.has_site(pending):
     # site proven this account's (meta tag or DNS TXT).
     proven = FD.site_proven(email, pending)
     key = f"free_check_{site}"
-    st.subheader(f"Website check — {site}")
+    st.subheader(tr("Website check — {site}").format(site=site))
     if key not in st.session_state:
         from crawler import crawl
         from checklist import run_checklist
-        with st.spinner(f"Checking {site}…"):
+        with st.spinner(tr("Checking {site}…").format(site=site)):
             crawl_result = crawl(site)
         st.session_state[key] = ((run_checklist(crawl_result), crawl_result.url)
                                  if not crawl_result.error else (None, crawl_result.error))
@@ -128,12 +128,11 @@ if funnel.has_site(pending):
             pending = {**pending, "site_token": token}
             save_pending_result(user_id, pending)
         with st.container(border=True):
-            st.markdown(f"**Prove that {site} is yours to unlock the full report**")
-            st.caption(f"Your email ({email}) is not at {site}. Free checks are for your own "
-                       "website, so add one of these, then verify. Paid plans check any site.")
+            st.markdown(tr("**Prove that {site} is yours to unlock the full report**").format(site=site))
+            st.caption(tr("Your email ({email}) is not at {site}. Free checks are for your own website, so add one of these, then verify. Paid plans check any site.").format(email=email, site=site))
             st.markdown("**Either** a meta tag in the `<head>` of the homepage:")
             st.code(f'<meta name="{FD.META_NAME}" content="{token}">', language="html")
-            st.markdown(f"**or** a DNS TXT record on {site}:")
+            st.markdown(tr("**or** a DNS TXT record on {site}:").format(site=site))
             st.code(f"{FD.META_NAME}={token}", language="text")
             if st.button(tr("Verify the site"), type="primary", key="verify_site"):
                 with st.spinner(tr("Looking for it…")):
@@ -164,8 +163,7 @@ if answers is not None:
     render_quiz_breakdown(answers, locked=False)
     if client:
         st.caption(
-            f"Your answers are recorded in **{client['company_name']}**'s obligations "
-            "register as your own declarations. A full assessment replaces them."
+            tr("Your answers are recorded in **{client_company_name}**'s obligations register as your own declarations. A full assessment replaces them.").format(client_company_name=client['company_name'])
         )
 
 # ── GDPR Quick Check result (D-137) ───────────────────────────────────────
@@ -177,8 +175,7 @@ if gdpr_answers is not None:
     render_quiz_breakdown(gdpr_answers, locked=False, kind=funnel.GDPR)
     if client:
         st.caption(
-            f"Your answers are recorded in **{client['company_name']}**'s obligations "
-            "register as your own declarations. A full assessment replaces them."
+            tr("Your answers are recorded in **{client_company_name}**'s obligations register as your own declarations. A full assessment replaces them.").format(client_company_name=client['company_name'])
         )
 
 # ── AI Act Quick Check result (S55) ───────────────────────────────────────
@@ -190,8 +187,7 @@ if ai_answers is not None:
     render_quiz_breakdown(ai_answers, locked=False, kind=funnel.AI_ACT)
     if client:
         st.caption(
-            f"Your answers are recorded in **{client['company_name']}**'s obligations "
-            "register as your own declarations. A full assessment replaces them."
+            tr("Your answers are recorded in **{client_company_name}**'s obligations register as your own declarations. A full assessment replaces them.").format(client_company_name=client['company_name'])
         )
 
 # ── The checks not taken yet ──────────────────────────────────────────────

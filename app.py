@@ -223,7 +223,7 @@ with st.sidebar:
         from datetime import datetime, timezone
         _left = (datetime.fromisoformat(_profile["trial_ends_at"].replace("Z", "+00:00"))
                  - datetime.now(timezone.utc)).days + 1
-        st.caption(f"Free trial — {_left} day{'s' if _left != 1 else ''} left")
+        st.caption(tr("Free trial — {left} day{s_if_left_1_else} left").format(left=_left, s_if_left_1_else='s' if _left != 1 else ''))
 
 # ── First-run: no client yet ─────────────────────────────────────
 # S37, widened in S38 to accessible clients (owned or member-of) — not

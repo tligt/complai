@@ -207,10 +207,7 @@ c4.metric(tr("Controllers"), len(counterparties))
 # discovering it at generation time.
 if ready["processor_activities"] and ready["controller_activities"]:
     st.info(
-        f"You act as controller for {ready['controller_activities']} "
-        f"{'activity' if ready['controller_activities'] == 1 else 'activities'} and as "
-        f"processor for {ready['processor_activities']}. These produce two separate "
-        "records — the supervisory authority expects them kept apart."
+        tr("You act as controller for {ready_controller_activit} {activity_if_ready_contro} and as processor for {ready_processor_activiti}. These produce two separate records — the supervisory authority expects them kept apart.").format(ready_controller_activit=ready['controller_activities'], activity_if_ready_contro='activity' if ready['controller_activities'] == 1 else 'activities', ready_processor_activiti=ready['processor_activities'])
     )
 
 # Blocking items are not gaps. A missing security measure leaves the record
@@ -280,8 +277,7 @@ with tab_systems:
         _res = st.session_state.get(_scan_key)
         if not _res and _history:
             _res = detection.result_from_saved(_history[0])
-            st.caption(f"Showing your last scan, {_scan_date(_history[0])} "
-                       f"({_history[0]['website']}). Scan again to refresh it.")
+            st.caption(tr("Showing your last scan, {scan_date_history_0} ({history_0_website}). Scan again to refresh it.").format(scan_date_history_0=_scan_date(_history[0]), history_0_website=_history[0]['website']))
         if _res:
             for _e in _res.errors:
                 st.caption(f"⚠️ {_e}")
@@ -289,7 +285,7 @@ with tab_systems:
             _have = [d.name for d in _res.detected if d.catalogue_key in seeded]
 
             if _new:
-                st.markdown(f"**Found for {_res.domain}.** Tick the ones you use:")
+                st.markdown(tr("**Found for {res_domain}.** Tick the ones you use:").format(res_domain=_res.domain))
                 _picks = []
                 for _d in _new:
                     if st.checkbox(
@@ -320,7 +316,7 @@ with tab_systems:
                     st.session_state[_flash_key] = _msgs
                     st.rerun()
             elif not _have:
-                st.info(f"No tools from our catalogue were recognised for {_res.domain}.")
+                st.info(tr("No tools from our catalogue were recognised for {res_domain}.").format(res_domain=_res.domain))
 
             if _have:
                 st.caption("Already in your inventory: " + ", ".join(_have))
@@ -343,7 +339,7 @@ with tab_systems:
                         ]
                         st.rerun()
 
-        if _history and st.toggle(f"Scan history ({len(_history)})",
+        if _history and st.toggle(tr("Scan history ({len_history})").format(len_history=len(_history)),
                                   key=f"inv_scan_hist_{client_id}"):
             for _h_row in _history:
                 _tools = [d["name"] for d in _h_row.get("detected") or []]
@@ -373,8 +369,7 @@ with tab_systems:
 
             n_acts = len(entry.get("activities", []))
             st.caption(
-                f"Creates 1 system and {n_acts} processing "
-                f"{'activity' if n_acts == 1 else 'activities'}."
+                tr("Creates 1 system and {n_acts} processing {activity_if_n_acts_1_els}.").format(n_acts=n_acts, activity_if_n_acts_1_els='activity' if n_acts == 1 else 'activities')
             )
             # Surfacing the caveats before the click, not after — a client who
             # accepts a joint-controller default without seeing the argument
@@ -390,8 +385,7 @@ with tab_systems:
                     st.error(res["error"])
                 else:
                     st.success(
-                        f"Added {res['system_name']} and "
-                        f"{res['activities_created']} processing activities."
+                        tr("Added {res_system_name} and {res_activities_created} processing activities.").format(res_system_name=res['system_name'], res_activities_created=res['activities_created'])
                     )
                     for e in res.get("errors", []):
                         st.warning(e)
@@ -399,7 +393,7 @@ with tab_systems:
                     # validation so the client is not blocked at the tick.
                     # Previously the only trace was a note on the row.
                     for i in res.get("incomplete", []):
-                        st.warning(f"Needs completing — {i}")
+                        st.warning(tr("Needs completing — {i}").format(i=i))
                     st.rerun()
 
     st.divider()
@@ -698,7 +692,7 @@ with tab_activities:
     existing = by_id.get(st.session_state["inv_act_select"])
     tv.focus(f"inv_activities_{client_id}")
     if existing is not None:
-        st.markdown(f"**Edit {_activity_label(existing['id'])}**")
+        st.markdown(tr("**Edit {activity_label_existing}**").format(activity_label_existing=_activity_label(existing['id'])))
         if st.button(tr("➕ Add a new activity"), key="inv_act_add"):
             st.session_state["inv_act_select"] = None
             st.rerun()
@@ -750,10 +744,7 @@ with tab_activities:
             _orphan = _unplaced(a, field)
             if _orphan:
                 st.warning(
-                    f"**{label}** was recorded before languages were tracked, "
-                    f"and its language is unknown: *{_orphan}*\n\n"
-                    "Documents still use it as a fallback. Put it in the right "
-                    "column below — or retype it — and it stops being guessed at."
+                    tr("**{label}** was recorded before languages were tracked, and its language is unknown: *{orphan}*\n\nDocuments still use it as a fallback. Put it in the right column below — or retype it — and it stops being guessed at.").format(label=label, orphan=_orphan)
                 )
 
         entries: dict[str, dict[str, str]] = {}
@@ -815,7 +806,7 @@ with tab_activities:
                 current = existing_roles.get(sid, STORE.ROLE_UNKNOWN)
                 idx = sysrole_codes.index(current) if current in sysrole_codes else 0
                 system_roles[sid] = st.selectbox(
-                    f"Role — {system_name.get(sid, sid)}",
+                    tr("Role — {system_name_get_sid_sid}").format(system_name_get_sid_sid=system_name.get(sid, sid)),
                     options=sysrole_codes,
                     index=idx,
                     format_func=lambda c: sysrole_labels.get(c, c),
@@ -1257,7 +1248,7 @@ with tab_controllers:
     cp_existing = cp_by_id.get(st.session_state["inv_cp_select"])
     tv.focus(f"inv_controllers_{client_id}")
     if cp_existing is not None:
-        st.markdown(f"**Edit {cp_existing['legal_name']}**")
+        st.markdown(tr("**Edit {cp_existing_legal_name}**").format(cp_existing_legal_name=cp_existing['legal_name']))
         if st.button(tr("➕ Add a controller"), key="inv_cp_add"):
             st.session_state["inv_cp_select"] = None
             st.rerun()

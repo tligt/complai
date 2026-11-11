@@ -33,9 +33,7 @@ groups = load_member_groups(user_id)
 if not groups:
     tier = (get_user_profile(user_id) or {}).get("subscription_tier")
     if tier != "enterprise":
-        st.info(f"Groups are part of the **Enterprise** plan: several companies or "
-                "divisions under one account, with people assigned to each and a "
-                f"group overview. [Contact us]({ENTERPRISE_URL}) to set it up.")
+        st.info(tr("Groups are part of the **Enterprise** plan: several companies or divisions under one account, with people assigned to each and a group overview. [Contact us]({enterprise_url}) to set it up.").format(enterprise_url=ENTERPRISE_URL))
         st.stop()
     st.markdown(tr("Name your group to get started. Every company you own becomes "
                 "part of it, and you can invite people to work across all of them."))
@@ -58,7 +56,7 @@ else:
 my_role = group["role"]
 is_admin = can_manage_people(my_role)
 st.subheader(group["name"])
-st.caption(f"Your role in the group: {role_label(my_role)}")
+st.caption(tr("Your role in the group: {role_label_my_role}").format(role_label_my_role=role_label(my_role)))
 
 # ── Overview ──────────────────────────────────────────────────────────────
 companies = group_companies(group)
@@ -153,8 +151,7 @@ if is_admin:
         if ic3.form_submit_button(tr("Invite"), use_container_width=True):
             ok, err = invite_group_member(group, user_id, email, role)
             if ok:
-                st.success(f"Invited {email.strip()} as {CLIENT_ROLES[role]} on every "
-                           "company of the group.")
+                st.success(tr("Invited {email_strip} as {client_roles_role} on every company of the group.").format(email_strip=email.strip(), client_roles_role=CLIENT_ROLES[role]))
                 if err:             # D-146: invited, but no email went out
                     st.warning(err)
                 load_accessible_clients.clear()

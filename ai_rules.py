@@ -30,6 +30,7 @@ intended purpose so it becomes high-risk.
 """
 
 from __future__ import annotations
+from i18n import tr  # S64 interface translation (D-164)
 
 from datetime import date
 from typing import Any, Iterable, Mapping
@@ -301,23 +302,23 @@ def findings(client: Mapping[str, Any], systems: Iterable[Mapping[str, Any]],
     for s in systems:
         if is_ai_system(s) and not any(u["system_id"] == s["id"] for u in ucs):
             out.append(_finding("ai", f"no_use:{s['id']}",
-                                f"AI inventory: describe how {s.get('name')} is used",
+                                tr("AI inventory: describe how {s_get_name} is used").format(s_get_name=s.get('name')),
                                 OPEN, "Role and risk depend on the use, not the system.",
                                 None, link="ai_inventory"))
     for u in ucs:
         c = classify(u)
         if c["risk"] == PROHIBITED:
             out.append(_finding("ai", f"prohibited:{u['id']}",
-                                f"AI inventory: {u['name']} matches a prohibited practice",
+                                tr("AI inventory: {u_name} matches a prohibited practice").format(u_name=u['name']),
                                 BLOCKING, "Art. 5: stop this use.", None, link="ai_inventory"))
         elif c["risk"] == UNKNOWN or c["open"]:
             out.append(_finding("ai", f"assess:{u['id']}",
-                                f"AI inventory: finish assessing {u['name']}", OPEN,
+                                tr("AI inventory: finish assessing {u_name}").format(u_name=u['name']), OPEN,
                                 "Still to answer: " + ", ".join(c["open"][:3])
                                 + ("…" if len(c["open"]) > 3 else ""), None, link="ai_inventory"))
         role, _ = effective_role(u, by_id.get(u["system_id"]))
         if c["risk"] == HIGH and role == "deployer" and not u.get("oversight_employee_id"):
             out.append(_finding("ai", f"oversight:{u['id']}",
-                                f"AI inventory: name a human overseer for {u['name']}", OPEN,
+                                tr("AI inventory: name a human overseer for {u_name}").format(u_name=u['name']), OPEN,
                                 "Art. 26(2), from 2 Dec 2027.", HIGH_RISK_FROM, link="ai_inventory"))
     return out

@@ -176,14 +176,14 @@ try:
             doc_gap_status[doc_type] = {"status": agg, "details": items}
 
 except Exception as e:
-    st.warning(f"Could not load gap assessment: {e}")
+    st.warning(tr("Could not load gap assessment: {e}").format(e=e))
 
 gap_date = fmt_date(str(last_gap.get("created_at", ""))) if last_gap else None
 
 # ═══════════════════════════════════════════════════════════════
 # SECTION 1 — Regulation Status
 # ═══════════════════════════════════════════════════════════════
-st.subheader(f"Compliance status — {company_name}")
+st.subheader(tr("Compliance status — {company_name}").format(company_name=company_name))
 
 # Usability audit C6 (D-123): the one headline figure, the same as on
 # Obligations and the Compliance record. It replaces the On track / In progress
@@ -193,7 +193,7 @@ import obligation_view as _OV
 try:
     _ob_state = _OV.load_state(user_id, client)
 except Exception as e:
-    st.warning(f"Could not work out your obligations: {e}")
+    st.warning(tr("Could not work out your obligations: {e}").format(e=e))
     _ob_state = None
 if _ob_state:
     from guide import notice
@@ -218,7 +218,7 @@ st.divider()
 # ═══════════════════════════════════════════════════════════════
 st.subheader(tr("📋 Document checklist"))
 if gap_date:
-    st.caption(f"Status from gap assessment run on {gap_date}. Click a row to see details.")
+    st.caption(tr("Status from gap assessment run on {gap_date}. Click a row to see details.").format(gap_date=gap_date))
 else:
     st.caption(tr("Run a gap assessment to see per-document compliance status."))
 
@@ -315,7 +315,7 @@ for doc_type, meta in relevant_docs.items():
 
     # Expandable details from gap assessment
     if gap_info and gap_info["details"]:
-        with st.expander(f"Details — {meta['label']}", expanded=False):
+        with st.expander(tr("Details — {meta_label}").format(meta_label=meta['label']), expanded=False):
             for item in gap_info["details"]:
                 s = item["status"]
                 icon = "✅" if s == "compliant" else ("🟡" if s == "partial" else "❌")
@@ -343,11 +343,10 @@ st.divider()
 operational = operational_for_regulations(regulations)
 
 if last_gap:
-    with st.expander(f"⚙️ Your practices — what the gap assessment of {gap_date} found",
+    with st.expander(tr("⚙️ Your practices — what the gap assessment of {gap_date} found").format(gap_date=gap_date),
                      expanded=False):
         st.caption(
-            "Practices and procedures no document can satisfy, as assessed on "
-            f"{gap_date}. A snapshot of that day: the figure at the top is today's."
+            tr("Practices and procedures no document can satisfy, as assessed on {gap_date}. A snapshot of that day: the figure at the top is today's.").format(gap_date=gap_date)
         )
 
         # Obligations that do not bind yet are reported but never counted as
@@ -380,8 +379,7 @@ if last_gap:
 
         if n_unknown:
             st.caption(
-                f"{plural(n_unknown, 'obligation')} {'was' if n_unknown == 1 else 'were'} not covered by the assessment on "
-                f"{gap_date} — most likely added since. Re-run to include them."
+                tr("{plural_n_unknown_obligat} {was_if_n_unknown_1_else} not covered by the assessment on {gap_date} — most likely added since. Re-run to include them.").format(plural_n_unknown_obligat=plural(n_unknown, 'obligation'), was_if_n_unknown_1_else='was' if n_unknown == 1 else 'were', gap_date=gap_date)
             )
 
         ICONS = {"compliant": "✅", "partial": "🟡", "not_applicable": "⚪",
@@ -403,9 +401,7 @@ if last_gap:
             if not reg_rows:
                 continue
             st.markdown(
-                f"##### {REG_LABELS.get(reg, reg)} — "
-                f"{sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial'))} "
-                f"of {len(reg_rows)} need attention"
+                tr("##### {reg_labels_get_reg_reg} — {sum_1_for_s_in_reg_rows} of {len_reg_rows} need attention").format(reg_labels_get_reg_reg=REG_LABELS.get(reg, reg), sum_1_for_s_in_reg_rows=sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial')), len_reg_rows=len(reg_rows))
             )
             for ob, status, res in reg_rows:
                 st.markdown(
@@ -421,15 +417,14 @@ if last_gap:
                     st.caption(f"→ {res['recommendation']}")
 
         if forthcoming:
-            st.markdown(f"##### 🕓 Not yet in force ({len(forthcoming)})")
+            st.markdown(tr("##### 🕓 Not yet in force ({len_forthcoming})").format(len_forthcoming=len(forthcoming)))
             st.caption(
                 tr("Already law, but not yet binding. Nothing to do today — "
                 "shown so the dates are not a surprise.")
             )
             for ob in sorted(forthcoming, key=lambda o: o["applies_from"]):
                 st.markdown(
-                    f"**{ob['title']}**  `{ob['article']}`  ·  "
-                    f"applies from **{applies_from_label(ob)}**"
+                    tr("**{ob_title}**  `{ob_article}`  ·  applies from **{applies_from_label_ob}**").format(ob_title=ob['title'], ob_article=ob['article'], applies_from_label_ob=applies_from_label(ob))
                 )
                 st.caption(ob["description"])
 
@@ -459,15 +454,15 @@ with col2:
         score_overall = last_gap.get("score_overall", "—")
         # C6: named for what it measures — the quality of your documents on
         # the day of the run — so it no longer competes with the headline.
-        st.info(f"Document quality, assessed {gap_date}")
-        st.caption(f"GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100")
+        st.info(tr("Document quality, assessed {gap_date}").format(gap_date=gap_date))
+        st.caption(tr("GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100").format(score_gdpr=score_gdpr, score_nis2=score_nis2, score_overall=score_overall))
         try:
             _gap_age = (datetime.now(timezone.utc) - datetime.fromisoformat(
                 str(last_gap.get("created_at")).replace("Z", "+00:00"))).days
         except Exception:
             _gap_age = 0
         if _gap_age > 30:
-            st.caption(f":orange[{_gap_age} days old — rerun it to refresh.]")
+            st.caption(tr(":orange[{gap_age} days old — rerun it to refresh.]").format(gap_age=_gap_age))
         if st.button(tr("Run new assessment →")):
             st.switch_page("app_pages/gap.py")
     else:
@@ -515,7 +510,7 @@ _steps = [
 if not all(done for _, done, _, _ in _steps):
     with _start_slot.container(border=True):
         _n_done = sum(1 for _, done, _, _ in _steps if done)
-        st.markdown(f"**Getting started** · {_n_done} of {len(_steps)} done")
+        st.markdown(tr("**Getting started** · {n_done} of {len_steps} done").format(n_done=_n_done, len_steps=len(_steps)))
         st.progress(_n_done / len(_steps))
         _next_step = next(i for i, (_, done, _, _) in enumerate(_steps) if not done)
         for _i, (_label, _done, _page, _why) in enumerate(_steps):
@@ -555,14 +550,14 @@ with _next_slot.container(border=True):
                                   use_container_width=True, type="primary"):
             st.session_state["ap_only_mine"] = True
             st.switch_page("app_pages/action_plan.py")
-        if _inbox_new and _m2.button(f"Inbox ({_inbox_new} new)", key="home_inbox",
+        if _inbox_new and _m2.button(tr("Inbox ({inbox_new} new)").format(inbox_new=_inbox_new), key="home_inbox",
                                      use_container_width=True):
             st.switch_page("app_pages/inbox.py")
     _b1, _b2, _b3 = st.columns(3)
-    if _tasks and _b1.button(f"Action plan ({len(_tasks)})", key="home_plan",
+    if _tasks and _b1.button(tr("Action plan ({len_tasks})").format(len_tasks=len(_tasks)), key="home_plan",
                              use_container_width=True):
         st.switch_page("app_pages/action_plan.py")
-    if _alerts_n and _b2.button(f"Alerts ({_alerts_n} unread)", key="home_alerts",
+    if _alerts_n and _b2.button(tr("Alerts ({alerts_n} unread)").format(alerts_n=_alerts_n), key="home_alerts",
                                 use_container_width=True):
         st.switch_page("app_pages/alerts.py")
     if _replies_n and _b3.button(plural(_replies_n, "support reply", "support replies"),

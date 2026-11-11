@@ -161,8 +161,7 @@ def _action(row: dict) -> str:
 
 st.title(tr("Activity Log"))
 st.caption(
-    "A record of compliance actions taken on your account. "
-    f"All times in {TZ_LABEL}."
+    tr("A record of compliance actions taken on your account. All times in {tz_label}.").format(tz_label=TZ_LABEL)
 )
 
 user_id = get_user_id()
@@ -180,7 +179,7 @@ try:
         .data
     ) or []
 except Exception as e:
-    st.error(f"Could not load activity log: {e}")
+    st.error(tr("Could not load activity log: {e}").format(e=e))
     rows = []
 
 if not rows:

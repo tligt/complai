@@ -80,7 +80,7 @@ for with_verdicts in (True, False):
         check(f"{tag} incident listed", "Phishing" in md)
         check(f"{tag} regulatory listed", "EDPB guidelines" in md)
         check(f"{tag} gap listed or not available",
-              (applicable[0]["title"] in md) if with_verdicts else
+              (__import__("i18n").translate(dict(applicable[0])["title"], lang) in md) if with_verdicts else
               ("not available" in md or "pas disponibles" in md))
         if with_verdicts and lang == "en" and "--show" in sys.argv:
             print(md)

@@ -22,6 +22,7 @@ from active_client import can_edit_active, get_active_client
 from auth import get_user_id
 from display import plural
 from guide import page_tip
+from i18n import current_language as _ui_lang
 
 st.title(tr("Training"))
 page_tip("training")
@@ -80,9 +81,9 @@ with tab_matrix:
         c = cov[r["code"]]
         ok = c[TR.CURRENT] + c[TR.EXPIRING]
         with col.container(border=True):
-            st.markdown(f"**{r['label_en']}**")
+            st.markdown(f"**{TR.label(r, _ui_lang())}**")
             if r.get("applies_from") and r["applies_from"] > today:
-                st.caption(f"Applies from {_fd(r['applies_from'])}")
+                st.caption(tr("Applies from {fd_r_applies_from}").format(fd_r_applies_from=_fd(r['applies_from'])))
             if c["required"]:
                 st.metric(tr("Current"), f"{ok} / {c['required']}", label_visibility="collapsed")
                 parts = []
@@ -95,7 +96,7 @@ with tab_matrix:
                 st.caption(" · ".join(parts) or "Everyone is current.")
             else:
                 st.caption(tr("Nobody recorded needs it."))
-            st.caption(f"{TR.AUDIENCES[r['audience']]} · {r['anchor']}", help=r["note_en"])
+            st.caption(f"{tr(TR.AUDIENCES[r['audience']])} · {r['anchor']}", help=r["note_en"])
 
     if not active:
         st.info(tr("Record your people on the **People** tab to see who needs what."))
@@ -110,13 +111,10 @@ with tab_matrix:
                     txt += f" until {_fd(x['valid_until'])}"
                 elif x["state"] == TR.ABSENT:
                     txt += " not trained"
-                row[r["label_en"]] = txt
+                row[TR.label(r, _ui_lang())] = txt
             rows.append(row)
         st.dataframe(rows, hide_index=True, use_container_width=True)
-        st.caption(f"🟢 current · 🟡 lapses within {TR.EXPIRING_DAYS} days · 🔴 lapsed · "
-                   "⚪ never trained · – not required. A session counts for "
-                   f"{reqs[0]['refresh_months']} months unless it says otherwise: RECOSA's "
-                   "default, since the law asks for \"regular\" training without a number.")
+        st.caption(tr("🟢 current · 🟡 lapses within {tr_expiring_days} days · 🔴 lapsed · ⚪ never trained · – not required. A session counts for {reqs_0_refresh_months} months unless it says otherwise: RECOSA's default, since the law asks for \"regular\" training without a number.").format(tr_expiring_days=TR.EXPIRING_DAYS, reqs_0_refresh_months=reqs[0]['refresh_months']))
 
 
 # ── People ────────────────────────────────────────────────────────────────
@@ -140,7 +138,7 @@ def _person_form(key: str, e: dict | None = None) -> dict | None:
         fc = st.columns(len(_FLAGS))
         for col, (k, lbl, hlp) in zip(fc, _FLAGS):
             flags[k] = col.checkbox(lbl, value=bool(e.get(k, k == "handles_personal_data")),
-                                    help=f"Decides: {hlp}")
+                                    help=tr("Decides: {hlp}").format(hlp=hlp))
         c, d = st.columns(2)
         started = c.date_input(tr("Started on (optional)"), value=TR._d(e.get("started_on")),
                                format="DD/MM/YYYY")
@@ -169,7 +167,7 @@ with tab_people:
         hit = tv.table(
             [{"id": e["id"], "cells": {
                 "name": e["name"], "job": e.get("job_title"), "dept": e.get("department"),
-                "needs": ", ".join(r["label_en"] for r in reqs if TR.needs(e, r)) or "—",
+                "needs": ", ".join(TR.label(r, _ui_lang()) for r in reqs if TR.needs(e, r)) or "—",
                 "left": TR._d(e.get("left_on")),
             }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for e in listed],
             [{"key": "name", "label": "Name"}, {"key": "job", "label": "Job title"},
@@ -205,7 +203,7 @@ with tab_people:
     new = _person_form("tr_add")
     if new:
         if TS.save_employee(user_id, client_id, new):
-            st.success(f"{new['name']} added.")
+            st.success(tr("{new_name} added.").format(new_name=new['name']))
             st.rerun()
         st.error(tr("Could not add. If you have read-only access, an admin must do this."))
 
@@ -228,7 +226,7 @@ with tab_people:
                                      "handles_personal_data": True, "uses_ai": ai_all})
                 n = TS.save_employees(user_id, client_id, rows)
                 if n:
-                    st.success(f"{plural(n, 'person', 'people')} added.")
+                    st.success(tr("{plural_n_person_people} added.").format(plural_n_person_people=plural(n, 'person', 'people')))
                     st.rerun()
                 st.error(tr("Nothing added."))
 
@@ -245,14 +243,14 @@ def _session_form(key: str, s: dict | None = None, attendee_ids: set[str] | None
         codes = st.multiselect(
             tr("Which training it counts for"), [r["code"] for r in reqs],
             default=[c for c in (s.get("requirement_codes") or []) if c in req_by_code],
-            format_func=lambda c: req_by_code[c]["label_en"])
+            format_func=lambda c: TR.label(req_by_code[c], _ui_lang()))
         a, b, c = st.columns(3)
         held = a.date_input(tr("Held on"), value=TR._d(s.get("held_on")) or today, format="DD/MM/YYYY")
         dur = b.number_input(tr("Duration (minutes)"), min_value=0, step=15,
                              value=int(s.get("duration_minutes") or 0))
         fmt = c.selectbox(tr("Format"), _FMT_KEYS,
                           index=_FMT_KEYS.index(s.get("format") or "in_person"),
-                          format_func=lambda k: TR.FORMATS[k])
+                          format_func=lambda k: tr(TR.FORMATS[k]))
         d, e_ = st.columns(2)
         provider = d.text_input(tr("Provider"), value=s.get("provider") or "",
                                 help=tr("Internal, or the training company."))
@@ -297,7 +295,7 @@ with tab_sessions:
         hit = tv.table(
             [{"id": s["id"], "cells": {
                 "date": TR._d(s["held_on"]), "title": s["title"],
-                "covers": ", ".join(req_by_code[c]["label_en"] for c in s.get("requirement_codes") or []
+                "covers": ", ".join(TR.label(req_by_code[c], _ui_lang()) for c in s.get("requirement_codes") or []
                                     if c in req_by_code),
                 "n": len(att_by_session.get(s["id"], ())),
             }, "actions": [{"id": "open", "label": "Open", "icon": "📂"}]} for s in sessions],
@@ -318,7 +316,7 @@ with tab_sessions:
                 dl = st.columns(len(lang_opts))
                 for col, lg in zip(dl, lang_opts):
                     col.download_button(
-                        f"Attendance attestation ({lg.upper()})",
+                        tr("Attendance attestation ({lg_upper})").format(lg_upper=lg.upper()),
                         data=build_attestation_pdf(client, sel, who, reqs, lg),
                         file_name=f"attestation_{_fd(sel['held_on']).replace('/', '-')}_{lg}.pdf",
                         mime="application/pdf", key=f"tr_att_{sel['id']}_{lg}")
@@ -344,7 +342,7 @@ with tab_sessions:
     res = _session_form("tr_ses_new")
     if res:
         if TS.save_session(user_id, client_id, res[0], res[1]):
-            st.success(f"Recorded, with {plural(len(res[1]), 'attendee', 'attendees')}.")
+            st.success(tr("Recorded, with {plural_len_res_1_attende}.").format(plural_len_res_1_attende=plural(len(res[1]), 'attendee', 'attendees')))
             st.rerun()
         st.error(tr("Could not record. If you have read-only access, an admin must do this."))
 
@@ -359,7 +357,7 @@ with tab_docs:
     dl = st.columns(len(lang_opts) + 1)
     for col, lg in zip(dl, lang_opts):
         col.download_button(
-            f"Training plan ({lg.upper()})",
+            tr("Training plan ({lg_upper})").format(lg_upper=lg.upper()),
             data=build_plan_pdf(client, all_reqs, employees, sessions, attendance, today, lg),
             file_name=f"training_plan_{today:%Y-%m-%d}_{lg}.pdf", mime="application/pdf",
             key=f"tr_plan_{lg}")

@@ -31,8 +31,7 @@ def render_subscribe() -> None:
                 "continue where you left off."))
     else:
         st.markdown(
-            "This part of RECOSA is included in every plan. Start a "
-            f"**{TRIAL_DAYS}-day free trial** to use all of it — no card needed."
+            tr("This part of RECOSA is included in every plan. Start a **{trial_days}-day free trial** to use all of it — no card needed.").format(trial_days=TRIAL_DAYS)
         )
 
     # D-126: the website's plans, as on the sign-up form. Advisory stays a
@@ -42,10 +41,10 @@ def render_subscribe() -> None:
     for col, plan in zip(cols, SIGNUP_PLANS):
         with col, st.container(border=True):
             st.subheader(SUBSCRIPTION_TIERS[plan])
-            st.markdown(f"**{PLAN_INFO[plan][0]}** excl. VAT")
+            st.markdown(tr("**{plan_info_plan_0}** excl. VAT").format(plan_info_plan_0=PLAN_INFO[plan][0]))
             st.caption(PLAN_INFO[plan][1])
             if status == "registered":
-                if st.button(f"Start {TRIAL_DAYS}-day free trial", type="primary" if plan == "professional" else "secondary",
+                if st.button(tr("Start {trial_days}-day free trial").format(trial_days=TRIAL_DAYS), type="primary" if plan == "professional" else "secondary",
                              use_container_width=True, key=f"sub_trial_{plan}"):
                     if start_trial(user_id, plan):
                         record_funnel_event("trial_started", None,
@@ -55,8 +54,7 @@ def render_subscribe() -> None:
                         st.error(tr("Could not start the trial. Please try again."))
             else:
                 _request_plan(plan, user_id)
-    st.caption(f"Larger organisation? [Contact us]({ENTERPRISE_URL}) about Enterprise. "
-               "Consultant managing several client companies? Ask for Advisory:")
+    st.caption(tr("Larger organisation? [Contact us]({enterprise_url}) about Enterprise. Consultant managing several client companies? Ask for Advisory:").format(enterprise_url=ENTERPRISE_URL))
     _request_plan("advisory", user_id)
 
 
@@ -73,7 +71,7 @@ def render_trial_cta(profile: dict) -> None:
             "you're missing and turns the gaps into an action plan.")
         )
         if status == "registered":
-            if st.button(f"Start {TRIAL_DAYS}-day free trial — no card", type="primary",
+            if st.button(tr("Start {trial_days}-day free trial — no card").format(trial_days=TRIAL_DAYS), type="primary",
                          key="cta_trial"):
                 if start_trial(profile["id"]):
                     record_funnel_event("trial_started", None, profile.get("signup_source"))
@@ -90,7 +88,7 @@ def _request_plan(plan: str, user_id: str) -> None:
     if st.session_state.get(sent_key):
         st.success(tr("Request sent — we'll get back to you by email."))
         return
-    if st.button(f"Request {plan.title()}", use_container_width=True,
+    if st.button(tr("Request {plan_title}").format(plan_title=plan.title()), use_container_width=True,
                  key=f"sub_req_{plan}"):
         ticket = create_ticket(
             user_id=user_id,

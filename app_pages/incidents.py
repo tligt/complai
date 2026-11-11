@@ -63,8 +63,8 @@ def _local_input(label: str, key: str, default: datetime | None = None) -> datet
     """Date + time in the app's display zone, returned as an aware datetime."""
     d0 = (default or datetime.now(tz)).astimezone(tz)
     c1, c2 = st.columns(2)
-    d = c1.date_input(f"{label} — date", value=d0.date(), key=f"{key}_d", format="DD/MM/YYYY")
-    t = c2.time_input(f"{label} — time ({R.TZ_LABEL})", value=d0.time().replace(second=0, microsecond=0),
+    d = c1.date_input(tr("{label} — date").format(label=label), value=d0.date(), key=f"{key}_d", format="DD/MM/YYYY")
+    t = c2.time_input(tr("{label} — time ({r_tz_label})").format(label=label, r_tz_label=R.TZ_LABEL), value=d0.time().replace(second=0, microsecond=0),
                       key=f"{key}_t", step=300)
     return datetime.combine(d, t, tzinfo=tz)
 
@@ -185,7 +185,7 @@ with tab_team:
                 st.session_state.selected_client = {**client, "breach_notice_hours": int(nh) or None}
                 st.rerun()
             except Exception as e:
-                st.error(f"Could not save: {e}")
+                st.error(tr("Could not save: {e}").format(e=e))
 
 # ══ Incidents ═════════════════════════════════════════════════════════════
 with tab_inc:
@@ -328,9 +328,7 @@ with tab_inc:
         for d in decided:
             _dl_line(d)
         if undecided:
-            with st.expander(f"{len(undecided)} possible "
-                             f"{'deadline depends' if len(undecided) == 1 else 'deadlines depend'} "
-                             "on the assessment"):
+            with st.expander(tr("{len_undecided} possible {deadline_depends_if_len} on the assessment").format(len_undecided=len(undecided), deadline_depends_if_len='deadline depends' if len(undecided) == 1 else 'deadlines depend')):
                 for d in undecided:
                     _dl_line(d)
         if all(d["state"] in (R.DONE, R.NOT_REQUIRED) for d in dls):
@@ -344,7 +342,7 @@ with tab_inc:
     with s_team:
         alerts = [e for e in inc_events if e["event_type"] == "alert"]
         for e in alerts:
-            st.markdown(f"✅ Alerted {_fmt(e['occurred_at'])}: {e.get('body')}")
+            st.markdown(tr("✅ Alerted {fmt_e_occurred_at}: {e_get_body}").format(fmt_e_occurred_at=_fmt(e['occurred_at']), e_get_body=e.get('body')))
         pending = R.alert_targets(contacts, inc, inc_events, nis2)
         if pending:
             st.warning("Not alerted yet: " + ", ".join(c["name"] for c in pending))
@@ -374,7 +372,7 @@ with tab_inc:
             "5. **Do not tell customers or the public yet.** That decision comes with the assessment."
         )
         if client.get("nis2_roles_text"):
-            st.info(f"**Who does what** (from your incident wording): {client['nis2_roles_text']}")
+            st.info(tr("**Who does what** (from your incident wording): {client_nis2_roles_text}").format(client_nis2_roles_text=client['nis2_roles_text']))
         if inc["status"] == "open" and st.button(tr("Mark as contained"), key="inc_contained"):
             if S.update_incident(inc_id, {"status": "contained"}):
                 S.add_event(user_id, inc, "status", body="contained")
@@ -535,7 +533,7 @@ with tab_inc:
                     for c in controllers:
                         k = f"draft_{kind}_{c['id']}_{lang}"
                         text_keys.append((c.get("legal_name"), k))
-                        st.text_area(f"Draft for {c.get('legal_name')}",
+                        st.text_area(tr("Draft for {c_get_legal_name}").format(c_get_legal_name=c.get('legal_name')),
                                      R.draft(kind, inc, client, sys_names, lang, inc_events,
                                              controller=c.get("legal_name")),
                                      height=280, key=k)
@@ -602,7 +600,7 @@ with tab_inc:
             st.divider()
             st.markdown(tr("**The CSIRT asked for an intermediate report** (NIS2 Art. 23(4)(c))"))
             if inc.get("intermediate_due"):
-                st.caption(f"Requested — due {_fmt(inc['intermediate_due'])}. It is in step 4.")
+                st.caption(tr("Requested — due {fmt_inc_intermediate_due}. It is in step 4.").format(fmt_inc_intermediate_due=_fmt(inc['intermediate_due'])))
             with st.form("intermediate"):
                 due = _local_input("Due by", "int_due")
                 note = st.text_input(tr("What they asked (optional)"))
@@ -626,7 +624,7 @@ with tab_inc:
     # ── 6. Close ───────────────────────────────────────────────────────────
     with s_close:
         if inc["status"] == "closed":
-            st.success(f"Closed {_fmt(inc.get('closed_at'))}.")
+            st.success(tr("Closed {fmt_inc_get_closed_at}.").format(fmt_inc_get_closed_at=_fmt(inc.get('closed_at'))))
         open_required = [d for d in dls if d["state"] in R.OPEN_STATES
                          and d["kind"] not in (R.NIS2_FINAL, R.NIS2_PROGRESS)]
         if open_required and inc["status"] != "closed":
@@ -681,5 +679,4 @@ with tab_inc:
             body = (f"  \n  {e['body']}" if e.get("body") and e["event_type"] in ("decision", "note", "request")
                     else "")
             st.markdown(f"- **{_fmt(e['occurred_at'])}** — {what}{detail}{body}")
-        st.caption(f"Times in {R.TZ_LABEL}. The record cannot be edited: it is the documentation "
-                   "GDPR Art. 33(5) asks for.")
+        st.caption(tr("Times in {r_tz_label}. The record cannot be edited: it is the documentation GDPR Art. 33(5) asks for.").format(r_tz_label=R.TZ_LABEL))

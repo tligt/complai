@@ -94,7 +94,7 @@ def get_active_client(user_id: str) -> dict | None:
         return clients[0]
 
     current = _current(clients)
-    st.caption(f"🏢 {current['company_name']} · change company in the menu")
+    st.caption(tr("🏢 {current_company_name} · change company in the menu").format(current_company_name=current['company_name']))
     _read_only_notice(current)
     return current
 
@@ -113,8 +113,7 @@ def require_edit(action: str) -> bool:
     letting the database refuse the result at the end."""
     if can_edit_active():
         return True
-    st.warning(f"You have read-only access to this company, so you cannot {action}. "
-               "Ask an admin of the company if you need to.")
+    st.warning(tr("You have read-only access to this company, so you cannot {action}. Ask an admin of the company if you need to.").format(action=action))
     return False
 
 
@@ -123,9 +122,7 @@ def _read_only_notice(client: dict) -> None:
     changes. Said once, at the top of every page, so a refused save is not a
     surprise."""
     if client.get("role") == "read_only":
-        st.info(f"👁️ You have **read-only** access to {client['company_name']}: "
-                "you can see everything, but changes will not be saved. "
-                "Ask an admin of the company if you need to edit.")
+        st.info(tr("👁️ You have **read-only** access to {client_company_name}: you can see everything, but changes will not be saved. Ask an admin of the company if you need to edit.").format(client_company_name=client['company_name']))
 
 
 def _switch_client(widget_key: str, clients: list) -> None:

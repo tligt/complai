@@ -26,6 +26,7 @@ what is RECORDED, as every derivation is (obligation_register.py).
 """
 
 from __future__ import annotations
+from i18n import tr  # S64 interface translation (D-164)
 
 import calendar
 from datetime import date, datetime
@@ -111,7 +112,7 @@ def requirement(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def label(req: Mapping[str, Any], lang: str = "en") -> str:
-    return req["label_fr"] if lang == "fr" else req["label_en"]
+    return req.get(f"label_{lang}") or req["label_en"]
 
 
 def _nis2_applies(client: Mapping[str, Any]) -> bool:
@@ -295,13 +296,12 @@ def findings(client: Mapping[str, Any], reqs: Iterable[Mapping[str, Any]],
             detail = ", ".join(parts) + f", of {c['required']} who need it"
             sev = DUE if c[EXPIRED] else OPEN
             out.append(_finding("training", r["code"],
-                                f"Training: {r['label_en']} — {lapsing} of {c['required']} not current",
+                                tr("Training: {r_label_en} — {lapsing} of {c_required} not current").format(r_label_en=r['label_en'], lapsing=lapsing, c_required=c['required']),
                                 sev, detail, c["first_lapsed"], link="training"))
         elif c[EXPIRING]:
             out.append(_finding("training", r["code"],
-                                f"Training: {r['label_en']} — {c[EXPIRING]} lapsing within "
-                                f"{EXPIRING_DAYS} days",
-                                OPEN, f"Next lapses on {c['next_due']:%d/%m/%Y}.",
+                                tr("Training: {r_label_en} — {c_expiring} lapsing within {expiring_days} days").format(r_label_en=r['label_en'], c_expiring=c[EXPIRING], expiring_days=EXPIRING_DAYS),
+                                OPEN, tr("Next lapses on {c_next_due:%d/%m/%Y}.").format(c_next_due=c['next_due']),
                                 c["next_due"], link="training"))
     return out
 

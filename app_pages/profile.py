@@ -87,7 +87,7 @@ with st.form("profile_password"):
             if ok:
                 st.success(tr("Password changed."))
             else:
-                st.error(f"Could not change password: {err}")
+                st.error(tr("Could not change password: {err}").format(err=err))
 
 st.divider()
 
@@ -140,15 +140,14 @@ with st.container(border=True):
             from display import fmt_date, plural
             _ends = datetime.fromisoformat(profile["trial_ends_at"].replace("Z", "+00:00"))
             _left = max((_ends - datetime.now(timezone.utc)).days + 1, 0)
-            p2.info(f"Free trial — **{plural(_left, 'day')} left**, "
-                    f"until {fmt_date(profile['trial_ends_at'])}.")
+            p2.info(tr("Free trial — **{plural_left_day} left**, until {fmt_date_profile_trial_e}.").format(plural_left_day=plural(_left, 'day'), fmt_date_profile_trial_e=fmt_date(profile['trial_ends_at'])))
 
     if _managed_by:
-        p1.caption(f"The plan of **{_managed_by}**, the account this company belongs to.")
+        p1.caption(tr("The plan of **{managed_by}**, the account this company belongs to.").format(managed_by=_managed_by))
 
 st.markdown(tr("**Changing plan**"))
 if _managed_by:
-    st.caption(f"The plan is managed by the owner of {_managed_by}.")
+    st.caption(tr("The plan is managed by the owner of {managed_by}.").format(managed_by=_managed_by))
 elif _status in ("registered", "expired"):
     st.caption(tr("To subscribe, write to us through Support."))
     if st.button(tr("Contact support"), key="plan_support"):

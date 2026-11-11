@@ -120,7 +120,7 @@ try:
     st.caption(tr("% in place counts every obligation that applies to you, documents "
                "and practices alike. This page lists the documents part of it."))
 except Exception as e:
-    st.warning(f"Could not work out your obligations: {e}")
+    st.warning(tr("Could not work out your obligations: {e}").format(e=e))
 
 c1, c3 = st.columns(2)
 c1.metric(tr("Documents in force"), f"{cov['covered']} of {cov['required']}")
@@ -207,8 +207,7 @@ for doc_type, meta in relevant.items():
             )
         elif current.get("source_revision"):
             st.caption(
-                f":gray[Produced from a reviewed template, source revision "
-                f"{current['source_revision']}.]"
+                tr(":gray[Produced from a reviewed template, source revision {current_source_revision}.]").format(current_source_revision=current['source_revision'])
             )
 
         if current.get("change_comment"):
@@ -235,7 +234,7 @@ for doc_type, meta in relevant.items():
                     if c["id"] != current["id"]
                     and c.get("status") in ("superseded", "archived")]
         if previous:
-            with st.expander(f"What applied before ({len(previous)})"):
+            with st.expander(tr("What applied before ({len_previous})").format(len_previous=len(previous))):
                 st.caption(
                     tr("Retained as the record of what your organisation "
                     "operated under at the time. A complaint about processing "
@@ -264,7 +263,7 @@ for doc_type, meta in relevant.items():
                     if old.get("change_comment"):
                         st.caption(f"“{dates_in_text(old['change_comment'])}”")
                     if old.get("retain_until"):
-                        st.caption(f":gray[Retained until {fmt_date(old['retain_until'])}]")
+                        st.caption(tr(":gray[Retained until {fmt_date_old_retain_unti}]").format(fmt_date_old_retain_unti=fmt_date(old['retain_until'])))
 
                     # What the hold does, and what releasing it costs. Stated
                     # at the control rather than in a help tooltip: a client
@@ -377,7 +376,7 @@ if missing:
                 + " yet. Not outstanding on your side."
             )
         else:
-            st.markdown(f"- **{label}** — not generated")
+            st.markdown(tr("- **{label}** — not generated").format(label=label))
 
 st.divider()
 st.caption(

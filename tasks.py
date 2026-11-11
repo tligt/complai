@@ -38,6 +38,7 @@ Nothing here depends on them.
 """
 
 from __future__ import annotations
+from i18n import tr  # S64 interface translation (D-164)
 
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Iterable, Mapping
@@ -100,8 +101,8 @@ def obligations_due(
                 due = None
         if due and due <= today:
             out.append(_finding(
-                "obligation", f"{ob_id}:review", f"Review due: {title}",
-                DUE, f"Last reviewed {(responses.get(ob_id) or {}).get('reviewed_at') or 'never'}.",
+                "obligation", f"{ob_id}:review", tr("Review due: {title}").format(title=title),
+                DUE, tr("Last reviewed {responses_get_ob_id_or_g}.").format(responses_get_ob_id_or_g=(responses.get(ob_id) or {}).get('reviewed_at') or 'never'),
                 due, link="obligations",
             ))
             continue
@@ -155,20 +156,18 @@ def translations_outstanding(
                 if not text:
                     out.append(_finding(
                         "translation", f"activity:{a['id']}:{field}:{lang}:missing",
-                        f"Add the {lang.upper()} {field} for “{name}”",
+                        tr("Add the {lang_upper} {field} for “{name}”").format(lang_upper=lang.upper(), field=tr(field), name=name),
                         # DUE, not OPEN. Documents produced in that language
                         # are already wrong, whereas an unconfirmed draft is
                         # merely unverified.
                         DUE,
-                        f"Documents produced in {lang.upper()} fall back to "
-                        "another language for this. Open the activity and save "
-                        "it — the translation is drafted automatically.",
+                        tr("Documents produced in {lang_upper} fall back to another language for this. Open the activity and save it — the translation is drafted automatically.").format(lang_upper=lang.upper()),
                         link="inventory",
                     ))
                 elif (status.get(field) or {}).get(lang) == "machine_unreviewed":
                     out.append(_finding(
                         "translation", f"activity:{a['id']}:{field}:{lang}",
-                        f"Confirm the {lang.upper()} {field} for “{name}”",
+                        tr("Confirm the {lang_upper} {field} for “{name}”").format(lang_upper=lang.upper(), field=tr(field), name=name),
                         OPEN,
                         "Drafted automatically. It appears in documents "
                         "produced in that language until you confirm it.",
@@ -219,7 +218,7 @@ def wording_missing(
             if not (blob.get(lang) or "").strip():
                 out.append(_finding(
                     "wording", f"missing:{key}:{lang}",
-                    f"Write “{spec['label']}” in {lang.upper()}",
+                    tr("Write “{spec_label}” in {lang_upper}").format(spec_label=spec['label'], lang_upper=lang.upper()),
                     DUE,
                     "Documents needing this section will not generate until "
                     "it exists.",
@@ -228,7 +227,7 @@ def wording_missing(
             elif (status.get(key) or {}).get(lang) == "machine_unreviewed":
                 out.append(_finding(
                     "wording", f"review:{key}:{lang}",
-                    f"Confirm the {lang.upper()} “{spec['label']}”",
+                    tr("Confirm the {lang_upper} “{spec_label}”").format(lang_upper=lang.upper(), spec_label=spec['label']),
                     DUE,
                     "Drafted automatically. It appears in your incident and "
                     "continuity documents until you confirm it.",
@@ -262,11 +261,9 @@ def wording_too_short(
             if text and len(text.split()) < INSERT_MIN_WORDS:
                 out.append(_finding(
                     "wording", f"short:{key}:{lang}",
-                    f"“{spec['label']}” is very short in {lang.upper()}",
+                    tr("“{spec_label}” is very short in {lang_upper}").format(spec_label=spec['label'], lang_upper=lang.upper()),
                     OPEN,
-                    f"“{text}” — this goes into a document someone reads "
-                    "during an incident. If that is genuinely all there is to "
-                    "say, say so in a sentence.",
+                    tr("“{text}” — this goes into a document someone reads during an incident. If that is genuinely all there is to say, say so in a sentence.").format(text=text),
                     link="wording",
                 ))
     return out
@@ -287,7 +284,7 @@ def documents_outstanding(
         if r.get("status") == "draft":
             out.append(_finding(
                 "document", f"draft:{r['id']}",
-                f"{label} ({lang}) was generated but never put in force",
+                tr("{label} ({lang}) was generated but never put in force").format(label=label, lang=lang),
                 OPEN,
                 "Until it is adopted, it is not what your organisation "
                 "operates under.",
@@ -303,8 +300,7 @@ def documents_outstanding(
             if 0 <= (keep_d - today).days <= 30:
                 out.append(_finding(
                     "document", f"retention:{r['id']}",
-                    f"{label} v{r.get('version')} ({lang}) reaches the end of "
-                    "its retention period",
+                    tr("{label} v{r_get_version} ({lang}) reaches the end of its retention period").format(label=label, r_get_version=r.get('version'), lang=lang),
                     DUE,
                     "Download a copy if you need one, or place it on hold if "
                     "it is relevant to a live matter.",
@@ -367,7 +363,7 @@ def template_updates_available(
                     due = None
             out.append(_finding(
                 "template", f"source_revision:{r.get('client_id')}:{doc_type}:{language}",
-                f"A required update to your {label} ({lang_up}) template is available",
+                tr("A required update to your {label} ({lang_up}) template is available").format(label=label, lang_up=lang_up),
                 DUE,
                 "This revision is marked required. Regenerate the document "
                 "from the compliance record to bring it up to date.",
@@ -376,7 +372,7 @@ def template_updates_available(
         else:
             out.append(_finding(
                 "template", f"source_revision:{r.get('client_id')}:{doc_type}:{language}",
-                f"A newer version of your {label} ({lang_up}) template is available",
+                tr("A newer version of your {label} ({lang_up}) template is available").format(label=label, lang_up=lang_up),
                 OPEN,
                 "Regenerate the document from the compliance record to bring "
                 "it up to date.",

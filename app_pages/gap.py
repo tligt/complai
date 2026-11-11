@@ -139,7 +139,7 @@ with tab1:
     col2.metric(tr("Obligations checked"), n_obs)
 
     uploaded_review = st.file_uploader(
-        f"Upload your {DOCUMENT_TYPES[doc_type_review]}",
+        tr("Upload your {document_types_doc_type}").format(document_types_doc_type=DOCUMENT_TYPES[doc_type_review]),
         type=["pdf","docx","txt"],
         key="review_upload"
     )
@@ -163,7 +163,7 @@ with tab1:
         profile_answers_review = {k: v or "Not answered" for k, v in profile_answers_review.items()}
 
     run_review = st.button(
-        f"🔍 Review {DOCUMENT_TYPES[doc_type_review]}",
+        tr("🔍 Review {document_types_doc_type}").format(document_types_doc_type=DOCUMENT_TYPES[doc_type_review]),
         type="primary",
         use_container_width=True,
         key="btn_review",
@@ -175,7 +175,7 @@ with tab1:
         if not doc_text.strip():
             st.error(tr("Could not extract text from this file."))
         else:
-            with st.spinner(f"Reviewing {DOCUMENT_TYPES[doc_type_review]}..."):
+            with st.spinner(tr("Reviewing {document_types_doc_type}...").format(document_types_doc_type=DOCUMENT_TYPES[doc_type_review])):
                 review = run_document_review(
                     doc_type=doc_type_review,
                     document_text=doc_text,
@@ -282,7 +282,7 @@ with tab1:
             review_pdf = make_review_pdf()
             company_name = (selected_client or {}).get("company_name","client")
             st.download_button(
-                label=f"📥 Download {review['doc_label']} Review (PDF)",
+                label=tr("📥 Download {review_doc_label} Review (PDF)").format(review_doc_label=review['doc_label']),
                 data=review_pdf,
                 file_name=f"RECOSA_review_{doc_type_review}_{company_name.replace(' ','_')}.pdf",
                 mime="application/pdf",
@@ -347,8 +347,7 @@ with tab1:
 
                 # Show saved status
                 st.success(
-                    f"✅ **{DOCUMENT_TYPES[doc_type_review]} saved** to {(selected_client or {}).get('company_name') or 'the company'}'s repository. "
-                    f"Add a note about what changed (optional):"
+                    tr("✅ **{document_types_doc_type} saved** to {selected_client_or_get_c}'s repository. Add a note about what changed (optional):").format(document_types_doc_type=DOCUMENT_TYPES[doc_type_review], selected_client_or_get_c=(selected_client or {}).get('company_name') or 'the company')
                 )
 
                 # Change comment — can be added after saving
@@ -370,7 +369,7 @@ with tab1:
                         else:
                             st.warning(tr("Could not save the comment."))
                     except Exception as e:
-                        st.warning(f"Could not save comment: {e}")
+                        st.warning(tr("Could not save comment: {e}").format(e=e))
 
 # ═══════════════════════════════════════════════════════════════
 # TAB 2 — Full Compliance Check
@@ -442,7 +441,7 @@ with tab2:
                 uploaded_texts[doc_type] = text
                 if not current:
                     n_provided += 1
-                col_i.success(f"✅ {new_file.name} ready")
+                col_i.success(tr("✅ {new_file_name} ready").format(new_file_name=new_file.name))
                 # Save to repository
                 if client_id:
                     comment = st.text_input(
@@ -465,7 +464,7 @@ with tab2:
                         # repository status below must reflect it immediately.
                         current_docs = get_current_client_documents_fresh(client_id, user_id)
 
-    st.caption(f"**{n_provided}/6** document types available in repository")
+    st.caption(tr("**{n_provided}/6** document types available in repository").format(n_provided=n_provided))
     st.divider()
 
     # Profile questions
@@ -486,9 +485,7 @@ with tab2:
 
     st.divider()
     st.caption(
-        f"Scores reflect quality of the **{plural(n_provided, 'document')}** provided. "
-        "Missing documents are flagged as gaps but don't lower the quality score. "
-        "Takes 30–60 seconds to run."
+        tr("Scores reflect quality of the **{plural_n_provided_docume}** provided. Missing documents are flagged as gaps but don't lower the quality score. Takes 30–60 seconds to run.").format(plural_n_provided_docume=plural(n_provided, 'document'))
     )
 
     run_full = st.button(
@@ -513,10 +510,7 @@ with tab2:
         # Scores
         st.subheader(tr("Compliance scores"))
         st.caption(
-            f"Scored on the {assessment.get('n_assessed', 0)} of "
-            f"{assessment.get('n_total', 0)} obligations that could be assessed. "
-            "Documents you have not provided, and obligations not yet in force, "
-            "are reported but never scored against you."
+            tr("Scored on the {assessment_get_n_assesse} of {assessment_get_n_total_0} obligations that could be assessed. Documents you have not provided, and obligations not yet in force, are reported but never scored against you.").format(assessment_get_n_assesse=assessment.get('n_assessed', 0), assessment_get_n_total_0=assessment.get('n_total', 0))
         )
         c1,c2,c3,c4,c5 = st.columns(5)
 
@@ -526,11 +520,11 @@ with tab2:
             return "🔴"
 
         c1.metric(tr("Overall"), f"{assessment['score_overall']}/100")
-        c2.metric(f"{score_emoji(assessment['score_gdpr'])} GDPR",
+        c2.metric(tr("{score_emoji_assessment_s} GDPR").format(score_emoji_assessment_s=score_emoji(assessment['score_gdpr'])),
                   f"{assessment['score_gdpr']}/100")
-        c3.metric(f"{score_emoji(assessment['score_nis2'])} NIS2",
+        c3.metric(tr("{score_emoji_assessment_s} NIS2").format(score_emoji_assessment_s=score_emoji(assessment['score_nis2'])),
                   f"{assessment['score_nis2']}/100")
-        c4.metric(f"{score_emoji(assessment['score_eprivacy'])} ePrivacy",
+        c4.metric(tr("{score_emoji_assessment_s} ePrivacy").format(score_emoji_assessment_s=score_emoji(assessment['score_eprivacy'])),
                   f"{assessment['score_eprivacy']}/100")
 
         # A regulation with nothing assessable shows "—", not 0. Zero would
@@ -539,7 +533,7 @@ with tab2:
         _scored = assessment.get("scored_regulations", [])
         _ai = assessment.get("score_eu_ai_act", 0)
         c5.metric(
-            f"{score_emoji(_ai) if 'EU_AI_ACT' in _scored else '⚪'} EU AI Act",
+            tr("{score_emoji_ai_if_eu_ai} EU AI Act").format(score_emoji_ai_if_eu_ai=score_emoji(_ai) if 'EU_AI_ACT' in _scored else '⚪'),
             f"{_ai}/100" if "EU_AI_ACT" in _scored else "—",
         )
 
@@ -603,7 +597,7 @@ with tab2:
                                 doc_label = DOCUMENT_TYPES.get(ob["doc_type"],ob["doc_type"])
                                 st.page_link(
                                     "app_pages/documents.py",
-                                    label=f"📄 Generate compliant {doc_label}",
+                                    label=tr("📄 Generate compliant {doc_label}").format(doc_label=doc_label),
                                 )
 
         st.divider()

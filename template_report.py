@@ -234,7 +234,10 @@ def render_report_gaps(ctx, language):
     if ctx.get("verdicts") is None:
         return _rows_or(b, [], _t(lang, "no_verdicts"))
     st = _t(lang, "st")
-    rows = [[o["title"], _REG.get(o["regulation"], o["regulation"]), st[ctx["verdicts"][o["id"]]["status"]]]
+    from i18n import translate as _tr  # noqa: PLC0415
+    # The document's language, not the reader's (obligations._Translated).
+    rows = [[_tr(dict(o)["title"], lang), _REG.get(o["regulation"], o["regulation"]),
+             st[ctx["verdicts"][o["id"]]["status"]]]
             for o in ctx.get("gaps") or []]
     return _rows_or(b, rows, _t(lang, "no_gaps"))
 
@@ -243,7 +246,9 @@ def render_report_documents(ctx, language):
     lang = language if language in _T else "en"
     from obligations import document_label  # noqa: PLC0415
     b = Block(name="report_documents", headers=[_t(lang, "doc"), _t(lang, "lang"), _t(lang, "event"), _t(lang, "date")])
-    rows = [[document_label(e["doc_type"]), (e.get("language") or "").upper(), _t(lang, e["event"]), _fd(e["date"])]
+    from i18n import translate as _tr  # noqa: PLC0415
+    rows = [[_tr(document_label(e["doc_type"], raw=True), lang), (e.get("language") or "").upper(),
+             _t(lang, e["event"]), _fd(e["date"])]
             for e in ctx.get("document_events") or []]
     return _rows_or(b, rows, _t(lang, "no_docs"))
 

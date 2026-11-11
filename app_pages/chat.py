@@ -330,8 +330,7 @@ with st.sidebar:
             if not sessions:
                 st.caption(tr("No saved conversations yet."))
             else:
-                st.caption(f"{len(sessions)} conversation"
-                           f"{'s' if len(sessions) != 1 else ''}")
+                st.caption(tr("{len_sessions} conversation{s_if_len_sessions_1_else}").format(len_sessions=len(sessions), s_if_len_sessions_1_else='s' if len(sessions) != 1 else ''))
 
                 for s in sessions:
                     sid = s["session_id"]
@@ -342,7 +341,7 @@ with st.sidebar:
                     day = fmt_date(s["last_at"])
 
                     if st.session_state.confirm_delete_session == sid:
-                        st.warning(f"Delete “{preview}”?")
+                        st.warning(tr("Delete “{preview}”?").format(preview=preview))
                         col_y, col_n2 = st.columns(2)
                         with col_y:
                             if st.button(tr("Delete"), type="primary",
@@ -368,7 +367,7 @@ with st.sidebar:
                         label = ("● " if is_active else "") + preview
                         if st.button(label, key=f"load_{sid}",
                                      use_container_width=True,
-                                     help=f"{day} · {s['message_count']} messages"):
+                                     help=tr("{day} · {s_message_count} messages").format(day=day, s_message_count=s['message_count'])):
                             msgs = load_chat_history(
                                 st.session_state.selected_client["id"],
                                 user_id, session_id=sid)
@@ -408,7 +407,7 @@ with st.sidebar:
                             st.session_state.confirm_delete = False
                             st.rerun()
         except Exception as e:
-            st.error(f"Could not load: {e}")
+            st.error(tr("Could not load: {e}").format(e=e))
 
     # Audit batch 2 (H11): settings most people never change, folded away and
     # explained. The defaults follow the company: its country, English.
@@ -453,7 +452,7 @@ with st.sidebar:
         from rag import chunk_text, Chunk, build_index
         for f in uploaded_files:
             if f.name not in st.session_state.company_docs:
-                with st.spinner(f"Processing {f.name}..."):
+                with st.spinner(tr("Processing {f_name}...").format(f_name=f.name)):
                     text = extract_text(f)
                     if text.strip():
                         chunks = [Chunk(text=c, source=f.name) for c in chunk_text(text)]
@@ -609,7 +608,7 @@ def render_feedback(msg: dict, question: str, key_suffix: str):
                 codes = existing.get("reason_codes") or []
                 detail = (" — " + ", ".join(
                     dict(FEEDBACK_REASONS).get(c, c) for c in codes)) if codes else ""
-                st.markdown(f":orange[👎 You flagged this answer{detail}]")
+                st.markdown(tr(":orange[👎 You flagged this answer{detail}]").format(detail=detail))
         with col_change:
             if st.button(tr("Change"), key=f"fb_edit_btn_{key_suffix}",
                          help=tr("Correct this if you clicked the wrong one")):

@@ -91,9 +91,7 @@ if st.session_state.support_open_ticket:
     icon, label = STATUS_LABELS.get(ticket["status"], ("", ticket["status"]))
     st.markdown(f"### {ticket['subject']}")
     st.caption(
-        f"{icon} {label} · {CATEGORY_LABELS.get(ticket['category'], ticket['category'])} · "
-        f"{CONTEXT_LABELS.get(ticket['context'], ticket['context'])} · "
-        f"opened {fmt_date(ticket['created_at'])}"
+        tr("{icon} {label} · {category_labels_get_tick} · {context_labels_get_ticke} · opened {fmt_date_ticket_created}").format(icon=icon, label=label, category_labels_get_tick=CATEGORY_LABELS.get(ticket['category'], ticket['category']), context_labels_get_ticke=CONTEXT_LABELS.get(ticket['context'], ticket['context']), fmt_date_ticket_created=fmt_date(ticket['created_at']))
     )
 
     mark_thread_read(ticket["thread_id"], "client")
@@ -224,9 +222,7 @@ def render_row(t: dict):
     with col_s:
         st.markdown(f"**{t['subject']}**")
         st.caption(
-            f"{icon} {label} · {CATEGORY_LABELS.get(t['category'], t['category'])} · "
-            f"{CONTEXT_LABELS.get(t['context'], t['context'])} · "
-            f"updated {fmt_date(t['updated_at'])}"
+            tr("{icon} {label} · {category_labels_get_t_ca} · {context_labels_get_t_con} · updated {fmt_date_t_updated_at}").format(icon=icon, label=label, category_labels_get_t_ca=CATEGORY_LABELS.get(t['category'], t['category']), context_labels_get_t_con=CONTEXT_LABELS.get(t['context'], t['context']), fmt_date_t_updated_at=fmt_date(t['updated_at']))
         )
     with col_b:
         if st.button(tr("Open"), key=f"open_{t['id']}", use_container_width=True):
@@ -241,6 +237,6 @@ if open_tickets:
         render_row(t)
 
 if done_tickets:
-    with st.expander(f"Resolved & closed ({len(done_tickets)})"):
+    with st.expander(tr("Resolved & closed ({len_done_tickets})").format(len_done_tickets=len(done_tickets))):
         for t in done_tickets:
             render_row(t)

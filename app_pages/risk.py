@@ -74,8 +74,7 @@ if "GDPR" in regulations:
         st.info(tr("No processing activities recorded yet."))
     elif flagged:
         st.warning(
-            f"**{len(flagged)} of your {len(activities)} activities** meet at "
-            "least one criterion."
+            tr("**{len_flagged} of your {len_activities} activities** meet at least one criterion.").format(len_flagged=len(flagged), len_activities=len(activities))
         )
         for f in flagged:
             with st.expander(f"{f['activity_name']} — {plural(len(f['triggers']), 'criterion', 'criteria')}"):
@@ -197,9 +196,7 @@ if _open:
             if it.get("description"):
                 st.caption(it["description"])
             st.markdown(
-                f"Before measures — likelihood "
-                f"**{RA.level_label(it.get('likelihood'), lang)}**, "
-                f"severity **{RA.level_label(it.get('severity'), lang)}**"
+                tr("Before measures — likelihood **{ra_level_label_it_get_li}**, severity **{ra_level_label_it_get_se}**").format(ra_level_label_it_get_li=RA.level_label(it.get('likelihood'), lang), ra_level_label_it_get_se=RA.level_label(it.get('severity'), lang))
             )
 
             with st.form(f"it_{it['id']}"):
@@ -324,10 +321,7 @@ if _open:
             # silently is worse than the empty-assessment problem, because it
             # looks finished.
             st.warning(
-                f"**{plural(len(_unassessed), 'risk')} {'has' if len(_unassessed) == 1 else 'have'} not been assessed after "
-                "measures.** Marking this complete records a conclusion the "
-                "register cannot support — whether the residual risk is "
-                "acceptable is the question this document exists to answer."
+                tr("**{plural_len_unassessed_ri} {has_if_len_unassessed_1} not been assessed after measures.** Marking this complete records a conclusion the register cannot support — whether the residual risk is acceptable is the question this document exists to answer.").format(plural_len_unassessed_ri=plural(len(_unassessed), 'risk'), has_if_len_unassessed_1='has' if len(_unassessed) == 1 else 'have')
             )
         if st.button(tr("Mark complete"), type="primary"):
             RS.complete_assessment(
