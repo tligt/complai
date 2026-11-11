@@ -156,7 +156,7 @@ def translations_outstanding(
                 if not text:
                     out.append(_finding(
                         "translation", f"activity:{a['id']}:{field}:{lang}:missing",
-                        tr("Add the {lang_upper} {field} for “{name}”").format(lang_upper=lang.upper(), field=tr(field), name=name),
+                        tr("Add {the_field} in {lang_upper} for “{name}”").format(the_field=tr("the " + field), lang_upper=lang.upper(), name=name),
                         # DUE, not OPEN. Documents produced in that language
                         # are already wrong, whereas an unconfirmed draft is
                         # merely unverified.
@@ -167,7 +167,7 @@ def translations_outstanding(
                 elif (status.get(field) or {}).get(lang) == "machine_unreviewed":
                     out.append(_finding(
                         "translation", f"activity:{a['id']}:{field}:{lang}",
-                        tr("Confirm the {lang_upper} {field} for “{name}”").format(lang_upper=lang.upper(), field=tr(field), name=name),
+                        tr("Confirm {the_field} in {lang_upper} for “{name}”").format(the_field=tr("the " + field), lang_upper=lang.upper(), name=name),
                         OPEN,
                         "Drafted automatically. It appears in documents "
                         "produced in that language until you confirm it.",

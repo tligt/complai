@@ -237,7 +237,7 @@ def extract(paths: list[Path]) -> list[str]:
         found += list(AR.RISK_LABELS.values()) + list(AR.ROLES.values()) + list(AR.ART6_3.values())
         found += [label for _k, label, _o in AR.TRANSPARENCY] + ["not recorded"]
         found += list(TRR.AUDIENCES.values()) + list(TRR.FORMATS.values())
-        found += list(TRR.STATE_LABELS["en"].values()) + ["name", "purpose"]
+        found += list(TRR.STATE_LABELS["en"].values()) + ["the name", "the purpose"]
     except Exception as e:
         print(f"(dictionary labels not extracted: {e})", file=sys.stderr)
     # The page tips are translated where they are shown (guide.page_tip).
