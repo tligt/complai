@@ -24,7 +24,7 @@ from i18n import LANGUAGE_NAMES, account_language, person_language
 import table_view as tv
 from auth import get_user_id
 from database import (
-    ACCOUNT_STATUSES, SUBSCRIPTION_TIERS, TRIAL_DAYS, change_account, get_all_profiles, missing_kyc,
+    ACCOUNT_STATUSES, KYC_FIELDS, SUBSCRIPTION_TIERS, TRIAL_DAYS, change_account, get_all_profiles, missing_kyc,
     get_supabase_admin, load_account_periods, load_accounts, update_account_details,
 )
 
@@ -85,7 +85,11 @@ def client_name(a: dict) -> str:
 
 def kyc_cell(a: dict):
     gaps = missing_kyc(a)
-    return ("⚠️ Missing " + ", ".join(gaps), 1) if gaps else ("✅ Complete", 0)
+    if not gaps:
+        return ("✅ Complete", 0)
+    if len(gaps) == len(KYC_FIELDS):
+        return ("⚠️ Not given yet", 2)
+    return ("⚠️ Missing " + ", ".join(gaps), 1)
 
 
 def address_of(x: dict) -> str | None:
