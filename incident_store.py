@@ -192,6 +192,8 @@ def alert_team(user_id: str, incident: dict, client: dict, targets: list[dict],
         ok = send_incident_alert(
             [t["email"] for t in targets], client.get("company_name") or "",
             incident["title"], incident.get("discovered_at"), reason,
+            # D-168: a team member with no RECOSA profile reads the company's language.
+            fallback_lang=((client.get("document_languages") or ["en"])[0] or "en").lower(),
         )
     except Exception as e:
         print(f"Incident alert failed: {e}")

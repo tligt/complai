@@ -90,6 +90,17 @@ LABELS = {
         NIS2_FINAL: "Rapport final NIS2 au CSIRT",
         NIS2_RECIPIENTS: "Informer les destinataires de vos services (NIS2 art. 23(1))",
     },
+    "nl": {   # D-168
+        GDPR_AUTHORITY: "Melden aan de gegevensbeschermingsautoriteit (AVG art. 33)",
+        DATA_SUBJECTS: "De betrokkenen inlichten (AVG art. 34)",
+        CONTROLLERS: "Uw klanten als verwerkingsverantwoordelijken inlichten (AVG art. 33(2))",
+        NIS2_EARLY: "NIS2-vroegtijdige waarschuwing aan het CSIRT",
+        NIS2_NOTIFICATION: "NIS2-incidentmelding aan het CSIRT",
+        NIS2_INTERMEDIATE: "NIS2-tussentijds verslag (gevraagd door het CSIRT)",
+        NIS2_PROGRESS: "NIS2-voortgangsverslag (incident nog in behandeling)",
+        NIS2_FINAL: "NIS2-eindverslag aan het CSIRT",
+        NIS2_RECIPIENTS: "De afnemers van uw diensten inlichten (NIS2 art. 23(1))",
+    },
 }
 
 ROLES = {
@@ -118,6 +129,8 @@ def label(kind: str, lang: str = "en", contacts: Mapping[str, Mapping] | None = 
     if kind.startswith(CONTACT_PREFIX):
         c = (contacts or {}).get(kind[len(CONTACT_PREFIX):]) or {}
         name = c.get("name") or "team member"
+        if lang == "nl":
+            return f"{name} verwittigen (contractuele termijn)"
         return (f"Prévenir {name} (contrat)" if lang == "fr" else
                 f"Notify {name} ({ROLES.get(c.get('role'), '').lower() or 'contract'}) — contractual deadline")
     return LABELS.get(lang, LABELS["en"]).get(kind, kind)
@@ -301,6 +314,8 @@ def is_late(d: Mapping[str, Any], at: datetime | None = None) -> bool:
 
 def describe_left(d: Mapping[str, Any], lang: str = "en") -> str:
     """'in 5 h', '3 h overdue', 'without undue delay', 'sent 22/10 14:05'."""
+    if lang == "nl":
+        return _describe_left_nl(d)
     fr = lang == "fr"
     if d["state"] == DONE:
         _at = d["done_at"].astimezone(DISPLAY_TZ)
@@ -324,6 +339,26 @@ def describe_left(d: Mapping[str, Any], lang: str = "en") -> str:
         return f"en retard de {span}" if fr else f"{span} overdue"
     span = f"{int(h)} h {int((h % 1) * 60):02d}" if h <= 72 else (f"{int(h // 24)} j" if fr else f"{int(h // 24)} days")
     return f"dans {span}" if fr else f"in {span}"
+
+
+def _describe_left_nl(d: Mapping[str, Any]) -> str:
+    """describe_left in Dutch (D-168)."""
+    if d["state"] == DONE:
+        return f"verzonden op {d['done_at'].astimezone(DISPLAY_TZ):%d/%m %H:%M}"
+    if d["state"] == NOT_REQUIRED:
+        return "niet vereist"
+    if d["due"] is None:
+        if d["kind"] == NIS2_FINAL:
+            return ("een maand na het einde van de behandeling" if d.get("after_handling")
+                    else "een maand na de melding")
+        if d["kind"] == NIS2_PROGRESS:
+            return "als het incident nog in behandeling is wanneer het eindverslag moet volgen"
+        return "zonder onnodige vertraging"
+    h = d["hours_left"]
+    if h < 0:
+        h = -h
+        return (f"{int(h)} u" if h < 72 else f"{int(h // 24)} dagen") + " te laat"
+    return "over " + (f"{int(h)} u {int((h % 1) * 60):02d}" if h <= 72 else f"{int(h // 24)} dagen")
 
 
 def reminder_stage(d: Mapping[str, Any]) -> str | None:

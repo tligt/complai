@@ -7052,6 +7052,38 @@ companies and users: we need to know in which language we communicate").
   nudges are still English; translating them is the next item, and they
   will read these two functions.
 
+
+### D-168 — Emails in the reader's language, 11 Nov
+
+By the user ("Yes, the emails").
+
+- **Who reads what:** each recipient's `profiles.ui_language`, looked up by
+  address inside `email_sender` (`languages_of` / `language_of`), so a
+  caller with only an address needs no change. A caller that knows better
+  passes `lang`.
+- **Incident alert and reminder:** a team can mix languages, so one email
+  per language group (each still sees who else was told). A team member
+  with no RECOSA profile reads the company's first document language. The
+  reminder's deadlines are built per language: `incident_rules` gained
+  Dutch labels and a Dutch `describe_left`.
+- **Invite:** someone who has used RECOSA reads their own language; a new
+  colleague the inviter's, which also becomes their interface language
+  until they change it (`database._invite_language`).
+- **Regulatory alert:** the frame (severity, "What to do", buttons) is
+  translated; the alert text itself is written once, in English.
+- **Website audit:** the email is translated; the PDF stays English.
+- **Not translated, on purpose:** the free-check result email
+  (`send_quiz_result`) — its scores and advice come from the free checks,
+  which are still English; a French frame round English results reads worse.
+  It moves with the free-check app.
+- **Not here:** the Supabase sign-up and password-reset emails are templates
+  in the Supabase dashboard; translating them needs per-language template
+  logic there. `account_language` has no reader yet: there is no billing
+  email.
+- 57 strings in French and Dutch (1,293 per catalogue);
+  `test_email_language.py` renders every email in each language with Brevo
+  stubbed.
+
 ---
 
 ## 5. Constraints and gotchas

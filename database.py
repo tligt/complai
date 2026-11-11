@@ -2000,6 +2000,26 @@ def _role_on_client(user_id: str, client_id: str) -> str | None:
     return min(roles, key=_ROLE_RANK.get) if roles else None
 
 
+def _invite_language(member_user_id: str | None, invited_by: str | None) -> str | None:
+    """D-168. The language of an invite email. Someone who has used RECOSA
+    reads it in their own; a new colleague in the inviter's, which also
+    becomes their interface language until they change it. None: let the
+    email look it up."""
+    if member_user_id and not never_signed_in(member_user_id):
+        return None
+    try:
+        p = (get_supabase_admin().table("profiles").select("ui_language")
+             .eq("id", invited_by).limit(1).execute().data) if invited_by else None
+        lang = (p[0].get("ui_language") if p else None) or None
+        if lang and member_user_id:
+            get_supabase_admin().table("profiles").update({"ui_language": lang}) \
+                .eq("id", member_user_id).execute()
+        return lang
+    except Exception as e:
+        print(f"Could not find the invite's language: {e}")
+        return None
+
+
 def _email_of(user_id: str | None) -> str:
     if not user_id:
         return "someone"
@@ -2069,7 +2089,8 @@ def resend_invite(email: str, place_name: str, invited_by: str) -> tuple[bool, s
     """A fresh set-password link for someone who has not logged in yet."""
     uid, link = _account_for_invite(email.strip().lower())
     from email_sender import send_workspace_invite
-    if not send_workspace_invite(email, place_name, _email_of(invited_by), set_password_url=link):
+    if not send_workspace_invite(email, place_name, _email_of(invited_by), set_password_url=link,
+                                 lang=_invite_language(uid, invited_by)):
         return False, EMAILS_OFF
     return True, None
 
@@ -2133,7 +2154,8 @@ def invite_workspace_member(
 
         from email_sender import send_workspace_invite
         if not send_workspace_invite(email, client_name, _email_of(invited_by),
-                                     set_password_url=set_pw):
+                                     set_password_url=set_pw,
+                                     lang=_invite_language(member_user_id, invited_by)):
             return True, EMAILS_OFF
 
         return True, None
@@ -2434,7 +2456,8 @@ def invite_group_member(
                      invited_by, "group_member_invited", {"email": email, "role": role})
         from email_sender import send_workspace_invite
         if not send_workspace_invite(email, group["name"], _email_of(invited_by),
-                                     set_password_url=set_pw):
+                                     set_password_url=set_pw,
+                                     lang=_invite_language(member_user_id, invited_by)):
             return True, EMAILS_OFF
         return True, None
     except Exception as e:

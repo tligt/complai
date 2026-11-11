@@ -262,7 +262,9 @@ def default_paths() -> list[Path]:
                                  "tasks.py", "training_rules.py", "ai_rules.py", "incident_rules.py",
                                  # Shared modules that draw on client pages (D-166).
                                  "audit_view.py", "branding_view.py", "client_setup.py", "funnel_ui.py",
-                                 "gap_assessment.py", "obligation_view.py", "work_items_view.py"))]
+                                 "gap_assessment.py", "obligation_view.py", "work_items_view.py",
+                                 # Emails, in the recipient's language (D-168).
+                                 "email_sender.py"))]
 
 
 if __name__ == "__main__":

@@ -33,7 +33,10 @@ MODULES = ("database", "cached_reads", "auth", "tier_gates", "doc_theme", "activ
            "training_store", "ai_store", "training_docs", "guide", "work_items",
            "obligation_view",
            # The document engine (S62): new document types register here.
-           "template_renderer", "template_ai", "template_store", "docgen_templates")
+           "template_renderer", "template_ai", "template_store", "docgen_templates",
+           # The emails (D-168): callers pass lang= now, so an old email_sender
+           # next to a new database.py would refuse the invite.
+           "i18n", "email_sender", "incident_rules", "incident_store")
 
 
 def _mtime(path: str | None) -> float | None:

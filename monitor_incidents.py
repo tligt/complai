@@ -83,10 +83,12 @@ def run(now: datetime | None = None) -> dict:
                 print(f"  {inc['id']}: no recipient email, skipped")
                 continue
             overdue = any(s == "overdue" for _, s, _ in due)
+            contacts = {c["id"]: c for c in team[cid]}
             ok = send_incident_reminder(
                 to, client.get("company_name") or "", inc["title"],
-                [(R.label(d["kind"], "en", {c["id"]: c for c in team[cid]}), R.describe_left(d, "en"))
-                 for d, _, _ in due],
+                # D-168: the deadlines in each recipient's language.
+                lambda lang: [(R.label(d["kind"], lang, contacts), R.describe_left(d, lang))
+                              for d, _, _ in due],
                 overdue,
             )
             if not ok:
