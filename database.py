@@ -530,8 +530,8 @@ def update_audit_path(audit_id: str, file_path_pdf: str) -> bool:
 # existing flows is unchanged except save_audit's failure path (see its
 # own docstring below).
 
-AUDIT_IP_LIMIT = int(os.environ.get("AUDIT_IP_LIMIT", "3"))
-AUDIT_IP_WINDOW_HOURS = int(os.environ.get("AUDIT_IP_WINDOW_HOURS", "24"))
+AUDIT_IP_LIMIT = int(os.environ.get("AUDIT_IP_LIMIT") or "3")   # empty counts as unset (D-172)
+AUDIT_IP_WINDOW_HOURS = int(os.environ.get("AUDIT_IP_WINDOW_HOURS") or "24")
 
 
 def domains_match(email_domain: str, site_domain: str) -> bool:

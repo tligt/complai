@@ -50,6 +50,25 @@ PGPASS=$(grep '^POSTGRES_PASSWORD=' "$SUPA/.env" | cut -d= -f2-)
 } | docker exec -i -e PGPASSWORD="$PGPASS" supabase-db \
     psql -U postgres -d postgres --single-transaction -v ON_ERROR_STOP=1 -q
 
+echo "== Outside the dumped schemas: the sign-up trigger and the file policies"
+# supabase db dump leaves out the auth and storage schemas (Supabase owns
+# them), so what RECOSA added there is recreated here, as on dev (12 Nov).
+docker exec -i -e PGPASSWORD="$PGPASS" supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q <<'SQL'
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users
+    for each row execute function public.handle_new_user();
+drop policy if exists "Anyone can read audit reports" on storage.objects;
+create policy "Anyone can read audit reports" on storage.objects for select
+    using (bucket_id = 'audit-reports');
+drop policy if exists "Anyone can upload audit reports" on storage.objects;
+create policy "Anyone can upload audit reports" on storage.objects for insert
+    with check (bucket_id = 'audit-reports');
+drop policy if exists "Users access own compliance files" on storage.objects;
+create policy "Users access own compliance files" on storage.objects for all
+    using (bucket_id = 'compliance-files' and (auth.uid())::text = (storage.foldername(name))[1])
+    with check (bucket_id = 'compliance-files' and (auth.uid())::text = (storage.foldername(name))[1]);
+SQL
+
 echo "== Comparing the reference tables"
 for t in $TABLES; do
     old=$(docker exec supabase-db psql "$OLD_DB_URL" -Atc "select count(*) from $t")
