@@ -22,7 +22,7 @@ SUPA=$ROOT/supabase
 # The Supabase commit this deployment runs. Empty on the first install: the
 # script then takes the current master and prints the commit to record here
 # (and in docs/SPRINT_LOG.md). Upgrading Supabase = changing this, deliberately.
-SUPABASE_REF="${SUPABASE_REF:-}"
+SUPABASE_REF="${SUPABASE_REF:-6fcdcdca9acbac1882c1fa205495d04fa7194435}"   # 12 Nov (D-172)
 
 [ "$(id -u)" = 0 ] || { echo "Run as root."; exit 1; }
 [ -f "$APP/deploy/.env" ] || { echo "Fill in $APP/deploy/.env first (copy .env.example)."; exit 1; }
@@ -63,6 +63,9 @@ mkdir -p "$SUPA/docker/volumes/functions"
 cp -r "$APP/supabase/functions/compliance-pulse" "$SUPA/docker/volumes/functions/"
 if [ ! -f "$SUPA/docker/.env" ]; then
     python3 "$APP/deploy/supabase_env.py" "$SUPA/docker"
+    # The asymmetric keys and opaque API keys, made together by Supabase's own
+    # script from the JWT_SECRET just written (D-172).
+    (cd "$SUPA/docker" && sh utils/add-new-auth-keys.sh --update-env >/dev/null)
     echo "   ^ copy SUPABASE_KEY and SUPABASE_SERVICE_KEY into $APP/deploy/.env"
 fi
 

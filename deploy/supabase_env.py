@@ -90,6 +90,11 @@ def main(stack_dir: str) -> None:
         # compliance-pulse is a public feed (verify_jwt was off on Supabase
         # Cloud too); it is the only function.
         "FUNCTIONS_VERIFY_JWT": "false",
+        # 12 Nov (D-172): the stack's .env names its compose files, which turns
+        # off Docker's automatic override — ours must be listed to apply.
+        "COMPOSE_FILE": "docker-compose.yml:docker-compose.override.yml",
+        # Exactly 16 characters (Realtime refuses anything else).
+        "REALTIME_DB_ENC_KEY": secrets.token_hex(8),
     }
     for k in ("SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_ADMIN_EMAIL",
               "SMTP_SENDER_NAME", "ENABLE_EMAIL_AUTOCONFIRM"):
@@ -105,6 +110,10 @@ def main(stack_dir: str) -> None:
         key = s.split("=", 1)[0].strip()
         if key in fixed:
             lines.append(f"{key}={fixed[key]}")
+        elif key in ("SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY", "JWT_KEYS", "JWT_JWKS"):
+            # Made together by Supabase's utils/add-new-auth-keys.sh, which
+            # bootstrap.sh runs next (they must match one another).
+            lines.append(f"{key}=")
         elif any(w in key for w in ("ENC_KEY", "CRYPTO_KEY")):
             # Encryption keys: exactly 32 characters.
             lines.append(f"{key}={secrets.token_hex(16)}")
