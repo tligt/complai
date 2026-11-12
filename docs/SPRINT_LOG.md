@@ -7149,6 +7149,42 @@ By the user ("there's no en baseline … en_EU locale?").
   (FR); the CCB news and advisories feeds are configured (BE).
 - `migration_s64_eu_baseline.sql` (data, applied).
 
+
+### D-172 — Production on Scaleway, dev stays where it is, 12 Nov
+
+By the user ("upload to Scaleway production … keep the current one as dev
+… least expensive settings", then "take care of it by yourself").
+
+- **Two environments.** Production: one Scaleway instance in Paris,
+  `app` / `admin` / `check` / `api.recosa.eu`. Dev: unchanged
+  (Streamlit Cloud, Supabase Cloud, Qdrant Cloud, GitHub Actions).
+- **Cheapest that works:** DEV1-L (4 vCPU, 8 GB, x64, shared CPU),
+  ≈ €31/month + 40 GB disk and IP ≈ €38. Uses 1.9 GB with everything up.
+- **Clean start:** schema plus reference data only (templates, catalogues,
+  reference values, countries, sources, regulatory feed, buckets) —
+  `deploy/migrate/migrate_reference.sh`. No accounts or test data, so the
+  two environments never email the same people. Knowledge base copied
+  (4,900 points, Qdrant 1.18.2 as on the cloud).
+- **Supabase changed since the 27 Oct runbook** (pinned at commit
+  6fcdcdca): Kong became Envoy (`api-gw`, still answering to `kong`),
+  Logflare optional, and its `.env` sets COMPOSE_FILE — which silently
+  disabled our override, so the pooler and gateway would have been public.
+  Fixed: the override names `api-gw`, `supabase_env.py` lists it in
+  COMPOSE_FILE; REALTIME_DB_ENC_KEY is 16 characters; the new asymmetric and
+  opaque keys come from Supabase's `add-new-auth-keys.sh`. Checked: only
+  22/80/443 public.
+- **Outside the dumped schemas, recreated:** the `on_auth_user_created`
+  trigger and the three storage policies (as on dev).
+- **Code on the server without GitHub access:** the deploy key was refused
+  by the permission check; the code goes over as a `git bundle` from the
+  dev PC. `update.sh` (git pull) therefore needs the bundle step until a
+  deploy key is added by the user.
+- Empty settings now fall back to defaults (`AUDIT_IP_*` crashed on `""`).
+- Jobs on, except `monitor_marketing.py` (marketing stays on dev).
+- **Still the user's:** the Brevo SMTP key (sign-up and reset emails), the
+  backup API key (A6; the CLI's key has no IAM rights) and the bucket's
+  35-day rule, the Framer site's links.
+
 ---
 
 ## 5. Constraints and gotchas
