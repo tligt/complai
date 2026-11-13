@@ -6,6 +6,8 @@ import subprocess
 import tempfile
 import requests
 import streamlit as st
+
+from mistral_text import message_text
 from datetime import date
 from display import fmt_date
 from rag import retrieve, Chunk
@@ -415,7 +417,7 @@ Cover: customer/client data, employee data, marketing, website analytics, and an
     except Exception:
         pass
 
-    raw = _resp1["choices"][0]["message"]["content"]
+    raw = message_text(_resp1)
 
     # Strip markdown fences if present
     raw = raw.strip()
@@ -548,7 +550,7 @@ REGULATORY CONTEXT:
              output_tokens=_usage2.get("completion_tokens", 0))
     except Exception:
         pass
-    content_text = result["choices"][0]["message"]["content"]
+    content_text = message_text(result)
     finish_reason = result["choices"][0].get("finish_reason", "")
 
     # If truncated, continue generation
@@ -583,7 +585,7 @@ REGULATORY CONTEXT:
                      output_tokens=_usage3.get("completion_tokens", 0))
             except Exception:
                 pass
-            content_text += "\n" + _cont_data["choices"][0]["message"]["content"]
+            content_text += "\n" + message_text(_cont_data)
 
     return content_text
 

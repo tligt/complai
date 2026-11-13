@@ -18,6 +18,8 @@ import requests
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
+from mistral_text import message_text
+
 # No-op in GitHub Actions (no .env file there, and real env vars are
 # already set via secrets) — only fills in values for local runs.
 load_dotenv()
@@ -317,7 +319,7 @@ def analyse_for_marketing(
             total_input  += _usage.get("prompt_tokens", 0)
             total_output += _usage.get("completion_tokens", 0)
 
-            raw = _rdata["choices"][0]["message"]["content"].strip()
+            raw = message_text(_rdata)
             raw = re.sub(r"```json|```", "", raw).strip()
             m   = re.search(r'\{[\s\S]*\}', raw)
             if m:

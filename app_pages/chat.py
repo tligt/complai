@@ -9,6 +9,8 @@ import io
 import os
 import uuid
 import requests
+
+from mistral_text import message_text
 from datetime import date
 import streamlit as st
 
@@ -102,7 +104,7 @@ def classify_regulations(question: str, candidate_regs: list[str]) -> list[str]:
         _cls = response.json()
         from database import log_mistral_usage
         log_mistral_usage(_cls, "chat_classify", getattr(st.session_state.get("user"), "id", None))
-        raw = _cls["choices"][0]["message"]["content"]
+        raw = message_text(_cls)
     except Exception:
         # Classification is an optimisation, not a requirement — a failed
         # call degrades to Part 1's single filtered retrieval, not to an
@@ -194,7 +196,7 @@ def answer_question(
         )
     except Exception:
         pass
-    return _resp["choices"][0]["message"]["content"]
+    return message_text(_resp)
 
 
 # ── Session state init ────────────────────────────────────────

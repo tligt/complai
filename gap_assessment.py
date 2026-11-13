@@ -6,6 +6,8 @@ import time
 import re
 import requests
 import streamlit as st
+
+from mistral_text import message_text
 from datetime import date, datetime
 from pypdf import PdfReader
 from docx import Document as DocxDocument
@@ -200,7 +202,7 @@ DOCUMENT:
                      output_tokens=_u1.get("completion_tokens", 0))
             except Exception:
                 pass
-            raw = _rdata1["choices"][0]["message"]["content"].strip()
+            raw = message_text(_rdata1)
             # Strip markdown fences
             raw = re.sub(r"```json|```", "", raw).strip()
             # Extract JSON object if embedded in text
@@ -280,7 +282,7 @@ CHECK THESE OBLIGATIONS:
                      output_tokens=_u2.get("completion_tokens", 0))
             except Exception:
                 pass
-            raw = _rdata2["choices"][0]["message"]["content"].strip()
+            raw = message_text(_rdata2)
             # Strip markdown fences
             raw = re.sub(r"```json|```", "", raw).strip()
             # Extract JSON array

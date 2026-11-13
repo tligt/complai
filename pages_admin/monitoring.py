@@ -4,6 +4,7 @@ import requests
 import streamlit as st
 from datetime import datetime, timezone
 
+from mistral_text import message_text
 from database import (
     # Regulatory
     load_regulatory_updates,
@@ -133,7 +134,7 @@ def _format_as_markdown(plain_text: str, title: str = "") -> str | None:
         _j = response.json()
         from database import log_mistral_usage
         log_mistral_usage(_j, "monitoring_format")
-        return _j["choices"][0]["message"]["content"].strip()
+        return message_text(_j)
     except Exception as e:
         st.error(f"Could not format as Markdown: {e}")
         return None
@@ -207,7 +208,7 @@ Write the LinkedIn post."""
         _j = response.json()
         from database import log_mistral_usage
         log_mistral_usage(_j, "linkedin_draft")
-        return _j["choices"][0]["message"]["content"].strip()
+        return message_text(_j)
     except Exception as e:
         st.error(f"Could not generate LinkedIn draft: {e}")
         return None

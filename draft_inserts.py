@@ -42,6 +42,8 @@ from typing import Any, Mapping
 
 import requests
 
+from mistral_text import message_text
+
 API_URL = "https://api.mistral.ai/v1/chat/completions"
 MODEL = "mistral-large-latest"
 
@@ -155,8 +157,7 @@ def draft(
         if resp.status_code != 200:
             return ""
         payload = resp.json()
-        text = (payload.get("choices", [{}])[0]
-                .get("message", {}).get("content", "") or "").strip()
+        text = message_text(payload)
 
         try:
             from database import log_token_usage  # noqa: PLC0415

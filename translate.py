@@ -44,6 +44,8 @@ from typing import Any, Mapping
 
 import requests
 
+from mistral_text import message_text
+
 
 API_URL = "https://api.mistral.ai/v1/chat/completions"
 
@@ -178,11 +180,7 @@ def translate_fields(
         if resp.status_code != 200:
             return {}
         payload = resp.json()
-        content = (
-            payload.get("choices", [{}])[0]
-            .get("message", {})
-            .get("content", "")
-        )
+        content = message_text(payload)
         # Billable, so it is counted — the credits work in S41 has to see every
         # call, not only the ones a client made on purpose. Failures are not
         # logged because nothing was consumed.

@@ -17,6 +17,8 @@ import html as _html
 import re
 import requests
 import xml.etree.ElementTree as ET
+
+from mistral_text import message_text
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
@@ -305,7 +307,7 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
             total_input  += _input
             total_output += _output
 
-            raw = _rdata["choices"][0]["message"]["content"].strip()
+            raw = message_text(_rdata)
             raw = re.sub(r"```json|```", "", raw).strip()
             match = re.search(r'\{[\s\S]*\}', raw)
             if match:
