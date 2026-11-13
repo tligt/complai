@@ -1,9 +1,11 @@
 name: Regulatory Monitoring
 
+# Schedule removed 13 Nov (D-174): both jobs now run on production's own
+# crontab instead, once Compliance Pulse's source moved there — one
+# pipeline, not two running against two databases. Kept as workflow_dispatch
+# only, for a manual dev-only run if one's ever needed.
 on:
-  schedule:
-    - cron: '0 7 * * *'   # Daily at 07:00 UTC
-  workflow_dispatch:        # Allow manual trigger from GitHub Actions UI
+  workflow_dispatch:
 
 jobs:
   regulatory:
