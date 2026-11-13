@@ -7706,8 +7706,28 @@ I'll change the endpoint when everything is done."
 - **Buffer key copied to production**, same day: the user pasted it into
   the dev `.env` (it otherwise lives only in the admin app's Streamlit
   Cloud secrets), copied across, confirmed live — production reaches
-  Buffer and sees both channels (`creagent`, `recosa-ai`). Nothing left on
-  the backend side; the AnySync endpoint is the user's to flip.
+  Buffer and sees both channels (`creagent`, `recosa-ai`).
+- **History imported, 20 approved marketing articles.** Found before the
+  endpoint moved: dev had 17 published + 3 approved-not-yet-published
+  articles, 3 of them with their own `/pulse/{slug}` page, one with a live
+  LinkedIn comment linking to it ("Europe employs more people in
+  compliance than in R&D"). Copying only reference data on 12 Nov (D-172)
+  was right for customer-facing tables, wrong for this one — these are
+  published, externally-linked RECOSA content, not test noise. `\copy`
+  from dev to production by id, excluding the generated `url_hash`
+  column (the one snag — Postgres doesn't let a plain `COPY` write a
+  generated column; excluding it from both the export and import column
+  lists let production recompute it itself). Confirmed by calling the
+  live function directly for that slug: full article back, same id.
+- **The admin's status filter hid both discoveries today** — first a
+  url_flagged item, then these 20 newly-imported approved ones, while the
+  default filter sat on "pending" or "all"-but-stale. Generalised the
+  fix from earlier the same day: both tabs now say what every other
+  status holds, not just url_flagged.
+- **Endpoint flipped, confirmed live.** The user repointed Framer's
+  AnySync source; the public page now serves from production — checked
+  directly: an item production's own monitor found today sits at the
+  top, something dev's copy never had. D-174 closed.
 
 ---
 
