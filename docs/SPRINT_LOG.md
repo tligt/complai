@@ -7703,10 +7703,11 @@ I'll change the endpoint when everything is done."
   crontab runs both in sequence, `monitor_marketing.py` tested live and
   confirmed writing to production's database. Dev's `regulatory_monitoring.yml`
   lost its schedule (kept as `workflow_dispatch` only) — one pipeline, not two.
-- **Still open:** the Buffer API key, which only lives in the admin app's
-  Streamlit Cloud secrets (not in any `.env` this session can read) — needed
-  on production before a LinkedIn send from there will work. The AnySync
-  endpoint itself is the user's to flip, once this is confirmed done.
+- **Buffer key copied to production**, same day: the user pasted it into
+  the dev `.env` (it otherwise lives only in the admin app's Streamlit
+  Cloud secrets), copied across, confirmed live — production reaches
+  Buffer and sees both channels (`creagent`, `recosa-ai`). Nothing left on
+  the backend side; the AnySync endpoint is the user's to flip.
 
 ---
 
