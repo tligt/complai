@@ -121,7 +121,7 @@ _PITCH = f"""
 <div class="lp-li"><span class="tick">✓</span><span>Your obligations and an action plan, worked out from your company</span></div>
 <div class="lp-li"><span class="tick">✓</span><span>Policies and registers generated from your own systems</span></div>
 <div class="lp-li"><span class="tick">✓</span><span>Breach deadlines tracked, notifications drafted</span></div>
-<div class="lp-note"><b>Built for SMEs in Belgium and France.</b> Your data is stored in the EU.</div>
+<div class="lp-note"><b>Built for SMEs in Belgium, France and the Netherlands.</b> Your data is stored in the EU.</div>
 """
 
 
