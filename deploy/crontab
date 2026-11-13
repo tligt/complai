@@ -11,9 +11,11 @@ SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RUN=cd /opt/recosa/app/deploy && docker compose run --rm -T jobs
 
-# Regulatory monitoring. Marketing monitoring (monitor_marketing.py) stays on
-# dev for now (D-172): one LinkedIn pipeline, not two.
-0 7 * * *     root  $RUN python monitor.py >> /var/log/recosa/monitor.log 2>&1
+# Regulatory monitoring, then marketing monitoring (they run in sequence to
+# stay under Mistral's rate limit, as they did on GitHub Actions). Both move
+# here from dev on 13 Nov (D-174), once Compliance Pulse's own source moves
+# to production — dev's equivalent workflow is disabled the same day.
+0 7 * * *     root  $RUN python monitor.py >> /var/log/recosa/monitor.log 2>&1 && $RUN python monitor_marketing.py >> /var/log/recosa/monitor_marketing.log 2>&1
 # Website audit subscriptions — the script decides which are due
 0 8 * * *     root  $RUN python monitor_audits.py >> /var/log/recosa/monitor_audits.log 2>&1
 # Free-check results, once the email is confirmed
