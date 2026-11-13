@@ -462,6 +462,13 @@ def _plan_cards(default: str) -> str:
     if st.session_state.get("signup_plan_pick") not in SIGNUP_PLANS:
         st.session_state.signup_plan_pick = default
     chosen = st.session_state.signup_plan_pick
+    # D-174: the trial pill lives only in the left pitch panel, which a
+    # phone pushes below the form (card first, D-127) — so the plan prices
+    # were the first thing a mobile visitor saw, with no trial reassurance
+    # in view. Repeated here, right above the prices, on both breakpoints.
+    st.markdown(f'<div class="auth-pill" style="margin-bottom:10px">'
+                f'{TRIAL_DAYS}-day free trial on any plan · no card required</div>',
+                unsafe_allow_html=True)
     st.markdown('<div class="auth-lbl">Choose your plan</div>', unsafe_allow_html=True)
     cols = st.columns(len(SIGNUP_PLANS))
     for col, p in zip(cols, SIGNUP_PLANS):
@@ -485,7 +492,11 @@ def _signup_form(funnel: dict) -> None:
     if funnel.get("pending"):
         st.info("Create your free account to see your full result.")
     else:
-        plan = _plan_cards(funnel.get("plan") or "professional")
+        # D-174: default to Starter, not Professional, when the link gave no
+        # plan (nav/hero "Free Trial") — a visitor who hasn't seen the
+        # pricing page yet shouldn't land pre-picked on the pricier one. A
+        # plan-specific link (?signup=starter / professional) still wins.
+        plan = _plan_cards(funnel.get("plan") or "starter")
     new_email = st.text_input("Work email", key="signup_email", placeholder="you@company.com")
     # One password field (D-127): the eye icon shows what was typed, which
     # does the job a second "confirm" field did, with one field fewer.
