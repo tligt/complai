@@ -1771,6 +1771,37 @@ def record_funnel_event(event: str, tool: str | None = None,
         print(f"Could not record funnel event: {e}")
 
 
+def load_funnel_events(since: str | None = None, limit: int = 2000) -> list[dict]:
+    """D-176: every event recorded with record_funnel_event, raw — the
+    event name, tool, and whatever &src=/?check=/?signup= travelled with
+    it. Read back fresh here; nothing before this summarised them."""
+    try:
+        q = get_supabase_admin().table("funnel_events") \
+            .select("event, tool, source, created_at") \
+            .order("created_at", desc=True).limit(limit)
+        if since:
+            q = q.gte("created_at", since)
+        return q.execute().data or []
+    except Exception as e:
+        print(f"Could not load funnel events: {e}")
+        return []
+
+
+def load_leads(since: str | None = None, limit: int = 1000) -> list[dict]:
+    """D-176: every email a free check or quiz collected, what it was given
+    for, and whether it later became an account."""
+    try:
+        q = get_supabase_admin().table("leads") \
+            .select("tool, source, marketing_consent, converted_profile_id, created_at") \
+            .order("created_at", desc=True).limit(limit)
+        if since:
+            q = q.gte("created_at", since)
+        return q.execute().data or []
+    except Exception as e:
+        print(f"Could not load leads: {e}")
+        return []
+
+
 def get_user_profile(user_id: str) -> dict:
     """Get profile for a user including role."""
     try:

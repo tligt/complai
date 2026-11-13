@@ -44,6 +44,7 @@ if not is_admin(user_id):
 # barely visible on the navy sidebar (BO review, 9 Nov).
 home       = st.Page("pages_admin/home.py",       title="Home",           icon=":material/home:", default=True)
 dashboard  = st.Page("pages_admin/dashboard.py",  title="Dashboard",      icon=":material/monitoring:")
+acquisition = st.Page("pages_admin/acquisition.py", title="Acquisition",  icon=":material/campaign:")
 companies  = st.Page("pages_admin/companies.py",  title="Companies",      icon=":material/domain:")
 users      = st.Page("pages_admin/users.py",      title="Users",          icon=":material/group:")
 monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",     icon=":material/radar:")
@@ -63,7 +64,7 @@ tickets = st.Page(
 )
 
 _admin_sections = {
-    "Admin":   [home, dashboard, companies, users, countries, audit_log, versions],
+    "Admin":   [home, dashboard, acquisition, companies, users, countries, audit_log, versions],
     "Support": [tickets, feedback],
     "Content": [monitoring, kb],
 }
