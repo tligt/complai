@@ -345,14 +345,18 @@ with tab_reg:
         key="reg_status_filter",
     )
 
-    # D-174, 13 Nov: a url_flagged item is otherwise silently invisible
-    # under every other filter — found when a real one was, and nearly
-    # looked like nothing had come in.
-    if status_filter not in ("url_flagged", "all"):
-        _n_flagged = len(load_regulatory_updates(status="url_flagged"))
-        if _n_flagged:
-            st.caption(f"⚠️ {_n_flagged} item(s) flagged for a URL issue, hidden by this filter — "
-                      "switch to \"url_flagged\" or \"all\" to see them.")
+    # D-174, 13 Nov: any status other than the one selected is otherwise
+    # silently invisible — first found with url_flagged items, then again
+    # with 20 approved items imported from dev while the filter sat on
+    # "pending". General now: say what else is there, whatever it is.
+    if status_filter != "all":
+        _elsewhere = {s: len(load_regulatory_updates(status=s))
+                      for s in ("pending", "url_flagged", "approved", "rejected") if s != status_filter}
+        _elsewhere = {s: n for s, n in _elsewhere.items() if n}
+        if _elsewhere:
+            st.caption("Not shown by this filter: " +
+                      ", ".join(f"{n} {s}" for s, n in _elsewhere.items()) +
+                      " — switch to \"all\" to see everything.")
 
     updates = load_regulatory_updates(
         status=None if status_filter == "all" else status_filter
@@ -721,13 +725,16 @@ with tab_mkt:
         categories = ["all"] + sorted(set(s.get("category", "") for s in mkt_sources if s.get("category")))
         mkt_category = st.selectbox("Filter by category", categories, key="mkt_cat_filter")
 
-    # D-174: same trap as regulatory's queue above — a url_flagged item is
-    # otherwise silently invisible under every other filter.
-    if mkt_status not in ("url_flagged", "all"):
-        _n_flagged = len(load_marketing_updates(status="url_flagged"))
-        if _n_flagged:
-            st.caption(f"⚠️ {_n_flagged} item(s) flagged for a URL issue, hidden by this filter — "
-                      "switch to \"url_flagged\" or \"all\" to see them.")
+    # D-174: same trap as regulatory's queue above — any other status is
+    # otherwise silently invisible, whatever filter is selected.
+    if mkt_status != "all":
+        _elsewhere = {s: len(load_marketing_updates(status=s))
+                      for s in ("pending", "url_flagged", "approved", "rejected") if s != mkt_status}
+        _elsewhere = {s: n for s, n in _elsewhere.items() if n}
+        if _elsewhere:
+            st.caption("Not shown by this filter: " +
+                      ", ".join(f"{n} {s}" for s, n in _elsewhere.items()) +
+                      " — switch to \"all\" to see everything.")
 
     mkt_updates = load_marketing_updates(
         status=None if mkt_status == "all" else mkt_status,
