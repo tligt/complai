@@ -390,7 +390,7 @@ the only sprint that *is* the gate.
 | **S61** | **AI Act three-layer inventory** | **Built 10 Nov (D-160)**: AI inventory page (use cases, AI systems, models); risk class worked out from the answers (Art. 5, Annex III with Art. 6(3) and the profiling rule, Art. 50); role per use with the Art. 25 switch to provider; register derivations for nine AI Act obligations; action-plan tasks. Walked through locally, test data removed. was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before |
 | **S62** | **AI deployer pack: AUP + Human Oversight + AI Transparency Notice** | **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; page and Documents menu checked in the app 10 Nov. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | **S63** | **Annual compliance report** | **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
-| **S64** | **Localization — languages per country, and a checklist per country added** | **First slice built 10 Nov (D-163)**: documents keyed by locale (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU) in the back office, Dutch labels, and 13 of 14 templates in Dutch as drafts flagged for a Belgian lawyer (the DPA waits for the official Dutch SCC text). Next slices: interface translation, NL/LU country data. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. A language is per country (nl-BE is not nl-NL; fr-BE is not fr-FR): templates, wording and interface keyed by locale. Each new country comes with a checklist (languages, regulators, sources, law, registry, …). First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
+| **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | S65 | RoPA consistency checks | was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | S66 | Cookie Policy purpose granularity | was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
 | S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
@@ -398,6 +398,8 @@ the only sprint that *is* the gate.
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
 | S71 | CRA reporting on the incident clock | **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
+| S72 | Localization — the rest of S64 | New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
+| S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -7616,6 +7618,43 @@ regardless.
 templates authored language-parallel so NL is translation not re-derivation);
 `selected_client` language key (`pages/inventory.py` reads `document_languages`,
 and S26C derives `doc_langs` from it).
+
+### D-173 — GTM: three kinds of user, S64 closed, S72/S73 split off, 13 Nov
+
+By the user, moving to customer acquisition.
+
+- **Three kinds of user, kept distinct in how they're handled, not in the
+  schema (there is no "beta" account status — see below):**
+  - **Beta testers** (target: 2–3, currently 0). Free access in exchange
+    for feedback and tolerating bugs. Found and invited personally — "no
+    privileged contact with us" (classical marketing) does not apply; we
+    are open and transparent with them about the product's state.
+  - **Prospects.** The public "Free Trial" and "Free audit" paths on the
+    website — ordinary marketing, no personal contact.
+  - **Clients.** Paying, after a trial or not. Billing is still manual
+    (S46 not built): `active` is set by hand in the back office.
+  - A beta tester is **not** given the 14-day trial clock — a countdown is
+    the wrong frame for someone doing us a favour. They're granted access
+    directly: `pages_admin/companies.py` → Change plan or status → `active`,
+    whatever plan fits, with a note. No new status or UI needed; the back
+    office already does this (D-151/D-152).
+- **S64 closed**, its remainder split into **S72**; **S73** opened (not
+  locked) to eventually leave Framer, for price (per-locale add-on) and
+  control (Compliance Pulse's display rules live in Framer's own CMS/page
+  config, duplicating what the self-hosted `compliance-pulse` function
+  already owns cleanly). Both roadmap rows above.
+- **The trial → paid flow needs no payment page.** Sign-up never touches
+  billing today (`subscribe_view.py`: "no card needed"); a trial that ends
+  unconverted becomes a support ticket an admin resolves by hand
+  (`database.ACCOUNT_STATUSES`, `change_account`). That is the real,
+  working MVP flow, not a placeholder — a fake payment screen would be
+  friction with nothing behind it. Confirmed end to end in code, not yet
+  re-tested against the new Scaleway production environment (D-172).
+- **The website's waitlist page is for prospects, not beta testers**, now
+  that beta access is personal/manual. Its "Free Trial" buttons should
+  point at the real sign-up (`https://app.recosa.eu/?signup=starter`
+  etc.), not `/waitlist` — a live gap found on the public site 13 Nov,
+  fix tracked outside the sprint log.
 
 ---
 
