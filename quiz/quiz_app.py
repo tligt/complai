@@ -454,14 +454,8 @@ def _pending() -> dict | None:
 
 def _header() -> None:
     st.html(_CSS)
-    # D-175: same Umami Cloud property as recosa.eu and the login page, so
-    # the free check's traffic shows there too — see login_page.py's own
-    # comment for what this does and doesn't give (no cookies, no identity
-    # stitching; the query string, including ?check= and &src=, is what
-    # actually says which path a visitor took).
-    st.html('<script defer src="https://cloud.umami.is/script.js" '
-           'data-website-id="de0d5db7-3b2c-4dae-b5e5-9522a7dbfde5" '
-           'data-domains="recosa.eu,www.recosa.eu,app.recosa.eu,check.recosa.eu"></script>')
+    # D-175: Umami loads via the Docker image's own patched static HTML
+    # (deploy/Dockerfile) — st.html strips a <script> tag, confirmed live.
     st.markdown(
         '<div class="fc-top"><div class="fc-mark">R</div><span class="fc-name">RECOSA</span>'
         f'<a class="fc-back" href="{WEBSITE_URL}" target="_top">Back to recosa.eu</a></div>',

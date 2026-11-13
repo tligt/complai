@@ -37,6 +37,17 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# D-175, 13 Nov: Umami Cloud, same property as recosa.eu — into Streamlit's
+# own static index.html, since st.html() strips a <script> tag (confirmed
+# live: the element never reaches the DOM). All three apps share this one
+# image, so all three would load it; data-domains is Umami's own hostname
+# allowlist, and admin.recosa.eu is deliberately left off it — the script
+# loads there too but self-disables, rather than needing a second image.
+# app.recosa.eu this way covers the authenticated product, not just the
+# login page, which is a wider scope than "prospects only" — flagged to
+# the user, not a tested or final decision to track that too.
+RUN python3 -c "import streamlit, os; p = os.path.join(os.path.dirname(streamlit.__file__), 'static', 'index.html'); s = open(p, encoding='utf-8').read(); tag = '<script defer src=\"https://cloud.umami.is/script.js\" data-website-id=\"de0d5db7-3b2c-4dae-b5e5-9522a7dbfde5\" data-domains=\"recosa.eu,www.recosa.eu,app.recosa.eu,check.recosa.eu\"></script>\n'; open(p, 'w', encoding='utf-8').write(s.replace('</head>', tag + '</head>')) if '</head>' in s and 'umami' not in s else None"
+
 COPY --chown=recosa:recosa . .
 USER recosa
 

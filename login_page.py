@@ -131,23 +131,12 @@ def _style() -> None:
     st.html(_CSS)
 
 
-# D-175, 13 Nov: the same Umami Cloud property as recosa.eu, so a visitor's
-# journey from the homepage through to signing up shows as one property's
-# traffic. Umami sets no cookies (confirmed in its own docs), so this
-# doesn't stitch one visitor's identity across the two different pages —
-# it only means both are tracked, and the full query string (?signup=,
-# &src=) is recorded on each pageview by default, which is what actually
-# answers "which CTA did they use". Scoped to this page only — not the
-# back office, not the authenticated app once someone's signed in.
-_ANALYTICS = ('<script defer src="https://cloud.umami.is/script.js" '
-             'data-website-id="de0d5db7-3b2c-4dae-b5e5-9522a7dbfde5" '
-             'data-domains="recosa.eu,www.recosa.eu,app.recosa.eu,check.recosa.eu"></script>')
-
-
 def render() -> None:
     """The whole page for a visitor who is not logged in."""
     _style()
-    st.html(_ANALYTICS)
+    # D-175: Umami is loaded for the whole app at the Docker image level
+    # (deploy/Dockerfile patches Streamlit's own static index.html) — st.html
+    # strips a <script> tag, confirmed live, so it can't be done from here.
     st.markdown(
         '<div class="lp-top"><div class="lp-mark">R</div><span class="lp-name">RECOSA</span>'
         f'<a class="lp-back" href="{WEBSITE_URL}" target="_self">Back to recosa.eu</a></div>',
