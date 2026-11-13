@@ -95,10 +95,11 @@ def classify_regulations(question: str, candidate_regs: list[str]) -> list[str]:
             json={
                 "model": "mistral-large-latest",
                 "temperature": 0,
+                "reasoning_effort": "low",   # D-174: the model reasons before
                 "messages": [{"role": "user", "content": prompt}],
-                "max_tokens": 50,
+                "max_tokens": 600,           # answering now; 50 never reached one
             },
-            timeout=15,
+            timeout=20,
         )
         response.raise_for_status()
         _cls = response.json()
@@ -179,8 +180,9 @@ def answer_question(
         json={
             "model": "mistral-large-latest",
             "temperature": 0.7,
+            "reasoning_effort": "low",   # D-174: keeps the reasoning tax down
             "messages": [{"role": "system", "content": system_prompt}] + messages,
-            "max_tokens": 2048,
+            "max_tokens": 3000,
         }
     )
     response.raise_for_status()

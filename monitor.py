@@ -291,13 +291,21 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                 json={
                     "model": "mistral-large-latest",
                     "temperature": 0.1,
+                    # D-174, 13 Nov: mistral-large-latest now reasons before
+                    "reasoning_effort": "low",
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "max_tokens": 400,
+                    # answering; it burned the whole 400-token budget on
+                    # reasoning for some items (every CCB Advisories item,
+                    # every run) and never reached an answer, silently
+                    # dropped by this function's own except below. 1200
+                    # leaves room for both, confirmed against the two
+                    # titles that were failing.
+                    "max_tokens": 1200,
                 },
-                timeout=30,
+                timeout=45,
             )
             response.raise_for_status()
             _rdata = response.json()

@@ -122,6 +122,7 @@ def _format_as_markdown(plain_text: str, title: str = "") -> str | None:
             json={
                 "model": "mistral-large-latest",
                 "temperature": 0.2,
+                "reasoning_effort": "low",   # D-174: keeps the reasoning tax down
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -196,13 +197,14 @@ Write the LinkedIn post."""
             json={
                 "model": "mistral-large-latest",
                 "temperature": 0.7,
+                "reasoning_effort": "low",   # D-174: the model reasons first now
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user",   "content": user_prompt},
                 ],
-                "max_tokens": 500,
+                "max_tokens": 1200,
             },
-            timeout=30,
+            timeout=45,
         )
         response.raise_for_status()
         _j = response.json()

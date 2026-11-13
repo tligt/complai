@@ -305,13 +305,14 @@ def analyse_for_marketing(
                 json={
                     "model":       "mistral-large-latest",
                     "temperature": 0.1,
+                    "reasoning_effort": "low",   # D-174, same fix as monitor.py
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user",   "content": user_prompt},
                     ],
-                    "max_tokens": 300,
+                    "max_tokens": 1200,
                 },
-                timeout=30,
+                timeout=45,
             )
             resp.raise_for_status()
             _rdata   = resp.json()

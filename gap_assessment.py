@@ -184,13 +184,14 @@ DOCUMENT:
                 json={
                     "model": "mistral-large-latest",
                     "temperature": 0.0,
+                    "reasoning_effort": "low",   # D-174: the model reasons first now
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "max_tokens": 300,
+                    "max_tokens": 1200,
                 },
-                timeout=30,
+                timeout=45,
             )
             response.raise_for_status()
             _rdata1 = response.json()
@@ -264,13 +265,14 @@ CHECK THESE OBLIGATIONS:
                 json={
                     "model": "mistral-large-latest",
                     "temperature": 0.0,
+                    "reasoning_effort": "low",   # D-174: the model reasons first now
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
                     ],
-                    "max_tokens": 800,
+                    "max_tokens": 2500,
                 },
-                timeout=45,
+                timeout=60,
             )
             response.raise_for_status()
             _rdata2 = response.json()

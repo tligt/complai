@@ -397,6 +397,7 @@ Cover: customer/client data, employee data, marketing, website analytics, and an
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
         json={
             "model": "mistral-large-latest",
+            "reasoning_effort": "low",   # D-174: keeps the reasoning tax down
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -532,6 +533,7 @@ REGULATORY CONTEXT:
         json={
             "model": "mistral-large-latest",
             "temperature": 0.3,
+            "reasoning_effort": "low",   # D-174: keeps the reasoning tax down
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": doc_prompt},
@@ -570,6 +572,7 @@ REGULATORY CONTEXT:
             json={
                 "model": "mistral-large-latest",
                 "temperature": 0.3,
+                "reasoning_effort": "low",   # D-174: keeps the reasoning tax down
                 "messages": messages,
                 "max_tokens": 4000,
             },

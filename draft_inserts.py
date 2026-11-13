@@ -148,7 +148,8 @@ def draft(
                 # little variation is preferable to the same four sentences
                 # appearing in every client's documentation.
                 "temperature": 0.3,
-                "max_tokens": 400,
+                "reasoning_effort": "low",   # D-174: the model reasons first now
+                "max_tokens": 1200,
                 "messages": [{"role": "system", "content": system},
                              {"role": "user", "content": user}],
             },
