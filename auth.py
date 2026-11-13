@@ -502,15 +502,23 @@ def _signup_form(funnel: dict) -> None:
     # does the job a second "confirm" field did, with one field fewer.
     new_password = st.text_input("Password", type="password", key="signup_password",
                                  placeholder="At least 8 characters")
+    st.markdown(
+        f'<div class="auth-fine" style="text-align:left">Read RECOSA\'s '
+        f'<a href="{TERMS_URL}" target="_blank">Terms of Service</a> and '
+        f'<a href="{PRIVACY_URL}" target="_blank">Privacy Policy</a>.</div>',
+        unsafe_allow_html=True)
+    # D-174: a passive "by signing up you agree" line was the only consent
+    # on record — nothing actually stopped submitting without reading
+    # either document. An unticked-by-default checkbox, required below,
+    # replaces it with a real opt-in, for a trial sign-up or not.
+    agreed = st.checkbox("I agree to RECOSA's Terms of Service and Privacy Policy",
+                         key="signup_agree")
     label = (f"Start my free trial — {SUBSCRIPTION_TIERS[plan]}" if plan
              else "Create my free account")
     clicked = st.button(label, type="primary", use_container_width=True, key="btn_signup")
-    st.markdown(
-        '<div class="auth-fine">'
-        + (f"{TRIAL_DAYS} days free, no credit card needed. " if plan else "")
-        + f'By signing up you agree to the <a href="{TERMS_URL}" target="_blank">Terms</a> '
-        f'and <a href="{PRIVACY_URL}" target="_blank">Privacy Policy</a>.</div>',
-        unsafe_allow_html=True)
+    if plan:
+        st.markdown(f'<div class="auth-fine">{TRIAL_DAYS} days free, no credit card needed.</div>',
+                    unsafe_allow_html=True)
     if not clicked:
         return
     new_email = (new_email or "").strip()
@@ -519,6 +527,9 @@ def _signup_form(funnel: dict) -> None:
         return
     if len(new_password) < 8:
         st.error("Your password needs at least 8 characters.")
+        return
+    if not agreed:
+        st.warning("Please accept the Terms of Service and Privacy Policy to continue.")
         return
     try:
         res = get_supabase().auth.sign_up({"email": new_email, "password": new_password})
