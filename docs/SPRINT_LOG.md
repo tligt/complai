@@ -7666,6 +7666,48 @@ By the user, moving to customer acquisition.
   etc.), not `/waitlist` — a live gap found on the public site 13 Nov,
   fix tracked outside the sprint log.
 
+
+### D-174 — Compliance Pulse moves to production; two real bugs found doing it, 13 Nov
+
+By the user, checking the back office's Monitoring page: regulatory data
+there, marketing empty, and asking why — then "let's do everything and
+I'll change the endpoint when everything is done."
+
+- **The live `recosa.eu/compliance-pulse` page was still fed from dev.**
+  Production's copy of the `compliance-pulse` function existed but nothing
+  public read from it — the Framer site's AnySync source was never
+  repointed (S50 runbook step C5). Production's regulatory monitor had
+  been running daily since 12 Nov regardless, duplicating dev's work for
+  a database nobody read.
+- **`mistral-large-latest` now reasons before answering**, and the fixed
+  `max_tokens` budgets at every call site assumed a plain-string reply.
+  Two distinct failures, found on production and true of dev too:
+  - `response["content"]` can come back as a list of blocks, not a
+    string — crashed with `'list' object has no attribute 'strip'`,
+    caught by a per-item `except`, never surfaced as an error. Silently
+    dropped every CCB Advisories item, every run. One shared helper
+    (`mistral_text.message_text`) now reads either shape; all 13 call
+    sites across the app use it (chat, document generation, gap
+    assessment, both monitors, the admin's Markdown/LinkedIn tools, draft
+    inserts) — `translate.py`'s `mistral-small-latest` is unaffected.
+  - Even once read correctly, the reply was often empty: the model was
+    spending its whole token budget on hidden "thinking" blocks and never
+    reaching the actual answer (`finish_reason: "length"`). Fixed at the
+    same 10 sites with `"reasoning_effort": "low"` and a bigger budget
+    (confirmed live against the actual failing items).
+- **Schema drift:** production's `regulatory_updates` was missing
+  `url_check_reason`, added to dev after the 12 Nov reference-data copy —
+  every URL-flagged item failed to save (`PGRST204`). Added on production;
+  `marketing_updates` already had it. `migration_url_check_reason.sql`.
+- **Marketing monitoring moved to production**, alongside regulatory: the
+  crontab runs both in sequence, `monitor_marketing.py` tested live and
+  confirmed writing to production's database. Dev's `regulatory_monitoring.yml`
+  lost its schedule (kept as `workflow_dispatch` only) — one pipeline, not two.
+- **Still open:** the Buffer API key, which only lives in the admin app's
+  Streamlit Cloud secrets (not in any `.env` this session can read) — needed
+  on production before a LinkedIn send from there will work. The AnySync
+  endpoint itself is the user's to flip, once this is confirmed done.
+
 ---
 
 *End of record. Append at sprint close.*
