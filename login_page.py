@@ -115,7 +115,7 @@ _CSS = """
 """
 
 _PITCH = f"""
-<span class="lp-pill">{TRIAL_DAYS}-day free trial · no card</span>
+<span class="lp-pill">{TRIAL_DAYS}-day free trial · no credit card</span>
 <div class="lp-h">Your EU compliance co-pilot, ready in minutes.</div>
 <div class="lp-li"><span class="tick">✓</span><span>GDPR, NIS2 and the EU AI Act in one place</span></div>
 <div class="lp-li"><span class="tick">✓</span><span>Your obligations and an action plan, worked out from your company</span></div>

@@ -475,7 +475,7 @@ def _header() -> None:
         "results": ("Your results", "The headline is free. The full report comes with a free account."),
     }
     h, sub = titles[ss.step]
-    st.markdown(f'<span class="fc-pill">Free · no card · a few minutes</span>'
+    st.markdown(f'<span class="fc-pill">Free · no credit card · a few minutes</span>'
                 f'<div class="fc-h">{h}</div><div class="fc-sub">{sub}</div>',
                 unsafe_allow_html=True)
     # Where the visitor is. A direct link starts at the check: no step 1.
@@ -853,7 +853,7 @@ def _account_form(pending: dict) -> None:
         pw = c1.text_input("Choose a password (min. 8 characters)", type="password", key="acc_pw")
         pw2 = c2.text_input("Repeat the password", type="password", key="acc_pw2")
         marketing = st.checkbox(funnel.CONSENT_TEXT, value=False, key="acc_mkt")
-        st.markdown(f'<div class="fc-fine">This creates your free RECOSA account — no card. We use '
+        st.markdown(f'<div class="fc-fine">This creates your free RECOSA account — no credit card. We use '
                     f'your email to send the results and to log you in; updates only if you tick '
                     f'the box. <a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy policy</a></div>',
                     unsafe_allow_html=True)

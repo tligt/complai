@@ -34,7 +34,7 @@ def render_subscribe() -> None:
                 "continue where you left off."))
     else:
         st.markdown(
-            tr("This part of RECOSA is included in every plan. Start a **{trial_days}-day free trial** to use all of it — no card needed.").format(trial_days=TRIAL_DAYS)
+            tr("This part of RECOSA is included in every plan. Start a **{trial_days}-day free trial** to use all of it — no credit card needed.").format(trial_days=TRIAL_DAYS)
         )
 
     # D-170: the company that subscribes, before any plan request.
@@ -84,7 +84,7 @@ def render_trial_cta(profile: dict) -> None:
             "you're missing and turns the gaps into an action plan.")
         )
         if status == "registered":
-            if st.button(tr("Start {trial_days}-day free trial — no card").format(trial_days=TRIAL_DAYS), type="primary",
+            if st.button(tr("Start {trial_days}-day free trial — no credit card").format(trial_days=TRIAL_DAYS), type="primary",
                          key="cta_trial"):
                 if start_trial(profile["id"]):
                     record_funnel_event("trial_started", None, profile.get("signup_source"))

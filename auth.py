@@ -467,7 +467,7 @@ def _plan_cards(default: str) -> str:
     # were the first thing a mobile visitor saw, with no trial reassurance
     # in view. Repeated here, right above the prices, on both breakpoints.
     st.markdown(f'<div class="auth-pill" style="margin-bottom:10px">'
-                f'{TRIAL_DAYS}-day free trial on any plan · no card required</div>',
+                f'{TRIAL_DAYS}-day free trial on any plan · no credit card required</div>',
                 unsafe_allow_html=True)
     st.markdown('<div class="auth-lbl">Choose your plan</div>', unsafe_allow_html=True)
     cols = st.columns(len(SIGNUP_PLANS))
@@ -507,7 +507,7 @@ def _signup_form(funnel: dict) -> None:
     clicked = st.button(label, type="primary", use_container_width=True, key="btn_signup")
     st.markdown(
         '<div class="auth-fine">'
-        + (f"{TRIAL_DAYS} days free, no card needed. " if plan else "")
+        + (f"{TRIAL_DAYS} days free, no credit card needed. " if plan else "")
         + f'By signing up you agree to the <a href="{TERMS_URL}" target="_blank">Terms</a> '
         f'and <a href="{PRIVACY_URL}" target="_blank">Privacy Policy</a>.</div>',
         unsafe_allow_html=True)
@@ -560,7 +560,7 @@ def _check_inbox(email: str, plan: str | None) -> None:
         f"We sent a confirmation link to **{email}**. Open it, then come back "
         "here and log in."
         + (f"\n\nYour {TRIAL_DAYS}-day free trial of **{SUBSCRIPTION_TIERS[plan]}** "
-           "has started — no card needed." if plan else "")
+           "has started — no credit card needed." if plan else "")
     )
     # 9 Nov: a company mail server can hold a first email from a new sender
     # for half an hour (Hostinger did, for recosa.eu); resending doesn't help.
