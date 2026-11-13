@@ -7729,6 +7729,44 @@ I'll change the endpoint when everything is done."
   directly: an item production's own monitor found today sits at the
   top, something dev's copy never had. D-174 closed.
 
+
+### D-175 — Umami on the login page and the free check, not just recosa.eu, 13 Nov
+
+By the user: can a visitor be followed from the homepage to whichever CTA
+they choose, and should Umami move off its Cloud plan later (so it can
+also serve Evidara).
+
+- **`st.html()` strips a `<script>` tag before it reaches the DOM** —
+  confirmed live, the element wasn't just inert, it was absent entirely.
+  Fixed properly: the Docker image patches Streamlit's own static
+  `index.html` at build time (`deploy/Dockerfile`), once, for all three
+  apps — they share the image, so this was the only way to do it without
+  a second image.
+- **Same Umami Cloud property as recosa.eu** (website id
+  `de0d5db7-…`), scoped with `data-domains` — Umami's own hostname
+  allowlist — to `recosa.eu, www.recosa.eu, app.recosa.eu,
+  check.recosa.eu`. `admin.recosa.eu` is deliberately left off: the
+  script still loads there (same image) but checked live that it never
+  calls the tracking endpoint, exactly as Umami's docs describe.
+- **No cookies, by Umami's own design** — confirmed in its docs. This
+  does not stitch one visitor's identity across the three; it only means
+  all three are tracked. What actually answers "which CTA did they use"
+  is the query string, tracked on every pageview by default, and the
+  app's own links already carry it (`&src=`, `?check=`, `?signup=`) —
+  nothing new needed there, D-174's and earlier work already did it.
+  Real identity-stitching exists (`umami.identify()` / `data-distinct-id`)
+  but takes real engineering to wire up; not done, not needed yet.
+  Named click events (`data-umami-event`) on the Framer site's CTAs are a
+  separate, smaller addition, left to the user's own Framer edits.
+  **Open, flagged rather than decided:** `app.recosa.eu` is tracked
+  whole — the authenticated product, not only the login/signup screen,
+  since Streamlit serves one static page regardless of auth state and
+  Umami can't tell the difference from here. Narrower scoping is
+  possible but needs real engineering; left for the user to decide.
+- **Self-hosting, for later, agreed direction:** same reasoning as S73 —
+  price and control, and a shared instance would cover Evidara too
+  without a second subscription. Scaleway has the headroom; not started.
+
 ---
 
 *End of record. Append at sprint close.*
