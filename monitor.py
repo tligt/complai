@@ -303,9 +303,9 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                     # dropped by this function's own except below. 1200
                     # leaves room for both, confirmed against the two
                     # titles that were failing.
-                    "max_tokens": 1200,
+                    "max_tokens": 2000,
                 },
-                timeout=45,
+                timeout=60,
             )
             response.raise_for_status()
             _rdata = response.json()
