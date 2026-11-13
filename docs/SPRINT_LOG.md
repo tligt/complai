@@ -7560,7 +7560,17 @@ written by Claude.
 
 ## 6. Commercial model
 
-*Effective when S45 ships.*
+*Effective when S45 ships.* **Superseded 13 Nov (D-174) — kept here as the
+original design, not the live pricing.** S46 (credits, metering, Stripe) was
+never built: see the S46 row in the roadmap table. The live app has no
+credit tracking, no top-ups, and no per-plan usage limit — every customer
+gets unlimited usage on every plan today. The trial is **14 days**
+(`database.TRIAL_DAYS`), no read-only extension, no automatic deletion at
+day 14 (deletion is S70, not started). The table and rules below are what
+was designed for S46, for when it's eventually built — not what recosa.eu's
+pricing page or the app currently say. The website's pricing copy was asked
+to drop the credits/top-up/audit-limit wording the same day, to stop
+advertising enforcement that doesn't exist.
 
 | Plan | Monthly | Credits | Annual | Top-up |
 |---|---|---|---|---|
