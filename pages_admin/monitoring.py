@@ -240,6 +240,50 @@ Write the LinkedIn post."""
         return None
 
 
+def _linkedin_draft_block(u: dict, context: str, table: str, prefix: str):
+    """Generate / regenerate a LinkedIn draft and show it for editing.
+
+    Returns the (possibly edited) draft text, or None if there is none yet.
+    D-178: Regenerate, with the same Standard / Thorough choice, once a draft
+    exists. The text area's value is set through session state, before it is
+    drawn — the supported way to change a widget's content programmatically.
+    """
+    uid = u["id"]
+    draft_key = f"{prefix}li_draft_{uid}"
+    text_key = f"{prefix}li_text_{uid}"
+    existing = st.session_state.get(draft_key) or u.get("linkedin_draft")
+
+    if not existing:
+        choice = _linkedin_model_choice(f"{prefix}li_model_{uid}")
+        clicked = st.button("✍️ Generate LinkedIn draft", key=f"{prefix}li_{uid}",
+                            use_container_width=True)
+    else:
+        col_m, col_b = st.columns([3, 1], vertical_alignment="bottom")
+        with col_m:
+            choice = _linkedin_model_choice(f"{prefix}li_remodel_{uid}")
+        with col_b:
+            clicked = st.button("🔄 Regenerate", key=f"{prefix}li_regen_{uid}",
+                                use_container_width=True,
+                                help="Writes a new draft and replaces the one below, "
+                                     "including any edits made to it.")
+
+    if clicked:
+        with st.spinner("Generating..." if choice == "Standard"
+                        else "Generating (Thorough, up to 2 min)..."):
+            draft = _generate_linkedin_draft(u, context=context, choice=choice)
+        if draft:
+            save_linkedin_draft(uid, draft, table=table)
+            st.session_state[draft_key] = draft
+            st.session_state[text_key] = draft
+            existing = draft
+
+    if not existing:
+        return None
+    if text_key not in st.session_state:
+        st.session_state[text_key] = existing
+    return st.text_area("LinkedIn draft", height=150, key=text_key)
+
+
 # ── Tabs ──────────────────────────────────────────────────────
 tab_reg, tab_mkt, tab_sources, tab_runs = st.tabs([
     "📋 Regulatory Feed",
@@ -545,22 +589,9 @@ with tab_reg:
                                 )
                                 st.rerun()
 
-                        # LinkedIn draft generation
-                        draft_key = f"li_draft_{u['id']}"
-                        if not u.get("linkedin_draft") and draft_key not in st.session_state:
-                            _choice = _linkedin_model_choice(f"li_model_{u['id']}")
-                            if st.button("✍️ Generate LinkedIn draft", key=f"li_{u['id']}", use_container_width=True):
-                                with st.spinner("Generating..." if _choice == "Standard"
-                                                else "Generating (Thorough, up to 2 min)..."):
-                                    draft = _generate_linkedin_draft(u, choice=_choice)
-                                    if draft:
-                                        save_linkedin_draft(u["id"], draft, table="regulatory_updates")
-                                        st.session_state[draft_key] = draft
-                        
-                        shown_draft = st.session_state.get(draft_key) or u.get("linkedin_draft")
-                        if shown_draft:
-                            _li = st.text_area("LinkedIn draft", value=shown_draft,
-                                               height=150, key=f"li_text_{u['id']}")
+                        # LinkedIn draft: generate, regenerate, edit (D-178)
+                        _li = _linkedin_draft_block(u, "regulatory", "regulatory_updates", "")
+                        if _li is not None:
                             # S57: queue, schedule or save as an Idea in Buffer.
                             from buffer_view import render_send
                             render_send(u, "regulatory_updates", _li, None)
@@ -947,22 +978,9 @@ with tab_mkt:
 
                         st.divider()
 
-                        # LinkedIn draft
-                        mkt_draft_key = f"mkt_li_draft_{u['id']}"
-                        if not u.get("linkedin_draft") and mkt_draft_key not in st.session_state:
-                            _choice = _linkedin_model_choice(f"mkt_li_model_{u['id']}")
-                            if st.button("✍️ Generate LinkedIn draft", key=f"mkt_li_{u['id']}", use_container_width=True):
-                                with st.spinner("Generating..." if _choice == "Standard"
-                                                else "Generating (Thorough, up to 2 min)..."):
-                                    draft = _generate_linkedin_draft(u, context="marketing", choice=_choice)
-                                    if draft:
-                                        save_linkedin_draft(u["id"], draft, table="marketing_updates")
-                                        st.session_state[mkt_draft_key] = draft
-
-                        mkt_shown_draft = st.session_state.get(mkt_draft_key) or u.get("linkedin_draft")
-                        if mkt_shown_draft:
-                            _li = st.text_area("LinkedIn draft", value=mkt_shown_draft,
-                                               height=150, key=f"mkt_li_text_{u['id']}")
+                        # LinkedIn draft: generate, regenerate, edit (D-178)
+                        _li = _linkedin_draft_block(u, "marketing", "marketing_updates", "mkt_")
+                        if _li is not None:
                             from buffer_view import render_send
                             render_send(u, "marketing_updates", _li, None)
                     else:

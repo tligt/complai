@@ -7819,7 +7819,11 @@ Large 32-100 s (669 of 828 tokens spent reasoning), Medium 2 s.
   Standard (default) = `mistral-medium-latest`, 45 s limit; Thorough =
   `mistral-large-latest`, reasoning "low", 180 s limit. The user's
   choice: Medium for most posts, Large for topics that deserve it.
-  The switch only shows before a draft exists; there is no "regenerate".
+  **🔄 Regenerate**, same day, by the user: once a draft exists, the same
+  switch sits beside a Regenerate button; it replaces the draft (edits
+  included) and saves it. One shared block for both queues
+  (`_linkedin_draft_block`); the text area is filled through session
+  state, Streamlit's supported way to change a widget's content.
 - **"Format as Markdown"** moved to Medium: a mechanical reformat.
 - **Monitors stay on Large** — relevance and severity judgments are
   where the stronger model counts, and nobody waits on them — but their
