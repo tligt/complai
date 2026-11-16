@@ -7786,9 +7786,22 @@ runs the monitoring now.
 - **The "running" run seen in the back office** was a manual one started
   at 09:43 — slow (Mistral 60 s timeouts, EDPB 503), not stuck; totals
   are only written when a run ends.
-- **Open:** the server's checkout is behind `main` with uncommitted
-  local edits (the D-174 hotfixes, by hand) — reconcile before the next
-  `git pull` there.
+- **Server checkout reconciled with `main`, same day.** It sat on
+  `e37f229` (11 Nov) with 18 files edited by hand and 6 untracked. Every
+  edit was already in `main`, differing only by CRLF (copied from
+  Windows); three loose root files (`chat.py`, `monitoring.py`,
+  `quiz_app.py`) were older misplaced copies. Reset to `main`; worktree
+  saved first to `/root/app-worktree-20261116.tgz`, strays to
+  `/root/stray-20261116/`. The running image already matched `main`
+  (0 files differ ignoring line endings), so no rebuild was needed.
+- **How code reaches the server:** its `origin` is `/root/recosa.bundle`,
+  not GitHub (no deploy key was set up). To deploy: `git bundle create
+  recosa.bundle main` locally, `scp` it to `/root/recosa.bundle`, then
+  `sudo bash /opt/recosa/app/deploy/update.sh`. Copying files by hand is
+  what caused the drift; don't.
+- `deploy/backup.sh` (called directly by cron) was executable only on the
+  server, not in git — a reset would have broken the nightly backup.
+  Fixed in git (`436c55a`).
 
 ---
 
