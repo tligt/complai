@@ -7838,7 +7838,10 @@ using production's and dev's databases, not memory.
 
 - **Closed:** S50 (production live since 12 Nov; the jobs fixed in
   D-177), S51 (token refresh: back-office logins in use for 4 h 05 and
-  2 h 49 on one session in production — past the one-hour token; the
+  2 h 49 on one session in production — past the one-hour token, and the
+  stored tokens' Fernet timestamps show them rewritten hours after login
+  (only `sessions.create` and `swap_tokens` write them), so the refresh
+  itself ran; the
   PDF/ODT fallback already degrades to DOCX, and LibreOffice is in the
   image), S60, S61, S62, S63 (built and checked 10 Nov, nothing listed
   open). **S51 was the beta gate: the gate's own sprint is now closed.**
