@@ -7892,9 +7892,25 @@ track sources. Reviewed first, then "go ahead with step 2".
 - **Heatmaps: not turned on** — Umami Cloud's Business plan; the account
   is on the free plan. Funnels, Goals, UTM, Attribution and Journeys are
   available on it.
-- **Next:** the Framer buttons' `data-umami-event` attributes and the
-  website tag's `data-domains` (the user, in Framer); then the Funnel and
-  Goals reports in Umami, once events have come in.
+- **Website clicks, same day.** Framer AI could not write custom
+  attributes (its API rejects `data-umami-event`), so one snippet at the
+  end of `<body>` names each click by where the link goes:
+  `cta_free_check`, `cta_signup` (+ `plan`), `cta_login`, `cta_pricing`,
+  `cta_waitlist`, `cta_contact`, `cta_pulse`, and `waitlist_submit` /
+  `contact_submit` on form send — with `location` (the link's `src`, else
+  nav/footer/the Framer section's name) and `page`. Outbound clicks wait
+  up to 400 ms for the event. Reference copy:
+  `deploy/framer/umami_events_snippet.html`. The user added
+  `data-domains="recosa.eu,www.recosa.eu"` to the Umami snippet (Framer
+  previews no longer count). Checked live: one Umami tag per page;
+  `cta_pricing` and `cta_signup` (plan=professional) received, then the
+  app's `app_landing` in the same visit.
+- **Found, not changed: the website's cookie banner** (Framer snippet
+  `IRnS5njcr`). It asks consent for "analytics cookies", but Umami sets
+  none and runs whatever the choice, so "Essential only" changes nothing;
+  and it logs consents to the *dev* Supabase project with a placeholder
+  key — every log fails silently. For the user to decide.
+- **Next:** the Funnel and Goals reports in Umami, once events have come in.
 
 ---
 
