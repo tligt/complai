@@ -9,20 +9,24 @@
 
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-RUN=cd /opt/recosa/app/deploy && docker compose run --rm -T jobs
+# Each line spells the command out in full. 16 Nov (D-177): it used to read
+# RUN=cd /opt/recosa/app/deploy && docker compose run --rm -T jobs, used as
+# `cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python x.py` — but `&&` inside a variable isn't an operator once
+# expanded, so every job ran as a bare `cd` with stray arguments, exited 0,
+# and did nothing. No scheduled job had run on production since 12 Nov.
 
 # Regulatory monitoring, then marketing monitoring (they run in sequence to
 # stay under Mistral's rate limit, as they did on GitHub Actions). Both move
 # here from dev on 13 Nov (D-174), once Compliance Pulse's own source moves
 # to production — dev's equivalent workflow is disabled the same day.
-0 7 * * *     root  $RUN python monitor.py >> /var/log/recosa/monitor.log 2>&1 && $RUN python monitor_marketing.py >> /var/log/recosa/monitor_marketing.log 2>&1
+0 7 * * *     root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor.py >> /var/log/recosa/monitor.log 2>&1 && docker compose run --rm -T jobs python monitor_marketing.py >> /var/log/recosa/monitor_marketing.log 2>&1
 # Website audit subscriptions — the script decides which are due
-0 8 * * *     root  $RUN python monitor_audits.py >> /var/log/recosa/monitor_audits.log 2>&1
+0 8 * * *     root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_audits.py >> /var/log/recosa/monitor_audits.log 2>&1
 # Free-check results, once the email is confirmed
-*/15 * * * *  root  $RUN python monitor_funnel.py >> /var/log/recosa/monitor_funnel.log 2>&1
+*/15 * * * *  root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_funnel.py >> /var/log/recosa/monitor_funnel.log 2>&1
 # Incident deadline reminders — hourly, the NIS2 24-hour clock needs it
-7 * * * *     root  $RUN python monitor_incidents.py >> /var/log/recosa/monitor_incidents.log 2>&1
+7 * * * *     root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_incidents.py >> /var/log/recosa/monitor_incidents.log 2>&1
 # Training due reminders (S60) — weekly; the script sends at most monthly per company
-23 7 * * 1    root  $RUN python monitor_training.py >> /var/log/recosa/monitor_training.log 2>&1
+23 7 * * 1    root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_training.py >> /var/log/recosa/monitor_training.log 2>&1
 # Nightly backup to Scaleway Object Storage
 30 2 * * *    root  /opt/recosa/app/deploy/backup.sh >> /var/log/recosa/backup.log 2>&1

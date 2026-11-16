@@ -7767,6 +7767,29 @@ also serve Evidara).
   price and control, and a shared instance would cover Evidara too
   without a second subscription. Scaleway has the headroom; not started.
 
+### D-177 — Production's scheduled jobs had never run; crontab fixed, 16 Nov
+
+By the user: "Regulatory keeps on running with no results", and what
+runs the monitoring now.
+
+- **Every `$RUN` job in `/etc/cron.d/recosa` was a no-op since it was
+  enabled on 12 Nov.** `RUN=cd /opt/recosa/app/deploy && docker compose
+  run --rm -T jobs` expands to plain words — the `&&` is not an operator
+  after expansion — so `$RUN python monitor.py` ran `cd` with stray
+  arguments, which dash ignores, exiting 0. Cron fired on time every day
+  (syslog), every log under `/var/log/recosa/` stayed 0 bytes, and
+  `monitor_runs` held only the 13 Nov hand-runs. Affected: both monitors,
+  audits, the free-check delivery, incident reminders, training
+  reminders. Only the backup (no `$RUN`) ran.
+- **Fixed:** each line spells the command out; installed on production
+  16 Nov (old file at `/root/recosa.cron.bak-20261116`).
+- **The "running" run seen in the back office** was a manual one started
+  at 09:43 — slow (Mistral 60 s timeouts, EDPB 503), not stuck; totals
+  are only written when a run ends.
+- **Open:** the server's checkout is behind `main` with uncommitted
+  local edits (the D-174 hotfixes, by hand) — reconcile before the next
+  `git pull` there.
+
 ---
 
 *End of record. Append at sprint close.*
