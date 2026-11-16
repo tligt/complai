@@ -59,11 +59,15 @@ if "ticket" in st.query_params:
 # D-126: the website's sign-up links add ?signup=<plan> (starter,
 # professional) or ?signup=1, which opens the sign-up form with that plan
 # chosen. Anything else is ignored: the link is visitor-controlled.
+# D-180: utm_* tags (LinkedIn, email, partner links) are kept the same way,
+# next to src, and sent on to the funnel events and to Umami.
+import analytics
 if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup",
-                                      "login")):
+                                      "login") + analytics.UTM_KEYS):
     import funnel as _funnel
     from database import SIGNUP_PLANS as _PLANS
     _src = (st.query_params.get("src") or "")[:40] or None
+    _utm = analytics.utm_from_params(st.query_params)
     _pending = _funnel.pending_from_params(
         st.query_params.get("quiz"), st.query_params.get("site"),
         st.query_params.get("scope"), st.query_params.get("aiact"),
@@ -75,9 +79,11 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "
         "plan": _signup if _signup in _PLANS else None,
         # The public app's "Log in instead" link: an existing account.
         "login": st.query_params.get("login") == "1",
+        "utm": _utm,
     }
-    record_funnel_event("app_landing", (_pending or {}).get("tool"), _src)
-    for _k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup", "login"):
+    record_funnel_event("app_landing", (_pending or {}).get("tool"), _src, _utm)
+    analytics.track("app_landing", tool=(_pending or {}).get("tool"), src=_src)
+    for _k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup", "login") + analytics.UTM_KEYS:
         if _k in st.query_params:
             del st.query_params[_k]
 
@@ -114,6 +120,12 @@ if (st.query_params.get("type") in ("email", "signup")
     if not start_email_confirmation(_th):
         st.session_state.auth_mode = "Log in"
         st.session_state.confirm_failed = True
+    else:
+        analytics.track("email_confirmed")
+
+# D-180: Umami events — this run's (landing, email confirmed) and any the
+# previous run queued (sign-up, trial). Before the login screen's st.stop.
+analytics.flush()
 
 if not is_logged_in():
     import login_page

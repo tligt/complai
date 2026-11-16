@@ -796,7 +796,8 @@ def merge_pending(old: dict | None, new: dict) -> dict:
 def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None,
                site: str | None = None, scope: str | None = None,
                ai_answers: list[int] | None = None,
-               gdpr_answers: list[int] | None = None, login: bool = False) -> str:
+               gdpr_answers: list[int] | None = None, login: bool = False,
+               utm: dict | None = None) -> str:
     """The CTA link into the client app's signup. Carries the answers, the
     checked site, the scope answers and the source — never the email or
     anything personal. login=True opens the log-in form instead."""
@@ -813,4 +814,6 @@ def signup_url(app_base_url: str, tool: str, *, answers: list[int] | None = None
         params["aiact"] = encode_answers(ai_answers)
     if gdpr_answers is not None:
         params["gdpr"] = encode_answers(gdpr_answers)
+    # D-180: the visitor's utm_* tags travel on, so the app records them too.
+    params.update(utm or {})
     return f"{app_base_url.rstrip('/')}/?{urlencode(params)}"

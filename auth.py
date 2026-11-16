@@ -554,9 +554,13 @@ def _signup_form(funnel: dict) -> None:
             pending_result=funnel.get("pending"),
         )
         mark_leads_converted(new_email, res.user.id)
-        record_funnel_event("signup", (funnel.get("pending") or {}).get("tool"), source)
+        _tool = (funnel.get("pending") or {}).get("tool")
+        record_funnel_event("signup", _tool, source, funnel.get("utm"))
+        import analytics   # D-180: the same steps, to Umami
+        analytics.track("signup", where="app", tool=_tool, src=source, plan=plan)
         if plan and start_trial(res.user.id, plan):
-            record_funnel_event("trial_started", None, source)
+            record_funnel_event("trial_started", None, source, funnel.get("utm"))
+            analytics.track("trial_started", src=source, plan=plan)
     st.session_state.signup_sent_to = new_email
     st.session_state.signup_plan = plan
     st.rerun()

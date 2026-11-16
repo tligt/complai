@@ -1761,12 +1761,14 @@ def mark_leads_converted(email: str, user_id: str) -> None:
 
 
 def record_funnel_event(event: str, tool: str | None = None,
-                        source: str | None = None) -> None:
-    """Counts for the funnel (D-115). Never blocks the caller."""
+                        source: str | None = None, utm: dict | None = None) -> None:
+    """Counts for the funnel (D-115). Never blocks the caller. D-180: utm,
+    the visitor's utm_* tags (analytics.utm_from_params), when there are any."""
     try:
-        get_supabase_admin().rpc("record_funnel_event", {
-            "p_event": event, "p_tool": tool, "p_source": source,
-        }).execute()
+        params = {"p_event": event, "p_tool": tool, "p_source": source}
+        if utm:
+            params["p_utm"] = utm
+        get_supabase_admin().rpc("record_funnel_event", params).execute()
     except Exception as e:
         print(f"Could not record funnel event: {e}")
 

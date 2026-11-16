@@ -103,6 +103,7 @@ def _fresh_shared_modules() -> None:
 _fresh_shared_modules()
 
 import funnel
+import analytics   # D-180: UTM tags and Umami events
 from funnel_ui import (render_quiz_form, render_quiz_score, render_quiz_breakdown,
                        render_rules)
 
@@ -235,8 +236,12 @@ def _rpc(fn: str, params: dict):
 
 
 def _event(event: str, tool: str | None = None) -> None:
-    _rpc("record_funnel_event", {"p_event": event, "p_tool": tool,
-                                 "p_source": st.session_state.get("src")})
+    params = {"p_event": event, "p_tool": tool, "p_source": st.session_state.get("src")}
+    if st.session_state.get("utm"):
+        params["p_utm"] = st.session_state.utm
+    _rpc("record_funnel_event", params)
+    # D-180: the same step, to Umami from the visitor's browser.
+    analytics.track(event, where="check", tool=tool, src=st.session_state.get("src"))
 
 
 def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[bool, str]:
@@ -313,6 +318,7 @@ def _restore_from_url() -> bool:
     if not step:
         return False
     ss.src = (qp.get("src") or "")[:40] or None
+    ss.utm = analytics.utm_from_params(qp)
     ss.site_prefill = ""
     ss.plan, ss.done, ss.skipped = _tools(qp.get("plan")), _tools(qp.get("done")), _tools(qp.get("skip"))
     ss.direct = qp.get("direct") == "1"
@@ -353,6 +359,7 @@ def _save_to_url() -> None:
     d = {"step": TOOL_CODE.get(ss.step, ss.step)}
     if ss.get("src"):
         d["src"] = ss.src
+    d.update(ss.get("utm") or {})   # D-180: kept on a reload, like src
     for key, tools in (("plan", ss.plan), ("done", ss.done), ("skip", ss.skipped)):
         if tools:
             d[key] = ",".join(TOOL_CODE[t] for t in tools)
@@ -384,6 +391,7 @@ def _start_from_link() -> None:
     if not check and qp.get("tool") == "website":
         check = funnel.TOOL_WEBSITE
     ss.src = (qp.get("src") or "")[:40] or None
+    ss.utm = analytics.utm_from_params(qp)
     ss.site_prefill = (qp.get("site") or "").strip()[:120]
     ss.plan = [check] if check else []
     ss.done, ss.skipped, ss.editing = [], [], []
@@ -394,6 +402,9 @@ def _start_from_link() -> None:
 
 if "step" not in ss and not _restore_from_url():
     _start_from_link()
+
+# D-180: Umami events queued by this run or the previous one.
+analytics.flush()
 
 
 def _go(step: str) -> None:
@@ -824,7 +835,7 @@ def _account_form(pending: dict) -> None:
                                                                    funnel.AI_ACT),
                                   gdpr_answers=funnel.decode_answers(pending.get("gdpr_answers"),
                                                                      funnel.GDPR),
-                                  login=True)
+                                  login=True, utm=ss.get("utm"))
     if ss.get("account_done"):
         st.success(ss.account_done)
         # D-133: a check taken after the form went is not on the new account

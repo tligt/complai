@@ -62,6 +62,9 @@ def render_subscribe() -> None:
                     if start_trial(user_id, plan):
                         record_funnel_event("trial_started", None,
                                             profile.get("signup_source"))
+                        import analytics   # D-180
+                        analytics.track("trial_started", src=profile.get("signup_source"),
+                                        plan=plan)
                         st.rerun()
                     else:
                         st.error(tr("Could not start the trial. Please try again."))
@@ -88,6 +91,8 @@ def render_trial_cta(profile: dict) -> None:
                          key="cta_trial"):
                 if start_trial(profile["id"]):
                     record_funnel_event("trial_started", None, profile.get("signup_source"))
+                    import analytics   # D-180
+                    analytics.track("trial_started", src=profile.get("signup_source"))
                     st.rerun()
                 else:
                     st.error(tr("Could not start the trial. Please try again."))
