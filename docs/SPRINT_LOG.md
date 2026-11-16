@@ -7794,11 +7794,14 @@ runs the monitoring now.
   saved first to `/root/app-worktree-20261116.tgz`, strays to
   `/root/stray-20261116/`. The running image already matched `main`
   (0 files differ ignoring line endings), so no rebuild was needed.
-- **How code reaches the server:** its `origin` is `/root/recosa.bundle`,
-  not GitHub (no deploy key was set up). To deploy: `git bundle create
-  recosa.bundle main` locally, `scp` it to `/root/recosa.bundle`, then
-  `sudo bash /opt/recosa/app/deploy/update.sh`. Copying files by hand is
-  what caused the drift; don't.
+- **How code reaches the server — now GitHub, same day.** Its `origin`
+  had been `/root/recosa.bundle`: the deploy key from runbook B2
+  (`/root/.ssh/github_deploy`, "recosa-prod") was made on 12 Nov but
+  never added to GitHub. The user added it (read-only) on 16 Nov;
+  `origin` is now `git@github.com:tligt/complai.git` with
+  `core.sshCommand` pointing at that key, fetch confirmed. To deploy:
+  push to `main`, then `sudo bash /opt/recosa/app/deploy/update.sh` on
+  the server. Copying files by hand is what caused the drift; don't.
 - `deploy/backup.sh` (called directly by cron) was executable only on the
   server, not in git — a reset would have broken the nightly backup.
   Fixed in git (`436c55a`).
