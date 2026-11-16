@@ -312,7 +312,7 @@ def analyse_for_marketing(
                     ],
                     "max_tokens": 1200,
                 },
-                timeout=45,
+                timeout=180,   # D-178: large reasons first (30-100 s); 60/45 s dropped items
             )
             resp.raise_for_status()
             _rdata   = resp.json()

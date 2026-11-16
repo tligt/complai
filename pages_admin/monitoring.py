@@ -120,9 +120,10 @@ def _format_as_markdown(plain_text: str, title: str = "") -> str | None:
                 "Content-Type": "application/json",
             },
             json={
-                "model": "mistral-large-latest",
+                # D-178: medium — a mechanical reformat; large now reasons
+                # first (30-45 s, 45 s limit) and medium answers in ~2 s.
+                "model": "mistral-medium-latest",
                 "temperature": 0.2,
-                "reasoning_effort": "low",   # D-174: keeps the reasoning tax down
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -143,7 +144,28 @@ def _format_as_markdown(plain_text: str, title: str = "") -> str | None:
 
 # ── LinkedIn draft generation (defined before tabs so it's available) ─────────
 
-def _generate_linkedin_draft(item: dict, context: str = "regulatory") -> str | None:
+# D-178: the user picks per post. Medium answers in ~2 s; large reasons
+# before answering (30-100 s, measured 16 Nov) — kept for the topics that
+# deserve it, with a limit that no longer cuts it off.
+LINKEDIN_MODELS = {
+    "Standard": {"model": "mistral-medium-latest", "timeout": 45},
+    "Thorough": {"model": "mistral-large-latest", "timeout": 180,
+                 "reasoning_effort": "low"},
+}
+
+
+def _linkedin_model_choice(key: str) -> str:
+    """The Standard / Thorough switch shown next to a Generate button."""
+    return st.radio(
+        "Model", list(LINKEDIN_MODELS), index=0, horizontal=True, key=key,
+        help="Standard: Mistral Medium, a draft in a few seconds. "
+             "Thorough: Mistral Large, reasons first — from 30 seconds to 2 minutes, "
+             "for topics that need more care.",
+    )
+
+
+def _generate_linkedin_draft(item: dict, context: str = "regulatory",
+                             choice: str = "Standard") -> str | None:
     """Generate a LinkedIn post draft from a regulatory or marketing item."""
     import os
     api_key = os.environ.get("MISTRAL_API_KEY", "")
@@ -187,6 +209,7 @@ SOURCE: {item.get('source', '')}
 
 Write the LinkedIn post."""
 
+    cfg = LINKEDIN_MODELS.get(choice, LINKEDIN_MODELS["Standard"])
     try:
         response = requests.post(
             "https://api.mistral.ai/v1/chat/completions",
@@ -195,16 +218,17 @@ Write the LinkedIn post."""
                 "Content-Type": "application/json",
             },
             json={
-                "model": "mistral-large-latest",
+                "model": cfg["model"],
                 "temperature": 0.7,
-                "reasoning_effort": "low",   # D-174: the model reasons first now
+                **({"reasoning_effort": cfg["reasoning_effort"]}
+                   if "reasoning_effort" in cfg else {}),
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user",   "content": user_prompt},
                 ],
                 "max_tokens": 1200,
             },
-            timeout=45,
+            timeout=cfg["timeout"],
         )
         response.raise_for_status()
         _j = response.json()
@@ -524,9 +548,11 @@ with tab_reg:
                         # LinkedIn draft generation
                         draft_key = f"li_draft_{u['id']}"
                         if not u.get("linkedin_draft") and draft_key not in st.session_state:
+                            _choice = _linkedin_model_choice(f"li_model_{u['id']}")
                             if st.button("✍️ Generate LinkedIn draft", key=f"li_{u['id']}", use_container_width=True):
-                                with st.spinner("Generating..."):
-                                    draft = _generate_linkedin_draft(u)
+                                with st.spinner("Generating..." if _choice == "Standard"
+                                                else "Generating (Thorough, up to 2 min)..."):
+                                    draft = _generate_linkedin_draft(u, choice=_choice)
                                     if draft:
                                         save_linkedin_draft(u["id"], draft, table="regulatory_updates")
                                         st.session_state[draft_key] = draft
@@ -924,9 +950,11 @@ with tab_mkt:
                         # LinkedIn draft
                         mkt_draft_key = f"mkt_li_draft_{u['id']}"
                         if not u.get("linkedin_draft") and mkt_draft_key not in st.session_state:
+                            _choice = _linkedin_model_choice(f"mkt_li_model_{u['id']}")
                             if st.button("✍️ Generate LinkedIn draft", key=f"mkt_li_{u['id']}", use_container_width=True):
-                                with st.spinner("Generating..."):
-                                    draft = _generate_linkedin_draft(u, context="marketing")
+                                with st.spinner("Generating..." if _choice == "Standard"
+                                                else "Generating (Thorough, up to 2 min)..."):
+                                    draft = _generate_linkedin_draft(u, context="marketing", choice=_choice)
                                     if draft:
                                         save_linkedin_draft(u["id"], draft, table="marketing_updates")
                                         st.session_state[mkt_draft_key] = draft

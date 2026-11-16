@@ -305,7 +305,7 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
                     # titles that were failing.
                     "max_tokens": 2000,
                 },
-                timeout=60,
+                timeout=180,   # D-178: large reasons first (30-100 s); 60/45 s dropped items
             )
             response.raise_for_status()
             _rdata = response.json()

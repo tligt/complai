@@ -7806,6 +7806,26 @@ runs the monitoring now.
   server, not in git — a reset would have broken the nightly backup.
   Fixed in git (`436c55a`).
 
+### D-178 — LinkedIn drafts: Standard (Medium) or Thorough (Large), per post, 16 Nov
+
+By the user: a LinkedIn draft failed on a 45 s read timeout, and the
+regulatory run took 15½ min. Both are `mistral-large-latest` reasoning
+before it answers (D-174), which `reasoning_effort` can't switch off
+("low" is its minimum). Measured from production, same short post:
+Large 32-100 s (669 of 828 tokens spent reasoning), Medium 2 s.
+
+- **LinkedIn drafts:** a Standard / Thorough switch beside each
+  "Generate LinkedIn draft" button, regulatory and marketing queues.
+  Standard (default) = `mistral-medium-latest`, 45 s limit; Thorough =
+  `mistral-large-latest`, reasoning "low", 180 s limit. The user's
+  choice: Medium for most posts, Large for topics that deserve it.
+  The switch only shows before a draft exists; there is no "regenerate".
+- **"Format as Markdown"** moved to Medium: a mechanical reformat.
+- **Monitors stay on Large** — relevance and severity judgments are
+  where the stronger model counts, and nobody waits on them — but their
+  Mistral limit went 60 s (regulatory) / 45 s (marketing) → 180 s: a
+  CNIL item was dropped to a timeout on 16 Nov. Runs stay slow (~15 min).
+
 ---
 
 *End of record. Append at sprint close.*
