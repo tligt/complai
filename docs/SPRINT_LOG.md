@@ -7857,6 +7857,45 @@ using production's and dev's databases, not memory.
 - The "Delivered" line also lacked S57 (closed 6 Nov) and S64 (closed
   13 Nov); added.
 
+### D-180 — Web analytics: UTM tags kept, funnel steps sent to Umami, 16 Nov
+
+By the user: detailed web analytics — check Umami Cloud, a funnel, how to
+track sources. Reviewed first, then "go ahead with step 2".
+
+- **Umami as found (45 days):** 49 visitors, 394 page views, almost all
+  "direct" (LinkedIn strips the referrer). The script was right on all
+  four hosts, admin excluded by `data-domains`. But Framer's preview
+  screenshots (`screenshot.framer.invalid`) count as visitors — the
+  website's own tag has no `data-domains` — and there were no events,
+  goals or funnels: inside the check and the app Umami saw a page load
+  and nothing after it.
+- **UTM tags kept.** `funnel_events.utm` (jsonb), and
+  `record_funnel_event(..., p_utm)` keeps only the five utm_* keys, as
+  strings cut to 80 characters (`migration_d180_funnel_utm.sql`, applied
+  to dev and production). The app reads and strips them like `src`; the
+  check keeps them in its address like `src`, and passes them on in its
+  link into the app. `src` stays for our own buttons, UTM for links
+  posted elsewhere.
+- **Funnel steps to Umami, from the browser** (`analytics.py`):
+  `check_landing`, `scope_completed`, `quiz_completed`, `signup`
+  (where=check or app), `app_landing`, `email_confirmed`,
+  `trial_started` — the same names as `funnel_events`. A components-v2
+  element calls `umami.track()` in the visitor's browser, so Umami ties
+  the events to the same visitor (a server-side call would not). Each
+  event has an id the browser remembers (sessionStorage): never sent
+  twice. Content-free: the step, the check, `src`, the plan — never an
+  email or an answer.
+- **Tested live on production** with `src`/`utm_*` = `claude_test`:
+  `check_landing` and `app_landing` stored with their UTM tags and
+  received by Umami with their data; the test rows removed afterwards
+  (two Umami test events remain, `src=claude_test`).
+- **Heatmaps: not turned on** — Umami Cloud's Business plan; the account
+  is on the free plan. Funnels, Goals, UTM, Attribution and Journeys are
+  available on it.
+- **Next:** the Framer buttons' `data-umami-event` attributes and the
+  website tag's `data-domains` (the user, in Framer); then the Funnel and
+  Goals reports in Umami, once events have come in.
+
 ---
 
 *End of record. Append at sprint close.*
