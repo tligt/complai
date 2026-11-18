@@ -56,17 +56,33 @@ def render_quiz_score(answers: list[int], kind: dict = funnel.NIS2) -> None:
 
 
 def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.NIS2) -> None:
-    """Locked: the area names only, and how many need attention (the free
-    teaser, D-115). Unlocked: every area's level and what to do, weakest
-    first."""
+    """Locked: each area's verdict in the open — in place, or needs attention
+    — and only the advice locked (D-191). Unlocked: every area's level and
+    what to do, weakest first.
+
+    D-191 changed the teaser. It showed the area names behind a lock each and
+    "2 of 10 need attention" without saying which: ten identical padlocks read
+    as bullet points, and the one thing the person had just earned was
+    withheld. What brings someone to sign up is not whether an area is weak —
+    they half know — but what to do about it, so that is what stays locked."""
     rows = funnel.breakdown(answers, kind)
     if locked:
-        weak = funnel.weak_areas(answers)
+        weak_rows = [r for r in rows if r["answer"] < 2]     # funnel.weak_areas's rule
+        ok_rows = [r for r in rows if r["answer"] >= 2]
+        weak = len(weak_rows)
         st.markdown(
             tr("**Your breakdown by area** — {weak} of {len_rows} areas {need_if_weak_1_else_need} attention").format(weak=weak, len_rows=len(rows), need_if_weak_1_else_need='need' if weak != 1 else 'needs')
         )
-        for r in rows:
-            st.markdown(f"🔒 {r['category']}")
+        for r in weak_rows:
+            with st.container(border=True):
+                st.markdown(tr("🟠 **{category}** — needs attention").format(category=r["category"]))
+                st.caption(tr("🔒 What to do, and the document that covers it: in your full report."))
+        for r in ok_rows:
+            st.markdown(tr("✅ {category} — in place").format(category=r["category"]))
+        if weak:
+            st.info(tr("**See how to fix {these}** — your full report, with what to do for each "
+                       "area, comes free with an account.").format(
+                these=tr("this area") if weak == 1 else tr("these {n} areas").format(n=weak)))
         return
 
     st.markdown(tr("**Your {words_get_len_rows_len_r} areas, weakest first**").format(words_get_len_rows_len_r=_WORDS.get(len(rows), len(rows))))

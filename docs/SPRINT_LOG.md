@@ -8371,6 +8371,39 @@ container, against production's own English DPA — "dpa: ok", "loaded (nl-BE,
 version 1)". Production now has an in-force Dutch version of all 14 document
 types. Not looked at in the app: a Dutch DPA generated on production.
 
+### D-191 — The quick checks' teaser shows each area's verdict; only the advice is locked, 18 Nov
+
+By the user, from a screenshot of the public GDPR Quick Check: "poor UX —
+some points are compliant and some not, but we're not showing anything… a
+prospect will not understand all these locks that resemble bullet points."
+
+**The teaser was** the area names, each behind a padlock, and "2 of 10 areas
+need attention" without saying which. Ten identical locks read as bullet
+points, and the one thing the person had just earned was withheld.
+
+**Now** (`funnel_ui.render_quiz_breakdown`, locked view — one component, so
+the GDPR, NIS2 and AI Act checks all change):
+- each area's verdict in the open: 🟠 **needs attention** (answer below 2,
+  `funnel.weak_areas`'s rule) in a box first, then ✅ **in place**;
+- the lock only where something is withheld: under each orange area, "🔒 What
+  to do, and the document that covers it: in your full report";
+- below, when anything needs attention: "**See how to fix these N areas** —
+  your full report… comes free with an account";
+- the results step's folded section is "Your breakdown by area", no lock.
+
+Why it should convert better: what brings someone to sign up is not whether
+an area is weak — they half know — but what to do about it. A visible "2 to
+fix" is a small, concrete, personal task; ten padlocks read as a paywall.
+Nothing else changes: the score, the "N of M" count, the result email (full
+result after confirmation) and the in-app "Your free check" (unlocked) are as
+they were. The website check's own teaser (counts only, "🔒 every finding…")
+was not part of the request and is unchanged.
+
+Checked: a preview page calling the real component with sample answers —
+GDPR (2 of 10), NIS2 (2 of 13), AI Act (2 of 9) — each shows its two orange
+areas boxed with the lock line, the rest ticked, and the call to action. Six
+strings in French and Dutch. **Not yet deployed** to the public app.
+
 ---
 
 *End of record. Append at sprint close.*

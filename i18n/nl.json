@@ -1463,5 +1463,11 @@
  "An actively exploited vulnerability in one of your products (CRA Art. 14(1))": "Een actief uitgebuite kwetsbaarheid in een van uw producten (CRA art. 14(1))",
  "A severe incident affecting the security of one of your products (CRA Art. 14(3))": "Een ernstig incident dat de beveiliging van een van uw producten aantast (CRA art. 14(3))",
  "Neither — not reportable under the CRA": "Geen van beide — niet te melden onder de CRA",
- "Significant (NIS2) or reportable (CRA) incidents": "Significante (NIS2) of te melden (CRA) incidenten"
+ "Significant (NIS2) or reportable (CRA) incidents": "Significante (NIS2) of te melden (CRA) incidenten",
+ "🟠 **{category}** — needs attention": "🟠 **{category}** — vraagt aandacht",
+ "🔒 What to do, and the document that covers it: in your full report.": "🔒 Wat te doen, en het document dat het dekt: in uw volledige rapport.",
+ "✅ {category} — in place": "✅ {category} — in orde",
+ "**See how to fix {these}** — your full report, with what to do for each area, comes free with an account.": "**Bekijk hoe u {these} oplost** — uw volledige rapport, met wat te doen per domein, is gratis met een account.",
+ "this area": "dit domein",
+ "these {n} areas": "deze {n} domeinen"
 }
