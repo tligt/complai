@@ -8542,7 +8542,7 @@ product:
   website's cookie banner still asks consent for analytics cookies (the open
   reminder from 16 Nov).
 
-One fact left marked [CHECK]: where the Umami Cloud plan is hosted. Not
+Umami's location confirmed by the user the same day: EU (Frankfurt). Not
 published — the user pastes it into Framer. The processor change is a
 material change; the notice itself promises to email registered users.
 
