@@ -275,7 +275,14 @@ def documents_outstanding(
     doc_labels: Mapping[str, str],
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Drafts never adopted, and superseded versions nearing deletion."""
+    """Drafts never adopted.
+
+    Superseded versions nearing deletion used to be reported here too, but
+    this producer is fed the register STATUS view (drafts and in force only —
+    database.get_register_status), and retain_until is set on superseded
+    versions, so that branch could never fire. It moved to heartbeat.py
+    (S67, D-188), which reads every version.
+    """
     today = today or date.today()
     out = []
     for r in register_rows:
@@ -291,22 +298,6 @@ def documents_outstanding(
                 "operates under.",
                 link="documents",
             ))
-
-        keep = r.get("retain_until")
-        if isinstance(keep, str) and keep and not r.get("legal_hold"):
-            try:
-                keep_d = datetime.fromisoformat(keep[:10]).date()
-            except ValueError:
-                continue
-            if 0 <= (keep_d - today).days <= 30:
-                out.append(_finding(
-                    "document", f"retention:{r['id']}",
-                    tr("{label} v{r_get_version} ({lang}) reaches the end of its retention period").format(label=label, r_get_version=r.get('version'), lang=lang),
-                    DUE,
-                    "Download a copy if you need one, or place it on hold if "
-                    "it is relevant to a live matter.",
-                    keep_d, link="compliance_record",
-                ))
     return out
 
 
@@ -445,6 +436,8 @@ PRODUCERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "document":    documents_outstanding,
     "readiness":   inventory_gaps,
     "consistency": consistency_findings,
+    # "heartbeat": heartbeat.findings (S67) — not registered here: heartbeat
+    # imports this module, and the entry would be an import cycle.
     "wording":     wording_missing,
     "template":    template_updates_available,
 }

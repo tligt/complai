@@ -393,7 +393,7 @@ the only sprint that *is* the gate.
 | **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | **S65** | **RoPA consistency checks** | **Built and deployed 18 Nov (D-186); the pages not yet looked at in the app.** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | **S66** | **Cookie Policy purpose granularity** | **Built and deployed 18 Nov (D-187), migration on dev and production; the form not yet checked in the app.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
-| S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
+| **S67** | **Compliance heartbeat — scheduled checks** | **Built 18 Nov (D-188); migration on dev only, not deployed, cron line not installed.** Nightly `monitor_heartbeat.py`: stale legal holds, superseded versions nearing deletion, documents not reviewed in a year, systems tied to no activity — to the action plan, and one content-free email per company at most weekly. Website-drift crawl not built. Scope in 3b (under its old number S62). was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
@@ -8138,6 +8138,65 @@ to the pre-S66 rows and the log would show "Cookie purposes not read".
 **Not done:** catalogue entries do not pre-fill purposes (Google Analytics
 could arrive with "analytics" ticked); the Cookie Policy's own text does not
 yet say which purposes need consent (`consent_required` is there for it).
+
+### D-188 — S67 built: the compliance heartbeat, 18 Nov
+
+Built from the scope in 3b (written as S62): checks for what becomes true by
+time passing, run every night, not only when somebody opens a page.
+
+**`heartbeat.py`** — pure rules (no Streamlit, no Supabase), keys
+`heartbeat:<rule>:<id>`:
+
+| Rule | Severity | Goes to |
+|---|---|---|
+| Legal hold set over 30 days ago, or of unknown age — asked as a question ("is it still necessary?"), never an instruction | open | Compliance record |
+| A superseded version, not on hold, reaching `retain_until` within 30 days | due, with the date | Compliance record |
+| A version in force for over a year (adopted, else effective, date) — re-adopting is the review | open | Documents |
+| A system added over 14 days ago and tied to no processing activity | open | Inventory |
+
+Not repeated, because a producer already reports them: drafts never adopted,
+training due, consistency findings (S65), unreviewed translations.
+
+**Found on the way — a dead check removed.** `tasks.documents_outstanding`
+warned about superseded versions nearing deletion, but it is fed the
+register status view (drafts and in force only), and `retain_until` is set on
+superseded versions: it could never fire. The rule now lives in the
+heartbeat, which reads every version (`database.get_document_versions`);
+the dead branch is gone so the two can never report the same thing twice.
+
+**Where it shows.** The action plan computes the same findings on every
+read (`obligation_view._heartbeat`), so page and job cannot disagree. Routed
+to the Documents area, a system finding to GDPR (`work_items.area_of_task`).
+
+**`monitor_heartbeat.py`** — nightly (crontab line added: 03:40 UTC), every
+company: records what opened and closed in `task_events` (actor
+"heartbeat"), and emails the owner one content-free message — "Something in
+your compliance record needs a look", a link to the action plan, nothing
+about the company (D-05) — when something opened that night and the last
+email was a week or more ago, or as a reminder after 30 days when findings
+stay open (`clients.heartbeat_notified_at`, `migration_s67_heartbeat.sql`).
+`--dry-run` writes and sends nothing.
+
+**The guard that matters.** `obligation_store.reconcile` closes every open
+task missing from the findings it is given. A job that computes one
+producer and passes the whole history would close every other task on
+every company's action plan. The job reconciles only the heartbeat's own
+history (`heartbeat.scoped`); a test proves both the danger and the guard.
+
+**Nothing acts:** no hold released, nothing deleted or adopted.
+
+**Tested:** `test_heartbeat.py` (holds, retention, review, systems, stable
+keys, the reconcile guard, the email rule); every other test script passes.
+Dry run on dev: 5 companies, one finding — "one.com", added 30 Sep, tied to
+no activity, genuine; would email the owner. Nothing else is due on dev (no
+holds, earliest deletion date 2031, nothing in force for a year yet), which
+is the right answer, so those rules are proven by tests only.
+
+**Not built:** the website-drift crawl (the live policy against the version
+in force) — the largest single check, left for its own piece of work.
+
+**Not deployed.** Production needs the migration, the deploy, and
+`install -m 0644 deploy/crontab /etc/cron.d/recosa`.
 
 ---
 

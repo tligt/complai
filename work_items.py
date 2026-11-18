@@ -61,6 +61,10 @@ def area_of_task(task: dict) -> str:
         return "incidents"
     if producer == "consistency":
         return "gdpr"   # S65: the processing register is a GDPR record
+    if producer == "heartbeat":
+        # S67: a tool tied to no processing is a register question; holds,
+        # retention and reviews are about documents.
+        return "gdpr" if (task.get("finding_key") or "").startswith("heartbeat:system:") else "documents"
     if producer == "ai":
         return "ai_act"
     if producer == "training":

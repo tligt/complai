@@ -35,6 +35,18 @@ TASK_LINK_PAGES = {
 }
 
 
+def _heartbeat(client_id: str, systems: list, links: list) -> list:
+    """S67 (D-188). Never allowed to break the action plan."""
+    try:
+        import heartbeat as HB
+        from database import get_document_versions
+        return HB.findings(docs=get_document_versions(client_id), systems=systems,
+                           links=links, doc_labels=DOCUMENT_TYPES)
+    except Exception as e:
+        print(f"Heartbeat not computed: {e}")
+        return []
+
+
 def load_state(user_id: str, client: dict) -> dict:
     client_id = client["id"]
     regulations = client.get("regulations") or ["GDPR"]
@@ -122,6 +134,9 @@ def load_state(user_id: str, client: dict) -> dict:
         # S61. AI systems with no use described, uses not assessed, prohibited
         # uses, high-risk uses with no overseer.
         AIS.open_findings(client, ai_data) if ai_data else [],
+        # S67. What becomes true by time passing — the same function the
+        # nightly job runs (monitor_heartbeat.py), so the two agree.
+        _heartbeat(client_id, systems, links),
     )
     events = STORE.load_events(client_id, user_id)
     STORE.reconcile(user_id, client_id, findings, events)

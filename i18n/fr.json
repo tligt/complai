@@ -1421,5 +1421,19 @@
  "Cookies": "Cookies",
  "Names where you know them, e.g. _ga, _gid.": "Les noms si vous les connaissez, p. ex. _ga, _gid.",
  "Optional. What the cookies do, in the reader's words.": "Facultatif. Ce que font les cookies, avec les mots du lecteur.",
- "Description ({lang})": "Description ({lang})"
+ "Description ({lang})": "Description ({lang})",
+ "Download a copy if you need one, or place it on hold if it is relevant to a live matter.": "Téléchargez-en une copie si vous en avez besoin, ou placez-la en conservation si elle concerne une affaire en cours.",
+ "Re-read it against how you work today. If nothing changed, put it in force again; if something did, generate a new version.": "Relisez-le au regard de votre façon de travailler aujourd'hui. Si rien n'a changé, remettez-le en vigueur ; si quelque chose a changé, générez une nouvelle version.",
+ "Add it to the activities it serves, or remove it if you no longer use it.": "Ajoutez-le aux activités qu'il sert, ou supprimez-le si vous ne l'utilisez plus.",
+ "A hold keeps data past its retention period. Release it once the matter it was set for is over; keep it while it is live.": "Une conservation garde des données au-delà de leur durée de conservation. Levez-la une fois l'affaire pour laquelle elle a été posée terminée ; maintenez-la tant qu'elle est en cours.",
+ "{doc} is on legal hold — is it still necessary?": "{doc} est en conservation légale — est-ce encore nécessaire ?",
+ "{doc} reaches the end of its retention period": "{doc} arrive au terme de sa durée de conservation",
+ "{doc} has not been reviewed for over a year": "{doc} n'a pas été revu depuis plus d'un an",
+ "{system} is not used by any processing activity": "{system} n'est utilisé par aucune activité de traitement",
+ "When the hold was set is not recorded.": "La date de mise en conservation n'est pas enregistrée.",
+ "The hold was set on {date}.": "La conservation a été posée le {date}.",
+ "Something in your compliance record needs a look.": "Un élément de votre dossier de conformité mérite votre attention.",
+ "RECOSA checks your record every night for what changes with time alone.": "RECOSA vérifie chaque nuit votre dossier pour ce qui change avec le seul passage du temps.",
+ "For confidentiality, nothing about your company is included in this email.": "Par confidentialité, cet e-mail ne contient aucune information sur votre entreprise.",
+ "Your compliance record in RECOSA": "Votre dossier de conformité dans RECOSA"
 }

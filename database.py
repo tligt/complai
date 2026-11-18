@@ -804,6 +804,23 @@ def get_register_status(client_id: str, user_id: str) -> dict:
         return {}
 
 
+def get_document_versions(client_id: str, sb=None) -> list[dict]:
+    """S67 (D-188). Every version of every document, any status, for heartbeat.py.
+
+    Unlike get_register_status this keeps superseded versions: they carry the
+    retention dates and most legal holds. `sb` lets the nightly job pass its
+    service-role client; the app reads as the signed-in user.
+    """
+    try:
+        return ((sb or get_supabase()).table("client_documents")
+                .select("id, document_type, language, version, status, adopted_at, "
+                        "effective_from, retain_until, legal_hold, hold_set_on")
+                .eq("client_id", client_id).execute().data or [])
+    except Exception as e:
+        print(f"Document versions not read: {e}")
+        return []
+
+
 def get_client_document_history(
     client_id: str, user_id: str, document_type: str,
     language: str | None = None,

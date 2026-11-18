@@ -668,6 +668,29 @@ def send_inbox_nudge(to_email: str, lang: str | None = None) -> bool:
 
 # ── S60: training nudge ────────────────────────────────────────────────────
 
+def send_heartbeat_digest(to_email: str, lang: str | None = None) -> bool:
+    """S67 (D-188). Content-free: something in the company's record needs a look.
+
+    D-05: no document, no regulation, no system names — those stay in RECOSA.
+    One email for all the company's findings, at most weekly
+    (clients.heartbeat_notified_at, set by monitor_heartbeat.py).
+    """
+    import html as _h
+    cfg = _notify_config()
+    if not (cfg and to_email):
+        return False
+    lang = _lang(lang) if lang else language_of(to_email)
+    link = f"{cfg[3]}/action_plan"
+    intro = tr("Something in your compliance record needs a look.", lang)
+    why = tr("RECOSA checks your record every night for what changes with time alone.", lang)
+    note = tr("For confidentiality, nothing about your company is included in this email.", lang)
+    action = tr("Open the action plan", lang)
+    text_body = f"{intro}\n{why}\n\n{action}: {link}\n\n{note}\nRECOSA - recosa.eu"
+    html_body = _short_html([_h.escape(intro), _h.escape(why)], action, link, note)
+    return _post_short(cfg, to_email, tr("Your compliance record in RECOSA", lang),
+                       text_body, html_body, "Heartbeat digest")
+
+
 def send_training_nudge(to_email: str, lang: str | None = None) -> bool:
     """Content-free: someone's training is due or has lapsed in RECOSA.
 

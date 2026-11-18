@@ -28,5 +28,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 7 * * * *     root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_incidents.py >> /var/log/recosa/monitor_incidents.log 2>&1
 # Training due reminders (S60) — weekly; the script sends at most monthly per company
 23 7 * * 1    root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_training.py >> /var/log/recosa/monitor_training.log 2>&1
+# Compliance heartbeat (S67) — nightly; at most one content-free email per company a week
+40 3 * * *    root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_heartbeat.py >> /var/log/recosa/monitor_heartbeat.log 2>&1
 # Nightly backup to Scaleway Object Storage
 30 2 * * *    root  /opt/recosa/app/deploy/backup.sh >> /var/log/recosa/backup.log 2>&1

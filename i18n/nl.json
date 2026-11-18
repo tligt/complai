@@ -1421,5 +1421,19 @@
  "Cookies": "Cookies",
  "Names where you know them, e.g. _ga, _gid.": "De namen als u ze kent, bv. _ga, _gid.",
  "Optional. What the cookies do, in the reader's words.": "Optioneel. Wat de cookies doen, in de woorden van de lezer.",
- "Description ({lang})": "Beschrijving ({lang})"
+ "Description ({lang})": "Beschrijving ({lang})",
+ "Download a copy if you need one, or place it on hold if it is relevant to a live matter.": "Download een kopie als u die nodig hebt, of plaats ze in bewaring als ze relevant is voor een lopende zaak.",
+ "Re-read it against how you work today. If nothing changed, put it in force again; if something did, generate a new version.": "Lees het opnieuw in het licht van hoe u vandaag werkt. Is er niets veranderd, zet het dan opnieuw in werking; is er iets veranderd, genereer dan een nieuwe versie.",
+ "Add it to the activities it serves, or remove it if you no longer use it.": "Voeg het toe aan de activiteiten waarvoor het dient, of verwijder het als u het niet meer gebruikt.",
+ "A hold keeps data past its retention period. Release it once the matter it was set for is over; keep it while it is live.": "Een bewaring houdt gegevens langer bij dan hun bewaartermijn. Hef ze op zodra de zaak waarvoor ze werd ingesteld voorbij is; behoud ze zolang die loopt.",
+ "{doc} is on legal hold — is it still necessary?": "{doc} staat onder juridische bewaring — is dat nog nodig?",
+ "{doc} reaches the end of its retention period": "{doc} bereikt het einde van zijn bewaartermijn",
+ "{doc} has not been reviewed for over a year": "{doc} is al meer dan een jaar niet herzien",
+ "{system} is not used by any processing activity": "{system} wordt door geen enkele verwerkingsactiviteit gebruikt",
+ "When the hold was set is not recorded.": "Wanneer de bewaring werd ingesteld, is niet geregistreerd.",
+ "The hold was set on {date}.": "De bewaring werd ingesteld op {date}.",
+ "Something in your compliance record needs a look.": "Iets in uw compliancedossier verdient uw aandacht.",
+ "RECOSA checks your record every night for what changes with time alone.": "RECOSA controleert uw dossier elke nacht op wat alleen door het verstrijken van de tijd verandert.",
+ "For confidentiality, nothing about your company is included in this email.": "Om vertrouwelijkheidsredenen bevat deze e-mail geen informatie over uw bedrijf.",
+ "Your compliance record in RECOSA": "Uw compliancedossier in RECOSA"
 }
