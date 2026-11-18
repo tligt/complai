@@ -385,7 +385,7 @@ the only sprint that *is* the gate.
 | **S56** | **Enterprise routing + in-app messaging** | **Open (checked 16 Nov, D-179):** the colleague's side — a second person seeing the assignment in their Inbox. Notifications so far all went to one person. **Built 5 Nov (D-145)**: assign tasks and incidents, routing rules per area, comments, inbox. Live test waits for a company with two people. was S55 until D-131; S54 until D-115; S52, S49 before |
 | ~~S57~~ | ~~Buffer/LinkedIn integration~~ | **Closed 6 Nov (D-147, D-149)**: LinkedIn drafts to Buffer — queue, schedule or draft; plain text, source line or first comment (the first comment needs a paid Buffer plan), a real RECOSA mention, a RECOSA image. Tested live. was S56 until D-131; S55 until D-115; S53, S50 before |
 | ~~S58~~ | ~~Monitoring sources + competitive monitoring~~ | **Closed 6 Nov, not built here — D-148.** Competitive and source monitoring became Evidara, a separate SaaS tool in development. New regulators for a country arrive with that country's localization (S64 since D-152). was S57 until D-131; S56 until D-115; S54, S51 before |
-| **S59** | **Customer accounts and subscription history** | **Open (checked 16 Nov, D-179):** a first plan change saved from Companies — none yet. The real sign-up and trial start is done (production, 12 Nov). **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). **Built and live 9 Nov** (d679c36, 922e96c): accounts with dated history, Companies page, Users reworked; checked live in both apps. Open: a real sign-up and trial start, and a first plan change saved from Companies.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
+| ~~S59~~ | ~~Customer accounts and subscription history~~ | **Closed 18 Nov (D-183):** a plan change saved from the back office Companies page on production, written as a dated period, followed by the client app, then switched back. One display bug found (trial end shown a day late), not fixed. — Open until then (16 Nov, D-179). The real sign-up and trial start is done (production, 12 Nov). **Scope locked 9 Nov (D-151); registered as S70, made S59 the same day by request (D-152). **Built and live 9 Nov** (d679c36, 922e96c): accounts with dated history, Companies page, Users reworked; checked live in both apps. Open: a real sign-up and trial start, and a first plan change saved from Companies.** From the back office review (D-150, points 1–3). The plan, status, trial and contract contact move from the person to a customer account (the contracting party) with one or more companies under it, and every change is a dated period in a history. A Companies page in the back office. S46 (Stripe) later plugs payments into it. Scope lock in 3b |
 | ~~S60~~ | ~~Skills matrix and training register~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Built 10 Nov (D-159)**: Training page (matrix, people, sessions, documents), five requirements as reference data, register derivation for gdpr_13 / nis2_09 / ai_01, action-plan tasks, training plan and attendance attestation PDFs (EN/FR), monthly content-free reminder. Walked through locally 10 Nov (person, session, attendance, matrix, register, action plan); test data removed. was S59 until D-152; was S58 until D-131; S57 until D-115; S55, S52 before |
 | ~~S61~~ | ~~AI Act three-layer inventory~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Built 10 Nov (D-160)**: AI inventory page (use cases, AI systems, models); risk class worked out from the answers (Art. 5, Annex III with Art. 6(3) and the profiling rule, Art. 50); role per use with the Art. 25 switch to provider; register derivations for nine AI Act obligations; action-plan tasks. Walked through locally, test data removed. was S60 until D-152; was S59 until D-131; S58 until D-115; S56, S53 before |
 | ~~S62~~ | ~~AI deployer pack: AUP + Human Oversight + AI Transparency Notice~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; page and Documents menu checked in the app 10 Nov. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
@@ -7948,6 +7948,31 @@ generated from the Documents page at 12:01 and its DOCX and PDF read back:
   readability darkening).
 
 **S52 closed.**
+
+### D-183 — S59 closed: a plan change from Companies, 18 Nov
+
+Production back office (admin.recosa.eu), Companies, creagent.be (Professional,
+trial until 26 Nov). By the ⋮ menu, *Change plan or status*:
+
+- **12:12 — Professional → Starter**, status Trial, note "S59 test: plan change
+  from Companies (switched back right after)". Saved: a new period in History
+  (from 18 Nov 12:12, Starter, Trial, the note, by the admin) and the previous
+  Professional period closed at the same minute. **The client app followed**:
+  Company profile's *Document branding* became the Starter upgrade prompt.
+- **12:14 — Starter → Professional**, note "S59 test done: back to Professional
+  trial". The app shows the branding form again, with the saved branding.
+
+History now reads four rows: account opened, trial started, Starter, back to
+Professional. **S59 closed.**
+
+**Found: the trial end is shown a day late.** The form saves the chosen day as
+23:59 **UTC** (`pages_admin/companies.py`, `subscription_form`), while the
+tables show dates in Europe/Brussels (`table_view._TZ`): 26 Nov 23:59 UTC is
+27 Nov 00:59 in Brussels. So after a save the Companies table and History say
+27 Nov, the account header says 26 Nov, and the app's countdown went from 8 to
+9 days left. Saving even with the date untouched moves it: Creagent's trial
+end is now 26 Nov 23:59 UTC (was 26 Nov 11:23 UTC, the sign-up time + 14
+days). Fix: save the end of the chosen day in Europe/Brussels. Not fixed yet.
 
 ---
 
