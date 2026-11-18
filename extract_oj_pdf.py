@@ -85,7 +85,7 @@ _ANNEX_START = re.compile(r"(?m)^\s*(?:ANNEX|ANNEXE|BIJLAGE)\s*$")
 
 # A heading whose TITLE sits on the following line.
 _TITLED = re.compile(r"^(?:Clauses? \d{1,2}(?: - Optional| — Facultative)?|SECTION [IVX]+|ANNEXE? [IVX]+"
-                     r"|Bepaling \d{1,2}(?: — Facultatief)?|AFDELING [IVX]+|BIJLAGE [IVX]+)\s*$")
+                     r"|Bepaling \d{1,2}(?: — Facultatief)?|AFDELING [IVX]+|BIJLAGE(?: [IVX]+)?)\s*$")
 # A heading that carries its own title, e.g. "7.2. Purpose limitation".
 _SELF_TITLED = re.compile(r"^\d\.\d{1,2}\.? \S")
 
@@ -121,11 +121,27 @@ def to_text(path: Path) -> str:
         )
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "out.txt"
-        subprocess.run([exe, str(path), str(out)], check=True)
+        # -enc UTF-8: S72 (D-190). Without it a Windows build of poppler writes
+        # Latin-1, and "Hiërarchie" came back as "Hi\ufffdrarchie" — and the
+        # Dutch annex heading, unreadable, was never found.
+        subprocess.run([exe, "-enc", "UTF-8", str(path), str(out)], check=True)
         return out.read_text(encoding="utf-8", errors="replace")
 
 
-def clean(text: str) -> str:
+# S72 (D-190). The Dutch PDF sets its sub-points inline ("…2018/1725. c) Deze
+# bepalingen…") where the English and French put each on its own line, and it
+# glues a clause's first sub-point to the clause title ("Onveranderlijkheid van
+# de bepalingen a) De partijen…"). A sub-point starts a new line only where it
+# plainly begins one: after a sentence ends, or right after a title — and only
+# when a capital follows, so a cross-reference ("onder a) van") stays put.
+# Layout only; no character of the text changes.
+_NL_SUBPOINT_BREAKS = [
+    re.compile(r"(?<=[.:;]) (?=(?:[a-z]|\d{1,2})\) [A-ZÀ-Ý“\"])"),
+    re.compile(r"(?<=[a-zà-ÿ]) (?=a\) [A-ZÀ-Ý])"),
+]
+
+
+def clean(text: str, lang: str = "en") -> str:
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("\u00a0", " ").replace("\u200b", "").replace("\f", "\n")
 
@@ -153,6 +169,13 @@ def clean(text: str) -> str:
 
     for pattern in _BREAK_BEFORE:
         text = pattern.sub("\n", text)
+    if lang == "nl":
+        for pattern in _NL_SUBPOINT_BREAKS:
+            text = pattern.sub("\n", text)
+        # The Decision's own annex heading stands alone ("BIJLAGE", then its
+        # title), like the English "ANNEX"; the unwrap re-joins it. "BIJLAGE I"
+        # to "IV" are untouched: a numeral follows them, not a word.
+        text = re.sub(r"(?m)^(BIJLAGE) (?=[A-Z][a-z])", r"\1\n\n", text)
 
     text = re.sub(r"[ \t]{2,}", " ", text)
     text = re.sub(r" *\n *", "\n", text)
@@ -165,7 +188,7 @@ def main() -> int:
         sys.exit("usage: python extract_oj_pdf.py <file.pdf|file.txt> <en|fr|nl|de>")
     src, lang = Path(sys.argv[1]), sys.argv[2].lower()
 
-    text = clean(to_text(src))
+    text = clean(to_text(src), lang)
 
     match = _ANNEX_START.search(text)
     if match:

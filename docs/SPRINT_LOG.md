@@ -398,7 +398,7 @@ the only sprint that *is* the gate.
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
 | **S71** | **CRA reporting on the incident clock** | **Built and deployed 18 Nov (D-189); the pages not yet checked in the app.** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
-| **S72** | **Localization — the rest of S64** | **18 Nov (D-190): NL and LU country data done (dev); the Dutch DPA built and waiting only on the Dutch OJ PDF; the lawyer's review split off as S75.** New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
+| **S72** | **Localization — the rest of S64** | **Closed 18 Nov (D-190), on dev; not yet on production.** NL and LU country data; the Dutch DPA from the official OJ text — all 14 templates now exist in Dutch. The lawyer's review split off as S75. New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 | S75 | Lawyer's review of the Dutch texts | New 18 Nov (D-190), split off S72 by request — the one part no code can do. A Belgian lawyer reviews the 13 Dutch templates (`templates/nl_BE/`), the Dutch reference labels, and the Dutch DPA's cover and annexes (its clauses are the official text); the reviewer removes each draft banner and the file is loaded again (`load_template_nl.py`). Not blocking the BE/FR beta |
 | S74 | Yearly plans — push customers to commit for a year | New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
@@ -8333,8 +8333,38 @@ CELEX_32021D0915_NL_TXT.pdf.
 
 **3. The lawyer's review → S75** (roadmap row above).
 
-**Not deployed.** Production needs the migration (and, once built, the Dutch
-DPA loaded).
+**The Dutch DPA, finished the same day.** The user downloaded
+CELEX_32021D0915_NL_TXT.pdf (kept out of git, like the EN/FR PDFs: the
+committed source is the extracted raw text). Running the pipeline on it found
+three things, fixed in `extract_oj_pdf.py` (layout only):
+- **A real extraction bug:** a Windows build of poppler writes Latin-1 unless
+  told otherwise — "Hiërarchie" came back as "Hi�rarchie", and the
+  Dutch annex heading, unreadable, was never found, so the whole act
+  (recitals included) was kept. Now `pdftotext -enc UTF-8`.
+- **Dutch sub-points run inline** in the PDF ("…2018/1725. c) Deze…"): put on
+  their own line only after a sentence end or a title, and only before a
+  capital, so a cross-reference ("onder a) van") stays put.
+- **The bare "BIJLAGE" heading** re-joined to its title by the unwrap.
+Left as is: single-paragraph clauses 4 and 6 keep their title on the body
+line — the Dutch PDF prints them on one line and nothing structural marks
+where the title ends; the wording is untouched and verification counts them.
+
+**Proof that only layout changed:** with whitespace removed, the raw Dutch
+file and pdftotext's own output are identical (25,959 characters); no
+hyphenation splits. The patch then resolved every option (no OPTIE marker
+left, Option 1 of 7.7(a) gone, Option 2 unlabelled, the blank filled), and
+`verify()` passed (10 clauses, 3 sections, 4 annexes, the expected fields,
+flags and tables). EN and FR outputs remain byte-identical to the committed
+files (line endings aside).
+
+`load_template_nl.py --check dpa` passed (same structure as the English
+DPA) and the Dutch DPA was loaded on dev (nl-BE/nl-NL, version 1). Rendered
+for the dev test company through `generate()`, writing nothing: not blocked,
+no outstanding field, no merge tag left, 10 clauses; Clause 7.7(a) reads
+"ten minste 30 dagen van tevoren".
+
+**S72 closed** — on dev. **Production** needs the migration and, after the
+deploy, `load_template_nl.py dpa` run there.
 
 ---
 
