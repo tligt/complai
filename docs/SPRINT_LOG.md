@@ -7924,8 +7924,8 @@ time. **S49 closed, nothing left open.**
 now reads "updates on GDPR, NIS2 and the AI Act" (was "NIS2 and GDPR"), and
 `CONSENT_VERSION` is `2026-11-18` (was `2026-10-22`), as D-133 left it to
 this review. Leads that ticked the old wording keep `2026-10-22` on their
-row, so they can be told apart. The public app deploys from main; not
-checked live.
+row, so they can be told apart. Live on production with the D-184 deploy
+(production deploys by `deploy/update.sh`, not on push).
 
 ### D-182 — S52 closed: a branded document from the Documents page, 18 Nov
 
@@ -7990,8 +7990,13 @@ Values saved before the fix (23:59 UTC) now read as the next day everywhere,
 consistently. The one affected is Creagent's (26 Nov 23:59 UTC → shown as
 27 Nov); re-saving it with 26/11 puts it right.
 
-**Not yet deployed** to production at the time of writing (needs
-`deploy/update.sh` on the server, D-177).
+**Deployed the same day** (`deploy/update.sh`, server 1f592b2 → 6e362c4;
+admin, app and quiz healthy). The deploy also carried D-181's consent
+wording to the production quiz — pushing to main alone had not. Creagent's
+trial end re-saved as 26/11 (note "Trial end corrected to 26 Nov
+(Brussels), after the D-184 fix"): the account header, the Companies table
+and History all read 26 Nov; the app says "9 days left" (18–26 Nov,
+counting today).
 
 ---
 
