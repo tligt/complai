@@ -13,10 +13,12 @@ reviewing a diff.
 INPUT (you provide, once, unedited):
     templates/raw/dpa_scc_en.oj.md   <- Annex only, from CELEX:32021D0915 EN
     templates/raw/dpa_scc_fr.oj.md   <- Annex only, from CELEX:32021D0915 FR
+    templates/raw/dpa_scc_nl.oj.md   <- Annex only, from CELEX:32021D0915 NL (S72, D-190)
 
 OUTPUT:
     templates/dpa_scc_en.md
     templates/dpa_scc_fr.md
+    templates/dpa_scc_nl.md          (built only once its raw file exists)
 
 The French file is the official French text, not a translation of the English
 (both are authoritative; translating would produce a text with no legal standing).
@@ -78,6 +80,8 @@ LANGS = {
         "time_period": "[SPECIFY TIME PERIOD]",
         "annex_start": re.compile(r"^\s*ANNEX I\b", re.MULTILINE),
         "expect_inline_options": 4,
+        "option_marker": r"\[OPTION\s*\d",
+        "clause_word": "Clause", "section_word": "SECTION", "annex_word": "ANNEX",
     },
     "fr": {
         "clause1_option": re.compile(
@@ -93,6 +97,29 @@ LANGS = {
         "time_period": "[PRÉCISER LA DURÉE]",
         "annex_start": re.compile(r"^\s*ANNEXE I\b", re.MULTILINE),
         "expect_inline_options": 4,
+        "option_marker": r"\[OPTION\s*\d",
+        "clause_word": "Clause", "section_word": "SECTION", "annex_word": "ANNEXE",
+    },
+    # S72 (D-190). Markers read from the Dutch OJ text on 18 Nov 2026. Two
+    # quirks of that text, kept as they are: the time-period blank is printed
+    # in ENGLISH ("[SPECIFY TIME PERIOD]"), and the clauses are "Bepaling",
+    # the sections "AFDELING", the annexes "BIJLAGE".
+    "nl": {
+        "clause1_option": re.compile(
+            r"\[toepasselijke optie kiezen:\s*OPTIE 1:\s*(?P<one>.+?)\]\s*/\s*\[OPTIE 2:.+?\]",
+            re.DOTALL,
+        ),
+        "inline_option": re.compile(
+            r"\[OPTIE 1\]\s*(?P<one>.+?)\s*/?\s*\[OPTIE 2\]\s*.+?2018/1725",
+            re.DOTALL,
+        ),
+        "subproc_opt1_start": "OPTIE 1: VOORAFGAANDE SPECIFIEKE TOESTEMMING",
+        "subproc_opt2_label": "OPTIE 2: ALGEMENE SCHRIFTELIJKE TOESTEMMING:",
+        "time_period": "[SPECIFY TIME PERIOD]",
+        "annex_start": re.compile(r"^\s*BIJLAGE I\b", re.MULTILINE),
+        "expect_inline_options": 4,
+        "option_marker": r"\[OPTIE\s*\d",
+        "clause_word": "Bepaling", "section_word": "AFDELING", "annex_word": "BIJLAGE",
     },
 }
 
@@ -127,8 +154,9 @@ def normalise(text: str) -> str:
         text = pattern.sub(repl, text)
     # Strip OJ running headers/footers: "L 199/21 EN Official Journal ..." etc.
     text = re.sub(
-        r"^\s*(?:L 199/\d+\s+(?:EN|FR)|[\d.]+\s+(?:EN|FR))\s+"
-        r"(?:Official Journal of the European Union|Journal officiel de l[’']Union européenne)"
+        r"^\s*(?:L 199/\d+\s+(?:EN|FR|NL)|[\d.]+\s+(?:EN|FR|NL))\s+"
+        r"(?:Official Journal of the European Union|Journal officiel de l[’']Union européenne"
+        r"|Publicatieblad van de Europese Unie)"
         r".*$",
         "",
         text,
@@ -140,7 +168,8 @@ def normalise(text: str) -> str:
     # "9.1 Data breach ..."). Without it this unwrap merges them back onto the
     # preceding paragraph and undoes what extract_oj_pdf.py separated.
     text = re.sub(
-        r"(?<=[^\n])\n(?![\n\s]|[a-z0-9]\)|\(\w\)|\d\)|\d\.\d|#|ANNEX|SECTION|Clause|OPTION)",
+        r"(?<=[^\n])\n(?![\n\s]|[a-z0-9]\)|\(\w\)|\d\)|\d\.\d|#|ANNEX|SECTION|Clause|OPTION"
+        r"|BIJLAGE|AFDELING|Bepaling|OPTIE)",
         " ",
         text,
     )
@@ -192,7 +221,7 @@ def resolve_options(text: str, cfg: dict, label: str) -> str:
             "(Clauses 8(c)(4), 9.1(b), 9.1(c), 9.2 closing paragraph)"
         )
 
-    leftover = re.search(r"\[OPTION\s*\d", text)
+    leftover = re.search(cfg["option_marker"], text)
     if leftover:
         raise PatchError(f"{label}: unresolved option marker survived at offset {leftover.start()}")
     return text
@@ -408,6 +437,77 @@ Le sous-traitant n'a recours à aucun sous-traitant ultérieur pour le traitemen
 {{/ifnot:has_subprocessors}}
 """
 
+ANNEXES_NL = """
+## BIJLAGE I — Lijst van partijen
+
+**Verwerkingsverantwoordelijke(n):** *Identiteit en contactgegevens van de verwerkingsverantwoordelijke(n) en, in voorkomend geval, van de functionaris voor gegevensbescherming van de verwerkingsverantwoordelijke.*
+
+In te vullen door de verwerkingsverantwoordelijke bij aanvaarding.
+
+1. Naam: ..........................................................
+   Adres: ..........................................................
+   Naam, functie en contactgegevens van de contactpersoon: ..........................................................
+   Ondertekening en toetredingsdatum: ..........................................................
+
+**Verwerker(s):** *Identiteit en contactgegevens van de verwerker(s) en, in voorkomend geval, van de functionaris voor gegevensbescherming van de verwerker.*
+
+1. Naam: **{{legal_name}}**
+
+   Adres: {{registered_address}}
+
+{{#if:has_enterprise_number}}
+   Ondernemingsnummer: {{enterprise_number}}
+
+{{/if:has_enterprise_number}}
+   Contact voor aangelegenheden in verband met deze bepalingen: {{contact_email}}
+
+{{#if:has_dpo}}
+   Functionaris voor gegevensbescherming: {{dpo_name}}, {{dpo_email}}
+
+{{/if:has_dpo}}
+   Ondertekening en toetredingsdatum: ..........................................................
+
+## BIJLAGE II — Beschrijving van de verwerking
+
+{{#block:dpa_annex_ii_table}}
+
+## BIJLAGE III — Technische en organisatorische maatregelen, met inbegrip van technische en organisatorische maatregelen om de beveiliging van de gegevens te waarborgen
+
+### 1. Beveiligingsmaatregelen van de verwerker (bepaling 7.4, onder a))
+
+{{annex_iii_security}}
+
+### 2. Maatregelen waarmee de verwerker de verwerkingsverantwoordelijke bijstaat (bepaling 8, onder d))
+
+{{annex_iii_assistance}}
+
+### 3. Gegevens die worden verstrekt bij bijstand bij een melding van een inbreuk (bepaling 9.2)
+
+{{annex_iii_breach_elements}}
+
+## BIJLAGE IV — Lijst van subverwerkers
+
+**Niet ingevuld.** Deze bijlage wordt alleen ingevuld bij specifieke toestemming voor subverwerkers op grond van bepaling 7.7, onder a), optie 1. Deze bepalingen worden aangegaan op basis van optie 2, algemene schriftelijke toestemming op grond van een overeengekomen lijst. De overeengekomen lijst staat in aanhangsel 1.
+
+<!-- SCC END -->
+
+---
+
+# AANHANGSEL 1 — Overeengekomen lijst van subverwerkers
+
+<!-- MAAKT GEEN DEEL UIT VAN DE BEPALINGEN. Verwezen als de overeengekomen
+     lijst voor de toepassing van bepaling 7.7, onder a), optie 2. -->
+
+{{#if:has_subprocessors}}
+De verwerker doet een beroep op de hieronder vermelde subverwerkers. Wijzigingen van deze lijst worden ten minste {{sub_processor_notice_period}} vooraf aan de verwerkingsverantwoordelijke meegedeeld, overeenkomstig bepaling 7.7, onder a).
+
+{{#block:dpa_subprocessor_table}}
+{{/if:has_subprocessors}}
+{{#ifnot:has_subprocessors}}
+De verwerker doet geen beroep op subverwerkers voor de in bijlage II beschreven verwerking. Verandert dat, dan wordt de verwerkingsverantwoordelijke daarvan ten minste {{sub_processor_notice_period}} vooraf in kennis gesteld, overeenkomstig bepaling 7.7, onder a).
+{{/ifnot:has_subprocessors}}
+"""
+
 COVERS = {
     "en": """# Data Processing Agreement
 
@@ -435,7 +535,25 @@ Clauses contractuelles types adoptées par la Commission européenne au titre de
 """,
 }
 
-ANNEXES = {"en": ANNEXES_EN, "fr": ANNEXES_FR}
+COVERS["nl"] = """# Verwerkersovereenkomst
+
+*Conceptvertaling — nog niet nagekeken door een Belgische jurist.*
+
+<!-- DEKBLAD — MAAKT GEEN DEEL UIT VAN DE BEPALINGEN. Toegestaan op grond van
+     bepaling 2, onder b) (opname van de bepalingen in een ruimere overeenkomst).
+     De banner hierboven geldt voor het dekblad en de bijlagen, die RECOSA's
+     tekst zijn; bepalingen 1 tot en met 10 zijn de officiële Nederlandse tekst
+     van het Publicatieblad (S72, D-190). -->
+
+Standaardcontractbepalingen vastgesteld door de Europese Commissie op grond van artikel 28, lid 7, van Verordening (EU) 2016/679 — Uitvoeringsbesluit (EU) 2021/915 van de Commissie van 4 juni 2021, PB L 199 van 7.6.2021, blz. 18.
+
+**{{legal_name}}** treedt op als verwerker in de zin van deze bepalingen en verwerkt persoonsgegevens namens de in bijlage I genoemde verwerkingsverantwoordelijke.
+
+---
+
+"""
+
+ANNEXES = {"en": ANNEXES_EN, "fr": ANNEXES_FR, "nl": ANNEXES_NL}
 
 # Fields the renderer must supply. Kept here so FIELD_SPECS["dpa"] can be checked
 # against the template rather than drifting from it.
@@ -490,9 +608,10 @@ def verify(body: str, lang: str) -> None:
     # notes that reference clauses by number and would otherwise inflate the count.
     visible = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
     # (?![.\d]) so that a cross-reference to "Clause 7.7" is not counted as a heading.
-    clauses = len(re.findall(r"(?m)^\s*#*\s*Clause\s+(?:10|[1-9])(?![.\d])", visible))
-    sections = len(re.findall(r"(?m)^\s*#*\s*SECTION\s+I{1,3}\b", visible))
-    annexes = len(re.findall(r"(?m)^\s*#*\s*ANNEXE?\s+(?:IV|I{1,3})\b", visible))
+    cfg = LANGS[lang]
+    clauses = len(re.findall(rf"(?m)^\s*#*\s*{cfg['clause_word']}\s+(?:10|[1-9])(?![.\d])", visible))
+    sections = len(re.findall(rf"(?m)^\s*#*\s*{cfg['section_word']}\s+I{{1,3}}\b", visible))
+    annexes = len(re.findall(rf"(?m)^\s*#*\s*{cfg['annex_word']}\s+(?:IV|I{{1,3}})\b", visible))
     fields = set(re.findall(r"\{\{([a-z0-9_]+)\}\}", body))
     blocks = set(re.findall(r"\{\{#block:([a-z0-9_]+)\}\}", body))
     opens = sorted(re.findall(r"\{\{#(if|ifnot):([a-z0-9_]+)\}\}", body))
@@ -536,29 +655,31 @@ def _fixture(lang: str) -> str:
     """Structural markers only — no OJ wording. Proves the anchors fire without
     needing the real text, and without any legal wording living in the repo."""
     cfg = LANGS[lang]
-    c1 = (
-        "[choose relevant option: OPTION 1: GDPR-SIDE]/[OPTION 2: EUDPR-SIDE]"
-        if lang == "en"
-        else "[choisir l\u2019option qui convient: OPTION 1: COTE-RGPD]/[OPTION 2: COTE-RPDUE]"
-    )
+    c1 = {
+        "en": "[choose relevant option: OPTION 1: GDPR-SIDE]/[OPTION 2: EUDPR-SIDE]",
+        "fr": "[choisir l\u2019option qui convient: OPTION 1: COTE-RGPD]/[OPTION 2: COTE-RPDUE]",
+        "nl": "[toepasselijke optie kiezen: OPTIE 1: AVG-KANT]/[OPTIE 2: EUDPR-KANT]",
+    }[lang]
+    opt = "OPTIE" if lang == "nl" else "OPTION"
     inline = (
-        "[OPTION 1] KEEP-{n} of Regulation (EU) 2016/679 / "
-        "[OPTION 2] DROP-{n} of Regulation (EU) 2018/1725"
+        f"[{opt} 1] KEEP-{{n}} of Regulation (EU) 2016/679 / "
+        f"[{opt} 2] DROP-{{n}} of Regulation (EU) 2018/1725"
     )
     o1, o2 = cfg["subproc_opt1_start"], cfg["subproc_opt2_label"]
     tp = cfg["time_period"]
-    annex = "ANNEX I" if lang == "en" else "ANNEXE I"
+    annex = {"en": "ANNEX I", "fr": "ANNEXE I", "nl": "BIJLAGE I"}[lang]
+    cw, sw = LANGS[lang]["clause_word"], LANGS[lang]["section_word"]
     lines = [
-        "SECTION I", "Clause 1", f"(a) purpose {c1}.",
-        "Clause 2", "x", "Clause 3", "x", "Clause 4", "x", "Clause 5", "x",
-        "SECTION II", "Clause 6", "x", "Clause 7",
+        f"{sw} I", f"{cw} 1", f"(a) purpose {c1}.",
+        f"{cw} 2", "x", f"{cw} 3", "x", f"{cw} 4", "x", f"{cw} 5", "x",
+        f"{sw} II", f"{cw} 6", "x", f"{cw} 7",
         f"7.7 (a) {o1}: submit at least {tp} prior. Annex IV applies.",
         f"{o2} general list, informed at least {tp} in advance.",
-        "Clause 8", f"(c)(4) the obligations in {inline.format(n=1)}.",
-        "Clause 9", f"9.1(b) pursuant to {inline.format(n=2)}, shall be stated.",
+        f"{cw} 8", f"(c)(4) the obligations in {inline.format(n=1)}.",
+        f"{cw} 9", f"9.1(b) pursuant to {inline.format(n=2)}, shall be stated.",
         f"9.1(c) in complying, pursuant to {inline.format(n=3)}, with the obligation.",
         f"9.2 elements under {inline.format(n=4)}.",
-        "SECTION III", "Clause 10", "x", annex, "dotted form ....",
+        f"{sw} III", f"{cw} 10", "x", annex, "dotted form ....",
     ]
     # CRLF on purpose: proves normalise() strips them before anchors are matched.
     return "\r\n".join(lines) + "\r\n"
@@ -576,7 +697,7 @@ def self_test() -> int:
             try:
                 body = build(lang, raw_dir=tmp_path)
                 checks = [
-                    ("option marker survived", not re.search(r"\[OPTION\s*\d", body)),
+                    ("option marker survived", not re.search(LANGS[lang]["option_marker"], body)),
                     ("OPTION 2 text survived", "DROP-" not in body),
                     ("wrong OPTION 1 count", body.count("KEEP-") == 4),
                     ("time period unfilled", LANGS[lang]["time_period"] not in body),
@@ -613,6 +734,9 @@ def main(argv=None) -> int:
     langs = args.lang or sorted(LANGS)
     failed = False
     for lang in langs:
+        if not args.lang and not (RAW_DIR / f"dpa_scc_{lang}.oj.md").exists():
+            print(f"SKIP  {lang}: no raw OJ text yet ({RAW_DIR / f'dpa_scc_{lang}.oj.md'})")
+            continue
         try:
             body = build(lang)
         except PatchError as exc:

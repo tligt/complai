@@ -32,7 +32,11 @@ load_dotenv()
 
 ROOT = Path(__file__).resolve().parent / "templates" / "nl_BE"
 DRAFT_BANNER = "*Conceptvertaling — nog niet nagekeken door een Belgische jurist.*"
-NOT_TRANSLATED = {"dpa"}   # the official Dutch SCC text, not a translation (D-163)
+# S72 (D-190): the DPA is not a translation. Its clauses are the official
+# Dutch text of Decision 2021/915, built by template_seed_dpa_patch.py into
+# templates/dpa_scc_nl.md (cover and annexes are RECOSA's Dutch, hence the
+# same draft banner until the lawyer's review). Loaded from there, not nl_BE/.
+DPA_NL = ROOT.parent / "dpa_scc_nl.md"
 
 _FIELD = re.compile(r"\{\{([a-z0-9_]+)\}\}")
 _COND = re.compile(r"\{\{#(if|ifnot):([a-z0-9_]+)\}\}")
@@ -77,14 +81,14 @@ def main(argv: list[str]) -> int:
                     "document_templates!inner(doc_type)")
             .eq("status", "in_force").eq("language", "en").execute().data or [])
     en = {r["document_templates"]["doc_type"]: r for r in rows}
-    files = sorted(ROOT.glob("*.md"))
+    files = sorted(ROOT.glob("*.md")) + ([DPA_NL] if DPA_NL.exists() else [])
     failures = 0
     for f in files:
-        dt = f.stem
+        dt = "dpa" if f == DPA_NL else f.stem
         if wanted and dt not in wanted:
             continue
-        if dt in NOT_TRANSLATED or dt not in en:
-            print(f"{dt}: skipped ({'not translated' if dt in NOT_TRANSLATED else 'no English version'})")
+        if dt not in en:
+            print(f"{dt}: skipped (no English version)")
             continue
         nl = f.read_text(encoding="utf-8").replace("\r\n", "\n")
         errs = check(dt, en[dt]["body_md"], nl)
@@ -101,8 +105,12 @@ def main(argv: list[str]) -> int:
             "source_revision": r["source_revision"], "body_md": nl, "materiality": r["materiality"],
             "status": "in_force", "locales": ["nl-BE", "nl-NL"],
             "effective_from": __import__("datetime").date.today().isoformat(),
-            "change_note": (f"nl-BE draft translation of the English version {r['version_no']} "
-                            "(S64, D-163). Not yet reviewed by a Belgian lawyer."),
+            "change_note": ((f"Official Dutch text of Decision (EU) 2021/915, with RECOSA's Dutch "
+                             f"cover and annexes, at the English version {r['version_no']} (S72, D-190). "
+                             "Cover and annexes not yet reviewed by a Belgian lawyer.")
+                            if dt == "dpa" else
+                            (f"nl-BE draft translation of the English version {r['version_no']} "
+                             "(S64, D-163). Not yet reviewed by a Belgian lawyer.")),
         }, on_conflict="template_id,language,version_no").execute()
         print(f"{dt}: loaded (nl-BE, version {r['version_no']})")
     return 1 if failures else 0

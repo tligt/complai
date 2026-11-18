@@ -398,8 +398,9 @@ the only sprint that *is* the gate.
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
 | **S71** | **CRA reporting on the incident clock** | **Built and deployed 18 Nov (D-189); the pages not yet checked in the app.** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
-| S72 | Localization — the rest of S64 | New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
+| **S72** | **Localization — the rest of S64** | **18 Nov (D-190): NL and LU country data done (dev); the Dutch DPA built and waiting only on the Dutch OJ PDF; the lawyer's review split off as S75.** New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
+| S75 | Lawyer's review of the Dutch texts | New 18 Nov (D-190), split off S72 by request — the one part no code can do. A Belgian lawyer reviews the 13 Dutch templates (`templates/nl_BE/`), the Dutch reference labels, and the Dutch DPA's cover and annexes (its clauses are the official text); the reviewer removes each draft banner and the file is loaded again (`load_template_nl.py`). Not blocking the BE/FR beta |
 | S74 | Yearly plans — push customers to commit for a year | New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
@@ -8279,6 +8280,61 @@ transaction; all seven columns present), the API schema reloaded, then
 errors in the app log). The hourly reminder job run once on the new code:
 0 open incidents, 0 emails, 0 errors — it loads and runs; the CRA branches
 themselves are proven by tests only, since production has no incident.
+
+### D-190 — S72: the Netherlands and Luxembourg get their own country data; the Dutch DPA is built, 18 Nov
+
+By request ("finalize S72"), in the order agreed: the country data and the
+Dutch SCC here, the lawyer's review split off (now **S75**) because only a
+lawyer can do it.
+
+**1. NL and LU country data** (`migration_s72_jurisdictions_nl_lu.sql`,
+applied to dev). Until now only BE and FR had a jurisdiction row: a Dutch or
+Luxembourg company got "[to complete]" for its authority and channels and the
+generic cookie text. Everything below was read on the authority's own site on
+18 Nov; the pages are listed in each row's `links_note`. Nothing borrowed
+from Belgium (S64's rule).
+
+| | Netherlands | Luxembourg |
+|---|---|---|
+| GDPR authority | Autoriteit Persoonsgegevens (AP) | CNPD |
+| Breach channel | Meldformulier datalekken only — not phone, post or email; Dutch, 30–60 min, a session can be saved | No portal: the CNPD's Word form, emailed as .docx to databreach@cnpd.lu (GPG key offered) |
+| NIS2 law | Cyberbeveiligingswet, in force 15 Aug 2026 | Loi du 5 mai 2026 |
+| NIS2 channel | Central reporting point on MijnNCSC: one report reaches the sector CSIRT and the supervisor | ILR's SERIMA platform, for the sectors the ILR supervises (others: their own authority) |
+| ePrivacy law | Telecommunicatiewet art. 11.7a | Loi modifiée du 30 mai 2005, art. 4(3)(e) |
+| Reject as easy as accept | Yes (AP rule of thumb 2) | Yes, **advisory** ("recommande fortement") |
+| Cookie walls | Not allowed (AP) | No valid consent (CNPD) |
+| Consent renewal | — | 12 months, **advisory** |
+| Numeric cookie limits | None published | None published |
+
+Checked through the real code: `incident_rules.authorities()` gives each
+country's own authority, channel and note in NL, FR and EN, marked verified;
+`resolve_jurisdictions` reads the cookie rules, and a company in all four
+markets still takes the strictest of each (FR's 13 and 6 months).
+
+**2. The Dutch DPA — built, waiting on one file.** The DPA is the 14th
+Dutch template S64 could not translate: its clauses must be the official
+Dutch text of Decision 2021/915, mechanically patched (D-42), never
+retyped. The pipeline now does Dutch:
+- `extract_oj_pdf.py`: the Dutch running header, the "BĲLAGE" ligature, and
+  the Dutch headings (AFDELING / Bepaling / BIJLAGE).
+- `template_seed_dpa_patch.py`: Dutch anchors, read from the Dutch OJ text in
+  the browser — note that the Dutch OJ prints the time-period blank in
+  English, "[SPECIFY TIME PERIOD]"; per-language heading words in `verify()`;
+  a Dutch fixture; RECOSA's Dutch cover and annexes (I–IV, Aanhangsel 1),
+  with the draft banner. EN and FR outputs proven byte-identical to the
+  committed files; the self-test passes for all three languages.
+- `load_template_nl.py` loads `templates/dpa_scc_nl.md` as the Dutch DPA.
+
+**What stops it here:** the raw Dutch text. EUR-Lex refuses automated
+fetches, and fetching it while posing as a browser was rightly refused; the
+documented route is the OJ PDF saved unedited, then
+`python extract_oj_pdf.py <pdf> nl`. Waiting on the user to download
+CELEX_32021D0915_NL_TXT.pdf.
+
+**3. The lawyer's review → S75** (roadmap row above).
+
+**Not deployed.** Production needs the migration (and, once built, the Dutch
+DPA loaded).
 
 ---
 

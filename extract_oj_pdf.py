@@ -46,6 +46,7 @@ _HEADERS = [
     re.compile(r"(?m)^\s*\d{1,2}\.\d{1,2}\.\d{4}\s*$"),
     re.compile(r"(?m)^\s*Official Journal of the European Union\s*$"),
     re.compile(r"(?m)^\s*Journal officiel de l['’]Union européenne\s*$"),
+    re.compile(r"(?m)^\s*Publicatieblad van de Europese Unie\s*$"),   # S72 (D-190)
 ]
 
 # Hyphenated compounds the PDF breaks across a line and poppler then joins
@@ -59,6 +60,10 @@ _REJOINED = [
     # The OJ typesets Clause 7 without the space. Restoring it is a
     # rendering repair, not a change to the text.
     (re.compile(r"\bClause(\d)"), r"Clause \1"),
+    # S72: the Dutch OJ spells its Decision-level annex heading with the
+    # ligature U+0132 ("BĲLAGE"). Same word; matched as such below.
+    (re.compile("\u0132"), "IJ"),
+    (re.compile("\u0133"), "ij"),
 ]
 
 # Structural markers that must start their own line, so a clause heading never
@@ -69,13 +74,18 @@ _BREAK_BEFORE = [
     # (?![.\d(]) so "Clause 7.1" and the cross-reference "Clause 8(b)" are
     # left alone — only a heading starts a new line.
     re.compile(r"(?<!\n)(?=Clauses? \d{1,2}(?![.\d(]))"),
+    # S72 (D-190): the Dutch text's headings.
+    re.compile(r"(?<!\n)(?=AFDELING [IVX]+\b)"),
+    re.compile(r"(?<!\n)(?=BIJLAGE [IVX]+\b)"),
+    re.compile(r"(?<!\n)(?=Bepaling \d{1,2}(?![.\d(]))"),
     re.compile(r"(?<!\n)(?=\d\.\d{1,2}\.? [A-ZÀ-Ý])"),      # 7.1. Instructions
 ]
 
-_ANNEX_START = re.compile(r"(?m)^\s*(?:ANNEX|ANNEXE)\s*$")
+_ANNEX_START = re.compile(r"(?m)^\s*(?:ANNEX|ANNEXE|BIJLAGE)\s*$")
 
 # A heading whose TITLE sits on the following line.
-_TITLED = re.compile(r"^(?:Clauses? \d{1,2}(?: - Optional| — Facultative)?|SECTION [IVX]+|ANNEXE? [IVX]+)\s*$")
+_TITLED = re.compile(r"^(?:Clauses? \d{1,2}(?: - Optional| — Facultative)?|SECTION [IVX]+|ANNEXE? [IVX]+"
+                     r"|Bepaling \d{1,2}(?: — Facultatief)?|AFDELING [IVX]+|BIJLAGE [IVX]+)\s*$")
 # A heading that carries its own title, e.g. "7.2. Purpose limitation".
 _SELF_TITLED = re.compile(r"^\d\.\d{1,2}\.? \S")
 
@@ -135,7 +145,8 @@ def clean(text: str) -> str:
     # Unwrap: a single newline inside a paragraph is a PDF wrap. A blank line
     # is a real break. Lettered and numbered sub-points keep their own line.
     text = re.sub(
-        r"(?<=[^\n])\n(?!\n|\s*\(?[a-z0-9]\)|\s*ANNEX|\s*SECTION|\s*Clause|\s*OPTION)",
+        r"(?<=[^\n])\n(?!\n|\s*\(?[a-z0-9]\)|\s*ANNEX|\s*SECTION|\s*Clause|\s*OPTION"
+        r"|\s*BIJLAGE|\s*AFDELING|\s*Bepaling|\s*OPTIE)",
         " ",
         text,
     )
