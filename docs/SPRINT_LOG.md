@@ -8610,7 +8610,12 @@ Checked locally in the browser: the free check, the login page, and a page
 on its own path (/inventory) — every Public Sans file from
 `/app/static/fonts/` (HTTP 200), **0 requests to Google**, the faces loaded
 as `document.fonts` reports. The website (Framer) needed nothing: it serves
-its fonts from its own CDN. **Not yet deployed.**
+its fonts from its own CDN.
+
+**Deployed the same day** (d8a92eb… → 6794bcc; admin, app and quiz healthy).
+On production, in the browser: app.recosa.eu and check.recosa.eu contact only
+themselves and Umami — **no request to Google** — and Public Sans loads from
+`/app/static/fonts/` (served 200, 33,612 bytes for Regular).
 
 ---
 
