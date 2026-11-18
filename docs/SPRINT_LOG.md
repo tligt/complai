@@ -7972,7 +7972,26 @@ tables show dates in Europe/Brussels (`table_view._TZ`): 26 Nov 23:59 UTC is
 27 Nov, the account header says 26 Nov, and the app's countdown went from 8 to
 9 days left. Saving even with the date untouched moves it: Creagent's trial
 end is now 26 Nov 23:59 UTC (was 26 Nov 11:23 UTC, the sign-up time + 14
-days). Fix: save the end of the chosen day in Europe/Brussels. Not fixed yet.
+days). Fix: save the end of the chosen day in Europe/Brussels. **Fixed the
+same day, D-184.**
+
+### D-184 — Back office: a trial ends at 23:59 in Brussels, 18 Nov
+
+The fix for the bug found in D-183. `pages_admin/companies.py` now saves the
+chosen day as 23:59 **Europe/Brussels** (stored in UTC as before: 22:59 in
+winter, 21:59 in summer), and reads days in Brussels time everywhere it
+shows or pre-fills one — the account header ("Trial until …") and the form's
+default date — like the tables already did (`table_view._TZ`). Both the
+*Change plan or status* and *Extend the trial* dialogs use this form.
+Checked: a saved day reads back as the same day in winter, in summer and on
+the day the clocks change (28 Mar 2027).
+
+Values saved before the fix (23:59 UTC) now read as the next day everywhere,
+consistently. The one affected is Creagent's (26 Nov 23:59 UTC → shown as
+27 Nov); re-saving it with 26/11 puts it right.
+
+**Not yet deployed** to production at the time of writing (needs
+`deploy/update.sh` on the server, D-177).
 
 ---
 

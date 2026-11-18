@@ -16,6 +16,7 @@ period (account_periods, append-only) written by database.change_account.
 """
 
 from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -30,6 +31,11 @@ from database import (
 
 admin_id = get_user_id()
 
+# Days are Brussels days, as in the tables (table_view._TZ). A trial "ends on
+# 26 Nov" means 23:59 on 26 Nov in Brussels; saving 23:59 UTC showed it as
+# 27 Nov everywhere the time zone was applied (D-184).
+LOCAL_TZ = ZoneInfo("Europe/Brussels")
+
 
 def _dt(v: str | None) -> datetime | None:
     if not v:
@@ -40,9 +46,13 @@ def _dt(v: str | None) -> datetime | None:
         return None
 
 
+def _local_day(d: datetime) -> date:
+    return (d.astimezone(LOCAL_TZ) if d.tzinfo is not None else d).date()
+
+
 def _day(v: str | None) -> str:
     d = _dt(v)
-    return d.strftime("%d %b %Y") if d else ""
+    return _local_day(d).strftime("%d %b %Y") if d else ""
 
 
 st.title("Companies")
@@ -153,7 +163,7 @@ def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
             new_status = c2.selectbox("Status", statuses, index=statuses.index(acc["status"]),
                                       format_func=ACCOUNT_STATUSES.get)
         cur_end = _dt(acc.get("trial_ends_at"))
-        default_end = (cur_end.date() if cur_end and cur_end.date() >= date.today()
+        default_end = (_local_day(cur_end) if cur_end and _local_day(cur_end) >= date.today()
                        else date.today() + timedelta(days=TRIAL_DAYS))
         end_day = st.date_input(
             "Trial ends" + ("" if trial_only else " (used when the status is Trial)"),
@@ -166,7 +176,7 @@ def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
                "Moving from Advisory or Enterprise to a one-company plan is refused while the "
                "account holds several companies.")
     if go:
-        ends = datetime.combine(end_day, time(23, 59), tzinfo=timezone.utc)
+        ends = datetime.combine(end_day, time(23, 59), tzinfo=LOCAL_TZ)
         ok, err = change_account(acc["id"], plan=new_plan, status=new_status,
                                  trial_ends_at=ends if new_status == "trial" else None,
                                  note=note, by=admin_id)
