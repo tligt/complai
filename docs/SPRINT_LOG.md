@@ -8542,8 +8542,11 @@ product:
   website's cookie banner still asks consent for analytics cookies (the open
   reminder from 16 Nov).
 
-Umami's location confirmed by the user the same day: EU (Frankfurt). Not
-published — the user pastes it into Framer. The processor change is a
+Umami's location confirmed by the user the same day: Frankfurt.
+**Published on Framer the same day** by the user, from the list of changes
+only; checked on the live page — every change present, Supabase, Qdrant and
+Streamlit gone. The repo file was aligned to the live wording ("Germany
+(Frankfurt)", parentheses in the hosting sentence). The processor change is a
 material change; the notice itself promises to email registered users.
 
 ---

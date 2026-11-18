@@ -14,7 +14,8 @@ Changes from the published version ("Last updated: June 2026"):
   4. Security: the leaked-password check (D-195) and where the servers are.
   5. Retention: free-check leads (24 months unless you sign up, D-115).
   6. Complaints: the Dutch and Luxembourg authorities (NL/LU supported, D-190).
-  Umami's location (EU, Frankfurt) confirmed by the user, 18 Nov.
+  Umami's location (Frankfurt) confirmed by the user, 18 Nov.
+  PUBLISHED on Framer 18 Nov 2026; this file matches the live page.
 -->
 
 # Privacy Policy
@@ -76,14 +77,14 @@ Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
 
 ## Who we share data with
 
-The RECOSA platform — application, database and AI knowledge base — runs on servers we operate ourselves, in France. We use the following sub-processors to deliver our service:
+The RECOSA platform (application, database and AI knowledge base) runs on servers we operate ourselves, in France. We use the following sub-processors to deliver our service:
 
 | Processor | Purpose | Location |
 |---|---|---|
 | Scaleway | Hosting of the servers we operate | France (Paris) |
 | Mistral AI | AI language model for compliance answers | France (EU) |
 | Brevo | Transactional email | France (EU) |
-| Umami | Privacy-friendly analytics, without cookies | EU (Frankfurt) |
+| Umami | Privacy-friendly analytics, without cookies | Germany (Frankfurt) |
 
 We do not sell your data. We do not share your data with third parties for marketing purposes.
 
