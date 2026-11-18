@@ -56,33 +56,41 @@ def render_quiz_score(answers: list[int], kind: dict = funnel.NIS2) -> None:
 
 
 def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.NIS2) -> None:
-    """Locked: each area's verdict in the open — in place, or needs attention
-    — and only the advice locked (D-191). Unlocked: every area's level and
-    what to do, weakest first.
+    """Locked: each area's state in the open, and only the advice locked
+    (D-191, D-192). Unlocked: every area's level and what to do, weakest
+    first.
 
-    D-191 changed the teaser. It showed the area names behind a lock each and
-    "2 of 10 need attention" without saying which: ten identical padlocks read
-    as bullet points, and the one thing the person had just earned was
-    withheld. What brings someone to sign up is not whether an area is weak —
-    they half know — but what to do about it, so that is what stays locked."""
+    D-191 showed the verdict instead of ten padlocks. D-192 made it four
+    states instead of two: answer 2 reads "documented, not regularly
+    reviewed" (NIS2) or "partly in place" (GDPR, AI Act) and the register
+    records it as partial (funnel._DECLARED_STATUS) — showing it green told a
+    prospect who answered well that there was nothing left to do. Even the
+    best answer is the company's own declaration, so its green carries
+    "declared — to confirm" and something stays locked under it too: what we
+    would check, and the evidence an authority would ask to see."""
     rows = funnel.breakdown(answers, kind)
     if locked:
-        weak_rows = [r for r in rows if r["answer"] < 2]     # funnel.weak_areas's rule
-        ok_rows = [r for r in rows if r["answer"] >= 2]
-        weak = len(weak_rows)
-        st.markdown(
-            tr("**Your breakdown by area** — {weak} of {len_rows} areas {need_if_weak_1_else_need} attention").format(weak=weak, len_rows=len(rows), need_if_weak_1_else_need='need' if weak != 1 else 'needs')
-        )
-        for r in weak_rows:
-            with st.container(border=True):
-                st.markdown(tr("🟠 **{category}** — needs attention").format(category=r["category"]))
-                st.caption(tr("🔒 What to do, and the document that covers it: in your full report."))
-        for r in ok_rows:
-            st.markdown(tr("✅ {category} — in place").format(category=r["category"]))
-        if weak:
-            st.info(tr("**See how to fix {these}** — your full report, with what to do for each "
-                       "area, comes free with an account.").format(
-                these=tr("this area") if weak == 1 else tr("these {n} areas").format(n=weak)))
+        need = funnel.weak_areas(answers)
+        declared = len(rows) - need
+        st.markdown(tr("**Your breakdown by area** — {need} of {n} need work, {declared} declared "
+                       "in place").format(need=need, n=len(rows), declared=declared))
+        for r in rows:                                    # weakest first
+            icon, state = _STATE[r["answer"]]
+            st.markdown(f"{icon} **{r['category']}** — {tr(state)}")
+            st.caption(tr("Based on your answer. 🔒 What we would check to confirm it — the "
+                          "evidence an authority would ask to see: in your full report.")
+                       if r["answer"] == 3 else
+                       tr("🔒 What to do, and the document that covers it: in your full report."))
+        if need and declared:
+            cta = tr("**Fix the {need} that need work, and confirm the {declared} you declared**").format(
+                need=_areas(need), declared=_areas(declared))
+        elif need:
+            cta = tr("**See how to fix {these}**").format(
+                these=tr("this area") if need == 1 else tr("these {n} areas").format(n=need))
+        else:
+            cta = tr("**Confirm the {declared} you declared**").format(declared=_areas(declared))
+        st.info(cta + tr(" — your full report, with what to do and what to check for each area, "
+                         "comes free with an account."))
         return
 
     st.markdown(tr("**Your {words_get_len_rows_len_r} areas, weakest first**").format(words_get_len_rows_len_r=_WORDS.get(len(rows), len(rows))))
@@ -94,6 +102,18 @@ def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.
 
 
 _WORDS = {8: "eight", 9: "nine", 10: "ten", 13: "thirteen"}
+
+# D-192. The state of an area on the locked teaser, by answer (0-3).
+_STATE = {
+    0: ("🔴", "not in place"),
+    1: ("🟠", "started"),
+    2: ("🟡", "partly in place"),
+    3: ("✅", "declared in place — to confirm"),
+}
+
+
+def _areas(n: int) -> str:
+    return tr("1 area") if n == 1 else tr("{n} areas").format(n=n)
 
 
 # D-129. How each verdict reads, beside the regulation's name.

@@ -542,8 +542,13 @@ def breakdown(answers: list[int], kind: dict = NIS2) -> list[dict]:
 
 
 def weak_areas(answers: list[int]) -> int:
-    """Areas not yet documented — the count shown on the locked teaser."""
-    return sum(1 for a in answers if a < 2)
+    """Areas that still need work — the count shown on the locked teaser.
+
+    D-192: everything below the best answer. Answer 2 ("documented, not
+    regularly reviewed" / "partly in place") counted as done before, which
+    disagreed with the register (_DECLARED_STATUS: partial) and made a good
+    set of answers look finished."""
+    return sum(1 for a in answers if a < 3)
 
 
 def encode_answers(answers: list[int]) -> str:

@@ -8410,6 +8410,45 @@ the new code. Not completed there on purpose: a run-through would record real
 funnel events in production's analytics — the first real prospect's result
 page is the live check.
 
+### D-192 — The quick checks' teaser: four states, nothing shown as finished, 18 Nov
+
+By the user, trying D-191 live: "too green — answered the last or the one
+before on every question but one, got one orange and the rest green. That
+gives the impression they don't need us. Is it really binary? Even the best
+answer is 'mainly taken care of' until we analyse it."
+
+**Right on both counts.** D-191 coloured answer 2 green, but answer 2 reads
+"documented, not regularly reviewed" (NIS2) or "partly in place" (GDPR, AI
+Act) — and the register itself records it as **partial**
+(`funnel._DECLARED_STATUS`). The teaser was more generous than RECOSA. And
+even answer 3 is a declaration nobody has seen evidence for.
+
+**Now** (`funnel_ui.render_quiz_breakdown`, locked view; all three checks):
+
+| Answer | Shown |
+|---|---|
+| 0 | 🔴 not in place |
+| 1 | 🟠 started |
+| 2 | 🟡 partly in place |
+| 3 | ✅ declared in place — to confirm (green, by the user's choice, always with that text) |
+
+- Every area carries a locked line: for 0–2 what to do and the document that
+  covers it; for 3, "Based on your answer. 🔒 What we would check to confirm
+  it — the evidence an authority would ask to see".
+- The count is "N of M need work, K declared in place": `funnel.weak_areas`
+  now counts everything below 3 (it counted below 2), so it agrees with the
+  register. The results step's line says "need work".
+- The call to action names both: "Fix the N areas that need work, and confirm
+  the K areas you declared" (or the one that applies).
+- Unchanged: the score and its band — a good score still reads "Good
+  foundation"; the message is "solid base, here is what is left and what we
+  would verify", not alarm.
+
+The user's case, previewed with the real component (best or second-best
+answer everywhere, one lower): GDPR 24/30 "5 of 10 need work, 5 declared in
+place" (was "1 of 10"); NIS2 32/39 "6 of 13 / 7"; AI Act 22/27 "4 of 9 / 5".
+Eleven strings in French and Dutch. **Not deployed.**
+
 ---
 
 *End of record. Append at sprint close.*

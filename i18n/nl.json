@@ -1469,5 +1469,16 @@
  "✅ {category} — in place": "✅ {category} — in orde",
  "**See how to fix {these}** — your full report, with what to do for each area, comes free with an account.": "**Bekijk hoe u {these} oplost** — uw volledige rapport, met wat te doen per domein, is gratis met een account.",
  "this area": "dit domein",
- "these {n} areas": "deze {n} domeinen"
+ "these {n} areas": "deze {n} domeinen",
+ "**Your breakdown by area** — {need} of {n} need work, {declared} declared in place": "**Uw overzicht per domein** — {need} van {n} vragen werk, {declared} als in orde opgegeven",
+ "not in place": "niet in orde",
+ "started": "begonnen",
+ "partly in place": "deels in orde",
+ "declared in place — to confirm": "als in orde opgegeven — te bevestigen",
+ "Based on your answer. 🔒 What we would check to confirm it — the evidence an authority would ask to see: in your full report.": "Op basis van uw antwoord. 🔒 Wat we zouden nagaan om het te bevestigen — de bewijzen die een toezichthouder zou vragen: in uw volledige rapport.",
+ "**Fix the {need} that need work, and confirm the {declared} you declared**": "**Los de {need} op die werk vragen, en bevestig de {declared} die u opgaf**",
+ "**Confirm the {declared} you declared**": "**Bevestig de {declared} die u opgaf**",
+ " — your full report, with what to do and what to check for each area, comes free with an account.": " — uw volledige rapport, met wat te doen en na te gaan per domein, is gratis met een account.",
+ "1 area": "1 domein",
+ "{n} areas": "{n} domeinen"
 }

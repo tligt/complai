@@ -1469,5 +1469,16 @@
  "✅ {category} — in place": "✅ {category} — en place",
  "**See how to fix {these}** — your full report, with what to do for each area, comes free with an account.": "**Voyez comment régler {these}** — votre rapport complet, avec ce qu'il faut faire pour chaque domaine, est gratuit avec un compte.",
  "this area": "ce domaine",
- "these {n} areas": "ces {n} domaines"
+ "these {n} areas": "ces {n} domaines",
+ "**Your breakdown by area** — {need} of {n} need work, {declared} declared in place": "**Votre détail par domaine** — {need} sur {n} à travailler, {declared} déclarés en place",
+ "not in place": "pas en place",
+ "started": "commencé",
+ "partly in place": "en partie en place",
+ "declared in place — to confirm": "déclaré en place — à confirmer",
+ "Based on your answer. 🔒 What we would check to confirm it — the evidence an authority would ask to see: in your full report.": "D'après votre réponse. 🔒 Ce que nous vérifierions pour le confirmer — les preuves qu'une autorité demanderait : dans votre rapport complet.",
+ "**Fix the {need} that need work, and confirm the {declared} you declared**": "**Réglez les {need} à travailler, et confirmez les {declared} déclarés**",
+ "**Confirm the {declared} you declared**": "**Confirmez les {declared} déclarés**",
+ " — your full report, with what to do and what to check for each area, comes free with an account.": " — votre rapport complet, avec ce qu'il faut faire et vérifier pour chaque domaine, est gratuit avec un compte.",
+ "1 area": "1 domaine",
+ "{n} areas": "{n} domaines"
 }

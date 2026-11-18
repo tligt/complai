@@ -758,7 +758,7 @@ def _result_line(tool: str) -> None:
     label, _ = funnel.band(funnel.score(answers), kind, len(answers))
     weak = funnel.weak_areas(answers)
     st.markdown(f"{icon} **{name}** · {funnel.score(answers)}/{funnel.max_score(kind, answers)} · {label}"
-                f"  \n:gray[{weak} of {len(answers)} areas need attention]")
+                f"  \n:gray[{weak} of {len(answers)} areas need work]")
     with st.expander("Your breakdown by area"):   # D-191: verdicts shown, only the advice locked
         render_quiz_score(answers, kind)
         render_quiz_breakdown(answers, locked=True, kind=kind)
