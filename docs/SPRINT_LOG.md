@@ -392,7 +392,7 @@ the only sprint that *is* the gate.
 | ~~S63~~ | ~~Annual compliance report~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
 | **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | **S65** | **RoPA consistency checks** | **Built and deployed 18 Nov (D-186); the pages not yet looked at in the app.** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
-| **S66** | **Cookie Policy purpose granularity** | **Built 18 Nov (D-187); migration on dev only, not deployed; the form not checked in the app.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
+| **S66** | **Cookie Policy purpose granularity** | **Built and deployed 18 Nov (D-187), migration on dev and production; the form not yet checked in the app.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
 | S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
@@ -8123,8 +8123,17 @@ description, editor rows cleaned and refused); every other test script
 passes. On dev, a round trip on the test company's Google Analytics: two
 purposes saved → two policy rows; one removed → the other keeps its row id;
 cleared → the policy as before; test rows removed. **Not checked in the
-app** (the form), **not deployed**, and **the migration is not yet on
-production** — it must run there before or with the deploy.
+app** (the form).
+
+**Deployed the same day.** The migration first, on production's database
+(`docker exec -i supabase-db psql -v ON_ERROR_STOP=1 -1`, one transaction):
+8 purposes, 4 policies, RLS on; then `NOTIFY pgrst, 'reload schema'` so the
+API sees the new table; then `deploy/update.sh` (640cf2d → 52202a7; admin,
+app and quiz healthy, no errors in the app log). Not checked: that the API
+serves the table — reading the service key on the server for a test call
+was refused, rightly — and the form and a generated Cookie Policy on
+production. If the API's cache had not reloaded, the policy would fall back
+to the pre-S66 rows and the log would show "Cookie purposes not read".
 
 **Not done:** catalogue entries do not pre-fill purposes (Google Analytics
 could arrive with "analytics" ticked); the Cookie Policy's own text does not
