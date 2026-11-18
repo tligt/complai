@@ -8472,6 +8472,25 @@ in both. Previewed with the real component: the GDPR case fits on one screen.
 **Deployed the same day** (237fa68 → d8a92eb; admin, app and quiz healthy, no
 errors in the free-check log) — live on check.recosa.eu.
 
+### D-194 — Two marketing sources: Tech Policy Press and DPOblog, 18 Nov
+
+By request. Added on production's `monitoring_sources` (where the marketing
+monitor runs, D-174), as RSS like Euractiv and Politico:
+- **Tech Policy Press** — `techpolicy.press/rss/feed.xml`, category Policy.
+  Mostly US policy, so filtered to EU stories: " eu ", " eu's", "europe",
+  "brussels", "gdpr", "ai act", "digital services act", "digital markets
+  act", "data protection", "nis2", "cyber resilience", "data act". The match
+  is a lowercase substring (`monitor.parse_rss`), so "EU" is padded with
+  spaces — bare "eu" matches "queue". Tested on the live feed: 3 of 20 kept,
+  the three EU stories; a first version without " eu " missed two.
+- **DPOblog** — `dpoblog.eu/feed`, category Regulatory, no filter (all GDPR /
+  EU data protection); 10 of 10 kept.
+
+`load_monitoring_sources(monitor_type="marketing")` in the jobs container
+lists 11 active sources, both new ones included. First real run: the next
+daily marketing monitor (07:00 UTC). Not added to dev, where marketing
+monitoring no longer runs.
+
 ---
 
 *End of record. Append at sprint close.*
