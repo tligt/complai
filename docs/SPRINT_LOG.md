@@ -400,6 +400,7 @@ the only sprint that *is* the gate.
 | S71 | CRA reporting on the incident clock | **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
 | S72 | Localization — the rest of S64 | New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
+| S74 | Yearly plans — push customers to commit for a year | New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
 workspace fix, delivered 18 September — the renumbering below skips
@@ -7997,6 +7998,24 @@ trial end re-saved as 26/11 (note "Trial end corrected to 26 Nov
 (Brussels), after the D-184 fix"): the account header, the Companies table
 and History all read 26 Nov; the app says "9 days left" (18–26 Nov,
 counting today).
+
+### D-185 — S74 registered: yearly plans, 18 Nov
+
+New sprint by request: **yearly tariff plans, to push customers to commit
+for a year.** Registered as S74 (after S73, the last number in use), in
+the After beta table; not scoped and not placed in the order.
+
+What already exists to build on, noted so the scope starts from it:
+- **Section 6 (Commercial model)**, the original pricing design: annual at
+  ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490
+  Professional a year), upgrade monthly→annual any time with proration,
+  downgrade only at period end. Superseded as live pricing on 13 Nov
+  (D-174) but kept as the design.
+- **S59's accounts and account periods**: a yearly term is a dated period
+  on the account; a future-dated change (a downgrade at the end of a paid
+  year) was left to S46 there.
+- **S46** (Stripe, credits) has "annual" in its title. Whether yearly
+  billing stays in S46 or moves to S74 is to decide when either is scoped.
 
 ---
 
