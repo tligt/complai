@@ -8520,6 +8520,32 @@ binary carries the HIBP configuration and the pwnedpasswords range lookup).
 Not tested: what happens when HIBP is unreachable — the setting for failing
 closed was left at its default.
 
+### D-196 — RECOSA's own privacy notice revised; its text now kept in git, 18 Nov
+
+By request, after D-195 ("update the privacy notice"). The notice is published
+on Framer at recosa.eu/privacy-policy and had no copy in the repository.
+Read live on 18 Nov ("Last updated: June 2026") and revised into
+`docs/legal/privacy-policy.md`, the source to paste into Framer from now on.
+
+Beyond the leaked-password check, the published text no longer matched the
+product:
+- **Sub-processors:** it listed Supabase (Frankfurt), Qdrant Cloud and
+  Streamlit hosting — all replaced on 12 Nov by servers RECOSA operates at
+  Scaleway, Paris (D-172). Now: Scaleway, Mistral, Brevo, Umami.
+- **The free checks** (answers, website checked, email, marketing consent)
+  were never described; added, with their legal bases and the 24-month
+  retention of unconverted leads (D-115, enforced in the database).
+- **Analytics** also run on the login page and the free checks (D-175).
+- **Security:** the HIBP check (D-195) and where the servers are.
+- **Complaints:** the Dutch and Luxembourg authorities (D-190).
+- **Cookies:** "our analytics set no cookies" — true of Umami; note that the
+  website's cookie banner still asks consent for analytics cookies (the open
+  reminder from 16 Nov).
+
+One fact left marked [CHECK]: where the Umami Cloud plan is hosted. Not
+published — the user pastes it into Framer. The processor change is a
+material change; the notice itself promises to email registered users.
+
 ---
 
 *End of record. Append at sprint close.*
