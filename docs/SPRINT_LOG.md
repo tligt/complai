@@ -378,7 +378,7 @@ the only sprint that *is* the gate.
 | ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
 | S46 | Credit billing — Stripe, credits, annual | was S43. Meters shipped in S27. Design: section 6 (Commercial model) — kept there as the plan for when this sprint is built, marked superseded 13 Nov (D-174) because today's app and website have no credits, top-ups or usage limits |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
-| **S52** | **Document branding** | **Open (checked 16 Nov, D-179):** one document generated from the Documents page with branding on — none ever has been (0 branded documents in dev or production). **Built 5 Nov (D-144)**: logo, colour, font, footer line per company, Professional and up. was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
+| ~~S52~~ | ~~Document branding~~ | **Closed 18 Nov (D-182):** a Privacy Policy generated from the Documents page on production came out branded — logo in the page header, Arial, the company's footer line and no RECOSA line. — Open until then (16 Nov, D-179): none had ever been generated with branding on. **Built 5 Nov (D-144)**: logo, colour, font, footer line per company, Professional and up. was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
 | ~~S54~~ | ~~Enterprise multi-seat/multi-division~~ | **Delivered 28 Oct, ahead of its After-beta position, by request.** Groups, roles (admin, contributor, read-only) enforced in RLS, group overview, full audit trail. D-128, scope note in 3b. was S53 until D-115; was S51, S48 before |
 | ~~S55~~ | ~~AI Act Quick Check — third free check~~ | **Closed 4 Nov.** Built 3 Nov (D-132), then the free check redesign, navigation, more NIS2/AI Act questions and the GDPR Quick Check (D-133 to D-137); live walk-through 4 Nov; real sign-up 4 Nov — four checks, four emails, four leads. New 3 Nov — D-131. The public app's third check, next to the website check and the NIS2 Quick Check, built the same way: about 8 questions (AI tools in use, staff AI literacy, a list of AI tools kept, chatbots, AI-made content published, AI in hiring or HR, banned practices), a score and a locked breakdown, the full result by email after confirmation, and the answers declared in the register against ai_01–ai_11. `?check=ai` deep link; the scope step sends AI users to it. Upsell into S60/S61 |
@@ -7926,6 +7926,28 @@ now reads "updates on GDPR, NIS2 and the AI Act" (was "NIS2 and GDPR"), and
 this review. Leads that ticked the old wording keep `2026-10-22` on their
 row, so they can be told apart. The public app deploys from main; not
 checked live.
+
+### D-182 — S52 closed: a branded document from the Documents page, 18 Nov
+
+Production, Creagent (Professional trial). The 5 Nov branding profile was
+saved in dev and never reached production (only reference data was copied
+on 12 Nov, D-172), so the user saved one on Company profile: logo, colour
+#003366, Arial, footer line "CREAGENT SRL". A Privacy Policy (EN) was then
+generated from the Documents page at 12:01 and its DOCX and PDF read back:
+
+- **Logo** in the page header (`header1.xml`, one image); one image in the PDF.
+- **Font** Arial in the DOCX; Liberation Sans in the PDF — LibreOffice's
+  metric-compatible stand-in for Arial on the server.
+- **Footer** "CREAGENT SRL · 18 November 2026 · <review disclaimer>", and no
+  "RECOSA" anywhere in the text. It is the closing paragraph of the body,
+  not a Word page footer — the same place as the unbranded footer
+  (`build_docx`).
+- **Colour** #003366 in the headings — the colour saved, but that is also the
+  house navy, so this run cannot tell the branded colour from the default.
+  The colour path itself was checked on 5 Nov (D-144, including the
+  readability darkening).
+
+**S52 closed.**
 
 ---
 
