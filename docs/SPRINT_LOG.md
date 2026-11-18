@@ -7920,9 +7920,12 @@ result pages. Its other open item was already met: the website report email
 was sent for real in the 4 Nov sign-up (D-138), recorded under S55 at the
 time. **S49 closed, nothing left open.**
 
-Not changed by the review: the marketing-consent text in `funnel.py` still
-reads "NIS2 and GDPR" (`CONSENT_VERSION = "2026-10-22"`); adding the AI Act
-would need a new version (D-133).
+**Marketing consent, same day, by request:** the box beside the email field
+now reads "updates on GDPR, NIS2 and the AI Act" (was "NIS2 and GDPR"), and
+`CONSENT_VERSION` is `2026-11-18` (was `2026-10-22`), as D-133 left it to
+this review. Leads that ticked the old wording keep `2026-10-22` on their
+row, so they can be told apart. The public app deploys from main; not
+checked live.
 
 ---
 

@@ -22,9 +22,9 @@ _LOADED_MTIME = os.path.getmtime(__file__)
 
 # Version of the marketing-consent wording shown beside the email field.
 # Stored with every lead that ticked it; change it whenever the wording does.
-CONSENT_VERSION = "2026-10-22"
+CONSENT_VERSION = "2026-11-18"  # D-181: AI Act added
 CONSENT_TEXT = (
-    "Also send me occasional RECOSA updates on NIS2 and GDPR. "
+    "Also send me occasional RECOSA updates on GDPR, NIS2 and the AI Act. "
     "I can unsubscribe at any time."
 )
 
