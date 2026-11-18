@@ -51,6 +51,7 @@ import pandas as pd
 
 from database import get_supabase, log_audit_event, session_user_id
 import inventory as INV
+import ropa_checks as RC
 
 
 def _audit(client_id: str | None, summary: str, subtype: str,
@@ -841,7 +842,12 @@ def readiness(
         # Art. 30(1)(f). Blocking rather than a gap: a record that states a
         # purpose and no erasure period is not an incomplete record, it is one
         # that omits a mandatory field.
-        if not (a.get("retention_period") or "").strip():
+        # S65 (D-186): the structured fields count. This read only the legacy
+        # sentence, so an activity created in the form — which writes the
+        # period as a number and a unit and leaves the sentence empty — was
+        # reported as having no retention at all.
+        if not ((a.get("retention_period") or "").strip()
+                or RC.has_structured_retention(a)):
             blocks.append("no retention period (Art. 30(1)(f))")
 
         # Art. 6(1)(f). The balancing test is a condition of the basis being
@@ -928,3 +934,28 @@ def readiness(
         "controller_activities": controller_count,
         "processor_activities": processor_count,
     }
+
+
+def consistency(
+    activities: list[dict],
+    systems: list[dict],
+    links: list[dict],
+    client: Mapping[str, Any] | None,
+) -> dict[str, list[dict]]:
+    """S65 (D-186). activity id -> its consistency findings (ropa_checks).
+
+    Advisory, alongside readiness(): readiness() decides whether a record can
+    be generated; this points at what in it is doubtful.
+    """
+    client = client or {}
+    scope = client.get("id")
+    meta = {r["code"]: (r.get("metadata") or {})
+            for r in INV.get_vocabulary("retention_basis", scope)}
+    gaps = {r["code"] for r in INV.get_vocabulary("dpa_status", scope)
+            if (r.get("metadata") or {}).get("is_gap")} or set(RC.DPA_GAP_CODES)
+    return RC.check_all(
+        activities, links, systems,
+        client_country=client.get("country"),
+        retention_basis_meta=meta,
+        dpa_gap_codes=gaps,
+    )

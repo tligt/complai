@@ -391,7 +391,7 @@ the only sprint that *is* the gate.
 | ~~S62~~ | ~~AI deployer pack: AUP + Human Oversight + AI Transparency Notice~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; page and Documents menu checked in the app 10 Nov. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | ~~S63~~ | ~~Annual compliance report~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
 | **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
-| S65 | RoPA consistency checks | was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
+| **S65** | **RoPA consistency checks** | **Built 18 Nov (D-186), not deployed; the pages not checked in the app.** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | S66 | Cookie Policy purpose granularity | was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
 | S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
@@ -8016,6 +8016,56 @@ What already exists to build on, noted so the scope starts from it:
   year) was left to S46 there.
 - **S46** (Stripe, credits) has "annual" in its title. Whether yearly
   billing stays in S46 or moves to S74 is to decide when either is scoped.
+
+### D-186 — S65 built: consistency checks on the processing register, 18 Nov
+
+Built from the scope in 3b (written as S60), whose dependencies were met:
+S26C's structured retention and S29's task register. Advisory throughout —
+nothing blocks a save or a record, nothing touches a score.
+
+**`ropa_checks.py`** — pure rules (no Streamlit, no Supabase, like
+`tasks.py`), one activity at a time, each finding with a severity, a message
+and the fields concerned. Only rules `readiness()` does not already block on,
+so nothing is reported twice under two severities:
+
+| Rule | Severity |
+|---|---|
+| Art. 9(2) condition recorded, no special category | warning |
+| Consent as the basis for employees or job applicants (Art. 7(4)) | warning |
+| Retention still free text (D-48: never backfilled) | info |
+| Retention indefinite (Art. 5(1)(e)) | warning |
+| A retention period with no reason | warning |
+| An archive period with no reason | error |
+| A statutory reason from another country's law (reference_values `jurisdiction` vs the client's country) | warning |
+| A vendor acting as processor / sub-processor for the activity with no signed DPA (Art. 28(3)) | warning |
+
+**Where it shows.** RoPA page: a folded "Consistency checks — n point(s)"
+summary below the blocking list; the open activity shows its own findings
+above its form. Action plan: a new task-register producer, `consistency`
+(`tasks.consistency_findings`), keyed `consistency:activity:<id>:<rule>`,
+never blocking, routed to the GDPR area (`work_items.area_of_task`).
+`inventory_store.consistency()` loads the vocabulary for it. 19 interface
+strings in French and Dutch (drafts).
+
+**Fixed on the way: `readiness()` and structured retention.** It read only
+the legacy `retention_period` sentence, while the activity form writes the
+period as `retention_value` + `retention_unit` and leaves the sentence empty
+— so a new activity with a properly set period would have been blocked as
+"no retention period". It now accepts either (`RC.has_structured_retention`).
+
+**Left out:** the scope's rule on a statutory period "set by hand" has no
+field to read in today's schema; and a check on the retention reason
+"Other — describe below" (`requires_text`) would fire with nothing the
+client could do: the activity form has no field for that description. A
+form gap, for whoever next touches the retention fields.
+
+**Tested:** `test_ropa_checks.py` (26 checks: a clean activity says nothing,
+readiness()'s rules are not repeated, keys survive a rename, worst first);
+every other test script passes. Against dev's real data: the Belgian test
+company's six activities with free-text retention get one info finding
+each, Payroll (fully structured, Belgian statutory reason) gets none,
+nothing blocks. **Not checked in the app** (the user chose to skip it), and
+**not deployed** to production.
 
 ---
 

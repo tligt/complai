@@ -59,6 +59,8 @@ def area_of_task(task: dict) -> str:
         return _REG_AREA.get(reg, "gdpr")
     if producer == "incident":
         return "incidents"
+    if producer == "consistency":
+        return "gdpr"   # S65: the processing register is a GDPR record
     if producer == "ai":
         return "ai_act"
     if producer == "training":

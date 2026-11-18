@@ -32,7 +32,8 @@ activity's name, not a date, not a count.
 
 PRODUCERS THAT DO NOT EXIST YET
 -------------------------------
-S55 (consistency) and S57 (heartbeat) are not built. A producer that is not
+S67 (heartbeat) is not built. S65 (consistency, D-186) is: see
+consistency_findings below. A producer that is not
 registered contributes nothing, and adding one later is registering a function.
 Nothing here depends on them.
 """
@@ -399,6 +400,32 @@ def inventory_gaps(readiness: Mapping[str, Any] | None) -> list[dict[str, Any]]:
     return out
 
 
+def consistency_findings(
+    findings: Mapping[str, list[Mapping[str, Any]]] | None,
+    activities: Iterable[Mapping[str, Any]] = (),
+) -> list[dict[str, Any]]:
+    """S65 (D-186). ropa_checks findings, one task each, never blocking.
+
+    Advisory by the scope lock: what blocks generation is readiness()'s and
+    arrives through inventory_gaps. Keyed on the activity id and the rule, so a
+    renamed activity keeps its task and its history.
+    """
+    if not findings:
+        return []
+    names = {a["id"]: (a.get("name") or "—") for a in activities}
+    out = []
+    for aid, lst in findings.items():
+        for f in lst:
+            out.append(_finding(
+                "consistency", f"activity:{aid}:{f['rule']}",
+                f"{names.get(aid, '—')}: {f['message']}", OPEN,
+                tr("A consistency check on the processing register. Advisory: "
+                   "it does not block the record or change any score."),
+                link="inventory",
+            ))
+    return out
+
+
 def _slug(text: str) -> str:
     """A stable key from a message. Lowercased, alphanumerics and colons only.
 
@@ -417,6 +444,7 @@ PRODUCERS: dict[str, Callable[..., list[dict[str, Any]]]] = {
     "translation": translations_outstanding,
     "document":    documents_outstanding,
     "readiness":   inventory_gaps,
+    "consistency": consistency_findings,
     "wording":     wording_missing,
     "template":    template_updates_available,
 }

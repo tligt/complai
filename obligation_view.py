@@ -49,9 +49,11 @@ def load_state(user_id: str, client: dict) -> dict:
             activities, systems, links,
             INVS.load_counterparty_links(user_id, client_id), client_id,
         )
+        # S65 (D-186). Advisory consistency findings, as tasks.
+        consistency = INVS.consistency(activities, systems, links, client)
     except Exception as e:
         st.warning(tr("Could not read the inventory: {e}").format(e=e))
-        activities, systems, links, readiness = [], [], [], None
+        activities, systems, links, readiness, consistency = [], [], [], None, {}
 
     responses = STORE.load_responses(client_id, user_id)
     register = get_register_status(client_id, user_id)
@@ -109,6 +111,7 @@ def load_state(user_id: str, client: dict) -> dict:
             _reg_rows, get_in_force_template_versions(), DOCUMENT_TYPES,
         ),
         T.inventory_gaps(readiness),
+        T.consistency_findings(consistency, activities),
         # S30. Insert sections that are missing, unconfirmed, or two words long.
         T.wording_missing(client, INSERTS, doc_languages),
         T.wording_too_short(client, INSERTS, doc_languages),

@@ -195,6 +195,15 @@ system_name = {s["id"]: s["name"] for s in systems}
 counterparty_name = {c["id"]: c["legal_name"] for c in counterparties}
 
 ready = STORE.readiness(activities, systems, links, cp_links, client_id)
+# S65 (D-186). Advisory: what in the register is doubtful, per activity.
+consistency = STORE.consistency(activities, systems, links, _client)
+
+_SEVERITY_ICON = {"error": "🔴", "warning": "🟠", "info": "🔵"}
+
+
+def _finding_lines(findings: list[dict]) -> str:
+    return "\n".join(f"- {_SEVERITY_ICON.get(f['severity'], '•')} {f['message']}"
+                     for f in findings)
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric(tr("Systems"), ready["systems"])
@@ -218,6 +227,22 @@ if ready["blocking"]:
         "**These would make your record inaccurate and must be resolved before "
         "it can be generated:**\n\n- " + "\n- ".join(ready["blocking"])
     )
+
+# S65. Consistency findings sit below the blocking list and never in it: they
+# do not stop generation and do not touch any score (scope lock in 3b).
+if consistency:
+    _n = sum(len(v) for v in consistency.values())
+    _by_name = {a["id"]: (_i18n_get(a, "name", lang) or a.get("name") or "—")
+                for a in activities}
+    with st.expander(tr("Consistency checks — {n} point(s) to look at in {m} activity(ies)")
+                     .format(n=_n, m=len(consistency))):
+        st.caption(tr("Rules that compare the fields of each activity with each other. "
+                      "Advisory: they do not block the record and do not change any "
+                      "score. Each one is also on the action plan."))
+        for _aid, _fs in sorted(consistency.items(), key=lambda kv: _by_name.get(kv[0], "")):
+            st.markdown(f"**{_by_name.get(_aid, '—')}**\n\n" + _finding_lines(_fs))
+elif activities:
+    st.caption(tr("Consistency checks: nothing to report."))
 
 # The rules behind the pre-filled values, readable where the values are.
 # Without this a client sees a blank retention field and reads it as a bug
@@ -693,6 +718,10 @@ with tab_activities:
     tv.focus(f"inv_activities_{client_id}")
     if existing is not None:
         st.markdown(tr("**Edit {activity_label_existing}**").format(activity_label_existing=_activity_label(existing['id'])))
+        # S65. This activity's consistency findings, where they are fixed.
+        if consistency.get(existing["id"]):
+            st.warning(tr("**Consistency checks** (advisory)") + "\n\n"
+                       + _finding_lines(consistency[existing["id"]]))
         if st.button(tr("➕ Add a new activity"), key="inv_act_add"):
             st.session_state["inv_act_select"] = None
             st.rerun()
