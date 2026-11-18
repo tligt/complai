@@ -397,7 +397,7 @@ the only sprint that *is* the gate.
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
-| **S71** | **CRA reporting on the incident clock** | **Built 18 Nov (D-189); migration on dev only, not deployed; the pages not checked in the app.** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
+| **S71** | **CRA reporting on the incident clock** | **Built and deployed 18 Nov (D-189); the pages not yet checked in the app.** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
 | S72 | Localization — the rest of S64 | New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 | S74 | Yearly plans — push customers to commit for a year | New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
@@ -8271,7 +8271,14 @@ type, each final-report date, the intermediate request, NIS2 and GDPR clocks
 unchanged by the new track, alerts and contract clocks, the authority
 fallback, English drafts, the users' notice, action-plan tasks) — the first
 tests of `incident_rules.py` at all; every other test script passes.
-**Not checked in the app; not deployed.**
+**Not checked in the app.**
+
+**Deployed the same day.** The migration on production's database (one
+transaction; all seven columns present), the API schema reloaded, then
+`deploy/update.sh` (9aa1f88 → 867c776; admin, app and quiz healthy, no
+errors in the app log). The hourly reminder job run once on the new code:
+0 open incidents, 0 emails, 0 errors — it loads and runs; the CRA branches
+themselves are proven by tests only, since production has no incident.
 
 ---
 
