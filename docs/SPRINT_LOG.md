@@ -8453,6 +8453,22 @@ Eleven strings in French and Dutch.
 and quiz healthy, no errors in the free-check log) — live on
 check.recosa.eu.
 
+### D-193 — The quick checks' teaser: one line per area, no account in the closing line, 18 Nov
+
+By the user, after D-192: remove the text under each area ("🔒 What to do,
+and the document that covers it…", "Based on your answer. 🔒 What we would
+check…") — the areas and their states say enough; and the closing line's
+"comes free with an account" gave the impression an account is needed, so
+paid. "Let him follow the flow and he'll understand."
+
+Now: one line per area (icon, name, state), nothing under it; the closing
+line reads "Fix the N areas that need work, and confirm the K areas you
+declared — your full report will detail the actions to take." (the variants
+with only one kind keep their first half). The four states, the count and
+the score are as D-192 left them. The six interface strings no code uses any
+more were removed from the French and Dutch catalogues; the new ending added
+in both. Previewed with the real component: the GDPR case fits on one screen.
+
 ---
 
 *End of record. Append at sprint close.*

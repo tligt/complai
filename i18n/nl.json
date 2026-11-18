@@ -1464,10 +1464,6 @@
  "A severe incident affecting the security of one of your products (CRA Art. 14(3))": "Een ernstig incident dat de beveiliging van een van uw producten aantast (CRA art. 14(3))",
  "Neither — not reportable under the CRA": "Geen van beide — niet te melden onder de CRA",
  "Significant (NIS2) or reportable (CRA) incidents": "Significante (NIS2) of te melden (CRA) incidenten",
- "🟠 **{category}** — needs attention": "🟠 **{category}** — vraagt aandacht",
- "🔒 What to do, and the document that covers it: in your full report.": "🔒 Wat te doen, en het document dat het dekt: in uw volledige rapport.",
- "✅ {category} — in place": "✅ {category} — in orde",
- "**See how to fix {these}** — your full report, with what to do for each area, comes free with an account.": "**Bekijk hoe u {these} oplost** — uw volledige rapport, met wat te doen per domein, is gratis met een account.",
  "this area": "dit domein",
  "these {n} areas": "deze {n} domeinen",
  "**Your breakdown by area** — {need} of {n} need work, {declared} declared in place": "**Uw overzicht per domein** — {need} van {n} vragen werk, {declared} als in orde opgegeven",
@@ -1475,10 +1471,9 @@
  "started": "begonnen",
  "partly in place": "deels in orde",
  "declared in place — to confirm": "als in orde opgegeven — te bevestigen",
- "Based on your answer. 🔒 What we would check to confirm it — the evidence an authority would ask to see: in your full report.": "Op basis van uw antwoord. 🔒 Wat we zouden nagaan om het te bevestigen — de bewijzen die een toezichthouder zou vragen: in uw volledige rapport.",
  "**Fix the {need} that need work, and confirm the {declared} you declared**": "**Los de {need} op die werk vragen, en bevestig de {declared} die u opgaf**",
  "**Confirm the {declared} you declared**": "**Bevestig de {declared} die u opgaf**",
- " — your full report, with what to do and what to check for each area, comes free with an account.": " — uw volledige rapport, met wat te doen en na te gaan per domein, is gratis met een account.",
  "1 area": "1 domein",
- "{n} areas": "{n} domeinen"
+ "{n} areas": "{n} domeinen",
+ " — your full report will detail the actions to take.": " — uw volledige rapport zal de te nemen acties toelichten."
 }

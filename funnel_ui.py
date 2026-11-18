@@ -66,21 +66,19 @@ def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.
     records it as partial (funnel._DECLARED_STATUS) — showing it green told a
     prospect who answered well that there was nothing left to do. Even the
     best answer is the company's own declaration, so its green carries
-    "declared — to confirm" and something stays locked under it too: what we
-    would check, and the evidence an authority would ask to see."""
+    "declared — to confirm". D-193 removed the locked line under each area:
+    one line per area, and one sentence at the end on what the full report
+    holds — no mention of an account, which read as "you have to pay"."""
     rows = funnel.breakdown(answers, kind)
     if locked:
         need = funnel.weak_areas(answers)
         declared = len(rows) - need
         st.markdown(tr("**Your breakdown by area** — {need} of {n} need work, {declared} declared "
                        "in place").format(need=need, n=len(rows), declared=declared))
+        # D-193: one line per area, nothing under it — the state says it.
         for r in rows:                                    # weakest first
             icon, state = _STATE[r["answer"]]
             st.markdown(f"{icon} **{r['category']}** — {tr(state)}")
-            st.caption(tr("Based on your answer. 🔒 What we would check to confirm it — the "
-                          "evidence an authority would ask to see: in your full report.")
-                       if r["answer"] == 3 else
-                       tr("🔒 What to do, and the document that covers it: in your full report."))
         if need and declared:
             cta = tr("**Fix the {need} that need work, and confirm the {declared} you declared**").format(
                 need=_areas(need), declared=_areas(declared))
@@ -89,8 +87,9 @@ def render_quiz_breakdown(answers: list[int], locked: bool, kind: dict = funnel.
                 these=tr("this area") if need == 1 else tr("these {n} areas").format(n=need))
         else:
             cta = tr("**Confirm the {declared} you declared**").format(declared=_areas(declared))
-        st.info(cta + tr(" — your full report, with what to do and what to check for each area, "
-                         "comes free with an account."))
+        # D-193: no mention of an account here — it read as "you have to pay".
+        # The flow brings them to the report; this only says what it holds.
+        st.info(cta + tr(" — your full report will detail the actions to take."))
         return
 
     st.markdown(tr("**Your {words_get_len_rows_len_r} areas, weakest first**").format(words_get_len_rows_len_r=_WORDS.get(len(rows), len(rows))))
