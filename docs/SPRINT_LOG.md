@@ -8447,7 +8447,11 @@ even answer 3 is a declaration nobody has seen evidence for.
 The user's case, previewed with the real component (best or second-best
 answer everywhere, one lower): GDPR 24/30 "5 of 10 need work, 5 declared in
 place" (was "1 of 10"); NIS2 32/39 "6 of 13 / 7"; AI Act 22/27 "4 of 9 / 5".
-Eleven strings in French and Dutch. **Not deployed.**
+Eleven strings in French and Dutch.
+
+**Deployed the same day** (`deploy/update.sh`, 16f507c → 237fa68; admin, app
+and quiz healthy, no errors in the free-check log) — live on
+check.recosa.eu.
 
 ---
 
