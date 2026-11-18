@@ -8546,8 +8546,46 @@ Umami's location confirmed by the user the same day: Frankfurt.
 **Published on Framer the same day** by the user, from the list of changes
 only; checked on the live page — every change present, Supabase, Qdrant and
 Streamlit gone. The repo file was aligned to the live wording ("Germany
-(Frankfurt)", parentheses in the hosting sentence). The processor change is a
+(Frankfurt)", parentheses in the hosting sentence).
+
+Notifying registered users of the change: not needed — there are none yet
+(the user, 18 Nov). The processor change is a
 material change; the notice itself promises to email registered users.
+
+### D-197 — The website's cookie banner: remove it; the Cookie Policy rewritten to what the site does, 18 Nov
+
+By request ("can you modify the banner?"), the open reminder of 16 Nov
+(D-180's finding). Framer's custom-code snippet cannot be edited from here, so
+this is the recommendation and the text, for the user to apply.
+
+**Checked in a browser, 18 Nov:**
+- **recosa.eu** sets no cookies and nothing in local storage; its analytics
+  are Umami and Framer's own (events.framer.com), both cookieless; fonts come
+  from Framer's CDN (no Google Fonts on the website).
+- **The banner** ("By clicking Accept, you consent to our use of analytics
+  cookies") changes nothing either way — no script is loaded or blocked by the
+  choice — and logs the choice to the DEV Supabase project with a placeholder
+  key, so every log fails. The only thing it stores on the device is its own
+  answer.
+- **app.recosa.eu**: `_streamlit_xsrf` (Streamlit's security cookie),
+  `recosa_sid` after login (7 days at most, 24 h idle, sessions.py), the
+  Streamlit theme in local storage — all strictly necessary; Umami; and
+  **Google Fonts from fonts.googleapis.com** — the other half of the
+  reminder, still open, and on the app, not the website.
+
+**Recommendation: remove the banner** (the whole snippet, with its 🍪
+re-open button). Nothing on the website needs consent, and a banner that
+asks for consent it does not use is the kind of thing a compliance product
+cannot afford to be caught with. No replacement banner: any dismissible
+notice would itself store something on the device.
+
+**Cookie Policy rewritten** — `docs/legal/cookie-policy.md`, the source for
+recosa.eu/cookie-policy from now on: the website sets no cookies; the
+platform's three strictly necessary items, named, with their durations; the
+analytics cookieless. The published version (June 2026) described analytics
+cookies with consent, a website CSRF cookie and the banner.
+
+The privacy notice's "Cookies" section (D-196) already matches.
 
 ---
 
