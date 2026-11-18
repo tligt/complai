@@ -8469,6 +8469,9 @@ the score are as D-192 left them. The six interface strings no code uses any
 more were removed from the French and Dutch catalogues; the new ending added
 in both. Previewed with the real component: the GDPR case fits on one screen.
 
+**Deployed the same day** (237fa68 → d8a92eb; admin, app and quiz healthy, no
+errors in the free-check log) — live on check.recosa.eu.
+
 ---
 
 *End of record. Append at sprint close.*
