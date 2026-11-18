@@ -1,7 +1,8 @@
 # S71 — CRA reporting on the incident clock — scope
 
-**Draft, 10 Nov 2026 (D-158). Not locked:** the open questions at the end
-need an answer first.
+**Draft, 10 Nov 2026 (D-158). Built 18 Nov 2026 (D-189)** — the open
+questions were settled as recorded there; the Art. 14 table below was checked
+against the OJ text that day and holds.
 
 The full CRA (product inventory, Annex I requirements, conformity, SBOM)
 applies from 11 Dec 2027 and stays a later sprint. **One part is already in

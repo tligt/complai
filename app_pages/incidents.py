@@ -44,6 +44,7 @@ contacts = S.load_contacts(client["id"])
 contacts_all = S.load_contacts(client["id"], include_inactive=True)
 contact_by_id = {c["id"]: c for c in contacts_all}
 nis2 = R.nis2_applies(client)
+cra = R.cra_applies(client)   # S71: a manufacturer of products with digital elements
 
 STATE_ICON = {R.OVERDUE: "🔴", R.DUE_SOON: "🟠", R.TO_DECIDE: "🟡", R.RUNNING: "⏱️",
               R.DONE: "✅", R.NOT_REQUIRED: "⚪"}
@@ -433,6 +434,23 @@ with tab_inc:
             else:
                 sig, rcp = "No", "No"
                 st.caption(tr("NIS2 does not apply to this company, so there is no NIS2 deadline."))
+            # S71. CRA Art. 14 — about the PRODUCT the company sells, not its service.
+            _CRA = [None] + list(R.CRA_TYPES)
+            if cra:
+                st.markdown(tr("**Product security (CRA)**"))
+                cra_t = st.radio(
+                    tr("Does it concern one of the products with digital elements you make? "
+                       "(reported to the CSIRT through ENISA's platform)"),
+                    _CRA, index=_CRA.index(inc.get("cra_type")) if inc.get("cra_type") in _CRA else 0,
+                    format_func=lambda c: tr("Not decided yet") if c is None else tr(R.CRA_TYPES[c]))
+                c1, c2 = st.columns(2)
+                cra_prod = c1.text_input(tr("Product(s) concerned"), value=inc.get("cra_product") or "",
+                                         placeholder=tr("e.g. Router X1, firmware 2.3"))
+                cra_ms = c2.text_input(tr("Member States where the product is on the market"),
+                                       value=inc.get("cra_member_states") or "",
+                                       placeholder=tr("e.g. BE, FR, NL"))
+            else:
+                cra_t, cra_prod, cra_ms = inc.get("cra_type"), inc.get("cra_product") or "", inc.get("cra_member_states") or ""
             cons = st.text_area(tr("Likely consequences"), value=inc.get("likely_consequences") or "")
             meas = st.text_area(tr("Measures taken or planned"), value=inc.get("measures_taken") or "")
             why = st.text_area(tr("Why — the reasoning behind these answers (recorded with the decision)"),
@@ -450,10 +468,13 @@ with tab_inc:
                         "approx_subjects": int(subj) or None, "approx_records": int(recs) or None,
                         "significant": _YN[sig], "affects_recipients": _YN[rcp] if _YN[sig] else None,
                         "likely_consequences": cons.strip() or None, "measures_taken": meas.strip() or None,
+                        "cra_type": cra_t, "cra_product": cra_prod.strip() or None,
+                        "cra_member_states": cra_ms.strip() or None,
                     }
                     summary = (f"Personal data: {pd}. GDPR risk: {risk}."
                                + (f" Exemption: {exempt}." if changes["subjects_exemption"] else "")
                                + (f" Significant (NIS2): {sig}. Users affected: {rcp}." if nis2 else "")
+                               + (f" CRA: {R.CRA_TYPES.get(cra_t, 'not decided')}." if cra else "")
                                + (f" Reason: {why.strip()}" if why.strip() else ""))
                     if S.update_incident(inc_id, changes):
                         S.add_event(user_id, inc, "decision", body=summary)
@@ -461,7 +482,9 @@ with tab_inc:
                         targets = R.alert_targets(contacts, newer, inc_events, nis2)
                         if targets:
                             S.alert_team(user_id, newer, client, targets,
-                                         "significant" if newer.get("significant") else "personal_data")
+                                         "significant" if (newer.get("significant")
+                                                           or newer.get("cra_type") in R.CRA_REPORTABLE)
+                                         else "personal_data")
                         st.rerun()
                     st.error(tr("Could not save the assessment."))
 
@@ -513,6 +536,23 @@ with tab_inc:
                             tr("Email: {email}").format(email=a['email']) if a.get("email") else "") if x))
                     if a.get("guide"):
                         st.caption(tr("What each report must contain: {url}").format(url=a['guide']))
+                elif who == "cra":
+                    a = auth["cra"]
+                    st.markdown(tr("**To:** {name}").format(name=a['name']) + (f" ({a['short']})" if a["short"] else "")
+                                + tr(" — the CSIRT designated as coordinator, and ENISA at the same time"))
+                    if not a["verified"]:
+                        st.warning(tr("RECOSA has not yet confirmed which CSIRT coordinates CRA reports for "
+                                      "your country; this is your NIS2 CSIRT. The platform lists the "
+                                      "coordinators: check yours there. It is the one of the country where "
+                                      "decisions on your products' cybersecurity are mostly taken "
+                                      "(CRA Art. 14(7))."))
+                    st.markdown(tr("**Submit here:** {url}").format(url=a['submit']))
+                    st.caption(a["note"])
+                    st.info(tr("The draft is in English whatever language you picked: the platform "
+                               "takes English only."))
+                elif kind == R.CRA_USERS:
+                    st.markdown(tr("**To:** the users of the product affected — and all users where "
+                                   "appropriate — from your own channels."))
                 elif kind == R.CONTROLLERS:
                     st.markdown(tr("**To:** each company you process this data for, from your own mailbox:"))
                     for c in controllers:
@@ -619,6 +659,35 @@ with tab_inc:
                         st.rerun()
                     st.error(tr("Could not record it."))
 
+        if cra and inc.get("cra_type") in R.CRA_REPORTABLE:
+            st.divider()
+            if inc.get("cra_type") == "vulnerability":
+                st.markdown(tr("**A fix or mitigation is available** (dates the CRA final report: 14 days later)"))
+                if inc.get("cra_fix_available_at"):
+                    st.caption(tr("Recorded: available since {d}.").format(d=_fmt(inc['cra_fix_available_at'])))
+                with st.form("cra_fix"):
+                    fix_at = _local_input(tr("Available since"), "cra_fix")
+                    if st.form_submit_button(tr("Record the fix")):
+                        if fix_at < R._ts(inc["discovered_at"]):
+                            st.error(tr("A fix for this can't predate the incident."))
+                        elif S.update_incident(inc_id, {"cra_fix_available_at": fix_at.astimezone(timezone.utc).isoformat()}):
+                            S.add_event(user_id, inc, "note", body="CRA: corrective or mitigating measure available")
+                            st.rerun()
+                        else:
+                            st.error(tr("Could not record it."))
+            st.markdown(tr("**The CSIRT asked for a CRA intermediate report** (CRA Art. 14(6))"))
+            if inc.get("cra_intermediate_due"):
+                st.caption(tr("Requested — due {d}. It is in step 4.").format(d=_fmt(inc['cra_intermediate_due'])))
+            with st.form("cra_intermediate"):
+                due = _local_input(tr("Due by"), "cra_int_due")
+                note = st.text_input(tr("What they asked (optional)"), key="cra_int_note")
+                if st.form_submit_button(tr("Record the request")):
+                    if S.update_incident(inc_id, {"cra_intermediate_due": due.astimezone(timezone.utc).isoformat()}):
+                        S.add_event(user_id, inc, "request", kind=R.CRA_INTERMEDIATE,
+                                    body=note or "CRA intermediate report requested")
+                        st.rerun()
+                    st.error(tr("Could not record it."))
+
         st.divider()
         st.markdown(tr("**A question, acknowledgement or answer from an authority, or anything else to keep**"))
         with st.form("note"):
@@ -634,7 +703,7 @@ with tab_inc:
         if inc["status"] == "closed":
             st.success(tr("Closed {fmt_inc_get_closed_at}.").format(fmt_inc_get_closed_at=_fmt(inc.get('closed_at'))))
         open_required = [d for d in dls if d["state"] in R.OPEN_STATES
-                         and d["kind"] not in (R.NIS2_FINAL, R.NIS2_PROGRESS)]
+                         and d["kind"] not in (R.NIS2_FINAL, R.NIS2_PROGRESS, R.CRA_FINAL)]
         if open_required and inc["status"] != "closed":
             st.warning(tr("Still open: {labels}.").format(
                 labels="; ".join(R.label(d["kind"], _L, contact_by_id) for d in open_required)))

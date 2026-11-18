@@ -81,6 +81,12 @@ def build_pdf(incident: Mapping[str, Any], client: Mapping[str, Any],
          f"{incident.get('approx_subjects') or '—'} / {incident.get('approx_records') or '—'}"),
         ("Significant incident (NIS2)", _YN[incident.get("significant")] if R.nis2_applies(client) else "NIS2 does not apply"),
         ("Users of the service affected", _YN[incident.get("affects_recipients")]),
+        # S71. CRA Art. 14 — only for a manufacturer of products with digital elements.
+        *([("CRA — reportable as", R.CRA_TYPES.get(incident.get("cra_type"), "Not assessed")),
+           ("CRA — product(s)", incident.get("cra_product")),
+           ("CRA — Member States where made available", incident.get("cra_member_states")),
+           ("CRA — fix available since", R.when(incident.get("cra_fix_available_at")) or None)]
+          if R.cra_applies(client) else [("CRA (product security)", "Not a manufacturer of products with digital elements")]),
         ("Likely consequences", incident.get("likely_consequences")),
         ("Measures taken", incident.get("measures_taken")),
     ], W))

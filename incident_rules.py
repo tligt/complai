@@ -27,6 +27,19 @@ THE REGIMES (S29A procedure, D-80/D-83; part 2 legal gaps, D-118)
                      and the final report one month after handling ends.
                      Recipients of the service likely to be affected are
                      informed without undue delay (23(1)).
+    CRA Art. 14      S71 (D-189). The company makes products with digital
+                     elements: an actively exploited vulnerability, or a
+                     severe incident affecting a product's security -> the
+                     coordinator CSIRT of the main establishment, via ENISA's
+                     Single Reporting Platform: early warning 24 h;
+                     notification 72 h; intermediate report when the CSIRT
+                     asks; final report 14 days after a fix is available
+                     (vulnerability) or one month after the notification
+                     (incident). Users informed in a timely manner (14(8)).
+                     In force since 11 Sept 2026 (Art. 71(2)); checked
+                     against the OJ text, 18 Nov 2026. NIS2 is about the
+                     company's SERVICE, the CRA about the PRODUCT it sells:
+                     one incident can run both clocks.
     Contracts        a team member with deadline_hours (an insurer's 48 h)
                      gets a clock of their own, from discovery.
 
@@ -58,14 +71,33 @@ NIS2_INTERMEDIATE = "nis2_intermediate"
 NIS2_PROGRESS     = "nis2_progress"
 NIS2_FINAL        = "nis2_final"
 NIS2_RECIPIENTS   = "nis2_recipients"
+CRA_EARLY         = "cra_early_warning"     # S71
+CRA_NOTIFICATION  = "cra_notification"
+CRA_INTERMEDIATE  = "cra_intermediate"
+CRA_FINAL         = "cra_final"
+CRA_USERS         = "cra_users"
 CONTACT_PREFIX    = "contact:"   # + incident_contacts.id
 
-KINDS = [NIS2_EARLY, GDPR_AUTHORITY, NIS2_NOTIFICATION, CONTROLLERS, DATA_SUBJECTS,
-         NIS2_RECIPIENTS, NIS2_INTERMEDIATE, NIS2_PROGRESS, NIS2_FINAL]
+KINDS = [NIS2_EARLY, CRA_EARLY, GDPR_AUTHORITY, NIS2_NOTIFICATION, CRA_NOTIFICATION,
+         CONTROLLERS, DATA_SUBJECTS, NIS2_RECIPIENTS, CRA_USERS, NIS2_INTERMEDIATE,
+         CRA_INTERMEDIATE, NIS2_PROGRESS, NIS2_FINAL, CRA_FINAL]
 
 # Which authority receives which kind (for the page and supplementary info).
 AUTHORITY_OF = {GDPR_AUTHORITY: "gdpr", NIS2_EARLY: "nis2", NIS2_NOTIFICATION: "nis2",
-                NIS2_INTERMEDIATE: "nis2", NIS2_PROGRESS: "nis2", NIS2_FINAL: "nis2"}
+                NIS2_INTERMEDIATE: "nis2", NIS2_PROGRESS: "nis2", NIS2_FINAL: "nis2",
+                CRA_EARLY: "cra", CRA_NOTIFICATION: "cra", CRA_INTERMEDIATE: "cra",
+                CRA_FINAL: "cra"}
+
+# S71. The CRA assessment of an incident (incidents.cra_type).
+CRA_TYPES = {
+    "vulnerability": "An actively exploited vulnerability in one of your products (CRA Art. 14(1))",
+    "severe_incident": "A severe incident affecting the security of one of your products (CRA Art. 14(3))",
+    "none": "Neither — not reportable under the CRA",
+}
+CRA_REPORTABLE = ("vulnerability", "severe_incident")
+
+# ENISA's Single Reporting Platform: the only channel, English only, no API.
+SRP_URL = "https://portal.cra-srp.enisa.europa.eu"
 
 LABELS = {
     "en": {
@@ -78,6 +110,11 @@ LABELS = {
         NIS2_PROGRESS: "NIS2 progress report (incident still being handled)",
         NIS2_FINAL: "NIS2 final report to the CSIRT",
         NIS2_RECIPIENTS: "Inform the users of your service (NIS2 Art. 23(1))",
+        CRA_EARLY: "CRA early warning to the CSIRT (via ENISA's platform)",
+        CRA_NOTIFICATION: "CRA notification to the CSIRT (via ENISA's platform)",
+        CRA_INTERMEDIATE: "CRA intermediate report (requested by the CSIRT)",
+        CRA_FINAL: "CRA final report to the CSIRT (via ENISA's platform)",
+        CRA_USERS: "Inform the users of the product (CRA Art. 14(8))",
     },
     "fr": {
         GDPR_AUTHORITY: "Notifier l'autorité de protection des données (RGPD art. 33)",
@@ -89,6 +126,11 @@ LABELS = {
         NIS2_PROGRESS: "Rapport d'avancement NIS2 (incident toujours en cours)",
         NIS2_FINAL: "Rapport final NIS2 au CSIRT",
         NIS2_RECIPIENTS: "Informer les destinataires de vos services (NIS2 art. 23(1))",
+        CRA_EARLY: "Alerte précoce CRA au CSIRT (via la plateforme de l'ENISA)",
+        CRA_NOTIFICATION: "Notification CRA au CSIRT (via la plateforme de l'ENISA)",
+        CRA_INTERMEDIATE: "Rapport intermédiaire CRA (demandé par le CSIRT)",
+        CRA_FINAL: "Rapport final CRA au CSIRT (via la plateforme de l'ENISA)",
+        CRA_USERS: "Informer les utilisateurs du produit (CRA art. 14(8))",
     },
     "nl": {   # D-168
         GDPR_AUTHORITY: "Melden aan de gegevensbeschermingsautoriteit (AVG art. 33)",
@@ -100,6 +142,11 @@ LABELS = {
         NIS2_PROGRESS: "NIS2-voortgangsverslag (incident nog in behandeling)",
         NIS2_FINAL: "NIS2-eindverslag aan het CSIRT",
         NIS2_RECIPIENTS: "De afnemers van uw diensten inlichten (NIS2 art. 23(1))",
+        CRA_EARLY: "CRA-vroegtijdige waarschuwing aan het CSIRT (via het ENISA-platform)",
+        CRA_NOTIFICATION: "CRA-melding aan het CSIRT (via het ENISA-platform)",
+        CRA_INTERMEDIATE: "CRA-tussentijds verslag (gevraagd door het CSIRT)",
+        CRA_FINAL: "CRA-eindverslag aan het CSIRT (via het ENISA-platform)",
+        CRA_USERS: "De gebruikers van het product inlichten (CRA art. 14(8))",
     },
 }
 
@@ -111,7 +158,7 @@ ROLES = {
 }
 ALERT_ON = {
     "all": "Every incident", "personal_data": "When personal data is involved",
-    "significant": "Significant (NIS2) incidents", "never": "Not alerted",
+    "significant": "Significant (NIS2) or reportable (CRA) incidents", "never": "Not alerted",
 }
 SUBJECTS_EXEMPTIONS = {
     "encrypted": "Art. 34(3)(a) — the data is unintelligible to anyone not authorised (e.g. encrypted)",
@@ -190,6 +237,41 @@ def nis2_applies(client: Mapping[str, Any]) -> bool:
     return "NIS2" in (client.get("regulations") or [])
 
 
+def cra_applies(client: Mapping[str, Any]) -> bool:
+    """S71. The company's own answer (Obligations page) when given; otherwise
+    whether the CRA is among its regulations. Unlike NIS2 an unanswered
+    question does not open the clock: most SMEs make no product with digital
+    elements, and three "to decide" CRA deadlines on every incident would teach
+    them to ignore the column."""
+    if client.get("cra_manufacturer") is not None:
+        return bool(client["cra_manufacturer"])
+    return "CRA" in (client.get("regulations") or [])
+
+
+def cra_required(incident: Mapping[str, Any], client: Mapping[str, Any]) -> bool | None:
+    """Whether the CRA reports are owed: False when the company is not a
+    manufacturer or the incident is assessed as neither; None while the
+    incident is not assessed; True for a reportable type."""
+    if not cra_applies(client):
+        return False
+    t = incident.get("cra_type")
+    if t is None:
+        return None
+    return t in CRA_REPORTABLE
+
+
+def cra_final_due(incident: Mapping[str, Any], events: Iterable[Mapping[str, Any]]) -> datetime | None:
+    """CRA Art. 14(2)(c): no later than 14 days after a corrective or
+    mitigating measure is available (vulnerability). Art. 14(4)(c): within one
+    month after the notification was submitted (severe incident). None until
+    that date can be known."""
+    if incident.get("cra_type") == "vulnerability":
+        fix = _ts(incident.get("cra_fix_available_at"))
+        return fix + timedelta(days=14) if fix else None
+    notif = sent(events, CRA_NOTIFICATION)
+    return _add_month(_ts(notif["occurred_at"])) if notif else None
+
+
 def final_report_due(incident: Mapping[str, Any], events: Iterable[Mapping[str, Any]],
                      now: datetime) -> tuple[datetime | None, datetime | None]:
     """(final report due, progress report due). Art. 23(4)(d)/(e): one month
@@ -251,6 +333,8 @@ def deadlines(incident: Mapping[str, Any], client: Mapping[str, Any],
     else:
         progress_req = False if _ts(incident.get("closed_at")) else None
 
+    cra = cra_required(incident, client)
+
     specs = [
         (GDPR_AUTHORITY, gdpr, found + timedelta(hours=72)),
         (DATA_SUBJECTS, subjects, None),
@@ -262,12 +346,21 @@ def deadlines(incident: Mapping[str, Any], client: Mapping[str, Any],
          _ts(incident.get("intermediate_due"))),
         (NIS2_PROGRESS, progress_req, progress_due),
         (NIS2_FINAL, sig, final_due),
+        # S71. CRA Art. 14 — the same clock, from the same moment of awareness.
+        (CRA_EARLY, cra, found + timedelta(hours=24)),
+        (CRA_NOTIFICATION, cra, found + timedelta(hours=72)),
+        (CRA_INTERMEDIATE, True if cra and incident.get("cra_intermediate_due") else False,
+         _ts(incident.get("cra_intermediate_due"))),
+        (CRA_FINAL, cra, cra_final_due(incident, events)),
+        (CRA_USERS, cra, None),
     ]
     for c in contacts:
         if not c.get("active", True) or not c.get("deadline_hours"):
             continue
         when = c.get("alert_on") or "all"
-        req = {"all": True, "personal_data": pd, "significant": sig, "never": False}.get(when, True)
+        # "significant" covers a CRA-reportable incident too (S71).
+        sig_or_cra = True if (sig or cra) else (None if None in (sig, cra) else False)
+        req = {"all": True, "personal_data": pd, "significant": sig_or_cra, "never": False}.get(when, True)
         specs.append((CONTACT_PREFIX + c["id"], req, found + timedelta(hours=int(c["deadline_hours"]))))
 
     closed = incident.get("status") == "closed"
@@ -295,7 +388,8 @@ def deadlines(incident: Mapping[str, Any], client: Mapping[str, Any],
                     # Final report undated because the incident is still
                     # being handled past its first date (Art. 23(4)(e)).
                     "after_handling": kind == NIS2_FINAL and due is None
-                                      and sent(events, NIS2_NOTIFICATION) is not None})
+                                      and sent(events, NIS2_NOTIFICATION) is not None,
+                    "cra_type": incident.get("cra_type") if kind == CRA_FINAL else None})
     return sorted(out, key=lambda d: (_ORDER[d["state"]], d["due"] or _FAR))
 
 
@@ -331,6 +425,13 @@ def describe_left(d: Mapping[str, Any], lang: str = "en") -> str:
         if d["kind"] == NIS2_PROGRESS:
             return ("si l'incident est encore en cours à la date du rapport final" if fr
                     else "if still being handled when the final report is due")
+        if d["kind"] == CRA_FINAL:
+            if d.get("cra_type") == "vulnerability":
+                return ("14 jours après la disponibilité d'un correctif" if fr
+                        else "14 days after a fix is available")
+            return "un mois après la notification" if fr else "one month after the notification"
+        if d["kind"] == CRA_USERS:
+            return "en temps utile" if fr else "in a timely manner"
         return "sans retard injustifié" if fr else "without undue delay"
     h = d["hours_left"]
     if h < 0:
@@ -353,6 +454,11 @@ def _describe_left_nl(d: Mapping[str, Any]) -> str:
                     else "een maand na de melding")
         if d["kind"] == NIS2_PROGRESS:
             return "als het incident nog in behandeling is wanneer het eindverslag moet volgen"
+        if d["kind"] == CRA_FINAL:
+            return ("14 dagen nadat een oplossing beschikbaar is" if d.get("cra_type") == "vulnerability"
+                    else "een maand na de melding")
+        if d["kind"] == CRA_USERS:
+            return "tijdig"
         return "zonder onnodige vertraging"
     h = d["hours_left"]
     if h < 0:
@@ -382,7 +488,8 @@ def alert_targets(contacts: Iterable[Mapping[str, Any]], incident: Mapping[str, 
         if e.get("event_type") == "alert":
             already.update((e.get("reference") or "").split(","))
     pd = incident.get("personal_data") is True
-    sig = is_nis2 and incident.get("significant") is True
+    # S71: "significant" contacts are alerted for a CRA-reportable incident too.
+    sig = (is_nis2 and incident.get("significant") is True) or incident.get("cra_type") in CRA_REPORTABLE
     out = []
     for c in contacts:
         if not c.get("active", True) or not c.get("email") or c["id"] in already:
@@ -427,7 +534,40 @@ def authorities(jurisdiction: Mapping[str, Any], lang: str = "en") -> dict[str, 
             "guide": link("csirt_guide_url"),
             "verified": bool(j.get("csirt_report_verified_on")),
         },
+        # S71. The CSIRT designated as coordinator of the Member State of the
+        # main establishment (CRA Art. 14(7)), reached only through ENISA's
+        # platform. Not always the NIS2 CSIRT: until a country's coordinator
+        # is checked (cra_csirt_* in its metadata) the NIS2 CSIRT is shown,
+        # marked unverified, with the instruction to confirm it on the SRP.
+        "cra": {
+            "name": (j.get(f"cra_csirt_{l}") or j.get("cra_csirt_en")
+                     or j.get(f"csirt_{l}") or j.get("csirt_en") or "[to complete]"),
+            "short": j.get("cra_csirt_short") or j.get("csirt_short") or "",
+            "site": j.get("cra_csirt_url") or link("csirt_url"),
+            "submit": SRP_URL,
+            "note": _SRP_NOTE.get(l, _SRP_NOTE["en"]),
+            "verified": bool(j.get("cra_csirt_verified_on")),
+        },
     }
+
+
+_SRP_NOTE = {
+    "en": ("ENISA's Single Reporting Platform is the only channel, and takes English only. "
+           "Reports are submitted by your Assigned Representative, with an EU Login account "
+           "and MFA. The portal's 72-hour counter starts 48 h after the early warning and can "
+           "show overdue early: the legal deadline is 72 h from becoming aware."),
+    "fr": ("La plateforme unique de signalement de l'ENISA est le seul canal, et n'accepte que "
+           "l'anglais. Les signalements sont faits par votre représentant désigné (« Assigned "
+           "Representative »), avec un compte EU Login et une authentification à deux facteurs. "
+           "Le compteur de 72 heures du portail démarre 48 h après l'alerte précoce et peut "
+           "afficher un retard trop tôt : le délai légal est de 72 h à compter de la prise de "
+           "connaissance."),
+    "nl": ("Het centrale meldplatform van ENISA is het enige kanaal en aanvaardt alleen Engels. "
+           "Meldingen gebeuren door uw aangewezen vertegenwoordiger (\u201cAssigned "
+           "Representative\u201d), met een EU Login-account en tweestapsverificatie. De "
+           "72-urenteller van het portaal start 48 u na de vroegtijdige waarschuwing en kan te "
+           "vroeg een vertraging tonen: de wettelijke termijn is 72 u vanaf de kennisname."),
+}
 
 
 # ── Drafts ────────────────────────────────────────────────────────────────
@@ -462,9 +602,19 @@ def draft(kind: str, incident: Mapping[str, Any], client: Mapping[str, Any],
     late: GDPR wants the reasons for the delay with a late notification.
     followup: supplementary information to a notification already sent
     (Art. 33(4); a CSIRT update) — headed as such, with its reference."""
+    events = list(events)
+    # S71. The CRA reports go through ENISA's platform, which takes English
+    # only — whatever language was picked for the other drafts.
+    if kind in _CRA_REPORTS:
+        text = _cra_report(kind, incident, client, systems, events)
+        if followup:
+            text = ("Supplementary information — further to our notification of "
+                    f"{_sent_line(sent(events, kind), 'en')}\n\n") + text
+        return text
+    if kind == CRA_USERS:
+        return _cra_users(incident, client, "fr" if lang == "fr" else "en")
     lang = "fr" if lang == "fr" else "en"
     fr = lang == "fr"
-    events = list(events)
     v = lambda x: _v(x, lang)  # noqa: E731
     org = client.get("legal_name") or client.get("company_name") or ""
     found = when(incident["discovered_at"])
@@ -745,6 +895,147 @@ If you have questions: {v(client.get('contact_email'))}""",
     if followup:
         text = fu_head.format(d=_sent_line(sent(events, kind), lang)) + text
     return text
+
+
+# ── S71: the CRA drafts ──────────────────────────────────────────────────
+
+_CRA_REPORTS = (CRA_EARLY, CRA_NOTIFICATION, CRA_INTERMEDIATE, CRA_FINAL)
+
+
+def _cra_report(kind: str, incident: Mapping[str, Any], client: Mapping[str, Any],
+                systems: list[str], events: list) -> str:
+    """CRA Art. 14 reports, in English (the SRP takes no other language).
+
+    The items are the ones Art. 14(2) and 14(4) list, in their order, checked
+    against the OJ text on 18 Nov 2026. Unknown items stay [to complete].
+    """
+    v = lambda x: _v(x, "en")  # noqa: E731
+    vuln = incident.get("cra_type") == "vulnerability"
+    org = client.get("legal_name") or client.get("company_name") or ""
+    found = when(incident["discovered_at"])
+    product = v(incident.get("cra_product"))
+    states = v(incident.get("cra_member_states"))
+    head = f"Manufacturer: {org}\nProduct(s) with digital elements: {product}\nBecame aware: {found}"
+    if systems:
+        head += f"\nSystems involved: {', '.join(systems)}"
+    early = sent(events, CRA_EARLY)
+    notif = sent(events, CRA_NOTIFICATION)
+
+    if kind == CRA_EARLY:
+        if vuln:
+            return f"""Early warning — actively exploited vulnerability (CRA Art. 14(2)(a))
+
+{head}
+
+Description: {v(incident.get('description'))}
+Member States where the product has been made available: {states}"""
+        return f"""Early warning — severe incident having an impact on the security of the product (CRA Art. 14(4)(a))
+
+{head}
+
+Description: {v(incident.get('description'))}
+Suspected of being caused by unlawful or malicious acts? [to complete]
+Member States where the product has been made available: {states}"""
+
+    if kind == CRA_NOTIFICATION:
+        if vuln:
+            return f"""Vulnerability notification (CRA Art. 14(2)(b))
+
+{head}
+Early warning sent: {_sent_line(early, 'en')}
+
+The product concerned: {product}
+General nature of the exploit and of the vulnerability: {v(incident.get('description'))}
+Corrective or mitigating measures taken: {v(incident.get('measures_taken'))}
+Corrective or mitigating measures users can take: [to complete]
+How sensitive we consider this information to be: [to complete]"""
+        return f"""Incident notification (CRA Art. 14(4)(b))
+
+{head}
+Early warning sent: {_sent_line(early, 'en')}
+
+Nature of the incident: {v(incident.get('description'))}
+Initial assessment of the incident: {v(incident.get('likely_consequences'))}
+Corrective or mitigating measures taken: {v(incident.get('measures_taken'))}
+Corrective or mitigating measures users can take: [to complete]
+How sensitive we consider this information to be: [to complete]"""
+
+    if kind == CRA_INTERMEDIATE:
+        return f"""Intermediate report (CRA Art. 14(6)) — at the request of the CSIRT designated as coordinator
+
+{head}
+Notification sent: {_sent_line(notif, 'en')}
+
+Relevant status updates: {v(incident.get('description'))}
+Severity and impact so far: {v(incident.get('likely_consequences'))}
+Measures taken since the notification: {v(incident.get('measures_taken'))}"""
+
+    if vuln:
+        fix = when(incident.get("cra_fix_available_at")) or "[to complete]"
+        return f"""Final report — actively exploited vulnerability (CRA Art. 14(2)(c))
+
+{head}
+Notification sent: {_sent_line(notif, 'en')}
+Corrective or mitigating measure available since: {fix}
+
+(i) Description of the vulnerability, including its severity and impact:
+{v(incident.get('description'))}
+{v(incident.get('likely_consequences'))}
+
+(ii) Information on any malicious actor that has exploited or is exploiting it, where available: [to complete]
+
+(iii) The security update or other corrective measures made available to remedy it:
+{v(incident.get('measures_taken'))}"""
+    return f"""Final report — severe incident (CRA Art. 14(4)(c))
+
+{head}
+Notification sent: {_sent_line(notif, 'en')}
+
+(i) Detailed description of the incident, including its severity and impact:
+{v(incident.get('description'))}
+{v(incident.get('likely_consequences'))}
+
+(ii) Type of threat or root cause likely to have triggered it: {v(incident.get('root_cause'))}
+
+(iii) Applied and ongoing mitigation measures: {v(incident.get('measures_taken'))}"""
+
+
+def _cra_users(incident: Mapping[str, Any], client: Mapping[str, Any], lang: str) -> str:
+    """CRA Art. 14(8): the users of the product, in the language picked —
+    they are the client's customers, not ENISA. Where it fits, the same
+    content in a structured, machine-readable form (a security advisory)."""
+    v = lambda x: _v(x, lang)  # noqa: E731
+    org = client.get("legal_name") or client.get("company_name") or ""
+    vuln = incident.get("cra_type") == "vulnerability"
+    if lang == "fr":
+        what = "une vulnérabilité activement exploitée" if vuln else "un incident de sécurité grave"
+        return f"""Objet : avis de sécurité — {v(incident.get('cra_product'))}
+
+Madame, Monsieur,
+
+{org} a identifié {what} concernant {v(incident.get('cra_product'))} : {v(incident.get('description'))}
+
+Risque pour vous : {v(incident.get('likely_consequences'))}
+Ce que nous avons fait : {v(incident.get('measures_taken'))}
+Ce que vous pouvez faire pour limiter le risque : [à compléter — par exemple installer la mise à jour, désactiver une fonction]
+
+Pour toute question : {v(client.get('contact_email'))}
+
+(CRA art. 14(8) : lorsque c'est approprié, publiez aussi ces informations dans un format structuré et lisible par machine, par exemple un avis de sécurité CSAF.)"""
+    what = "an actively exploited vulnerability" if vuln else "a severe security incident"
+    return f"""Subject: security advisory — {v(incident.get('cra_product'))}
+
+Dear customer,
+
+{org} has identified {what} affecting {v(incident.get('cra_product'))}: {v(incident.get('description'))}
+
+The risk for you: {v(incident.get('likely_consequences'))}
+What we have done: {v(incident.get('measures_taken'))}
+What you can do to reduce the risk: [to complete — for example install the update, disable a feature]
+
+If you have questions: {v(client.get('contact_email'))}
+
+(CRA Art. 14(8): where appropriate, also publish this in a structured, machine-readable form, for example a CSAF security advisory.)"""
 
 
 # ── Processor chain (Art. 33(2)) ─────────────────────────────────────────

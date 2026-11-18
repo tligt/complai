@@ -187,6 +187,53 @@ if "NIS2" in regulations:
 
     _nis2_scope_panel(client_id, client)
 
+
+# ── S71 (D-189): CRA — does the company make products with digital elements? ──
+# Asked of every company, but folded: most make none, and the answer only
+# turns on the CRA reporting clock on the Incidents page (CRA Art. 14, in
+# force since 11 Sept 2026). The full CRA (Annex I, conformity) comes later.
+@st.fragment
+def _cra_scope_panel(client_id: str, initial_client: dict):
+    try:
+        _row = (get_supabase().table("clients").select("cra_manufacturer, cra_scope_note")
+                .eq("id", client_id).single().execute().data) or {}
+    except Exception:
+        _row = initial_client
+    _m = _row.get("cra_manufacturer")
+    with st.expander(tr("CRA — do you make products with digital elements?")
+                     + ("" if _m is not None else "  ·  :orange[" + tr("not answered") + "]")):
+        st.markdown(tr(
+            "The Cyber Resilience Act applies to **manufacturers** of products with digital "
+            "elements: hardware or software you sell or supply that connects to a device or a "
+            "network — a connected device, an app, firmware, software sold as a product.\n\n"
+            "Since 11 September 2026, a manufacturer must report an **actively exploited "
+            "vulnerability** or a **severe incident** affecting one of its products to the CSIRT, "
+            "through ENISA's platform, within 24 hours. Answering yes adds that clock to your "
+            "incidents."))
+        st.caption(tr("Legal reference: CRA Art. 3 and 14, Regulation (EU) 2024/2847. Using "
+                      "software is not making it; a service you run only for your own clients is "
+                      "usually NIS2, not the CRA."))
+        with st.form("cra_scope"):
+            _opts = [None, True, False]
+            new_m = st.radio(
+                tr("Do you make products with digital elements?"), _opts,
+                index=_opts.index(_m) if _m in _opts else 0, horizontal=True,
+                format_func=lambda c: {None: tr("Not yet determined"), True: tr("Yes"), False: tr("No")}[c])
+            note = st.text_area(tr("Why"), value=_row.get("cra_scope_note") or "", height=70,
+                                placeholder=tr("e.g. we sell a mobile app and the firmware of our sensors"))
+            if st.form_submit_button(tr("Save"), type="primary"):
+                try:
+                    get_supabase().table("clients").update(
+                        {"cra_manufacturer": new_m, "cra_scope_note": note.strip() or None}
+                    ).eq("id", client_id).execute()
+                    st.success(tr("Saved."))
+                    st.rerun(scope="fragment")
+                except Exception as e:
+                    st.error(tr("Could not save: {e}").format(e=e))
+
+
+_cra_scope_panel(client_id, client)
+
 st.divider()
 
 # ── Tasks ─────────────────────────────────────────────────────────────────

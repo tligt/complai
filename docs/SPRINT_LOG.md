@@ -397,7 +397,7 @@ the only sprint that *is* the gate.
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
-| S71 | CRA reporting on the incident clock | **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
+| **S71** | **CRA reporting on the incident clock** | **Built 18 Nov (D-189); migration on dev only, not deployed; the pages not checked in the app.** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
 | S72 | Localization — the rest of S64 | New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 | S74 | Yearly plans — push customers to commit for a year | New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
@@ -8203,6 +8203,75 @@ transaction, then the API schema reloaded); `deploy/update.sh` (52202a7 →
 jobs container, as cron will run it: 1 company (Creagent), no findings, no
 errors. **The first real run is 19 Nov, 03:40 UTC**; its log is
 `/var/log/recosa/monitor_heartbeat.log`. Not yet seen: a real email.
+
+### D-189 — S71 built: CRA Art. 14 reporting on the incident clock, 18 Nov
+
+Built from `scope/s71_cra_reporting_scope.md` (D-158) "now, as good a time as
+any" — not urgent: no client is known to make products with digital
+elements yet.
+
+**The law, checked first.** The scope's Art. 14 table came from ENISA's pages
+because EUR-Lex did not load on 10 Nov; it did not load for an automated
+fetch today either, so it was read in the browser pane from the OJ text
+(Reg. (EU) 2024/2847). It holds: early warning 24 h (Member States; for an
+incident, whether unlawful or malicious acts are suspected); notification
+72 h; intermediate report when the CSIRT asks (14(6)); final report "no
+later than 14 days after a corrective or mitigating measure is available"
+(vulnerability) or "within one month after the submission of the incident
+notification" (incident); to the coordinator CSIRT of the main establishment
+via the SRP, ENISA at the same time (14(7)); users informed "in a timely
+manner" (14(8)). Art. 14 applies from 11 Sept 2026 (Art. 71(2)).
+
+**The open questions, settled:**
+1. *Any client a manufacturer?* None known — built anyway, by request.
+2. *Coordinator CSIRT per country* — not asserted. `authorities()["cra"]`
+   reads `cra_csirt_*` from the jurisdiction metadata when someone has
+   checked a country (with `cra_csirt_verified_on`); until then it shows the
+   NIS2 CSIRT, **marked unverified**, with the instruction to confirm the
+   coordinator on the SRP. No jurisdiction data was changed.
+3. *NIS2 overlap* — two separate tracks; one incident can run both clocks.
+4. *A `cra_01` obligation* — not added: it changes scoring and the register,
+   and belongs to the full CRA sprint (Dec 2027 obligations).
+5. *Before S60?* — moot; S60 closed 16 Nov.
+
+**Schema** (`migration_s71_cra_reporting.sql`, applied to dev):
+`clients.cra_manufacturer` (NULL = not answered) and `cra_scope_note`;
+`incidents.cra_type` (vulnerability / severe_incident / none, CHECKed),
+`cra_product`, `cra_member_states`, `cra_fix_available_at`,
+`cra_intermediate_due`.
+
+**Rules** (`incident_rules.py`): five kinds — early warning, notification,
+intermediate, final, users — on the existing clock, from the moment of
+awareness. `cra_applies`: the company's answer, else "CRA" in its
+regulations; **unlike NIS2, an unanswered question does not open the clock**
+(three "to decide" deadlines on every SME's every incident would teach people
+to ignore the column). Not assessed → to decide; "neither" → not required.
+The final report is undated until it can be: 14 days after the recorded fix,
+or one month after the notification was sent. A "significant" team contact
+is alerted, and its contract clock runs, for a CRA-reportable incident too.
+Reminders, the action plan, Home and the incident file follow unchanged
+(the file gains the CRA assessment rows).
+
+**Drafts**: the four reports always in **English** — the SRP takes no other —
+listing Art. 14(2)/(4)'s items in order, unknowns left `[to complete]`, no
+LLM (D-117); follow-ups headed in English too. The users' notice in the
+language picked, with a pointer to a machine-readable advisory (CSAF).
+
+**Pages.** Obligations: a folded "CRA — do you make products with digital
+elements?" for every company, with the reason. Incidents: a "Product
+security (CRA)" block in the assessment; in Notify, the recipient, the SRP
+link, the note on EU Login/MFA and the portal's early 72-h counter, and the
+English-only notice; in Follow up, "a fix is available" (dates the final
+report) and "the CSIRT asked for an intermediate report". Closing does not
+wait for the CRA final report, as for NIS2's. 28 interface strings in
+French and Dutch (drafts).
+
+**Tested:** `test_cra_reporting.py` (manufacturer or not, unassessed, each
+type, each final-report date, the intermediate request, NIS2 and GDPR clocks
+unchanged by the new track, alerts and contract clocks, the authority
+fallback, English drafts, the users' notice, action-plan tasks) — the first
+tests of `incident_rules.py` at all; every other test script passes.
+**Not checked in the app; not deployed.**
 
 ---
 
