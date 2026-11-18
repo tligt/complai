@@ -7601,7 +7601,7 @@ selector. The multi-client selector is Advisory-only (S47).
 | Systems grid purpose granularity | S66 | `st.data_editor` has nowhere to review a per-language draft. Detail form, or accept single-language, or drop from the Cookie Policy. |
 | Retention basis citations in `note_*` | — | D-51 deferred them. Needs counsel review before RECOSA asserts national law. |
 | ~~Belgian DPA cookie guidance + 5-year figure~~ | S27 | **Resolved 18 Sept — D-98.** Primary source found and read: the "dated, versioned, previous copies retained" practice is correctly attributed to the Belgian DPA. The five-year figure is not — no primary source states it, and the comment in `database.py` already correctly called it a working figure rather than law. Nothing to change in the code; the open item was the citation, now closed. |
-| Leaked password protection | S50 | Supabase's security check flags it as off (9 Nov). On the hosted Supabase it is a paid-plan feature, so it stays off for now, by the user's choice. Revisit with S50: on the self-hosted Supabase (Scaleway) check whether its Auth offers the same check against known leaked passwords (HaveIBeenPwned), and turn it on before the beta. **16 Nov (D-179): S50 closed, this item stays open** — production's Auth has no HIBP setting configured. |
+| ~~Leaked password protection~~ | ~~S50~~ | **Done 18 Nov (D-195)** — on, on the self-hosted Auth. Was: Supabase's security check flags it as off (9 Nov). On the hosted Supabase it is a paid-plan feature, so it stays off for now, by the user's choice. Revisit with S50: on the self-hosted Supabase (Scaleway) check whether its Auth offers the same check against known leaked passwords (HaveIBeenPwned), and turn it on before the beta. **16 Nov (D-179): S50 closed, this item stays open** — production's Auth has no HIBP setting configured. |
 | Rolling retention start dates | S65 | "3 years from last contact" needs `retention_starts_from`, not a basis code. |
 | ~~AI Act role: per client or per system?~~ | S56 | **Resolved 18 Sept: per system** (`systems.ai_role`), confirmed against the live schema. Per-legal-entity still waits on S51. |
 | ~~Art. 4 AI literacy in the catalogue?~~ | S55 | **Resolved 18 Sept: yes**, `ai_01`, `applies_from: "2025-02-02"`. |
@@ -8490,6 +8490,35 @@ monitor runs, D-174), as RSS like Euractiv and Politico:
 lists 11 active sources, both new ones included. First real run: the next
 daily marketing monitor (07:00 UTC). Not added to dev, where marketing
 monitoring no longer runs.
+
+### D-195 — Leaked-password protection on, 18 Nov
+
+By request — the last pre-beta item left from S50. A paid toggle on hosted
+Supabase; built into the open-source Auth (GoTrue v2.197.0 on Scaleway, whose
+binary carries the HIBP configuration and the pwnedpasswords range lookup).
+
+- **Setting:** `GOTRUE_PASSWORD_HIBP_ENABLED: "true"` in
+  `deploy/supabase.override.yml`, beside RECOSA's other Auth settings. On the
+  server that file is a copy (`/opt/recosa/supabase/docker/docker-compose.override.yml`);
+  it was checked identical to the repo's previous version before being
+  replaced (old copy kept as `/root/supabase-override.bak-20261118`), then
+  only the auth container was recreated — healthy, the variable present.
+- **Privacy:** only the first 5 characters of the password's SHA-1 hash leave
+  the server (k-anonymity); never the password, the full hash or the email.
+  The service (Have I Been Pwned) is outside the EU, but receives nothing
+  personal — worth one line in the privacy notes.
+- **The app:** Auth answers `weak_password`; `auth.password_refused` maps it
+  to `LEAKED_PASSWORD_MSG` ("This password has appeared in a known data
+  breach…") at sign-up, on the password-reset page (without the "ask for a new
+  link" advice, which would be wrong here) and on Account (FR/NL).
+  Deployed (d8a92eb → 332836f).
+- **Proof on production:** a sign-up for a dummy example.com address with
+  "password123", from the jobs container with the app's own client →
+  refused, `weak_password`; no account created (0 rows in auth.users). The
+  app's mapping recognises that exact error.
+
+Not tested: what happens when HIBP is unreachable — the setting for failing
+closed was left at its default.
 
 ---
 
