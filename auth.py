@@ -444,6 +444,20 @@ def _login_form(funnel: dict, admin: bool = False) -> None:
                     'for a free trial.</div>', unsafe_allow_html=True)
 
 
+# D-195: the self-hosted Auth refuses a password found in known data breaches
+# (Have I Been Pwned, GOTRUE_PASSWORD_HIBP_ENABLED). It answers with the error
+# code "weak_password"; the app's own 8-character rule runs first, so in
+# practice that code means a breached password.
+LEAKED_PASSWORD_MSG = ("This password has appeared in a known data breach, so it is easy to "
+                       "guess. Please choose another one.")
+
+
+def password_refused(e: Exception) -> bool:
+    """Whether Auth refused the password itself (rather than failing)."""
+    return (getattr(e, "code", None) == "weak_password"
+            or "weak_password" in str(e) or "pwned" in str(e).lower())
+
+
 def _auth_error(e: Exception) -> str:
     """Supabase's messages are English and technical; the two that people
     actually hit get a plain sentence."""
@@ -534,7 +548,7 @@ def _signup_form(funnel: dict) -> None:
     try:
         res = get_supabase().auth.sign_up({"email": new_email, "password": new_password})
     except Exception as e:
-        st.error(f"Sign up failed: {e}")
+        st.error(LEAKED_PASSWORD_MSG if password_refused(e) else f"Sign up failed: {e}")
         return
     if not res.user:
         st.error("Sign up failed. Please try again.")
@@ -694,6 +708,8 @@ def set_new_password_ui() -> None:
             st.session_state.pop("recover_pw", None)
             st.success("Saved. Taking you to RECOSA…")
             st.rerun()
+        elif err == LEAKED_PASSWORD_MSG:      # the link is fine; only the password is refused
+            st.error(err)
         else:
             st.error(f"Could not save it: {err}. Ask for a new link and try again.")
 
@@ -743,4 +759,4 @@ def change_password(new_password: str) -> tuple[bool, str | None]:
         sessions.delete_others(get_user_id(), st.session_state.get("sid"))
         return True, None
     except Exception as e:
-        return False, str(e)
+        return False, (LEAKED_PASSWORD_MSG if password_refused(e) else str(e))

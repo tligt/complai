@@ -1475,5 +1475,6 @@
  "**Confirm the {declared} you declared**": "**Confirmez les {declared} déclarés**",
  "1 area": "1 domaine",
  "{n} areas": "{n} domaines",
- " — your full report will detail the actions to take.": " — votre rapport complet détaillera les actions à mener."
+ " — your full report will detail the actions to take.": " — votre rapport complet détaillera les actions à mener.",
+ "This password has appeared in a known data breach, so it is easy to guess. Please choose another one.": "Ce mot de passe figure dans une fuite de données connue, il est donc facile à deviner. Veuillez en choisir un autre."
 }

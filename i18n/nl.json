@@ -1475,5 +1475,6 @@
  "**Confirm the {declared} you declared**": "**Bevestig de {declared} die u opgaf**",
  "1 area": "1 domein",
  "{n} areas": "{n} domeinen",
- " — your full report will detail the actions to take.": " — uw volledige rapport zal de te nemen acties toelichten."
+ " — your full report will detail the actions to take.": " — uw volledige rapport zal de te nemen acties toelichten.",
+ "This password has appeared in a known data breach, so it is easy to guess. Please choose another one.": "Dit wachtwoord komt voor in een bekend datalek en is dus makkelijk te raden. Kies een ander wachtwoord."
 }

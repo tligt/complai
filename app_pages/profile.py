@@ -87,7 +87,9 @@ with st.form("profile_password"):
             if ok:
                 st.success(tr("Password changed."))
             else:
-                st.error(tr("Could not change password: {err}").format(err=err))
+                from auth import LEAKED_PASSWORD_MSG   # D-195
+                st.error(tr(LEAKED_PASSWORD_MSG) if err == LEAKED_PASSWORD_MSG
+                         else tr("Could not change password: {err}").format(err=err))
 
 st.divider()
 

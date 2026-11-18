@@ -40,3 +40,10 @@ services:
       GOTRUE_MAILER_SUBJECTS_RECOVERY: Reset your RECOSA password
       GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://caddy:8080/confirmation.html
       GOTRUE_MAILER_SUBJECTS_CONFIRMATION: Confirm your email for RECOSA
+      # D-195: refuse passwords found in known data breaches (Have I Been
+      # Pwned), at sign-up and password change. A paid toggle on hosted
+      # Supabase, built into the open-source Auth. Only the first 5 characters
+      # of the password's SHA-1 hash leave the server (k-anonymity range API);
+      # never the password, the full hash or the email. The app shows
+      # auth.LEAKED_PASSWORD_MSG for the "weak_password" answer.
+      GOTRUE_PASSWORD_HIBP_ENABLED: "true"
