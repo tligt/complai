@@ -8587,6 +8587,31 @@ cookies with consent, a website CSRF cookie and the banner.
 
 The privacy notice's "Cookies" section (D-196) already matches.
 
+### D-198 — Public Sans self-hosted: the apps no longer call Google Fonts, 18 Nov
+
+By request — the second half of the 16 Nov reminder. All three Streamlit apps
+loaded Public Sans from fonts.googleapis.com, which sends each visitor's IP
+address to Google (LG München, 20 Jan 2022, 3 O 17493/20). Three places:
+`.streamlit/config.toml` (the theme font of all three apps), and an
+`@import` in `login_page.py` and in `quiz/quiz_app.py`.
+
+- **The files:** Public Sans v2.001, the official USWDS release (pinned tag,
+  not the develop branch; SIL Open Font License — the licence is kept beside
+  them): the five weights the apps use, Regular to ExtraBold, 33–34 KB of
+  WOFF2 each. In `static/fonts/` for the client app and the back office, and
+  a copy in `quiz/static/fonts/` — Streamlit serves `static/` next to each
+  app's own main script, and the free check runs from `quiz/`.
+- **The config:** `server.enableStaticServing = true`; five
+  `[[theme.fontFaces]]` tables pointing at `app/static/fonts/…`;
+  `font = "Public Sans, sans-serif"`. The two `@import` lines removed —
+  their CSS already names 'Public Sans', which now resolves to these faces.
+
+Checked locally in the browser: the free check, the login page, and a page
+on its own path (/inventory) — every Public Sans file from
+`/app/static/fonts/` (HTTP 200), **0 requests to Google**, the faces loaded
+as `document.fonts` reports. The website (Framer) needed nothing: it serves
+its fonts from its own CDN. **Not yet deployed.**
+
 ---
 
 *End of record. Append at sprint close.*

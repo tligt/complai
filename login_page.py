@@ -20,7 +20,7 @@ WEBSITE_URL = "https://www.recosa.eu"
 
 _CSS = """
 <style>
-@import url("https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;700;800&display=swap");
+/* Public Sans comes from the theme's self-hosted font faces (D-198), not Google. */
 [data-testid="stSidebar"] { width: 0 !important; min-width: 0 !important; overflow: hidden !important; }
 [data-testid="stSidebarCollapsedControl"], [data-testid="stHeader"] { display: none !important; }
 .stApp { background: #FFFFFF; }

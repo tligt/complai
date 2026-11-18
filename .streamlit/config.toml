@@ -7,7 +7,42 @@
 # Read from the folder Streamlit runs in: the repository root, locally, on
 # Streamlit Cloud and in the S50 containers.
 
+[server]
+# Serves static/ next to each app's main script at app/static/ — the fonts
+# below (D-198). The free check runs from quiz/, so it has its own copy in
+# quiz/static/fonts/.
+enableStaticServing = true
+
 [theme]
 base = "light"
 primaryColor = "#003366"
-font = "Public Sans:https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap"
+# D-198: self-hosted, no longer from fonts.googleapis.com — that sent every
+# visitor's IP address to Google (LG München, 20 Jan 2022). Public Sans
+# v2.001, the official USWDS release (SIL Open Font License, licence beside
+# the files); the five weights the apps use.
+font = "Public Sans, sans-serif"
+
+[[theme.fontFaces]]
+family = "Public Sans"
+url = "app/static/fonts/PublicSans-Regular.woff2"
+weight = "400"
+
+[[theme.fontFaces]]
+family = "Public Sans"
+url = "app/static/fonts/PublicSans-Medium.woff2"
+weight = "500"
+
+[[theme.fontFaces]]
+family = "Public Sans"
+url = "app/static/fonts/PublicSans-SemiBold.woff2"
+weight = "600"
+
+[[theme.fontFaces]]
+family = "Public Sans"
+url = "app/static/fonts/PublicSans-Bold.woff2"
+weight = "700"
+
+[[theme.fontFaces]]
+family = "Public Sans"
+url = "app/static/fonts/PublicSans-ExtraBold.woff2"
+weight = "800"
