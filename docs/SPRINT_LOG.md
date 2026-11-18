@@ -8402,7 +8402,13 @@ was not part of the request and is unchanged.
 Checked: a preview page calling the real component with sample answers —
 GDPR (2 of 10), NIS2 (2 of 13), AI Act (2 of 9) — each shows its two orange
 areas boxed with the lock line, the rest ticked, and the call to action. Six
-strings in French and Dutch. **Not yet deployed** to the public app.
+strings in French and Dutch.
+
+**Deployed the same day** (`deploy/update.sh`, a82b53e → 16f507c; admin, app
+and quiz healthy, no errors in the free-check log); check.recosa.eu loads on
+the new code. Not completed there on purpose: a run-through would record real
+funnel events in production's analytics — the first real prospect's result
+page is the live check.
 
 ---
 
