@@ -349,7 +349,7 @@ open, scope. **Closed 30 Sept — D-110.** Both flows now link the path.
 1. ~~**S45** — finish: deploy the public quiz.~~ **Done 22 Oct:** live at https://recosa-checklist.streamlit.app, verified end to end.
 2. **S47** — confirmed complete 22 Oct: all ten pages use `get_active_client`; no `.single()` or `clients[0]` client lookups remain.
 3. ~~**S48** — finish: `CBEAPI_KEY` secret and a redeploy.~~ **Done 22 Oct:** verified in production.
-4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115). **Built and live 22 Oct (D-116).** Left: the website report email sent for real, and the quiz copy review.
+4. **S49** — free checks to subscription funnel: NIS2 quiz and website check (added 22 Oct — D-115). **Built and live 22 Oct (D-116). Closed 18 Nov (D-181)**, nothing left open.
 5. **S50** — migrate to production environment with EU sovereignty. **Waits until closer to the beta (D-141).**
 6. **S51** — session hardening, the beta gate. GDPR deletion moved out to S69 (D-142).
 
@@ -367,7 +367,7 @@ the only sprint that *is* the gate.
 |---|---|---|
 | ~~S39~~ | ~~Migration to European infrastructure~~ | **Cancelled 22 Oct**, replaced by S50 — D-114, D-115 |
 | ~~S40~~ | ~~GDPR deletion + session hardening~~ | **Cancelled 22 Oct**, replaced by S51 — D-114, D-115 |
-| **S49** | **Free checks to subscription funnel** | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. Open: the website report email by real send, and the quiz copy review. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
+| ~~S49~~ | ~~Free checks to subscription funnel~~ | **Built and live 22 Oct — D-116; part 2 (one form, result after confirmation, own site) built and tested live 26 Oct — D-119. Closed.** Verified live: website check, signup carry-over, quiz result email delivered. **Fully closed 18 Nov (D-181):** the website report email went out for real on 4 Nov (D-138); the copy review of the four free checks is done. New 22 Oct — D-115, scope lock in 3b. Two free checks, one principle — the NIS2 quiz and the GDPR website check: free to check, the full result by email or in an account. Optional email on the quiz sends the full result and records a lead; CTA carries the answers into signup; a registered account sees only its result, every other page leads to the subscribe page with a free trial |
 | ~~S50~~ | ~~Migrate to production environment with EU sovereignty~~ | **Closed 16 Nov (D-179).** Production live on Scaleway since 12 Nov (D-172), Compliance Pulse moved 13 Nov (D-174), jobs running since 16 Nov (D-177). Carried as its own pre-beta item, not this sprint: leaked-password protection (open questions table). — **Started 9 Nov by request (D-157)**: runbook brought up to date, `deploy/provision.sh` ready (dry run checked); nothing created until the user approves the plan and its cost. Waited until then by choice (5 Nov, D-141). New 22 Oct, replaces S39 — D-114; S49 until D-115. D-67/D-68 still apply: self-hosted Supabase + containerised app on EU infrastructure |
 | ~~S51~~ | ~~Session hardening~~ | **Closed 16 Nov (D-179).** The hour-long token refresh is confirmed in a real browser on production: back-office logins kept in use for 4 h 05 (13 Nov) and 2 h 49 (16 Nov) on one session. The PDF/ODT fallback was already in place (a failed conversion leaves the DOCX). — **Built and live 5 Nov (D-143)**: login kept across reloads and tabs, tested on Streamlit Cloud; left: a token refresh after an hour, in a browser. GDPR deletion moved out to S69. New 22 Oct, replaces S40 with the same scope — D-114; S50 until D-115. Includes the refresh-logs-out bug and the PDF/ODT fallback (section 7). **BETA GATE** |
 
@@ -7911,6 +7911,18 @@ track sources. Reviewed first, then "go ahead with step 2".
   and it logs consents to the *dev* Supabase project with a placeholder
   key — every log fails silently. For the user to decide.
 - **Next:** the Funnel and Goals reports in Umami, once events have come in.
+
+### D-181 — S49 fully closed: the copy review is done, 18 Nov
+
+The user reviewed the copy of the public free checks: the NIS2, AI Act and
+GDPR Quick Checks (questions, answers, bands), the NIS2 scope rules, and the
+result pages. Its other open item was already met: the website report email
+was sent for real in the 4 Nov sign-up (D-138), recorded under S55 at the
+time. **S49 closed, nothing left open.**
+
+Not changed by the review: the marketing-consent text in `funnel.py` still
+reads "NIS2 and GDPR" (`CONSENT_VERSION = "2026-10-22"`); adding the AI Act
+would need a new version (D-133).
 
 ---
 
