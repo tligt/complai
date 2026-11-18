@@ -959,3 +959,87 @@ def consistency(
         retention_basis_meta=meta,
         dpa_gap_codes=gaps,
     )
+
+
+# ── S66: cookie purposes, one row per system and purpose ─────────────────
+
+
+def load_cookie_purposes(client_id: str | None) -> list[dict]:
+    """Every cookie purpose recorded for a company's systems, in order."""
+    if not client_id:
+        return []
+    try:
+        return (get_supabase().table("system_cookie_purposes").select("*")
+                .eq("client_id", client_id).order("sort_order").execute().data or [])
+    except Exception:
+        return []
+
+
+def clean_cookie_purposes(
+    rows: list[Mapping[str, Any]],
+    languages: list[str],
+    valid_codes: set[str],
+) -> tuple[list[dict], list[str]]:
+    """The editor's rows as they will be stored, and what is wrong with them.
+
+    Pure: no database. A row with no purpose chosen is dropped when it is
+    otherwise empty (the editor's blank last line), and an error when it has a
+    description or cookies — something was typed and would be lost. Each
+    purpose once per system: the database refuses a duplicate anyway, and a
+    message beats a raw 23505.
+    """
+    out: list[dict] = []
+    errors: list[str] = []
+    seen: set[str] = set()
+    for i, r in enumerate(rows):
+        code = (r.get("purpose_code") or "").strip() or None
+        desc = {l: str(r.get(f"desc_{l}") or "").strip() for l in languages}
+        desc = {l: v for l, v in desc.items() if v}
+        cookies = str(r.get("cookie_names") or "").strip() or None
+        if not code:
+            if desc or cookies:
+                errors.append(f"Row {i + 1}: choose the purpose.")
+            continue
+        if code not in valid_codes:
+            errors.append(f"Row {i + 1}: unknown purpose {code!r}.")
+            continue
+        if code in seen:
+            errors.append(f"Row {i + 1}: this purpose is listed twice.")
+            continue
+        seen.add(code)
+        out.append({"purpose_code": code, "description_i18n": desc,
+                    "cookie_names": cookies, "sort_order": len(out)})
+    return out, errors
+
+
+def save_cookie_purposes(
+    system: Mapping[str, Any],
+    rows: list[dict],
+    user_id: str,
+    client_id: str | None,
+) -> list[str]:
+    """Replace a system's cookie purposes with `rows` (from clean_cookie_purposes).
+
+    Upsert on (system_id, purpose_code), then delete the purposes no longer
+    listed, so an edit keeps its row id and created_at.
+    """
+    from datetime import datetime, timezone
+    sb = get_supabase()
+    sid = system["id"]
+    try:
+        if rows:
+            sb.table("system_cookie_purposes").upsert(
+                [{**r, "system_id": sid, "client_id": client_id, "user_id": user_id,
+                  "updated_at": datetime.now(timezone.utc).isoformat()} for r in rows],
+                on_conflict="system_id,purpose_code").execute()
+        keep = [r["purpose_code"] for r in rows]
+        q = sb.table("system_cookie_purposes").delete().eq("system_id", sid)
+        if keep:
+            q = q.not_.in_("purpose_code", keep)
+        q.execute()
+    except Exception as e:
+        return [str(e)]
+    _audit(client_id, f"Changed the cookie purposes of {system.get('name') or 'a system'}",
+           "cookie_purposes_saved", user_id, system_id=sid,
+           purposes=[r["purpose_code"] for r in rows])
+    return []

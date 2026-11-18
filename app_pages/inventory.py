@@ -587,6 +587,49 @@ with tab_systems:
                     st.session_state.pop(k, None)
                 st.rerun()
 
+    # ── S66 (D-187): cookie purposes, one row per purpose ──────────────────
+    # Only for a saved system that sets cookies: the rows belong to a system
+    # id, and a system that sets none has nothing to declare. Outside the
+    # system's box on purpose — its own Save, so editing purposes never
+    # resubmits the whole inventory grid.
+    if cur and cur.get("sets_cookies"):
+        _cp_codes, _cp_labels = INV.options_for("cookie_purpose", lang, client_id)
+        _cp_rows = [p for p in STORE.load_cookie_purposes(client_id)
+                    if p["system_id"] == cur["id"]]
+        with st.container(border=True):
+            st.markdown(tr("**What its cookies are for**"))
+            st.caption(tr("One line per purpose. Your Cookie Policy lists this vendor once "
+                          "per purpose, so each purpose can be consented to on its own. "
+                          "With no line here, it shows \"What you use it for\" as before."))
+            _cp_df = pd.DataFrame(
+                [{"purpose_code": p["purpose_code"],
+                  **{f"desc_{l}": (p.get("description_i18n") or {}).get(l, "") for l in doc_langs},
+                  "cookie_names": p.get("cookie_names") or ""} for p in _cp_rows],
+                columns=["purpose_code"] + [f"desc_{l}" for l in doc_langs] + ["cookie_names"])
+            _cp_edit = st.data_editor(
+                _cp_df, num_rows="dynamic", hide_index=True, use_container_width=True,
+                key=f"inv_cp_{cur['id']}",
+                column_config={
+                    "purpose_code": st.column_config.SelectboxColumn(
+                        tr("Purpose"), options=_cp_codes, required=True,
+                        format_func=lambda c: _cp_labels.get(c, c)),
+                    **{f"desc_{l}": st.column_config.TextColumn(
+                        tr("Description ({lang})").format(lang=l.upper()),
+                        help=tr("Optional. What the cookies do, in the reader's words."))
+                       for l in doc_langs},
+                    "cookie_names": st.column_config.TextColumn(
+                        tr("Cookies"), help=tr("Names where you know them, e.g. _ga, _gid.")),
+                })
+            if st.button(tr("Save the purposes"), key=f"inv_cp_save_{cur['id']}"):
+                _clean, _errs = STORE.clean_cookie_purposes(
+                    _cp_edit.to_dict("records"), doc_langs, set(_cp_codes))
+                _errs = _errs or STORE.save_cookie_purposes(cur, _clean, user_id, client_id)
+                for e in _errs:
+                    st.error(e)
+                if not _errs:
+                    st.session_state.pop(f"inv_cp_{cur['id']}", None)
+                    st.rerun()
+
     if ready["dpa_gaps"]:
         st.warning(
             "No signed processing agreement recorded for: "

@@ -1414,5 +1414,12 @@
  "A retention period is set without saying why that period. Choose the reason — a legal requirement, the contract, a limitation period.": "Une durée de conservation est indiquée sans dire pourquoi cette durée. Choisissez le motif — une obligation légale, le contrat, un délai de prescription.",
  "An archive period is recorded with no reason. Keeping data after its active use needs its own justification, usually a legal requirement.": "Une durée d'archivage est enregistrée sans motif. Conserver des données après leur utilisation active demande sa propre justification, en général une obligation légale.",
  "The reason given for the {label} period is a legal requirement of {where}, not of {country}. Check the period against your own country's law.": "Le motif donné pour la durée d'{label} est une obligation légale de {where}, pas de {country}. Vérifiez la durée au regard du droit de votre pays.",
- "{system} processes data for this activity as a processor, and no signed data processing agreement is recorded for it (Art. 28(3)).": "{system} traite des données pour cette activité en tant que sous-traitant, et aucun contrat de sous-traitance signé n'est enregistré pour lui (art. 28(3))."
+ "{system} processes data for this activity as a processor, and no signed data processing agreement is recorded for it (Art. 28(3)).": "{system} traite des données pour cette activité en tant que sous-traitant, et aucun contrat de sous-traitance signé n'est enregistré pour lui (art. 28(3)).",
+ "**What its cookies are for**": "**À quoi servent ses cookies**",
+ "One line per purpose. Your Cookie Policy lists this vendor once per purpose, so each purpose can be consented to on its own. With no line here, it shows \"What you use it for\" as before.": "Une ligne par finalité. Votre politique de cookies cite ce fournisseur une fois par finalité, pour que chaque finalité puisse faire l'objet d'un consentement distinct. Sans ligne ici, elle affiche « Ce à quoi il vous sert » comme avant.",
+ "Save the purposes": "Enregistrer les finalités",
+ "Cookies": "Cookies",
+ "Names where you know them, e.g. _ga, _gid.": "Les noms si vous les connaissez, p. ex. _ga, _gid.",
+ "Optional. What the cookies do, in the reader's words.": "Facultatif. Ce que font les cookies, avec les mots du lecteur.",
+ "Description ({lang})": "Description ({lang})"
 }

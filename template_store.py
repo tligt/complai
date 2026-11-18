@@ -128,26 +128,87 @@ def _load_vendor_rows(client_id: str, language: str) -> list[dict[str, Any]]:
         if r and r not in bucket:
             bucket.append(r)
 
+    # S66 (D-187): the purposes per system, where recorded. A failed read
+    # (the table not there yet) gives the pre-S66 policy, not no policy.
+    try:
+        purposes = (
+            sb.table("system_cookie_purposes")
+            .select("system_id, purpose_code, description_i18n, cookie_names, sort_order")
+            .in_("system_id", [s["id"] for s in systems])
+            .order("sort_order")
+            .execute()
+            .data or []
+        )
+    except Exception as e:
+        print(f"Cookie purposes not read: {e}")
+        purposes = []
+    purposes_by_system: dict[str, list[dict]] = {}
+    for p in purposes:
+        purposes_by_system.setdefault(p["system_id"], []).append(p)
+
+    return build_vendor_rows(systems, roles_by_system, purposes_by_system,
+                             language, label_for)
+
+
+def build_vendor_rows(
+    systems: list[Mapping[str, Any]],
+    roles_by_system: Mapping[str, list[str]],
+    purposes_by_system: Mapping[str, list[Mapping[str, Any]]],
+    language: str,
+    label_for: Any,
+) -> list[dict[str, Any]]:
+    """The Cookie Policy's rows: one per vendor and purpose (S66, D-187).
+
+    Pure — label_for is passed in — so the shape can be tested without a
+    database.
+
+    A system with purposes recorded gives one row per purpose: the purpose's
+    description in this language (then English, then the purpose's own label,
+    so the cell is never blank), its cookie names in brackets, and the purpose
+    as the category. A system with none gives the one row it always did, from
+    "What you use it for" and the system's category — nothing a client wrote
+    before S66 renders differently.
+    """
     out: list[dict[str, Any]] = []
     for s in systems:
         roles = roles_by_system.get(s["id"], [])
-        out.append({
-            # The legal entity is what a cookie policy should name — "Meta
-            # Platforms Ireland Limited", not "Meta Pixel" — but the trade name
-            # is what a reader recognises, so fall back rather than blanking.
-            "vendor_name": s.get("vendor_legal_name") or s.get("name"),
-            # S26C part 2. A published cookie policy is the most exposed place
-            # client free text appears — no one has to ask for it to read it.
-            "purpose": _i18n(s, "purpose", language),
-            "unreviewed": _is_unreviewed(s, "purpose", language),
-            "category_label": (
-                label_for("system_category", s["category"], language)
-                if s.get("category") else None
-            ),
-            "role_label": "; ".join(
-                label_for("system_role", r, language) for r in roles
-            ) or None,
-        })
+        role_label = "; ".join(
+            label_for("system_role", r, language) for r in roles
+        ) or None
+        # The legal entity is what a cookie policy should name — "Meta
+        # Platforms Ireland Limited", not "Meta Pixel" — but the trade name
+        # is what a reader recognises, so fall back rather than blanking.
+        vendor = s.get("vendor_legal_name") or s.get("name")
+
+        rows = purposes_by_system.get(s["id"]) or []
+        if not rows:
+            out.append({
+                "vendor_name": vendor,
+                # S26C part 2. A published cookie policy is the most exposed
+                # place client free text appears — no one has to ask for it.
+                "purpose": _i18n(s, "purpose", language),
+                "unreviewed": _is_unreviewed(s, "purpose", language),
+                "category_label": (
+                    label_for("system_category", s["category"], language)
+                    if s.get("category") else None
+                ),
+                "role_label": role_label,
+            })
+            continue
+        for p in rows:
+            label = label_for("cookie_purpose", p["purpose_code"], language)
+            blob = p.get("description_i18n") or {}
+            desc = next((str(blob[l]).strip() for l in (language, "en")
+                         if isinstance(blob, Mapping) and str(blob.get(l) or "").strip()),
+                        None) or label
+            names = (p.get("cookie_names") or "").strip()
+            out.append({
+                "vendor_name": vendor,
+                "purpose": f"{desc} ({names})" if names else desc,
+                "unreviewed": False,
+                "category_label": label,
+                "role_label": role_label,
+            })
     return out
 
 

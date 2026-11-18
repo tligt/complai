@@ -392,7 +392,7 @@ the only sprint that *is* the gate.
 | ~~S63~~ | ~~Annual compliance report~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
 | **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | **S65** | **RoPA consistency checks** | **Built and deployed 18 Nov (D-186); the pages not yet looked at in the app.** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
-| S66 | Cookie Policy purpose granularity | was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
+| **S66** | **Cookie Policy purpose granularity** | **Built 18 Nov (D-187); migration on dev only, not deployed; the form not checked in the app.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
 | S67 | Compliance heartbeat — scheduled checks | was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
@@ -8071,6 +8071,64 @@ admin, app and quiz healthy, no errors in the app log). The pages were not
 looked at on production either (skipped by the user): the first real view
 of the RoPA summary, the activity findings and the new action-plan tasks is
 still to come.
+
+### D-187 — S66 built: the Cookie Policy lists each vendor once per purpose, 18 Nov
+
+Built from the scope in 3b (written as S61). A vendor that sets cookies for
+several purposes (Google: analytics, advertising…) was one row with one
+free-text purpose; ePrivacy Art. 5(3) asks for information per purpose and
+consent must be specific (GDPR Art. 4(11)).
+
+**Schema** (`migration_s66_cookie_purposes.sql`, applied to dev):
+- `system_cookie_purposes`: one row per system and purpose — `purpose_code`,
+  `description_i18n` (per document language), `cookie_names` (free text,
+  e.g. "_ga, _gid"), `sort_order`; unique per system and purpose; deleted
+  with its system; the same four RLS policies as `systems`.
+- A new `cookie_purpose` vocabulary (EN/FR/NL/DE): strictly necessary,
+  preferences, analytics, advertising, personalisation, social media,
+  security, other — with `consent_required` (false only for strictly
+  necessary; recorded, not used yet). `reference_values_type_valid` is
+  extended from whatever list the database has, not retyped.
+
+**Two changes from the written scope, on purpose:**
+- **Not the `system_category` vocabulary.** It says what kind of tool a
+  system is (HR and payroll, hosting) and has neither "strictly necessary" —
+  the one purpose exempt from consent — nor "advertising".
+- **No copy of `systems.purpose` as a first row.** "What you use it for"
+  describes the tool for every document, not only this one; a copy would
+  drift from it on the first edit. Instead a cookie-setting system with no
+  purposes recorded renders exactly as before, from that field.
+
+**Input.** The scope's open question (the Systems tab was a grid with no
+room for a list) was settled by the 9 Nov shared table: a system opens in a
+form. Under it, for a saved system that sets cookies, "What its cookies are
+for": an editable table — purpose, a description per document language,
+cookies — with its own Save. `clean_cookie_purposes` drops the blank last
+line, refuses a duplicate or unknown purpose, and refuses a line with text
+but no purpose rather than losing what was typed. Saving upserts on
+(system, purpose) and deletes what was removed, so an edited row keeps its
+id; it goes on the audit trail.
+
+**Rendering** (`template_store.build_vendor_rows`, pure, split out of
+`_load_vendor_rows`): one row per purpose — the description in the
+document's language, then English, then the purpose's own label (never a
+blank cell), cookie names in brackets, the purpose as the category, the
+vendor's roles on each row. The renderer is unchanged. A failed read of the
+new table gives the pre-S66 policy, not an error — so code reaching
+production before the migration breaks nothing.
+
+**Tested:** `test_cookie_purposes.py` (22 checks: no purposes = the old row
+exactly, one row per purpose, language fallback, the label when no
+description, editor rows cleaned and refused); every other test script
+passes. On dev, a round trip on the test company's Google Analytics: two
+purposes saved → two policy rows; one removed → the other keeps its row id;
+cleared → the policy as before; test rows removed. **Not checked in the
+app** (the form), **not deployed**, and **the migration is not yet on
+production** — it must run there before or with the deploy.
+
+**Not done:** catalogue entries do not pre-fill purposes (Google Analytics
+could arrive with "analytics" ticked); the Cookie Policy's own text does not
+yet say which purposes need consent (`consent_required` is there for it).
 
 ---
 

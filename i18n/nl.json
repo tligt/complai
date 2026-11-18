@@ -1414,5 +1414,12 @@
  "A retention period is set without saying why that period. Choose the reason — a legal requirement, the contract, a limitation period.": "Er is een bewaartermijn ingesteld zonder te zeggen waarom die termijn. Kies de reden — een wettelijke verplichting, de overeenkomst, een verjaringstermijn.",
  "An archive period is recorded with no reason. Keeping data after its active use needs its own justification, usually a legal requirement.": "Er is een archiveringstermijn geregistreerd zonder reden. Gegevens bewaren na het actieve gebruik vraagt een eigen rechtvaardiging, meestal een wettelijke verplichting.",
  "The reason given for the {label} period is a legal requirement of {where}, not of {country}. Check the period against your own country's law.": "De reden voor de termijn van {label} is een wettelijke verplichting van {where}, niet van {country}. Controleer de termijn aan de hand van het recht van uw eigen land.",
- "{system} processes data for this activity as a processor, and no signed data processing agreement is recorded for it (Art. 28(3)).": "{system} verwerkt gegevens voor deze activiteit als verwerker, en er is geen ondertekende verwerkersovereenkomst voor geregistreerd (art. 28(3))."
+ "{system} processes data for this activity as a processor, and no signed data processing agreement is recorded for it (Art. 28(3)).": "{system} verwerkt gegevens voor deze activiteit als verwerker, en er is geen ondertekende verwerkersovereenkomst voor geregistreerd (art. 28(3)).",
+ "**What its cookies are for**": "**Waarvoor de cookies dienen**",
+ "One line per purpose. Your Cookie Policy lists this vendor once per purpose, so each purpose can be consented to on its own. With no line here, it shows \"What you use it for\" as before.": "Eén regel per doel. Uw cookiebeleid vermeldt deze leverancier één keer per doel, zodat voor elk doel afzonderlijk toestemming kan worden gegeven. Zonder regel hier toont het „Waarvoor u het gebruikt” zoals voorheen.",
+ "Save the purposes": "Doelen opslaan",
+ "Cookies": "Cookies",
+ "Names where you know them, e.g. _ga, _gid.": "De namen als u ze kent, bv. _ga, _gid.",
+ "Optional. What the cookies do, in the reader's words.": "Optioneel. Wat de cookies doen, in de woorden van de lezer.",
+ "Description ({lang})": "Beschrijving ({lang})"
 }
