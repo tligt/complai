@@ -401,6 +401,7 @@ the only sprint that *is* the gate.
 | **S72** | **Localization — the rest of S64** | **Closed 18 Nov (D-190), deployed.** NL and LU country data; the Dutch DPA from the official OJ text — all 14 templates now exist in Dutch. The lawyer's review split off as S75. New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 | S75 | Lawyer's review of the Dutch texts | New 18 Nov (D-190), split off S72 by request — the one part no code can do. A Belgian lawyer reviews the 13 Dutch templates (`templates/nl_BE/`), the Dutch reference labels, and the Dutch DPA's cover and annexes (its clauses are the official text); the reviewer removes each draft banner and the file is loaded again (`load_template_nl.py`). Not blocking the BE/FR beta |
+| S76 | Company size from filed accounts — NBB (BE) | New 20 Nov (D-199), not scoped. At onboarding (and once a year), read a Belgian company's latest filed annual accounts through the NBB's free **Authentic Data Query** web service (by CBE number → filing references → JSON, XBRL filings since 4 Apr 2022) and pre-fill the average number of employees (FTE) and turnover where filed. Uses: the NIS2 size test (50 staff / €10 M) pre-filled rather than declared; a nudge when the training register (S60) lists fewer people than the filed FTE; the 250-employee mark in the GDPR reasoning (Art. 30(5)); size shown as a filed fact. First step before building: one test call to confirm where the employee figure sits in the JSON. Needs the NBB subscription form and a developer account (developer.cbso.nbb.be). Limits: Belgium only; accounts lag 6–18 months; sole traders and most non-profits file none |
 | S74 | Yearly plans — push customers to commit for a year | New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
 
 **S47 is not reused.** It stays retired as the Advisory multi-client
@@ -8616,6 +8617,30 @@ its fonts from its own CDN.
 On production, in the browser: app.recosa.eu and check.recosa.eu contact only
 themselves and Umami — **no request to Google** — and Public Sans loads from
 `/app/static/fonts/` (served 200, 33,612 bytes for Regular).
+
+### D-199 — S76 registered: company size from the NBB's filed accounts, 20 Nov
+
+By request, after a look at what the National Bank (Central Balance Sheet
+Office) offers — read on nbb.be on 20 Nov, and the Extract quick-start guide
+the user downloaded:
+
+| Channel | What | Price |
+|---|---|---|
+| Consult | One company at a time, on the website (filed accounts as PDF) | Free |
+| NBB.Stat | Aggregated statistics only | Free |
+| Extract | Selection by financial year and model type (mandatory), company numbers (≤500), postal-code range, NACE codes; exports identification, accounting data and ratios as CSV; ≤80,000 companies per request | €500/year |
+| Web services | "Authentic Data" Query and Daily Extract (and archives) | Free — the paid "Improved Data" products end 1 Jan 2027 |
+
+**For prospecting** (the user's question): Extract. No size criterion is
+listed among its search criteria, but the mandatory model type is a size
+class (micro / abbreviated / full) and the accounting export carries the
+employee and turnover figures to filter in a spreadsheet. To confirm with the
+NBB (client.ba@nbb.be) before subscribing: whether size thresholds can be
+search criteria, and the column names. No contact persons in the data.
+
+**For the product:** Authentic Data Query, free, one company per call —
+registered as **S76** (roadmap row above), after the beta, not scoped.
+Consult is for a person, not for the app (no API).
 
 ---
 
