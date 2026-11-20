@@ -8691,8 +8691,11 @@ since a promised end date would be owed even if the venture stops.
   - the free check and the app sign-up, with a valid and an invalid code
   - the test code was deleted
   - `test_invitations.py` and all 14 test files pass
-- **Production:** apply the migration (psql, then `NOTIFY pgrst`) **before**
-  deploying the code.
+- **Deployed the same day:** the migration was applied first (psql, then
+  `NOTIFY pgrst`), then update.sh ran; admin, app and quiz are healthy.
+  Checked on production with a temporary code, deleted afterwards. The
+  invitation shows on check.recosa.eu (with the UTM tags kept) and on
+  app.recosa.eu's sign-up page (pill and form).
 
 ---
 
