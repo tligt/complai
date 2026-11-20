@@ -498,12 +498,28 @@ def _plan_cards(default: str) -> str:
     return chosen
 
 
+def link_invite_ok() -> bool:
+    """D-200: whether the link brought a usable invitation code. app.py checks
+    it once, when it reads the link (a lazy check here was lost when Streamlit
+    interrupted the first run mid-lookup); the pitch and the form both read it."""
+    funnel = st.session_state.get("funnel") or {}
+    return bool(funnel.get("invite") and funnel.get("invite_ok"))
+
+
 def _signup_form(funnel: dict) -> None:
     # A free check result rides along: that account starts free, its result
     # first (S49). Everyone else picks a plan, and its trial starts now
     # (D-126) — the website's buttons say "Free trial".
     plan = None
-    if funnel.get("pending"):
+    # D-200: a beta invitation from the link replaces the plan choice and the
+    # trial — the account starts active on Professional, free during the beta.
+    import invitations as _inv
+    carried = funnel.get("invite")
+    invite_ok = link_invite_ok()
+    if invite_ok:
+        st.success("🎟️ **You're invited** — full access to RECOSA Professional, free during "
+                   "the beta. Create your account below.")
+    elif funnel.get("pending"):
         st.info("Create your free account to see your full result.")
     else:
         # D-174: default to Starter, not Professional, when the link gave no
@@ -516,6 +532,8 @@ def _signup_form(funnel: dict) -> None:
     # does the job a second "confirm" field did, with one field fewer.
     new_password = st.text_input("Password", type="password", key="signup_password",
                                  placeholder="At least 8 characters")
+    typed_code = "" if invite_ok else st.text_input(
+        "Invitation code (optional)", key="signup_code", placeholder="If you received one")
     st.markdown(
         f'<div class="auth-fine" style="text-align:left">Read RECOSA\'s '
         f'<a href="{TERMS_URL}" target="_blank">Terms of Service</a> and '
@@ -527,10 +545,11 @@ def _signup_form(funnel: dict) -> None:
     # replaces it with a real opt-in, for a trial sign-up or not.
     agreed = st.checkbox("I agree to RECOSA's Terms of Service and Privacy Policy",
                          key="signup_agree")
-    label = (f"Start my free trial — {SUBSCRIPTION_TIERS[plan]}" if plan
+    label = ("Create my account" if invite_ok
+             else f"Start my free trial — {SUBSCRIPTION_TIERS[plan]}" if plan
              else "Create my free account")
     clicked = st.button(label, type="primary", use_container_width=True, key="btn_signup")
-    if plan:
+    if plan and not invite_ok:
         st.markdown(f'<div class="auth-fine">{TRIAL_DAYS} days free, no credit card needed.</div>',
                     unsafe_allow_html=True)
     if not clicked:
@@ -545,6 +564,16 @@ def _signup_form(funnel: dict) -> None:
     if not agreed:
         st.warning("Please accept the Terms of Service and Privacy Policy to continue.")
         return
+    # D-200: the invitation to use — from the link, or typed. A typed code that
+    # doesn't work stops here, so the person can correct it rather than land
+    # on a trial they weren't promised.
+    invite = carried if invite_ok else None
+    if not invite and (typed_code or "").strip():
+        invite = _inv.normalise(typed_code)
+        if not (invite and _inv.is_valid(invite)):
+            st.error("This invitation code isn't valid, or has already been used. Check it, "
+                     "or leave the field empty to start a free trial.")
+            return
     try:
         res = get_supabase().auth.sign_up({"email": new_email, "password": new_password})
     except Exception as e:
@@ -572,7 +601,13 @@ def _signup_form(funnel: dict) -> None:
         record_funnel_event("signup", _tool, source, funnel.get("utm"))
         import analytics   # D-180: the same steps, to Umami
         analytics.track("signup", where="app", tool=_tool, src=source, plan=plan)
-        if plan and start_trial(res.user.id, plan):
+        if invite and _inv.redeem(res.user.id, invite):
+            # D-200: active Professional, no trial clock.
+            record_funnel_event("invite_redeemed", None, source, funnel.get("utm"))
+            analytics.track("invite_redeemed", src=source)
+            st.session_state.signup_invite = True
+            plan = None
+        elif plan and start_trial(res.user.id, plan):
             record_funnel_event("trial_started", None, source, funnel.get("utm"))
             analytics.track("trial_started", src=source, plan=plan)
     st.session_state.signup_sent_to = new_email
@@ -590,6 +625,8 @@ def _check_inbox(email: str, plan: str | None) -> None:
         "here and log in."
         + (f"\n\nYour {TRIAL_DAYS}-day free trial of **{SUBSCRIPTION_TIERS[plan]}** "
            "has started — no credit card needed." if plan else "")
+        + ("\n\nYour invitation is applied: **full access to RECOSA Professional, free "
+           "during the beta.**" if st.session_state.get("signup_invite") else "")
     )
     # 9 Nov: a company mail server can hold a first email from a new sender
     # for half an hour (Hostinger did, for recosa.eu); resending doesn't help.

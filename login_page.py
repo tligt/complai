@@ -149,7 +149,13 @@ def render() -> None:
         with card, st.container(key="auth_card"):
             login_ui()
         with pitch:
-            st.markdown(_PITCH, unsafe_allow_html=True)
+            # D-200: an invitation link says so here too, not "14-day free trial".
+            from auth import link_invite_ok
+            _pitch = _PITCH
+            if link_invite_ok():
+                _pitch = _PITCH.replace(f"{TRIAL_DAYS}-day free trial · no credit card",
+                                        "Beta invitation · free during the beta")
+            st.markdown(_pitch, unsafe_allow_html=True)
 
 
 def render_admin() -> None:

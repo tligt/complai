@@ -262,6 +262,8 @@ def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[
                 "recosa_source": st.session_state.get("src") or pending["tool"],
                 "recosa_marketing": bool(marketing),
                 "recosa_consent_version": funnel.CONSENT_VERSION if marketing else None,
+                # D-200: used at the first login (app.py) — active Professional.
+                "recosa_invite": st.session_state.get("invite"),
             }},
             timeout=15,
         )
@@ -309,6 +311,15 @@ def _site_summary(audit) -> dict:
             "warn": audit.warn_count, "fail": audit.fail_count}
 
 
+def _invite_from(qp) -> str | None:
+    """D-200: a beta invitation code from the link, kept only if it is valid."""
+    import invitations
+    code = invitations.normalise(qp.get("code"))
+    if code and _rpc("invitation_code_valid", {"p_code": code}) is True:
+        return code
+    return None
+
+
 def _restore_from_url() -> bool:
     """A reload or a bookmark: the visit as the address holds it. Validated —
     the address is visitor-controlled. False if there is nothing to restore."""
@@ -319,6 +330,7 @@ def _restore_from_url() -> bool:
         return False
     ss.src = (qp.get("src") or "")[:40] or None
     ss.utm = analytics.utm_from_params(qp)
+    ss.invite = _invite_from(qp)
     ss.site_prefill = ""
     ss.plan, ss.done, ss.skipped = _tools(qp.get("plan")), _tools(qp.get("done")), _tools(qp.get("skip"))
     ss.direct = qp.get("direct") == "1"
@@ -360,6 +372,8 @@ def _save_to_url() -> None:
     if ss.get("src"):
         d["src"] = ss.src
     d.update(ss.get("utm") or {})   # D-180: kept on a reload, like src
+    if ss.get("invite"):
+        d["code"] = ss.invite       # D-200: the invitation, kept the same way
     for key, tools in (("plan", ss.plan), ("done", ss.done), ("skip", ss.skipped)):
         if tools:
             d[key] = ",".join(TOOL_CODE[t] for t in tools)
@@ -392,6 +406,7 @@ def _start_from_link() -> None:
         check = funnel.TOOL_WEBSITE
     ss.src = (qp.get("src") or "")[:40] or None
     ss.utm = analytics.utm_from_params(qp)
+    ss.invite = _invite_from(qp)
     ss.site_prefill = (qp.get("site") or "").strip()[:120]
     ss.plan = [check] if check else []
     ss.done, ss.skipped, ss.editing = [], [], []
@@ -491,6 +506,10 @@ def _header() -> None:
     st.markdown(f'<span class="fc-pill">Free · no credit card · a few minutes</span>'
                 f'<div class="fc-h">{h}</div><div class="fc-sub">{sub}</div>',
                 unsafe_allow_html=True)
+    if ss.get("invite"):
+        # D-200: a personal beta invitation, said once at the top of every step.
+        st.success("🎟️ **You're invited** — full access to RECOSA Professional, free during "
+                   "the beta. Take the checks, then create your account to use it.")
     # Where the visitor is. A direct link starts at the check: no step 1.
     stage = {"scope": 0, "plan": 0, "results": 2}.get(ss.step, 1)
     names = (["Your checks", "Your results"] if ss.direct
@@ -866,6 +885,9 @@ def _account_form(pending: dict) -> None:
         pw = c1.text_input("Choose a password (min. 8 characters)", type="password", key="acc_pw")
         pw2 = c2.text_input("Repeat the password", type="password", key="acc_pw2")
         marketing = st.checkbox(funnel.CONSENT_TEXT, value=False, key="acc_mkt")
+        if ss.get("invite"):
+            st.caption("With your invitation, this account gets full access to RECOSA "
+                       "Professional, free during the beta.")
         st.markdown(f'<div class="fc-fine">This creates your free RECOSA account — no credit card. We use '
                     f'your email to send the results and to log you in; updates only if you tick '
                     f'the box. <a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy policy</a></div>',

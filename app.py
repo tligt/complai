@@ -63,7 +63,7 @@ if "ticket" in st.query_params:
 # next to src, and sent on to the funnel events and to Umami.
 import analytics
 if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup",
-                                      "login") + analytics.UTM_KEYS):
+                                      "login", "code") + analytics.UTM_KEYS):
     import funnel as _funnel
     from database import SIGNUP_PLANS as _PLANS
     _src = (st.query_params.get("src") or "")[:40] or None
@@ -73,6 +73,11 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "
         st.query_params.get("scope"), st.query_params.get("aiact"),
         st.query_params.get("gdpr"))
     _signup = (st.query_params.get("signup") or "").strip().lower()
+    # D-200: a beta invitation code, checked here once, before the address is
+    # cleared — if this run is interrupted, the next one reads the link again.
+    import invitations as _inv
+    _invite = _inv.normalise(st.query_params.get("code"))
+    _invite_ok = _inv.is_valid(_invite) if _invite else False
     st.session_state.funnel = {
         "src": _src, "pending": _pending,
         "signup": bool(_signup),
@@ -80,10 +85,11 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "
         # The public app's "Log in instead" link: an existing account.
         "login": st.query_params.get("login") == "1",
         "utm": _utm,
+        "invite": _invite, "invite_ok": _invite_ok,
     }
     record_funnel_event("app_landing", (_pending or {}).get("tool"), _src, _utm)
     analytics.track("app_landing", tool=(_pending or {}).get("tool"), src=_src)
-    for _k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup", "login") + analytics.UTM_KEYS:
+    for _k in ("src", "quiz", "site", "scope", "aiact", "gdpr", "signup", "login", "code") + analytics.UTM_KEYS:
         if _k in st.query_params:
             del st.query_params[_k]
 
@@ -224,6 +230,17 @@ if not _profile.get("pending_result"):
         _save_source = getattr(_db, "save_signup_source", None)
         if _save_source:
             _save_source(user_id, _meta.get("recosa_source"))
+# D-200: an account the free check created with an invitation code carries it
+# in user metadata; the first login uses it (active Professional, free during
+# the beta), before the trial offer could show. Harmless on later logins.
+if (_profile.get("subscription_status") or "registered") in ("registered", "trial"):
+    _invite = (getattr(st.session_state.user, "user_metadata", None) or {}).get("recosa_invite")
+    if _invite:
+        import invitations as _inv
+        if _inv.redeem(user_id, _invite):
+            _profile = {**_profile, "subscription_status": "active", "subscription_tier": "professional"}
+            st.session_state.invite_welcome = True
+
 limited_access = (
     _profile.get("role") != "admin"
     and (_profile.get("subscription_status") or "active") in ("registered", "expired")

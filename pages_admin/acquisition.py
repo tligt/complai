@@ -28,6 +28,55 @@ st.caption("Where signups and leads come from, read from our own funnel_events a
           "wrong. See each event's actual &src=/?check=/?signup= value in \"Recent events\" "
           "below.")
 
+# ── D-200: invitation codes for beta testers ─────────────────────────────
+# Above the funnel figures, which stop the page when there are none yet.
+import invitations as _inv
+from auth import get_user_id as _uid
+
+with st.expander("🎟️ Invitation codes — beta testers", expanded=False):
+    st.caption("A personal code makes the account that signs up with it active on "
+               "Professional, free during the beta, with no trial clock. One use unless you "
+               "say otherwise. Send the link: it opens the free check with the invitation "
+               "shown, and carries the code to sign-up.")
+    with st.form("inv_new", clear_on_submit=True):
+        c1, c2, c3 = st.columns([2, 3, 1])
+        inv_name = c1.text_input("Name (in the code)", placeholder="Prabin")
+        inv_note = c2.text_input("Note", placeholder="Prabin — LinkedIn, Nov 2026")
+        inv_uses = c3.number_input("Uses", min_value=1, max_value=50, value=1, step=1)
+        if st.form_submit_button("Create code", type="primary"):
+            if not inv_name.strip():
+                st.warning("Give a name for the code.")
+            else:
+                code = _inv.create(inv_name, _uid(), note=inv_note.strip() or inv_name.strip(),
+                                   max_uses=int(inv_uses))
+                if code:
+                    st.session_state.inv_created = code
+                else:
+                    st.error("Could not create the code.")
+    if st.session_state.get("inv_created"):
+        _c = st.session_state.inv_created
+        st.success(f"Created **{_c}**. Link to send:")
+        st.code(_inv.invite_link(_c), language=None)
+    _codes = _inv.list_codes()
+    if _codes:
+        st.dataframe([{
+            "Code": c["code"], "Note": c.get("note") or "",
+            "Used": f"{c['uses']}/{c['max_uses']}",
+            "Active": "yes" if c["active"] else "no",
+            "Used by": ", ".join(r["email"] for r in c["redeemed"]),
+            "Created": (c.get("created_at") or "")[:10],
+        } for c in _codes], hide_index=True, use_container_width=True)
+        c1, c2, c3 = st.columns([3, 1, 2])
+        _pick = c1.selectbox("Code", [c["code"] for c in _codes], key="inv_pick",
+                             label_visibility="collapsed")
+        _row = next(c for c in _codes if c["code"] == _pick)
+        if c2.button("Switch off" if _row["active"] else "Switch on", key="inv_toggle"):
+            if _inv.set_active(_pick, not _row["active"]):
+                st.rerun()
+        c3.code(_inv.invite_link(_pick), language=None)
+    else:
+        st.caption("No codes yet.")
+
 period = st.radio("Period", ["Last 7 days", "Last 30 days", "All time"],
                   horizontal=True, index=1, key="acq_period")
 now = datetime.now(timezone.utc)

@@ -8642,6 +8642,58 @@ search criteria, and the column names. No contact persons in the data.
 registered as **S76** (roadmap row above), after the beta, not scoped.
 Consult is for a person, not for the app (no API).
 
+### D-200 — Beta invitation codes: Professional, free during the beta, 20 Nov
+
+By request: the LinkedIn message to beta testers offers RECOSA "free during
+the beta", but the link led to the usual "14-day free trial". The user wanted
+a personal code that says so and makes the offer feel selective. Their
+decision: **Professional, no end date** ("I won't put a date that far away"),
+since a promised end date would be owed even if the venture stops.
+
+- **Database** (`migration_d200_invitation_codes.sql`):
+  - `invitation_codes` (code, plan default professional, note, max_uses
+    default 1, uses, active) and `invitation_redemptions` (code, user, unique
+    together). RLS on, no policies.
+  - `invitation_code_valid(code)`, which anyone may call.
+  - `claim_invitation_code(code, user)`, service role only. The atomic
+    `uses < max_uses` update means two sign-ups can't share a one-use code;
+    the same user claiming again gets the same answer.
+- **`invitations.py`:**
+  - codes look like `BETA-<NAME>-<4 chars>`, with no 0/O/1/I/L
+  - the link opens the free check with `?code=` and the UTM tags
+    linkedin / dm / beta
+  - `redeem` makes the account **active** on the code's plan, with a note in
+    `account_periods`. It only acts on a registered or trial account, and
+    never downgrades a paying one.
+- **Free check:**
+  - a "You're invited" banner
+  - the code carried in the sign-up metadata and applied at first login
+    (app.py)
+- **App sign-up:**
+  - with a valid code from the link: a "You're invited" banner instead of the
+    plan cards, "Create my account", no trial line, and the pitch pill reading
+    "Beta invitation · free during the beta"
+  - without a link code: an optional "Invitation code" field
+  - an invalid code is refused before the account is created
+- **Back office → Acquisition:**
+  - create a code (name, note, uses)
+  - copy its link
+  - list codes, with who used them
+  - switch a code off
+- **Found while checking:** the code was first validated lazily while the
+  page drew. Streamlit interrupts a fresh session's first run, and the "already
+  checked" mark was set before the answer arrived, so the code was lost for the
+  session. It is now checked once in app.py when the link is read, before the
+  address is cleared, so an interrupted run simply reads the link again.
+- **Verified on dev:**
+  - end to end: registered Starter → active Professional with its period
+    note; a second redeem changes nothing; a second user is refused
+  - the free check and the app sign-up, with a valid and an invalid code
+  - the test code was deleted
+  - `test_invitations.py` and all 14 test files pass
+- **Production:** apply the migration (psql, then `NOTIFY pgrst`) **before**
+  deploying the code.
+
 ---
 
 *End of record. Append at sprint close.*
