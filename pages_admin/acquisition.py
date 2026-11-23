@@ -101,6 +101,38 @@ m4.metric("Trials started", by_event.get("trial_started", 0))
 
 st.divider()
 
+# ── D-201: the free check, counted per visitor ──────────────────────────
+# A visit is the free check's anonymous id (kept in its own address, no
+# cookie), so a reload or a second check by the same person counts once.
+# Events from before 23 Nov carry none and are left out here.
+st.subheader("Free check — visitors, step by step")
+_v = {k: {e["visit"] for e in events if e["event"] == k and e.get("visit")}
+      for k in ("check_landing", "results_viewed", "signup")}
+# Someone who arrived on a restored address (a reload, a shared link) has no
+# landing event of their own but did land: count them in the first step.
+_landed = _v["check_landing"] | _v["results_viewed"] | _v["signup"]
+_reached = _v["results_viewed"] | _v["signup"]
+_signed = _v["signup"]
+
+
+def _pct(a: int, b: int) -> str:
+    return f"{a / b:.0%}" if b else "—"
+
+
+f1, f2, f3 = st.columns(3)
+f1.metric("1 · Opened", len(_landed), help="Opened the free check (its first page).")
+f2.metric("2 · Reached results", len(_reached),
+          help="Reached the last page, the results, with at least one check done.")
+f3.metric("3 · Signed up", len(_signed), help="Created an account to get the full report.")
+r1, r2, r3 = st.columns(3)
+r1.metric("Finish rate", _pct(len(_reached), len(_landed)), help="2 ÷ 1")
+r2.metric("Sign-up at the end", _pct(len(_signed), len(_reached)), help="3 ÷ 2")
+r3.metric("Overall", _pct(len(_signed), len(_landed)), help="3 ÷ 1")
+st.caption("Counted per visitor from 23 Nov 2026 (D-201); earlier events have no visitor id and "
+           "only appear in the counts above and below. A visitor who reloads the page counts once.")
+
+st.divider()
+
 # ── Funnel events by stage and source ───────────────────────────────────
 st.subheader("Funnel events, by stage and source")
 st.caption("Each row is one (event, source, check/plan) combination and how many times it "

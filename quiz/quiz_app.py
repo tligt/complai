@@ -236,7 +236,8 @@ def _rpc(fn: str, params: dict):
 
 
 def _event(event: str, tool: str | None = None) -> None:
-    params = {"p_event": event, "p_tool": tool, "p_source": st.session_state.get("src")}
+    params = {"p_event": event, "p_tool": tool, "p_source": st.session_state.get("src"),
+              "p_visit": st.session_state.get("visit")}
     if st.session_state.get("utm"):
         params["p_utm"] = st.session_state.utm
     _rpc("record_funnel_event", params)
@@ -320,6 +321,16 @@ def _invite_from(qp) -> str | None:
     return None
 
 
+def _visit_from(qp) -> str:
+    """D-201: an anonymous id for this visit, so the funnel counts visitors and
+    not events. Random, kept only in the page's own address (no cookie), and
+    carried over a reload; anything else in the address is replaced."""
+    import re
+    import secrets
+    v = (qp.get("v") or "").strip()
+    return v if re.fullmatch(r"[A-Za-z0-9_-]{8,32}", v) else secrets.token_urlsafe(9)
+
+
 def _restore_from_url() -> bool:
     """A reload or a bookmark: the visit as the address holds it. Validated —
     the address is visitor-controlled. False if there is nothing to restore."""
@@ -331,6 +342,7 @@ def _restore_from_url() -> bool:
     ss.src = (qp.get("src") or "")[:40] or None
     ss.utm = analytics.utm_from_params(qp)
     ss.invite = _invite_from(qp)
+    ss.visit = _visit_from(qp)
     ss.site_prefill = ""
     ss.plan, ss.done, ss.skipped = _tools(qp.get("plan")), _tools(qp.get("done")), _tools(qp.get("skip"))
     ss.direct = qp.get("direct") == "1"
@@ -374,6 +386,8 @@ def _save_to_url() -> None:
     d.update(ss.get("utm") or {})   # D-180: kept on a reload, like src
     if ss.get("invite"):
         d["code"] = ss.invite       # D-200: the invitation, kept the same way
+    if ss.get("visit"):
+        d["v"] = ss.visit           # D-201: one visit across reloads, for the funnel counts
     for key, tools in (("plan", ss.plan), ("done", ss.done), ("skip", ss.skipped)):
         if tools:
             d[key] = ",".join(TOOL_CODE[t] for t in tools)
@@ -407,6 +421,7 @@ def _start_from_link() -> None:
     ss.src = (qp.get("src") or "")[:40] or None
     ss.utm = analytics.utm_from_params(qp)
     ss.invite = _invite_from(qp)
+    ss.visit = _visit_from(qp)
     ss.site_prefill = (qp.get("site") or "").strip()[:120]
     ss.plan = [check] if check else []
     ss.done, ss.skipped, ss.editing = [], [], []
@@ -808,6 +823,13 @@ def _results_step() -> None:
             if st.button(f"{icon} {name} · {time}", use_container_width=True, key=f"also_{tool}"):
                 _take(tool)
         return
+
+    # D-201: the last page reached with at least one check done — once per
+    # visit and set of checks (the owner is told, and the funnel counts it).
+    _reached = ",".join(TOOL_CODE[t] for t in taken)
+    if ss.get("results_sent") != _reached:
+        ss.results_sent = _reached
+        _event("results_viewed", _reached)
 
     with st.container(border=True):
         st.markdown("**Your results**")

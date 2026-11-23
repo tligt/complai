@@ -391,13 +391,13 @@ the only sprint that *is* the gate.
 | ~~S62~~ | ~~AI deployer pack: AUP + Human Oversight + AI Transparency Notice~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Built 10 Nov (D-161)**: three templated documents (EN/FR) built from the S61 AI inventory, the Systems DPAs and the S60 Training page; the transparency notice moves off the LLM path; one new field, who approves new AI tools. Generated from live data by script; page and Documents menu checked in the app 10 Nov. was S61 until D-152; was S60 until D-131; S59 until D-115; S57, S54 before. Needs S61's inventory to describe |
 | ~~S63~~ | ~~Annual compliance report~~ | **Closed 16 Nov (D-179)**, nothing left open. — **Scoped and built 10 Nov (D-162)**: one templated report (EN/FR) for the management body over a chosen period (default the last 12 months): score per regulation and what is not in place (as at today), documents put in force or replaced, incidents and late notifications, training, AI uses by risk, actions opened/closed/open, regulatory changes notified (in the period); a sign-off block. Generated from live data by script; page checked. was S62 until D-152; was S61 until D-131; S60 until D-115; S58, S55 before |
 | **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
-| **S65** | **RoPA consistency checks** | **Built and deployed 18 Nov (D-186); the pages not yet looked at in the app.** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
-| **S66** | **Cookie Policy purpose granularity** | **Built and deployed 18 Nov (D-187), migration on dev and production; the form not yet checked in the app.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
-| **S67** | **Compliance heartbeat — scheduled checks** | **Built and deployed 18 Nov (D-188), nightly from 19 Nov 03:40 UTC; no real email seen yet.** Nightly `monitor_heartbeat.py`: stale legal holds, superseded versions nearing deletion, documents not reviewed in a year, systems tied to no activity — to the action plan, and one content-free email per company at most weekly. Website-drift crawl not built. Scope in 3b (under its old number S62). was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
+| ~~S65~~ | ~~RoPA consistency checks~~ | **Closed 23 Nov (D-201):** checked in the app on a copy of the demo company — the checks panel lists its points per activity. — **Built and deployed 18 Nov (D-186).** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
+| ~~S66~~ | ~~Cookie Policy purpose granularity~~ | **Closed 23 Nov (D-201):** the purposes show on the system form, one row each with a description per document language. — **Built and deployed 18 Nov (D-187), migration on dev and production.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
+| **S67** | **Compliance heartbeat — scheduled checks** | **23 Nov (D-201):** runs every night on production without errors, nothing found so no email (correct); a dev dry run finds a system tied to no activity. Left: one real email seen. — **Built and deployed 18 Nov (D-188), nightly from 19 Nov 03:40 UTC.** Nightly `monitor_heartbeat.py`: stale legal holds, superseded versions nearing deletion, documents not reviewed in a year, systems tied to no activity — to the action plan, and one content-free email per company at most weekly. Website-drift crawl not built. Scope in 3b (under its old number S62). was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
-| **S71** | **CRA reporting on the incident clock** | **Built and deployed 18 Nov (D-189); the pages not yet checked in the app.** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
+| ~~S71~~ | ~~CRA reporting on the incident clock~~ | **Closed 23 Nov (D-201):** the CRA question saves on Obligations, and a vulnerability incident shows the CRA track (24 h, 72 h, 14 days after a fix, inform users). — **Built and deployed 18 Nov (D-189).** A third track on the incident clock (CRA Art. 14, checked against the OJ text), the manufacturer question on Obligations, English-only drafts for ENISA's platform. — **Scoped 10 Nov (D-158)**, not locked: `scope/s71_cra_reporting_scope.md`. CRA Art. 14 reporting (24 h / 72 h / final) through ENISA's Single Reporting Platform, in force since 11 Sept 2026, as one more track on the S53 clock. Full CRA stays later. Place to decide: before S60 if a client makes products with digital elements |
 | **S72** | **Localization — the rest of S64** | **Closed 18 Nov (D-190), deployed.** NL and LU country data; the Dutch DPA from the official OJ text — all 14 templates now exist in Dutch. The lawyer's review split off as S75. New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 | S75 | Lawyer's review of the Dutch texts | New 18 Nov (D-190), split off S72 by request — the one part no code can do. A Belgian lawyer reviews the 13 Dutch templates (`templates/nl_BE/`), the Dutch reference labels, and the Dutch DPA's cover and annexes (its clauses are the official text); the reviewer removes each draft banner and the file is loaded again (`load_template_nl.py`). Not blocking the BE/FR beta |
@@ -8696,6 +8696,65 @@ since a promised end date would be owed even if the venture stops.
   Checked on production with a temporary code, deleted afterwards. The
   invitation shows on check.recosa.eu (with the UTM tags kept) and on
   app.recosa.eu's sign-up page (pill and form).
+
+### D-201 — App checks, owner alerts, the free check counted per visitor, 23 Nov
+
+By request.
+
+**App checks** (local, on dev, with a throwaway account holding a copy of the
+demo company; account and data deleted afterwards):
+- **S65 closed:** the consistency-checks panel shows 6 points across 6
+  activities.
+- **S66 closed:** purposes show on the system form.
+- **S71 closed:** the CRA answer saves, and a vulnerability incident gets
+  the four CRA deadlines.
+- **S67:** runs nightly on production without errors and finds nothing, so it
+  sends no email, which is correct. A real email is still to be seen.
+
+**Owner alerts** (`owner_alerts.py`, cron every 10 minutes, to
+`OWNER_ALERT_EMAIL`): one email per run listing what is new:
+- a free check finished (its results page reached), with the checks done,
+  where the visitor came from, and whether they signed up;
+- a new account (trial or beta invitation), with the email and source;
+- a paying client: an account period active on a paid plan and not opened by
+  a beta invitation. Today that is set from the back office; Stripe (S46)
+  will write the same period.
+
+`owner_alerts` remembers each item, so it is announced once and a missed run
+is caught up within two days. Test accounts (`signup_source` "test") are left
+out. The job runs server-side, so the public free check holds no email key.
+
+**Funnel per visitor:**
+- `funnel_events.visit` holds an anonymous id per free-check visit: random,
+  kept in the page's own address (`v=`), no cookie, carried over a reload.
+- New event `results_viewed`.
+- Acquisition → "Free check — visitors, step by step": opened → reached
+  results → signed up, with the finish rate, the sign-up rate at the end, and
+  the overall rate. Counted from 23 Nov; older events have no visit id.
+
+**Fixed:** `record_funnel_event` accepted six event names, so D-200's
+`invite_redeemed` was silently dropped. It now accepts it (migration
+`migration_d201_owner_alerts_funnel_visits.sql`, which also replaces the
+function with the one-argument-longer version).
+
+**Verified on dev:**
+- the free check's events carry the visit id, and a reload keeps it;
+- an alert dry run lists one finished check (not two after a reload), and,
+  with the test account briefly counted, the new account and the paying
+  client;
+- the Acquisition block shows 3 → 1 → 0, 33%;
+- `test_owner_alerts.py` passes.
+
+**Answered, not built:**
+- **Stripe without a subscription:** Stripe has no monthly or set-up fee —
+  1.5% + €0.25 per EEA card payment, plus Stripe Billing at 0.7% of billed
+  volume on pay-as-you-go (no €500/month plan needed). That is about €1.33 on
+  a €49 Starter month and €3.53 on a €149 Professional month. Nothing to pay
+  until someone pays. Building it is S46.
+- **Framer audit:** translation locales are an add-on at $20 per locale per
+  month, on top of the plan. FR + NL is +$40/month. Alternative proposed:
+  S73 (self-host the site; Astro with built-in i18n behind the existing
+  Caddy).
 
 ---
 

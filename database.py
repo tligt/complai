@@ -1796,7 +1796,7 @@ def load_funnel_events(since: str | None = None, limit: int = 2000) -> list[dict
     it. Read back fresh here; nothing before this summarised them."""
     try:
         q = get_supabase_admin().table("funnel_events") \
-            .select("event, tool, source, created_at") \
+            .select("event, tool, source, visit, created_at") \
             .order("created_at", desc=True).limit(limit)
         if since:
             q = q.gte("created_at", since)
