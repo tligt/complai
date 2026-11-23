@@ -144,4 +144,8 @@ def _request_plan(plan: str, user_id: str, ready: bool = True, cycle: str | None
         )
         if ticket:
             st.session_state[sent_key] = True
+            # D-206: the "Subscription requested" goal in Umami. Until Mollie
+            # (S77) a plan request is the purchase; then a paid event joins it.
+            import analytics
+            analytics.track("plan_requested", plan=plan, cycle=_cyc)
             st.rerun()

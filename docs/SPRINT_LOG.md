@@ -8959,6 +8959,16 @@ By the user: the events arrive (D-180) but nothing in Umami used them —
 - Campaign split needs no report of its own: Umami's UTM and Attribution
   reports use these goals, as long as posted links carry utm_* tags.
 
+### D-206 — plan_requested sent to Umami, 23 Nov
+
+By the user: "add it … as we will be adding Mollie very shortly".
+`subscribe_view._request_plan` sends `plan_requested` (plan, cycle) once
+the billing ticket is created; it reaches Umami on the next run's flush,
+like signup and trial. Umami only, not funnel_events: the billing ticket
+already records the request, and record_funnel_event's allow-list would
+need a migration. With S77 Mollie, a paid-subscription event joins it.
+Not clicked live (it would create a real billing ticket).
+
 ---
 
 *End of record. Append at sprint close.*
