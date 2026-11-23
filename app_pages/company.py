@@ -82,7 +82,10 @@ if clients:
                               key=k("sector"))
         size = c7.selectbox(tr("Employees"), SIZE_OPTIONS,
                             index=_opt_index(SIZE_OPTIONS, client.get("company_size"), 0),
-                            key=k("size"))
+                            # S76: keyed on the stored size, so "Use the filed
+                            # size" below shows here at once and a later Save
+                            # can't put the old size back.
+                            key=k(f"size_{client.get('company_size')}"))
         website = st.text_input(tr("Website"), value=client.get("website_url") or "",
                                 key=k("web"), placeholder=tr("https://yourcompany.com"))
 
@@ -147,6 +150,10 @@ if clients:
                     + ". It is set on the Obligations page, next to the obligations it changes.")
         if _n2.button(tr("Set NIS2 scope"), key="co_nis2", use_container_width=True):
             st.switch_page("app_pages/obligations.py")
+
+    # S76: the size filed with the National Bank (Belgium), next to the declared one.
+    import filed_figures_view
+    filed_figures_view.render(client, user_id)
 
     # S52: logo, colour, font and footer line on this company's documents.
     st.divider()

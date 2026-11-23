@@ -1566,9 +1566,13 @@ def _audit_account(account_id: str, summary: str, subtype: str, by: str | None,
 
 def change_account(account_id: str, *, plan: str | None = None, status: str | None = None,
                    trial_ends_at: datetime | None = None, note: str | None = None,
-                   by: str | None = None) -> tuple[bool, str | None]:
+                   by: str | None = None, billing_cycle: str | None = None) -> tuple[bool, str | None]:
     """Change the plan and/or status: closes the open period, opens the next.
     Returns (ok, error message).
+
+    S74: billing_cycle ('monthly' / 'yearly') is kept as it is unless given;
+    '' clears it. A change of cycle alone opens a new period too, so a yearly
+    term counts from the day it was chosen.
 
     A trial always has an end date: `trial_ends_at`, else the current one if
     still ahead, else TRIAL_DAYS from now. Setting a later date on a trial
@@ -1584,6 +1588,9 @@ def change_account(account_id: str, *, plan: str | None = None, status: str | No
         return False, "Unknown plan."
     if new_status not in ACCOUNT_STATUSES:
         return False, "Unknown status."
+    new_cycle = acc.get("billing_cycle") if billing_cycle is None else (billing_cycle or None)
+    if new_cycle not in (None, "monthly", "yearly"):
+        return False, "Unknown billing cycle."
     now = datetime.now(timezone.utc)
 
     ends = None
@@ -1604,7 +1611,8 @@ def change_account(account_id: str, *, plan: str | None = None, status: str | No
 
     same_trial = new_status != "trial" or _minute(ends) == _minute(
         acc.get("trial_ends_at") if acc["status"] == "trial" else None)
-    if (new_plan, new_status) == (acc["plan"], acc["status"]) and same_trial:
+    if ((new_plan, new_status, new_cycle) == (acc["plan"], acc["status"], acc.get("billing_cycle"))
+            and same_trial):
         return True, None                       # nothing changes
 
     if acc["plan"] in MULTI_COMPANY_PLANS and new_plan not in MULTI_COMPANY_PLANS:
@@ -1621,8 +1629,10 @@ def change_account(account_id: str, *, plan: str | None = None, status: str | No
             "account_id": account_id, "plan": new_plan, "status": new_status,
             "trial_ends_at": ends.isoformat() if ends else None,
             "starts_at": now.isoformat(), "note": (note or "").strip() or None, "changed_by": by,
+            "billing_cycle": new_cycle,
         }).execute()
-        upd = {"plan": new_plan, "status": new_status, "updated_at": now.isoformat()}
+        upd = {"plan": new_plan, "status": new_status, "billing_cycle": new_cycle,
+               "updated_at": now.isoformat()}
         if ends:
             upd["trial_ends_at"] = ends.isoformat()
         admin.table("accounts").update(upd).eq("id", account_id).execute()
@@ -1635,13 +1645,43 @@ def change_account(account_id: str, *, plan: str | None = None, status: str | No
         parts.append(f"plan {SUBSCRIPTION_TIERS[acc['plan']]} → {SUBSCRIPTION_TIERS[new_plan]}")
     if new_status != acc["status"]:
         parts.append(f"status {ACCOUNT_STATUSES[acc['status']]} → {ACCOUNT_STATUSES[new_status]}")
+    if new_cycle != acc.get("billing_cycle"):
+        parts.append(f"billing {acc.get('billing_cycle') or 'not set'} → {new_cycle or 'not set'}")
     if ends:
         parts.append(f"trial until {ends.strftime('%d %b %Y')}")
     _audit_account(account_id, "Subscription: " + ", ".join(parts) + (f" ({note})" if note else ""),
                    "subscription_changed", by,
-                   {"plan": new_plan, "status": new_status,
+                   {"plan": new_plan, "status": new_status, "billing_cycle": new_cycle,
                     "trial_ends_at": ends.isoformat() if ends else None})
     return True, None
+
+
+def billing_since(account_id: str | None) -> datetime | None:
+    """S74: when the account's current billing cycle was chosen — the start of
+    the earliest period in the unbroken run of periods with the same plan,
+    status and cycle as now (a note or a trial date change doesn't restart a
+    yearly term). None when unknown."""
+    if not account_id:
+        return None
+    try:
+        rows = get_supabase_admin().table("account_periods") \
+            .select("plan, status, billing_cycle, starts_at").eq("account_id", account_id) \
+            .order("starts_at", desc=True).limit(50).execute().data or []
+    except Exception as e:
+        print(f"Could not load the account's periods: {e}")
+        return None
+    if not rows:
+        return None
+    head = (rows[0]["plan"], rows[0]["status"], rows[0].get("billing_cycle"))
+    start = rows[0]["starts_at"]
+    for r in rows[1:]:
+        if (r["plan"], r["status"], r.get("billing_cycle")) != head:
+            break
+        start = r["starts_at"]
+    try:
+        return datetime.fromisoformat(start.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
 
 
 def update_account_details(account_id: str, fields: dict, by: str | None = None) -> bool:

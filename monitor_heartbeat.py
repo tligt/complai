@@ -59,6 +59,28 @@ def should_email(opened_now: int, open_total: int, last, now: datetime) -> bool:
     return bool(open_total) and (gap is None or gap >= timedelta(days=REMIND_DAYS))
 
 
+FILED_FIGURES_EVERY = timedelta(days=30)
+
+
+def refresh_filed_figures(sb, now: datetime, dry_run: bool = False) -> None:
+    """S76: Belgian companies' filed size, read again at most monthly (accounts
+    are filed once a year, 6–18 months after the year ends). Silent without
+    the NBB key."""
+    import nbb_accounts as NBB
+    if not NBB.configured():
+        return
+    rows = sb.table("clients").select("id, country, enterprise_number, filed_figures") \
+        .eq("country", "BE").execute().data or []
+    due = [c for c in rows if NBB.cbe_number(c.get("enterprise_number"))
+           and ((_since((c.get("filed_figures") or {}).get("checked_at"), now) or FILED_FIGURES_EVERY)
+                >= FILED_FIGURES_EVERY)]
+    done = 0
+    for c in due:
+        if dry_run or NBB.refresh_client(c):
+            done += 1
+    print(f"Filed figures (NBB): {len(due)} due, {done} {'would be ' if dry_run else ''}read.")
+
+
 def run(now: datetime | None = None, dry_run: bool = False) -> dict:
     now = now or datetime.now(timezone.utc)
     today = now.date()
@@ -117,6 +139,7 @@ def run(now: datetime | None = None, dry_run: bool = False) -> dict:
 
     print(f"Done: {totals['opened']} opened, {totals['closed']} closed, "
           f"{totals['sent']} email(s), {totals['errors']} error(s).")
+    refresh_filed_figures(sb, now, dry_run)
     return totals
 
 

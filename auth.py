@@ -12,11 +12,13 @@ from database import (
 # D-126: the plans the sign-up form offers, as the website's pricing page
 # describes them. Prices excluding VAT; keep in step with recosa.eu/pricing.
 # (price, description, short line for the plan card)
+# S74: the prices come from pricing.py (per month; a year = 11 months).
+import pricing as _pricing
 PLAN_INFO = {
-    "starter": ("€49/month", "For micro and small companies: GDPR, NIS2 and the "
+    "starter": (_pricing.price_label("starter"), "For micro and small companies: GDPR, NIS2 and the "
                 "EU AI Act, one user, the core documents.",
                 "Micro and small companies, 1 user"),
-    "professional": ("€149/month", "For growing SMEs: several users, unlimited "
+    "professional": (_pricing.price_label("professional"), "For growing SMEs: several users, unlimited "
                      "website audits, the full document library.",
                      "Growing SMEs, 3 users, full library"),
 }
@@ -487,6 +489,8 @@ def _plan_cards(default: str) -> str:
     cols = st.columns(len(SIGNUP_PLANS))
     for col, p in zip(cols, SIGNUP_PLANS):
         price, line, short = PLAN_INFO[p]
+        # S74: the yearly price next to the monthly one (a year = 11 months).
+        price = f"{price} · {_pricing.price_label(p, 'yearly')}"
         with col, st.container(key=f"plan_{p}_{'on' if p == chosen else 'off'}"):
             if st.button(f"**{SUBSCRIPTION_TIERS[p]}**\n\n{price}\n\n{short}",
                          key=f"plan_pick_{p}", use_container_width=True):

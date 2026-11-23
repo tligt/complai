@@ -149,6 +149,12 @@ tab_clients, tab_monitored = st.tabs(["Client companies", "Monitored companies"]
 
 
 # ── The forms, used in the panel and in the menu's dialogs ───────────────
+def _cycle_label(c: str | None) -> str:
+    """S74: 'Yearly' / 'Monthly' / 'Not set'."""
+    import pricing
+    return pricing.CYCLE_LABELS.get(c or "", "Not set")
+
+
 def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
     with st.form(f"sub_{where}_{acc['id']}"):
         plans, statuses = list(SUBSCRIPTION_TIERS), list(ACCOUNT_STATUSES)
@@ -162,6 +168,13 @@ def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
                                     format_func=SUBSCRIPTION_TIERS.get)
             new_status = c2.selectbox("Status", statuses, index=statuses.index(acc["status"]),
                                       format_func=ACCOUNT_STATUSES.get)
+        # S74: per month or per year (a year = 11 months, pricing.py).
+        _cycles = ["", "yearly", "monthly"]
+        new_cycle = None if trial_only else st.selectbox(
+            "Billing", _cycles, index=_cycles.index(acc.get("billing_cycle") or ""),
+            format_func=lambda c: _cycle_label(c),
+            help="What the customer pays for an active plan. A yearly term counts from the "
+                 "day it is saved here; the commitment end is shown in the account.")
         cur_end = _dt(acc.get("trial_ends_at"))
         default_end = (_local_day(cur_end) if cur_end and _local_day(cur_end) >= date.today()
                        else date.today() + timedelta(days=TRIAL_DAYS))
@@ -179,7 +192,7 @@ def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
         ends = datetime.combine(end_day, time(23, 59), tzinfo=LOCAL_TZ)
         ok, err = change_account(acc["id"], plan=new_plan, status=new_status,
                                  trial_ends_at=ends if new_status == "trial" else None,
-                                 note=note, by=admin_id)
+                                 note=note, by=admin_id, billing_cycle=new_cycle)
         if ok:
             st.session_state.acc_notice = "Saved."
             st.session_state.acc_open = acc["id"]
@@ -395,6 +408,7 @@ with tab_clients:
             "name": client_name(a),
             "plan": SUBSCRIPTION_TIERS.get(a["plan"], a["plan"]),
             "status": ACCOUNT_STATUSES.get(a["status"], a["status"]),
+            "billing": _cycle_label(a.get("billing_cycle")) if a.get("billing_cycle") else None,
             "trial": _dt(a.get("trial_ends_at")) if a["status"] in ("trial", "expired") else None,
             "since": _dt(first_active.get(a["id"])),
             "monitored": len(comps),
@@ -420,7 +434,8 @@ with tab_clients:
                "monitored companies, or use its ⋮ menu · click a column title to sort")
     hit = tv.table(rows, [
         {"key": "name", "label": "Client company"}, {"key": "plan", "label": "Plan"},
-        {"key": "status", "label": "Status"}, {"key": "trial", "label": "Trial ends", "kind": "date"},
+        {"key": "status", "label": "Status"}, {"key": "billing", "label": "Billing"},
+        {"key": "trial", "label": "Trial ends", "kind": "date"},
         {"key": "since", "label": "Customer since", "kind": "date"},
         {"key": "monitored", "label": "Monitored", "kind": "number"}, {"key": "kyc", "label": "KYC"},
         {"key": "people", "label": "People", "kind": "number"},

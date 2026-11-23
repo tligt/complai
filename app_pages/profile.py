@@ -111,7 +111,7 @@ if not profile.get("account"):
     _acc = account_for_client((get_active_client(user_id) or {}).get("id"))
     if _acc:
         _tier, _status, _managed_by = _acc["plan"], _acc["status"], _acc["name"]
-        profile = {**profile, "trial_ends_at": _acc.get("trial_ends_at")}
+        profile = {**profile, "trial_ends_at": _acc.get("trial_ends_at"), "account": _acc}
 
 PLAN_INCLUDES = {
     "starter": "One company · GDPR, NIS2 and the EU AI Act · obligations and "
@@ -137,6 +137,26 @@ with st.container(border=True):
     else:
         p1.markdown(f"**{SUBSCRIPTION_TIERS.get(_tier, _tier.title())}**")
         p1.caption(PLAN_INCLUDES.get(_tier, ""))
+        # S74: how it is billed, and how long a yearly commitment runs.
+        _acc_now = profile.get("account") or {}
+        _cycle = _acc_now.get("billing_cycle")
+        if _status == "active" and _cycle:
+            import pricing
+            from database import billing_since
+            from display import fmt_date
+            _amount = pricing.price(_tier, _cycle)
+            _line = (tr("Billed yearly") if _cycle == "yearly" else tr("Billed monthly"))
+            if _amount:
+                _line += " · " + (tr("{amount}/year") if _cycle == "yearly"
+                                  else tr("{amount}/month")).format(amount=pricing.eur(_amount)) \
+                    + " " + tr("excl. VAT")
+            _end = pricing.term_end(billing_since(_acc_now.get("id")), _cycle)
+            if _end:
+                _line += " · " + tr("committed until {date}").format(date=fmt_date(_end.isoformat()))
+            p2.info(_line)
+            if _cycle == "monthly" and _amount:
+                p2.caption(tr("Paying yearly saves {saving}: ask us through Support.").format(
+                    saving=pricing.eur(pricing.yearly_saving(_tier))))
         if _status == "trial" and profile.get("trial_ends_at"):
             from datetime import datetime, timezone
             from display import fmt_date, plural

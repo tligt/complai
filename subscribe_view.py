@@ -16,6 +16,7 @@ from i18n import tr  # S64 interface translation (D-164)
 
 import streamlit as st
 
+import pricing  # S74
 from database import (
     TRIAL_DAYS, start_trial, create_ticket, get_user_profile, record_funnel_event,
     SIGNUP_PLANS, SUBSCRIPTION_TIERS,
@@ -50,11 +51,24 @@ def render_subscribe() -> None:
     # D-126: the website's plans, as on the sign-up form. Advisory stays a
     # request, for consultants.
     from auth import PLAN_INFO, ENTERPRISE_URL
+    # S74: per year (11 months: one month free) or per month. The trial
+    # needs neither; the choice shows the price and goes with a plan request.
+    cycle = st.segmented_control(
+        tr("Billing"), list(pricing.CYCLES), default="yearly", key="sub_cycle",
+        format_func=lambda c: (tr("Yearly · 1 month free") if c == "yearly" else tr("Monthly")),
+        label_visibility="collapsed") or "yearly"
     cols = st.columns(len(SIGNUP_PLANS))
     for col, plan in zip(cols, SIGNUP_PLANS):
         with col, st.container(border=True):
             st.subheader(SUBSCRIPTION_TIERS[plan])
-            st.markdown(tr("**{plan_info_plan_0}** excl. VAT").format(plan_info_plan_0=PLAN_INFO[plan][0]))
+            st.markdown(tr("**{plan_info_plan_0}** excl. VAT").format(plan_info_plan_0=price_text(plan, cycle)))
+            if cycle == "yearly":
+                st.caption(tr("{per_month} a month, billed yearly — you save {saving}.").format(
+                    per_month=pricing.eur(pricing.per_month_on_yearly(plan)),
+                    saving=pricing.eur(pricing.yearly_saving(plan))))
+            else:
+                st.caption(tr("Or {yearly} paid yearly: one month free.").format(
+                    yearly=price_text(plan, "yearly")))
             st.caption(PLAN_INFO[plan][1])
             if status == "registered":
                 if st.button(tr("Start {trial_days}-day free trial").format(trial_days=TRIAL_DAYS), type="primary" if plan == "professional" else "secondary",
@@ -69,7 +83,7 @@ def render_subscribe() -> None:
                     else:
                         st.error(tr("Could not start the trial. Please try again."))
             else:
-                _request_plan(plan, user_id, ready)
+                _request_plan(plan, user_id, ready, cycle)
     st.caption(tr("Larger organisation? [Contact us]({enterprise_url}) about Enterprise. Consultant managing several client companies? Ask for Advisory:").format(enterprise_url=ENTERPRISE_URL))
     _request_plan("advisory", user_id, ready)
 
@@ -100,9 +114,17 @@ def render_trial_cta(profile: dict) -> None:
             st.info(tr("Your trial has ended — open any page in the menu to choose a plan."))
 
 
-def _request_plan(plan: str, user_id: str, ready: bool = True) -> None:
+def price_text(plan: str, cycle: str) -> str:
+    """S74: '€539/year', '€49/month', in the interface language."""
+    p = pricing.price(plan, cycle)
+    return (tr("{amount}/year") if cycle == "yearly" else tr("{amount}/month")).format(
+        amount=pricing.eur(p))
+
+
+def _request_plan(plan: str, user_id: str, ready: bool = True, cycle: str | None = None) -> None:
     """Until S46: a plan request is a billing ticket the team answers.
-    D-170: only once the client company's details are in (ready)."""
+    D-170: only once the client company's details are in (ready).
+    S74: with the billing cycle chosen, for the plans that have a price."""
     sent_key = f"sub_requested_{plan}"
     if st.session_state.get(sent_key):
         st.success(tr("Request sent — we'll get back to you by email."))
@@ -110,10 +132,12 @@ def _request_plan(plan: str, user_id: str, ready: bool = True) -> None:
     if st.button(tr("Request {plan_title}").format(plan_title=plan.title()), use_container_width=True,
                  key=f"sub_req_{plan}", disabled=not ready,
                  help=None if ready else tr("Fill in your company first (above).")):
+        _cyc = cycle if cycle and pricing.price(plan, cycle) else None
+        _how = (f", {_cyc} ({pricing.price_label(plan, _cyc)} excl. VAT)" if _cyc else "")
         ticket = create_ticket(
             user_id=user_id,
-            subject=f"Plan request: {plan.title()}",
-            body=(f"This account would like the {plan.title()} plan. "
+            subject=f"Plan request: {plan.title()}{', ' + _cyc if _cyc else ''}",
+            body=(f"This account would like the {plan.title()} plan{_how}. "
                   f"Sent from the subscribe page."),
             category="billing",
             context="account",

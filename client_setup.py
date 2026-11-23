@@ -185,6 +185,15 @@ def render_new_client_form(user_id: str, key: str) -> dict | None:
     load_accessible_clients.clear()
 
     msgs = [("success", f"✅ {profile['company_name']} created.")]
+    # S76: a Belgian company with a number — its filed size, from the National Bank.
+    import nbb_accounts
+    if (created.get("country") or "").upper() == "BE" and nbb_accounts.configured():
+        with st.spinner(tr("Reading the filed annual accounts at the National Bank…")):
+            _fig = nbb_accounts.refresh_client(created, by=user_id)
+        if _fig and _fig.get("fte") is not None:
+            msgs.append(("info", tr("The National Bank has your accounts for {year}: {fte:g} employees "
+                                    "(average FTE). See the Company profile.").format(
+                year=(_fig.get("year_end") or "?")[:4], fte=_fig["fte"])))
     if profile["website_url"]:
         with st.spinner(tr("Scanning the website for the tools you use…")):
             scan = detection.detect(profile["website_url"])
