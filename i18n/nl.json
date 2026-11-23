@@ -1529,9 +1529,8 @@
  "Controllers you process for (if any)": "Verwerkingsverantwoordelijken voor wie u verwerkt (indien van toepassing)",
  "① Tools found on your website — recommended": "① Tools gevonden op uw website — aanbevolen",
  "② Missing something? Pick it from our list": "② Ontbreekt er iets? Kies uit onze lijst",
- "**③ Not in our list?** Add the tool manually.": "**③ Niet in onze lijst?** Voeg de tool handmatig toe.",
- "Add manually": "Handmatig toevoegen",
- "➕ Add a tool manually": "➕ Een tool handmatig toevoegen",
  "✅ **Setup step 2 done.** You can complete the details later. Next: a gap assessment, for a first score per regulation.": "✅ **Stap 2 klaar.** De details kunt u later aanvullen. Volgende: een kloofanalyse, voor een eerste score per regelgeving.",
- "Next step →": "Volgende stap →"
+ "Next step →": "Volgende stap →",
+ "③ Not in our list? Add a tool manually": "③ Niet in onze lijst? Voeg een tool handmatig toe",
+ "For a tool the scan and our list do not know. Only the name is required; you can complete the rest later.": "Voor een tool die de scan en onze lijst niet kennen. Alleen de naam is verplicht; de rest kunt u later aanvullen."
 }

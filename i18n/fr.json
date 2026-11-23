@@ -1529,9 +1529,8 @@
  "Controllers you process for (if any)": "Responsables pour lesquels vous traitez (le cas échéant)",
  "① Tools found on your website — recommended": "① Outils trouvés sur votre site web — recommandé",
  "② Missing something? Pick it from our list": "② Il en manque ? Choisissez dans notre liste",
- "**③ Not in our list?** Add the tool manually.": "**③ Pas dans notre liste ?** Ajoutez l'outil manuellement.",
- "Add manually": "Ajouter manuellement",
- "➕ Add a tool manually": "➕ Ajouter un outil manuellement",
  "✅ **Setup step 2 done.** You can complete the details later. Next: a gap assessment, for a first score per regulation.": "✅ **Étape 2 terminée.** Vous pourrez compléter les détails plus tard. Ensuite : une analyse des écarts, pour un premier score par réglementation.",
- "Next step →": "Étape suivante →"
+ "Next step →": "Étape suivante →",
+ "③ Not in our list? Add a tool manually": "③ Pas dans notre liste ? Ajoutez un outil manuellement",
+ "For a tool the scan and our list do not know. Only the name is required; you can complete the rest later.": "Pour un outil que l'analyse et notre liste ne connaissent pas. Seul le nom est obligatoire ; vous pourrez compléter le reste plus tard."
 }

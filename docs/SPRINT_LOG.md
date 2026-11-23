@@ -8926,6 +8926,13 @@ with step 2 current; Systems shows the step banner, ① open with the last
 scan, ② open (no catalogue tool found), ③ "Add by hand", and "Controllers
 you process for (if any)".
 
+Follow-ups the same day, by the user:
+- "by hand" became "manually" (7ac0e9d);
+- ③ was a line with a button while ① and ② were boxes: "Why not use the same
+  expanding box behaviour?" Now ①, ② and ③ are all expanders, all closed on
+  arrival (① stays open after a scan). ③ holds the new-system form; editing a
+  system stays below the table, and "➕ Add a tool manually" is gone.
+
 ---
 
 *End of record. Append at sprint close.*

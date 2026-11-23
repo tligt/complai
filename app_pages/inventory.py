@@ -312,7 +312,7 @@ with tab_systems:
     _scan_key = f"inv_scan_{client_id}"
     _flash_key = f"inv_scan_flash_{client_id}"
     with st.expander(tr("① Tools found on your website — recommended"),
-                     expanded=not systems or _scan_key in st.session_state):
+                     expanded=_scan_key in st.session_state):  # D-204: closed on arrival; open after a scan
         st.caption(
             tr("Checks your website and your domain's email records (MX and SPF) "
             "for tools in our catalogue. Nothing is added until you tick it.")
@@ -417,12 +417,9 @@ with tab_systems:
                     st.caption(f"{_d['name']}: " + "; ".join(_d.get("evidence") or []))
 
     if available:
-        # D-204: second choice after the scan. Open on its own only when the
-        # scan has nothing to tick (no website given, or no catalogue tool
-        # recognised on it).
-        _scan_has_new = bool(_res and any(d.catalogue_key not in seeded for d in _res.detected))
+        # D-204: second choice after the scan; closed on arrival like ① and ③.
         with st.expander(tr("② Missing something? Pick it from our list"),
-                         expanded=not systems and not _scan_has_new):
+                         expanded=False):
             st.caption(
                 tr("Adding a tool from this list pre-fills its vendor details and "
                 "creates the processing activities it usually supports. Every "
@@ -465,71 +462,18 @@ with tab_systems:
                         st.warning(tr("Needs completing — {i}").format(i=i))
                     st.rerun()
 
-    st.divider()
-
     cat_codes, cat_labels = INV.options_for("system_category", lang, client_id)
     tm_codes, tm_labels = INV.options_for("transfer_mechanism", lang, client_id)
     dpa_codes, dpa_labels = INV.options_for("dpa_status", lang, client_id)
     crit_codes, crit_labels = INV.options_for("criticality", lang, client_id)
     ai_codes, ai_labels = INV.options_for("ai_role", lang, client_id)
-
-    # ── Overview, then one system at a time (usability audit M7) ─────────
-    # The wide editable grid needed sideways scrolling, minutes typed by
-    # hand and three paragraphs of explanation. Now: a read-only overview of
-    # the columns that matter, and a short form for one system, recovery
-    # times picked as a number and a unit. Saving still goes through
-    # STORE.commit_systems, so validation is unchanged.
-    from display import duration_label
-
-    def _lbl(labels, code):
-        return labels.get(code, code) if code else ""
-
-    # The shared table (table_view.py): click a system to edit it below;
-    # "Add a system" for a new one. It replaced an st.dataframe plus an
-    # "Edit a system" box.
-    _sys_by_id = {s["id"]: s for s in systems}
     _NEW = "__new__"
-    _sys_key = f"inv_sys_pick_{client_id}"
-    if systems:
-        _s_hit = tv.table(
-            [{"id": s["id"], "cells": {
-                "name": s.get("name"), "cat": _lbl(cat_labels, s.get("category")),
-                "purpose": s.get("purpose"), "dpa": _lbl(dpa_labels, s.get("dpa_status")),
-                "crit": _lbl(crit_labels, s.get("criticality")),
-                "rto": duration_label(s.get("rto_minutes")),
-                "rpo": duration_label(s.get("rpo_minutes")),
-            }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for s in systems],
-            [{"key": "name", "label": "System"}, {"key": "cat", "label": "Category"},
-             {"key": "purpose", "label": "What you use it for"}, {"key": "dpa", "label": "DPA"},
-             {"key": "crit", "label": "Criticality"}, {"key": "rto", "label": "May be down"},
-             {"key": "rpo", "label": "Data that may be lost"}],
-            key=f"inv_systems_{client_id}", current=st.session_state.get(_sys_key))
-        if _s_hit:
-            st.session_state[_sys_key] = _s_hit["row"]
-    if st.session_state.get(_sys_key) not in ([_NEW] + list(_sys_by_id)):
-        st.session_state[_sys_key] = systems[0]["id"] if systems else _NEW
-    # D-204: with no systems yet, the blank form used to be open below the scan
-    # and the list — a third, equally loud way in. Now it is the last resort,
-    # opened on request.
-    _manual_key = f"inv_sys_manual_{client_id}"
-    _show_form = bool(systems) or st.session_state.get(_manual_key, False)
-    if not _show_form:
-        _m1, _m2 = st.columns([4, 1], vertical_alignment="center")
-        _m1.markdown(tr("**③ Not in our list?** Add the tool manually."))
-        if _m2.button(tr("Add manually"), key="inv_sys_manual", use_container_width=True):
-            st.session_state[_manual_key] = True
-            st.rerun()
-    elif st.session_state[_sys_key] != _NEW and st.button(tr("➕ Add a tool manually"), key="inv_sys_add"):
-        st.session_state[_sys_key] = _NEW
-        st.rerun()
-    _pick = st.session_state[_sys_key]
-    if _show_form:
-        tv.focus(f"inv_systems_{client_id}")
-        st.markdown("**Add a system**" if _pick == _NEW
-                    else f"**Edit {_sys_by_id[_pick].get('name') or '(unnamed)'}**")
-        cur = {} if _pick == _NEW else _sys_by_id[_pick]
-        _fk = lambda n: f"inv_sys_{n}_{_pick}"
 
+    # One system's form: a new one (cur = {}) in ③ below, or the system picked
+    # in the table. Keys carry the pick, so both can be on the page at once.
+    # Saving still goes through STORE.commit_systems, so validation is unchanged.
+    def _system_form(cur: dict, _pick: str) -> None:
+        _fk = lambda n: f"inv_sys_{n}_{_pick}"
         _UNITS = {"minutes": 1, "hours": 60, "days": 1440}
 
         def _duration_input(label, minutes, key, help_text):
@@ -640,6 +584,49 @@ with tab_systems:
                         st.session_state.pop(k, None)
                     st.rerun()
 
+    # D-204: ③ is an expander like ① and ②, all three closed on arrival — the
+    # banner above says which to open first. It used to be a blank form open
+    # under the list, then a line with a button: two behaviours for one choice.
+    with st.expander(tr("③ Not in our list? Add a tool manually")):
+        st.caption(tr("For a tool the scan and our list do not know. Only the name is "
+                      "required; you can complete the rest later."))
+        _system_form({}, _NEW)
+
+    st.divider()
+
+    # ── Overview, then one system at a time (usability audit M7) ─────────
+    # A read-only overview of the columns that matter; click a system to edit
+    # it below, recovery times picked as a number and a unit.
+    from display import duration_label
+
+    def _lbl(labels, code):
+        return labels.get(code, code) if code else ""
+
+    _sys_by_id = {s["id"]: s for s in systems}
+    _sys_key = f"inv_sys_pick_{client_id}"
+    if systems:
+        _s_hit = tv.table(
+            [{"id": s["id"], "cells": {
+                "name": s.get("name"), "cat": _lbl(cat_labels, s.get("category")),
+                "purpose": s.get("purpose"), "dpa": _lbl(dpa_labels, s.get("dpa_status")),
+                "crit": _lbl(crit_labels, s.get("criticality")),
+                "rto": duration_label(s.get("rto_minutes")),
+                "rpo": duration_label(s.get("rpo_minutes")),
+            }, "actions": [{"id": "open", "label": "Edit", "icon": "✏️"}]} for s in systems],
+            [{"key": "name", "label": "System"}, {"key": "cat", "label": "Category"},
+             {"key": "purpose", "label": "What you use it for"}, {"key": "dpa", "label": "DPA"},
+             {"key": "crit", "label": "Criticality"}, {"key": "rto", "label": "May be down"},
+             {"key": "rpo", "label": "Data that may be lost"}],
+            key=f"inv_systems_{client_id}", current=st.session_state.get(_sys_key))
+        if _s_hit:
+            st.session_state[_sys_key] = _s_hit["row"]
+        if st.session_state.get(_sys_key) not in _sys_by_id:
+            st.session_state[_sys_key] = systems[0]["id"]
+        _pick = st.session_state[_sys_key]
+        cur = _sys_by_id[_pick]
+        tv.focus(f"inv_systems_{client_id}")
+        st.markdown(f"**Edit {cur.get('name') or '(unnamed)'}**")
+        _system_form(cur, _pick)
         # ── S66 (D-187): cookie purposes, one row per purpose ──────────────────
         # Only for a saved system that sets cookies: the rows belong to a system
         # id, and a system that sets none has nothing to declare. Outside the
