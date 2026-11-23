@@ -215,7 +215,7 @@ if not systems:
         st.markdown(tr(
             "1. **Tick the tools found on your website** — we scanned it when your company was created.  \n"
             "2. **Missing something?** Pick it from our list.  \n"
-            "3. **Not in our list?** Add it by hand."))
+            "3. **Not in our list?** Add it manually."))
         st.caption(tr("A tool added with 1 or 2 comes with its processing activities, so you "
                       "rarely need the other tabs to finish this step."))
 elif not activities:
@@ -515,11 +515,11 @@ with tab_systems:
     _show_form = bool(systems) or st.session_state.get(_manual_key, False)
     if not _show_form:
         _m1, _m2 = st.columns([4, 1], vertical_alignment="center")
-        _m1.markdown(tr("**③ Not in our list?** Add the tool by hand."))
-        if _m2.button(tr("Add by hand"), key="inv_sys_manual", use_container_width=True):
+        _m1.markdown(tr("**③ Not in our list?** Add the tool manually."))
+        if _m2.button(tr("Add manually"), key="inv_sys_manual", use_container_width=True):
             st.session_state[_manual_key] = True
             st.rerun()
-    elif st.session_state[_sys_key] != _NEW and st.button(tr("➕ Add a tool by hand"), key="inv_sys_add"):
+    elif st.session_state[_sys_key] != _NEW and st.button(tr("➕ Add a tool manually"), key="inv_sys_add"):
         st.session_state[_sys_key] = _NEW
         st.rerun()
     _pick = st.session_state[_sys_key]
