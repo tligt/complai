@@ -8933,6 +8933,32 @@ Follow-ups the same day, by the user:
   arrival (① stays open after a scan). ③ holds the new-system form; editing a
   system stays below the table, and "➕ Add a tool manually" is gone.
 
+### D-205 — Umami goals and funnels, 23 Nov
+
+By the user: the events arrive (D-180) but nothing in Umami used them —
+"not defined as a goal in Umami nor is it considered in the funnel".
+
+- **Events received, last 90 days:** check_landing 20, quiz_completed 10,
+  app_landing 5, scope_completed 4, cta_pricing 2, cta_contact,
+  cta_free_check and cta_signup 1 each. No signup, email_confirmed or
+  trial_started yet: no real signup since D-180.
+- **Goals** (all "triggered event"): Checklist done (free check) =
+  quiz_completed; Free check started = check_landing; Account created =
+  signup; Trial started = trial_started; Subscription requested =
+  plan_requested; Lead: waitlist form = waitlist_submit; Lead: contact
+  form = contact_submit.
+- **Funnels** (window 1440 min — Umami knows a visitor for a day only):
+  Free check → trial (check_landing, scope_completed, quiz_completed,
+  signup, email_confirmed, trial_started); Website → free check → account
+  (cta_free_check, check_landing, quiz_completed, signup); Website → trial
+  → subscription (cta_signup, app_landing, signup, email_confirmed,
+  trial_started, plan_requested).
+- **plan_requested is not sent yet** — the goal and the funnel's last step
+  stay at 0 until the subscribe page sends it (or, with S77 Mollie, a paid
+  subscription event replaces it).
+- Campaign split needs no report of its own: Umami's UTM and Attribution
+  reports use these goals, as long as posted links carry utm_* tags.
+
 ---
 
 *End of record. Append at sprint close.*
