@@ -15,9 +15,10 @@ import streamlit as st
 TIPS = {
     "dashboard": (
         "Home",
-        "Where you stand, and what to do next. The box at the top lists the three most "
-        "urgent tasks — **Fix it** takes you to the page where each is done. New here? "
-        "Follow the getting-started steps first.",
+        "Where you stand, and what to do next. Until your setup is finished, this page shows "
+        "the five setup steps: follow them in order — **Start →** opens the next one. After "
+        "that, the box at the top lists the three most urgent tasks — **Fix it** takes you to "
+        "the page where each is done.",
     ),
     "action_plan": (
         "Action plan",
