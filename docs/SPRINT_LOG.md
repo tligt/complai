@@ -8920,6 +8920,12 @@ Also:
 Checked locally on creagent, both modes, with the onboarding state forced by
 a temporary override (removed). Nothing written to the database.
 
+**Deployed the same day** (`deploy/update.sh`, → 97a5a3c; admin, app and quiz
+healthy). Checked on app.recosa.eu: Creagent, 3 of 5 done, gets the guide
+with step 2 current; Systems shows the step banner, ① open with the last
+scan, ② open (no catalogue tool found), ③ "Add by hand", and "Controllers
+you process for (if any)".
+
 ---
 
 *End of record. Append at sprint close.*
