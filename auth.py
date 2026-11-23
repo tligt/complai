@@ -489,10 +489,11 @@ def _plan_cards(default: str) -> str:
     cols = st.columns(len(SIGNUP_PLANS))
     for col, p in zip(cols, SIGNUP_PLANS):
         price, line, short = PLAN_INFO[p]
-        # S74: the yearly price next to the monthly one (a year = 11 months).
-        price = f"{price} · {_pricing.price_label(p, 'yearly')}"
+        # S74: the monthly price as the headline, the yearly one as an offer
+        # on its own (smaller) line — a year = 11 months.
+        yearly = f"or {_pricing.price_label(p, 'yearly')} — 1 month free"
         with col, st.container(key=f"plan_{p}_{'on' if p == chosen else 'off'}"):
-            if st.button(f"**{SUBSCRIPTION_TIERS[p]}**\n\n{price}\n\n{short}",
+            if st.button(f"**{SUBSCRIPTION_TIERS[p]}**\n\n{price}\n\n{yearly}\n\n{short}",
                          key=f"plan_pick_{p}", use_container_width=True):
                 st.session_state.signup_plan_pick = p
                 st.rerun()

@@ -83,6 +83,9 @@ _CSS = """
 [class*="st-key-plan_"] button p { margin: 0 0 2px !important; font-size: 12px !important; line-height: 1.35 !important; color: #31506D !important; }
 [class*="st-key-plan_"] button p:first-child { color: #003366 !important; font-size: 15px !important; }
 [class*="st-key-plan_"] button p:nth-child(2) { font-weight: 700 !important; font-size: 13px !important; }
+/* S74: the yearly offer, in the turquoise of the labels, apart from the description. */
+[class*="st-key-plan_"] button p:nth-child(3) { color: #0B7F89 !important; font-weight: 600 !important;
+    margin-bottom: 6px !important; }
 [class*="st-key-plan_"] button > div { justify-content: flex-start !important; text-align: left !important; }
 [class*="st-key-plan_"][class*="_on"] button { border: 2px solid #003366 !important; background: #F5F8FB !important;
     padding: 9px 11px !important; }
