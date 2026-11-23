@@ -8756,6 +8756,19 @@ function with the one-argument-longer version).
   S73 (self-host the site; Astro with built-in i18n behind the existing
   Caddy).
 
+**Deployed the same day:**
+- the migration was applied first, then update.sh ran; admin, app and quiz
+  are healthy;
+- `OWNER_ALERT_EMAIL` is set in `deploy/.env` on the server (the owner's
+  recosa.eu address);
+- the crontab was installed by hand (`install -m 0644 deploy/crontab
+  /etc/cron.d/recosa`) — update.sh does not do this; the only difference from
+  the live file was the new line.
+
+Checked end to end on production: a results page reached on check.recosa.eu
+recorded `results_viewed` with its visit id, and the job sent the alert
+(Brevo accepted it). The test visit was then deleted from `funnel_events`.
+
 ---
 
 *End of record. Append at sprint close.*
