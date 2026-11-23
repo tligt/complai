@@ -376,7 +376,7 @@ the only sprint that *is* the gate.
 | # | Sprint | Notes |
 |---|---|---|
 | ~~S42~~ | ~~Audit report email delivery~~ | **Delivered 30 Sept, ahead of its After-beta position.** `update_audit_path()` now called by both existing flows. D-110 |
-| S46 | Credit billing — Stripe, credits, annual | **23 Nov:** consider **Mollie** (NL, EU-licensed) over Stripe: no monthly fee, Bancontact and SEPA direct debit for recurring B2B, subscriptions included; Stripe = 1.5% + €0.25 per EEA card + 0.7% Billing, no monthly fee. was S43. Meters shipped in S27. Design: section 6 (Commercial model) — kept there as the plan for when this sprint is built, marked superseded 13 Nov (D-174) because today's app and website have no credits, top-ups or usage limits |
+| ~~S46~~ | ~~Credit billing — Stripe, credits, annual~~ | **Closed 23 Nov (D-203), replaced by S77** (self-serve subscriptions with Mollie). Credits were already dropped (D-174); yearly billing is S74. — **23 Nov:** consider **Mollie** (NL, EU-licensed) over Stripe: no monthly fee, Bancontact and SEPA direct debit for recurring B2B, subscriptions included; Stripe = 1.5% + €0.25 per EEA card + 0.7% Billing, no monthly fee. was S43. Meters shipped in S27. Design: section 6 (Commercial model) — kept there as the plan for when this sprint is built, marked superseded 13 Nov (D-174) because today's app and website have no credits, top-ups or usage limits |
 | ~~S48~~ | ~~Onboarding redesign~~ | **Delivered 1 Oct, ahead of its After-beta position.** Registry lookup (BE, FR), website + DNS scan, suggest-and-confirm; one shared new-client form. D-112. **22 Oct: verified in production** — secrets were already set and the app already ran with `dnspython`; a live BE lookup created a client with legal name, form, number and address from CBEAPI, and the scan that followed found Microsoft 365 from MX + SPF evidence, with no errors. **S48 complete.** |
 | ~~S52~~ | ~~Document branding~~ | **Closed 18 Nov (D-182):** a Privacy Policy generated from the Documents page on production came out branded — logo in the page header, Arial, the company's footer line and no RECOSA line. — Open until then (16 Nov, D-179): none had ever been generated with branding on. **Built 5 Nov (D-144)**: logo, colour, font, footer line per company, Professional and up. was S51 until D-115; was S49 (22 Oct), S45 before. Theme only |
 | **S53** | **Breach notification workflow** | **Built 22–23 Oct — D-117 (part 1), D-118 (part 2: incident team, documented flow, legal gaps).** Verified live 23 Oct (alert email received). All four reporting channels confirmed (CNIL on 26 Oct). Legal review of the procedure v2 and the draft texts approved by the user on 26 Oct. Real reminder email sent and received 26 Oct (no repeat on a second run). **Closed 26 Oct.** Taken ahead of S50/S51 by request. was S52 until D-115; was S50, S46 before. Follows the S29A procedure |
@@ -401,6 +401,7 @@ the only sprint that *is* the gate.
 | **S72** | **Localization — the rest of S64** | **Closed 18 Nov (D-190), deployed.** NL and LU country data; the Dutch DPA from the official OJ text — all 14 templates now exist in Dutch. The lawyer's review split off as S75. New 13 Nov (D-173), the remainder split off when S64 closed. Netherlands and Luxembourg's own country data (authorities, channels, sources — not borrowed from Belgium); the official Dutch SCC text for the DPA; a Belgian lawyer's review of the 13 Dutch templates and the Dutch reference labels (removes the draft banner). Not blocking the BE/FR beta push |
 | S73 | Leave Framer | New 13 Nov (D-173), not locked. By the user: price (per-locale add-on cost) and loss of control — Compliance Pulse's display rules live inside Framer's own CMS/page config, duplicating logic the self-hosted `compliance-pulse` Edge Function already owns cleanly. Direction only: self-host the marketing site (candidate: a static site on the same Scaleway box, alongside the app) and render Compliance Pulse directly from the Edge Function, dropping the Framer/AnySync layer. Not scoped — pick up once the beta push isn't the priority |
 | S75 | Lawyer's review of the Dutch texts | New 18 Nov (D-190), split off S72 by request — the one part no code can do. A Belgian lawyer reviews the 13 Dutch templates (`templates/nl_BE/`), the Dutch reference labels, and the Dutch DPA's cover and annexes (its clauses are the official text); the reviewer removes each draft banner and the file is loaded again (`load_template_nl.py`). Not blocking the BE/FR beta |
+| S77 | Self-serve subscriptions and payment — Mollie | New 23 Nov (D-203), replaces S46, not scoped. By the user: the customer chooses and pays alone, with no action from RECOSA. Starting points: the customer picks plan and cycle (S74: monthly, or yearly at 11 months) and pays on Mollie's hosted checkout (card, Bancontact, SEPA direct debit; the first payment creates the mandate, then a Mollie subscription renews it); Mollie's webhook writes the account period (`change_account`: active, plan, cycle) — the trial ends into "active" without a ticket; failed or cancelled payments lead to "expired" after a grace period; monthly → yearly at any time (prorated), yearly → monthly and downgrades at the end of the paid term; the subscribe page's "Request" buttons become "Subscribe". To decide when scoping: **invoices** (Mollie takes payments but does not issue the customer's VAT invoice: own numbering and PDF, Belgian VAT, reverse charge for EU B2B outside Belgium) and **Peppol** (Belgian B2B e-invoicing mandatory since 1 Jan 2026 — likely through an invoicing tool or a Peppol access point rather than built in); the owner alert for a paying client (D-201) then fires from the real payment. Costs: no monthly fee, per-payment fees only (check Mollie's current rates). Needs a Mollie account (KYC of RECOSA) and test keys first |
 | **S76** | **Company size from filed accounts — NBB (BE)** | **Built 23 Nov (D-202), not live until the NBB key is set:** the user subscribes on developer.cbso.nbb.be (Authentic Data) and the key goes in `NBB_CBSO_KEY`; the first real call confirms the JSON shape. New 20 Nov (D-199), not scoped. At onboarding (and once a year), read a Belgian company's latest filed annual accounts through the NBB's free **Authentic Data Query** web service (by CBE number → filing references → JSON, XBRL filings since 4 Apr 2022) and pre-fill the average number of employees (FTE) and turnover where filed. Uses: the NIS2 size test (50 staff / €10 M) pre-filled rather than declared; a nudge when the training register (S60) lists fewer people than the filed FTE; the 250-employee mark in the GDPR reasoning (Art. 30(5)); size shown as a filed fact. First step before building: one test call to confirm where the employee figure sits in the JSON. Needs the NBB subscription form and a developer account (developer.cbso.nbb.be). Limits: Belgium only; accounts lag 6–18 months; sole traders and most non-profits file none |
 | ~~S74~~ | ~~Yearly plans — push customers to commit for a year~~ | **Built 23 Nov (D-202).** Billing cycle on the account and its periods; Yearly/Monthly switch (yearly first) on the subscribe page; prices next to each other on sign-up; cycle, price and commitment end on Account; cycle in the back office. Payment itself stays S46. — **Pricing rule decided 23 Nov:** classic SaaS, each plan per month or per year, the year at 11 × the monthly fee (one month free): Starter €539/year (vs €588), Professional €1,639/year (vs €1,788). Replaces the ~10× sketch below. New 18 Nov (D-185), not scoped. By the user: a yearly tariff next to the monthly one for each plan, priced and presented so a year is the obvious choice. Starting points: section 6 already sketched annual at ~15–17% off, framed as "2 months free" (~€490 Starter, ~€1,490 Professional), monthly→annual any time with proration, downgrade only at period end; S59's account periods give the dated record of a yearly term. Overlaps S46, whose title includes "annual": which sprint takes yearly billing is to decide when either is scoped |
 
@@ -8854,6 +8855,34 @@ stored size.
 - the heartbeat dry run is clean and skips the filed figures while there is
   no NBB key;
 - no account has a billing cycle yet: it is set when a client subscribes.
+
+Follow-up the same day: the sign-up plan cards read "€49/month" and then,
+on a turquoise line of its own, "or €539/year — 1 month free" (86c9bcd,
+deployed). The user found "€49/month · €539/year" read like a conversion.
+
+### D-203 — S46 closed, S77 Mollie self-serve subscriptions opened, 23 Nov
+
+By the user: "I would like not to intervene. Customer choose himself."
+
+S46 (Stripe, credits, annual) is closed. Credits were dropped on 13 Nov
+(D-174), and yearly billing is now S74. It is replaced by **S77**:
+self-serve subscriptions and payment with Mollie (NL, EU-licensed). The
+customer picks plan and cycle, pays on Mollie's checkout, and the webhook
+activates the account; RECOSA does nothing by hand.
+
+Mollie over Stripe because:
+- it is an EU company;
+- it supports Bancontact and SEPA direct debit, the usual B2B payment
+  methods in BE/FR/NL;
+- subscriptions are included;
+- there is no monthly fee.
+
+Two points to settle when scoping:
+- **invoices:** Mollie does not issue the customer's VAT invoice;
+- **Peppol:** Belgian B2B e-invoicing has been mandatory since 1 Jan 2026.
+
+Until S77 is built, the S74 flow stays as it is: the plan request is a
+ticket, and the cycle is set in the back office.
 
 ---
 
