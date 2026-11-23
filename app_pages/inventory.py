@@ -205,11 +205,47 @@ def _finding_lines(findings: list[dict]) -> str:
     return "\n".join(f"- {_SEVERITY_ICON.get(f['severity'], '•')} {f['message']}"
                      for f in findings)
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric(tr("Systems"), ready["systems"])
-c2.metric(tr("Activities"), ready["activities"])
-c3.metric(tr("Ready for RoPA"), f"{ready['complete_activities']}/{ready['activities']}")
-c4.metric(tr("Controllers"), len(counterparties))
+# ── D-204: this page is step 2 of the Home guide ──────────────────────────
+# A new customer arrives here from "Add your systems and activities". Say
+# which of the three ways to add a tool comes first, and where to go once the
+# step is done — the tabs and the forms below do not say either.
+if not systems:
+    with st.container(border=True):
+        st.markdown(tr("**Setup, step 2 of 5 — add the tools you use**"))
+        st.markdown(tr(
+            "1. **Tick the tools found on your website** — we scanned it when your company was created.  \n"
+            "2. **Missing something?** Pick it from our list.  \n"
+            "3. **Not in our list?** Add it by hand."))
+        st.caption(tr("A tool added with 1 or 2 comes with its processing activities, so you "
+                      "rarely need the other tabs to finish this step."))
+elif not activities:
+    st.warning(tr("Your systems have no processing activities yet. Open the **Processing "
+                  "activities** tab and add what you do with personal data — that is what "
+                  "completes this setup step."))
+else:
+    try:
+        # Admin client: the same client-scoped read as Home (S38) — a
+        # workspace member's own user_id never owns the assessment.
+        from database import get_supabase_admin
+        _has_gap = bool(get_supabase_admin().table("gap_assessments").select("id")
+                        .eq("client_id", client_id).limit(1).execute().data)
+    except Exception:
+        _has_gap = True
+    if not _has_gap:
+        with st.container(border=True):
+            _g1, _g2 = st.columns([4, 1], vertical_alignment="center")
+            _g1.markdown(tr("✅ **Setup step 2 done.** You can complete the details later. "
+                            "Next: a gap assessment, for a first score per regulation."))
+            if _g2.button(tr("Next step →"), type="primary", key="inv_next_step",
+                          use_container_width=True):
+                st.switch_page("app_pages/gap.py")
+
+if systems or activities:
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(tr("Systems"), ready["systems"])
+    c2.metric(tr("Activities"), ready["activities"])
+    c3.metric(tr("Ready for RoPA"), f"{ready['complete_activities']}/{ready['activities']}")
+    c4.metric(tr("Controllers"), len(counterparties))
 
 # The CNIL recommends two separate registers where an organisation is both
 # controller and processor. Saying so here, where the split is visible, beats
@@ -255,7 +291,10 @@ if _principles:
             st.caption(p["body"])
 
 tab_systems, tab_activities, tab_controllers = st.tabs(
-    [tr("Systems"), tr("Processing activities"), tr("Controllers you process for")]
+    [tr("Systems"), tr("Processing activities"),
+     # D-204: most SMEs are not a processor for anyone; say the tab can wait.
+     tr("Controllers you process for") if counterparties
+     else tr("Controllers you process for (if any)")]
 )
 
 
@@ -272,7 +311,7 @@ with tab_systems:
     # "Add a common tool" below.
     _scan_key = f"inv_scan_{client_id}"
     _flash_key = f"inv_scan_flash_{client_id}"
-    with st.expander(tr("🔎 Scan your website for tools you use"),
+    with st.expander(tr("① Tools found on your website — recommended"),
                      expanded=not systems or _scan_key in st.session_state):
         st.caption(
             tr("Checks your website and your domain's email records (MX and SPF) "
@@ -378,7 +417,12 @@ with tab_systems:
                     st.caption(f"{_d['name']}: " + "; ".join(_d.get("evidence") or []))
 
     if available:
-        with st.expander(tr("Add a common tool"), expanded=not systems):
+        # D-204: second choice after the scan. Open on its own only when the
+        # scan has nothing to tick (no website given, or no catalogue tool
+        # recognised on it).
+        _scan_has_new = bool(_res and any(d.catalogue_key not in seeded for d in _res.detected))
+        with st.expander(tr("② Missing something? Pick it from our list"),
+                         expanded=not systems and not _scan_has_new):
             st.caption(
                 tr("Adding a tool from this list pre-fills its vendor details and "
                 "creates the processing activities it usually supports. Every "
@@ -423,9 +467,6 @@ with tab_systems:
 
     st.divider()
 
-    if not systems:
-        st.info(tr("No systems yet. Add one from the list above, or with the form below."))
-
     cat_codes, cat_labels = INV.options_for("system_category", lang, client_id)
     tm_codes, tm_labels = INV.options_for("transfer_mechanism", lang, client_id)
     dpa_codes, dpa_labels = INV.options_for("dpa_status", lang, client_id)
@@ -467,168 +508,180 @@ with tab_systems:
             st.session_state[_sys_key] = _s_hit["row"]
     if st.session_state.get(_sys_key) not in ([_NEW] + list(_sys_by_id)):
         st.session_state[_sys_key] = systems[0]["id"] if systems else _NEW
-    if st.session_state[_sys_key] != _NEW and st.button(tr("➕ Add a system"), key="inv_sys_add"):
+    # D-204: with no systems yet, the blank form used to be open below the scan
+    # and the list — a third, equally loud way in. Now it is the last resort,
+    # opened on request.
+    _manual_key = f"inv_sys_manual_{client_id}"
+    _show_form = bool(systems) or st.session_state.get(_manual_key, False)
+    if not _show_form:
+        _m1, _m2 = st.columns([4, 1], vertical_alignment="center")
+        _m1.markdown(tr("**③ Not in our list?** Add the tool by hand."))
+        if _m2.button(tr("Add by hand"), key="inv_sys_manual", use_container_width=True):
+            st.session_state[_manual_key] = True
+            st.rerun()
+    elif st.session_state[_sys_key] != _NEW and st.button(tr("➕ Add a tool by hand"), key="inv_sys_add"):
         st.session_state[_sys_key] = _NEW
         st.rerun()
     _pick = st.session_state[_sys_key]
-    tv.focus(f"inv_systems_{client_id}")
-    st.markdown("**Add a system**" if _pick == _NEW
-                else f"**Edit {_sys_by_id[_pick].get('name') or '(unnamed)'}**")
-    cur = {} if _pick == _NEW else _sys_by_id[_pick]
-    _fk = lambda n: f"inv_sys_{n}_{_pick}"
+    if _show_form:
+        tv.focus(f"inv_systems_{client_id}")
+        st.markdown("**Add a system**" if _pick == _NEW
+                    else f"**Edit {_sys_by_id[_pick].get('name') or '(unnamed)'}**")
+        cur = {} if _pick == _NEW else _sys_by_id[_pick]
+        _fk = lambda n: f"inv_sys_{n}_{_pick}"
 
-    _UNITS = {"minutes": 1, "hours": 60, "days": 1440}
+        _UNITS = {"minutes": 1, "hours": 60, "days": 1440}
 
-    def _duration_input(label, minutes, key, help_text):
-        st.markdown(f"**{label}**", help=help_text)
-        d1, d2, d3 = st.columns([2, 2, 3])
-        decided = d1.checkbox(tr("Decided"), value=minutes is not None, key=f"{key}_set")
-        if minutes is None:
-            unit, amount = "hours", 4
-        else:
-            unit = ("days" if minutes and minutes % 1440 == 0 else
-                    "hours" if minutes and minutes % 60 == 0 else "minutes")
-            amount = minutes // _UNITS[unit]
-        amount = d2.number_input(tr("Amount"), min_value=0, value=int(amount), step=1,
-                                 key=f"{key}_n", label_visibility="collapsed",
-                                 disabled=not decided)
-        unit = d3.selectbox(tr("Unit"), list(_UNITS), index=list(_UNITS).index(unit),
-                            key=f"{key}_u", label_visibility="collapsed", disabled=not decided)
-        return int(amount) * _UNITS[unit] if decided else None
+        def _duration_input(label, minutes, key, help_text):
+            st.markdown(f"**{label}**", help=help_text)
+            d1, d2, d3 = st.columns([2, 2, 3])
+            decided = d1.checkbox(tr("Decided"), value=minutes is not None, key=f"{key}_set")
+            if minutes is None:
+                unit, amount = "hours", 4
+            else:
+                unit = ("days" if minutes and minutes % 1440 == 0 else
+                        "hours" if minutes and minutes % 60 == 0 else "minutes")
+                amount = minutes // _UNITS[unit]
+            amount = d2.number_input(tr("Amount"), min_value=0, value=int(amount), step=1,
+                                     key=f"{key}_n", label_visibility="collapsed",
+                                     disabled=not decided)
+            unit = d3.selectbox(tr("Unit"), list(_UNITS), index=list(_UNITS).index(unit),
+                                key=f"{key}_u", label_visibility="collapsed", disabled=not decided)
+            return int(amount) * _UNITS[unit] if decided else None
 
-    def _sel(where, label, codes, labels, value, key, **kw):
-        opts = [None] + codes
-        return where.selectbox(label, opts, index=opts.index(value) if value in opts else 0,
-                               format_func=lambda c: "—" if c is None else labels.get(c, c),
-                               key=key, **kw)
+        def _sel(where, label, codes, labels, value, key, **kw):
+            opts = [None] + codes
+            return where.selectbox(label, opts, index=opts.index(value) if value in opts else 0,
+                                   format_func=lambda c: "—" if c is None else labels.get(c, c),
+                                   key=key, **kw)
 
-    with st.container(border=True):
-        st.markdown(tr("**The tool**"))
-        c1, c2 = st.columns(2)
-        f_name = c1.text_input(tr("System ✱"), value=cur.get("name") or "", key=_fk("name"))
-        f_vendor = c2.text_input(tr("Vendor legal entity"), value=cur.get("vendor_legal_name") or "",
-                                 key=_fk("vendor"))
-        c1, c2 = st.columns(2)
-        f_cat = _sel(c1, "Category", cat_codes, cat_labels, cur.get("category"), _fk("cat"))
-        f_crit = _sel(c2, "Criticality", crit_codes, crit_labels, cur.get("criticality"), _fk("crit"))
-        f_purpose = st.text_input(tr("What you use it for"), value=cur.get("purpose") or "", key=_fk("purpose"))
-
-        st.markdown(tr("**Data protection**"))
-        c1, c2, c3 = st.columns(3)
-        f_country = c1.text_input(tr("Where data is processed"), value=cur.get("processing_country") or "",
-                                  key=_fk("country"), help=tr("ISO code (BE, US…), or EU for several EEA countries."))
-        f_tm = _sel(c2, "Transfer basis", tm_codes, tm_labels, cur.get("transfer_mechanism"), _fk("tm"),
-                    help="Only needed when data leaves the EU.")
-        f_dpa = _sel(c3, "Processing agreement (DPA)", dpa_codes, dpa_labels, cur.get("dpa_status"), _fk("dpa"))
-        c1, c2, c3 = st.columns(3)
-        _signed = cur.get("dpa_signed_on")
-        if isinstance(_signed, str) and _signed:
-            from datetime import date as _date
-            _signed = _date.fromisoformat(_signed[:10])
-        f_signed = c1.date_input(tr("DPA signed on"), value=_signed or None, key=_fk("signed"),
-                                 format="DD/MM/YYYY")
-        f_dpa_url = c2.text_input(tr("DPA link"), value=cur.get("dpa_url") or "", key=_fk("dpaurl"))
-        f_pp = c3.text_input(tr("Vendor privacy policy"), value=cur.get("privacy_policy_url") or "", key=_fk("pp"))
-        c1, c2 = st.columns(2)
-        f_ai = _sel(c1, "AI role", ai_codes, ai_labels, cur.get("ai_role"), _fk("ai"))
-        f_cookies = c2.checkbox(tr("Sets cookies on your website"), value=bool(cur.get("sets_cookies")),
-                                key=_fk("cookies"))
-
-        st.markdown(tr("**If it stops working**"))
-        f_rto = _duration_input("How long it may be down", cur.get("rto_minutes"), _fk("rto"),
-                                "Recovery time objective (RTO): how long this system may be "
-                                "unavailable before it has to be back.")
-        f_rpo = _duration_input("How much recent data you can afford to lose", cur.get("rpo_minutes"),
-                                _fk("rpo"),
-                                "Recovery point objective (RPO): with a nightly backup, up to 1 day "
-                                "of data. 0 means none may be lost.")
-        f_recovery = st.text_input(tr("How it is recovered"), value=cur.get("recovery_note") or "",
-                                   key=_fk("recovery"), help=tr("Where the backup is and who restores it."))
-        f_notes = st.text_input(tr("Notes"), value=cur.get("notes") or "", key=_fk("notes"))
-
-        b1, b2, b3 = st.columns([1, 2, 1])
-        _save = b1.button("Save" if cur else "Add system", type="primary", key=_fk("save"),
-                          use_container_width=True)
-        _del = False
-        if cur:
-            _really = b2.checkbox(tr("I want to remove this system"), key=_fk("delchk"))
-            _del = b3.button(tr("Remove"), key=_fk("del"), disabled=not _really, use_container_width=True)
-
-    if _save or _del:
-        row = {
-            "id": cur.get("id"), "name": f_name.strip(), "vendor_legal_name": f_vendor.strip() or None,
-            "category": f_cat, "purpose": f_purpose.strip() or None,
-            "processing_country": f_country.strip().upper() or None, "transfer_mechanism": f_tm,
-            "dpa_status": f_dpa, "dpa_signed_on": f_signed.isoformat() if f_signed else None,
-            "dpa_url": f_dpa_url.strip() or None, "criticality": f_crit, "ai_role": f_ai,
-            "sets_cookies": f_cookies, "privacy_policy_url": f_pp.strip() or None,
-            "notes": f_notes.strip() or None, "rto_minutes": f_rto, "rpo_minutes": f_rpo,
-            "recovery_note": f_recovery.strip() or None,
-        }
-        grid_cols = ["id"] + list(STORE.SYSTEM_EDITABLE)
-        rows = [{c: s.get(c) for c in grid_cols} for s in systems]
-        if _del:
-            rows = [r for r in rows if r["id"] != cur.get("id")]
-        elif cur:
-            # Fields the form does not show (purpose translations) keep their value.
-            rows = [({c: (row[c] if c in row else r.get(c)) for c in grid_cols}
-                     if r["id"] == cur["id"] else r) for r in rows]
-        else:
-            rows.append({c: row.get(c) for c in grid_cols})
-        if _save and not f_name.strip():
-            st.warning(tr("Give the system a name."))
-        else:
-            result = STORE.commit_systems(systems, pd.DataFrame(rows, columns=grid_cols),
-                                          user_id, client_id)
-            for e in result["errors"]:
-                st.error(e)
-            if not result["errors"]:
-                for k in [k for k in st.session_state if k.startswith("inv_sys_")]:
-                    st.session_state.pop(k, None)
-                st.rerun()
-
-    # ── S66 (D-187): cookie purposes, one row per purpose ──────────────────
-    # Only for a saved system that sets cookies: the rows belong to a system
-    # id, and a system that sets none has nothing to declare. Outside the
-    # system's box on purpose — its own Save, so editing purposes never
-    # resubmits the whole inventory grid.
-    if cur and cur.get("sets_cookies"):
-        _cp_codes, _cp_labels = INV.options_for("cookie_purpose", lang, client_id)
-        _cp_rows = [p for p in STORE.load_cookie_purposes(client_id)
-                    if p["system_id"] == cur["id"]]
         with st.container(border=True):
-            st.markdown(tr("**What its cookies are for**"))
-            st.caption(tr("One line per purpose. Your Cookie Policy lists this vendor once "
-                          "per purpose, so each purpose can be consented to on its own. "
-                          "With no line here, it shows \"What you use it for\" as before."))
-            _cp_df = pd.DataFrame(
-                [{"purpose_code": p["purpose_code"],
-                  **{f"desc_{l}": (p.get("description_i18n") or {}).get(l, "") for l in doc_langs},
-                  "cookie_names": p.get("cookie_names") or ""} for p in _cp_rows],
-                columns=["purpose_code"] + [f"desc_{l}" for l in doc_langs] + ["cookie_names"])
-            _cp_edit = st.data_editor(
-                _cp_df, num_rows="dynamic", hide_index=True, use_container_width=True,
-                key=f"inv_cp_{cur['id']}",
-                column_config={
-                    "purpose_code": st.column_config.SelectboxColumn(
-                        tr("Purpose"), options=_cp_codes, required=True,
-                        format_func=lambda c: _cp_labels.get(c, c)),
-                    **{f"desc_{l}": st.column_config.TextColumn(
-                        tr("Description ({lang})").format(lang=l.upper()),
-                        help=tr("Optional. What the cookies do, in the reader's words."))
-                       for l in doc_langs},
-                    "cookie_names": st.column_config.TextColumn(
-                        tr("Cookies"), help=tr("Names where you know them, e.g. _ga, _gid.")),
-                })
-            if st.button(tr("Save the purposes"), key=f"inv_cp_save_{cur['id']}"):
-                _clean, _errs = STORE.clean_cookie_purposes(
-                    _cp_edit.to_dict("records"), doc_langs, set(_cp_codes))
-                _errs = _errs or STORE.save_cookie_purposes(cur, _clean, user_id, client_id)
-                for e in _errs:
+            st.markdown(tr("**The tool**"))
+            c1, c2 = st.columns(2)
+            f_name = c1.text_input(tr("System ✱"), value=cur.get("name") or "", key=_fk("name"))
+            f_vendor = c2.text_input(tr("Vendor legal entity"), value=cur.get("vendor_legal_name") or "",
+                                     key=_fk("vendor"))
+            c1, c2 = st.columns(2)
+            f_cat = _sel(c1, "Category", cat_codes, cat_labels, cur.get("category"), _fk("cat"))
+            f_crit = _sel(c2, "Criticality", crit_codes, crit_labels, cur.get("criticality"), _fk("crit"))
+            f_purpose = st.text_input(tr("What you use it for"), value=cur.get("purpose") or "", key=_fk("purpose"))
+
+            st.markdown(tr("**Data protection**"))
+            c1, c2, c3 = st.columns(3)
+            f_country = c1.text_input(tr("Where data is processed"), value=cur.get("processing_country") or "",
+                                      key=_fk("country"), help=tr("ISO code (BE, US…), or EU for several EEA countries."))
+            f_tm = _sel(c2, "Transfer basis", tm_codes, tm_labels, cur.get("transfer_mechanism"), _fk("tm"),
+                        help="Only needed when data leaves the EU.")
+            f_dpa = _sel(c3, "Processing agreement (DPA)", dpa_codes, dpa_labels, cur.get("dpa_status"), _fk("dpa"))
+            c1, c2, c3 = st.columns(3)
+            _signed = cur.get("dpa_signed_on")
+            if isinstance(_signed, str) and _signed:
+                from datetime import date as _date
+                _signed = _date.fromisoformat(_signed[:10])
+            f_signed = c1.date_input(tr("DPA signed on"), value=_signed or None, key=_fk("signed"),
+                                     format="DD/MM/YYYY")
+            f_dpa_url = c2.text_input(tr("DPA link"), value=cur.get("dpa_url") or "", key=_fk("dpaurl"))
+            f_pp = c3.text_input(tr("Vendor privacy policy"), value=cur.get("privacy_policy_url") or "", key=_fk("pp"))
+            c1, c2 = st.columns(2)
+            f_ai = _sel(c1, "AI role", ai_codes, ai_labels, cur.get("ai_role"), _fk("ai"))
+            f_cookies = c2.checkbox(tr("Sets cookies on your website"), value=bool(cur.get("sets_cookies")),
+                                    key=_fk("cookies"))
+
+            st.markdown(tr("**If it stops working**"))
+            f_rto = _duration_input("How long it may be down", cur.get("rto_minutes"), _fk("rto"),
+                                    "Recovery time objective (RTO): how long this system may be "
+                                    "unavailable before it has to be back.")
+            f_rpo = _duration_input("How much recent data you can afford to lose", cur.get("rpo_minutes"),
+                                    _fk("rpo"),
+                                    "Recovery point objective (RPO): with a nightly backup, up to 1 day "
+                                    "of data. 0 means none may be lost.")
+            f_recovery = st.text_input(tr("How it is recovered"), value=cur.get("recovery_note") or "",
+                                       key=_fk("recovery"), help=tr("Where the backup is and who restores it."))
+            f_notes = st.text_input(tr("Notes"), value=cur.get("notes") or "", key=_fk("notes"))
+
+            b1, b2, b3 = st.columns([1, 2, 1])
+            _save = b1.button("Save" if cur else "Add system", type="primary", key=_fk("save"),
+                              use_container_width=True)
+            _del = False
+            if cur:
+                _really = b2.checkbox(tr("I want to remove this system"), key=_fk("delchk"))
+                _del = b3.button(tr("Remove"), key=_fk("del"), disabled=not _really, use_container_width=True)
+
+        if _save or _del:
+            row = {
+                "id": cur.get("id"), "name": f_name.strip(), "vendor_legal_name": f_vendor.strip() or None,
+                "category": f_cat, "purpose": f_purpose.strip() or None,
+                "processing_country": f_country.strip().upper() or None, "transfer_mechanism": f_tm,
+                "dpa_status": f_dpa, "dpa_signed_on": f_signed.isoformat() if f_signed else None,
+                "dpa_url": f_dpa_url.strip() or None, "criticality": f_crit, "ai_role": f_ai,
+                "sets_cookies": f_cookies, "privacy_policy_url": f_pp.strip() or None,
+                "notes": f_notes.strip() or None, "rto_minutes": f_rto, "rpo_minutes": f_rpo,
+                "recovery_note": f_recovery.strip() or None,
+            }
+            grid_cols = ["id"] + list(STORE.SYSTEM_EDITABLE)
+            rows = [{c: s.get(c) for c in grid_cols} for s in systems]
+            if _del:
+                rows = [r for r in rows if r["id"] != cur.get("id")]
+            elif cur:
+                # Fields the form does not show (purpose translations) keep their value.
+                rows = [({c: (row[c] if c in row else r.get(c)) for c in grid_cols}
+                         if r["id"] == cur["id"] else r) for r in rows]
+            else:
+                rows.append({c: row.get(c) for c in grid_cols})
+            if _save and not f_name.strip():
+                st.warning(tr("Give the system a name."))
+            else:
+                result = STORE.commit_systems(systems, pd.DataFrame(rows, columns=grid_cols),
+                                              user_id, client_id)
+                for e in result["errors"]:
                     st.error(e)
-                if not _errs:
-                    st.session_state.pop(f"inv_cp_{cur['id']}", None)
+                if not result["errors"]:
+                    for k in [k for k in st.session_state if k.startswith("inv_sys_")]:
+                        st.session_state.pop(k, None)
                     st.rerun()
+
+        # ── S66 (D-187): cookie purposes, one row per purpose ──────────────────
+        # Only for a saved system that sets cookies: the rows belong to a system
+        # id, and a system that sets none has nothing to declare. Outside the
+        # system's box on purpose — its own Save, so editing purposes never
+        # resubmits the whole inventory grid.
+        if cur and cur.get("sets_cookies"):
+            _cp_codes, _cp_labels = INV.options_for("cookie_purpose", lang, client_id)
+            _cp_rows = [p for p in STORE.load_cookie_purposes(client_id)
+                        if p["system_id"] == cur["id"]]
+            with st.container(border=True):
+                st.markdown(tr("**What its cookies are for**"))
+                st.caption(tr("One line per purpose. Your Cookie Policy lists this vendor once "
+                              "per purpose, so each purpose can be consented to on its own. "
+                              "With no line here, it shows \"What you use it for\" as before."))
+                _cp_df = pd.DataFrame(
+                    [{"purpose_code": p["purpose_code"],
+                      **{f"desc_{l}": (p.get("description_i18n") or {}).get(l, "") for l in doc_langs},
+                      "cookie_names": p.get("cookie_names") or ""} for p in _cp_rows],
+                    columns=["purpose_code"] + [f"desc_{l}" for l in doc_langs] + ["cookie_names"])
+                _cp_edit = st.data_editor(
+                    _cp_df, num_rows="dynamic", hide_index=True, use_container_width=True,
+                    key=f"inv_cp_{cur['id']}",
+                    column_config={
+                        "purpose_code": st.column_config.SelectboxColumn(
+                            tr("Purpose"), options=_cp_codes, required=True,
+                            format_func=lambda c: _cp_labels.get(c, c)),
+                        **{f"desc_{l}": st.column_config.TextColumn(
+                            tr("Description ({lang})").format(lang=l.upper()),
+                            help=tr("Optional. What the cookies do, in the reader's words."))
+                           for l in doc_langs},
+                        "cookie_names": st.column_config.TextColumn(
+                            tr("Cookies"), help=tr("Names where you know them, e.g. _ga, _gid.")),
+                    })
+                if st.button(tr("Save the purposes"), key=f"inv_cp_save_{cur['id']}"):
+                    _clean, _errs = STORE.clean_cookie_purposes(
+                        _cp_edit.to_dict("records"), doc_langs, set(_cp_codes))
+                    _errs = _errs or STORE.save_cookie_purposes(cur, _clean, user_id, client_id)
+                    for e in _errs:
+                        st.error(e)
+                    if not _errs:
+                        st.session_state.pop(f"inv_cp_{cur['id']}", None)
+                        st.rerun()
 
     if ready["dpa_gaps"]:
         st.warning(

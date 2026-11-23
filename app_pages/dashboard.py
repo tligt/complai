@@ -180,312 +180,17 @@ except Exception as e:
 
 gap_date = fmt_date(str(last_gap.get("created_at", ""))) if last_gap else None
 
-# ═══════════════════════════════════════════════════════════════
-# SECTION 1 — Regulation Status
-# ═══════════════════════════════════════════════════════════════
-st.subheader(tr("Compliance status — {company_name}").format(company_name=company_name))
-
-# Usability audit C6 (D-123): the one headline figure, the same as on
-# Obligations and the Compliance record. It replaces the On track / In progress
-# words, which came from document coverage or the gap assessment depending on
-# what existed. Loaded once here and reused for "What to do next" below.
-import obligation_view as _OV
-try:
-    _ob_state = _OV.load_state(user_id, client)
-except Exception as e:
-    st.warning(tr("Could not work out your obligations: {e}").format(e=e))
-    _ob_state = None
-if _ob_state:
-    from guide import notice
-    notice("headline_v2",
-           "Your status is now one figure per regulation: the share of your "
-           "obligations that are in place. It counts practices as well as "
-           "documents, so it may be lower than the document figure you saw "
-           "before — but it is more complete, and it moves as soon as you fix "
-           "something.")
-    _OV.render_headline(_ob_state)
-    _doc_bits = []
-    if gap_date:
-        _doc_bits.append(tr("Last gap assessment: {gap_date}").format(gap_date=gap_date))
-    st.caption(" · ".join(_doc_bits + [tr("Details per obligation on the Obligations page.")]))
-    if st.button(tr("Open obligations"), key="home_open_obligations"):
-        st.switch_page("app_pages/obligations.py")
-
-st.divider()
-
-# ═══════════════════════════════════════════════════════════════
-# SECTION 2 — Document Checklist
-# ═══════════════════════════════════════════════════════════════
-st.subheader(tr("📋 Document checklist"))
-if gap_date:
-    st.caption(tr("Status from gap assessment run on {gap_date}. Click a row to see details.").format(gap_date=gap_date))
-else:
-    st.caption(tr("Run a gap assessment to see per-document compliance status."))
-
-relevant_docs = {
-    k: v for k, v in DOC_CATALOG.items()
-    if v["regulations"] and any(r in regulations for r in v["regulations"])
-}
-
-# H7: the "no template yet in this language" sentence, once above the list
-# instead of on every row; filled after the loop has the statuses.
-_unavailable_slot = st.empty()
-_all_statuses = []
-
-for doc_type, meta in relevant_docs.items():
-    col_label, col_status, col_action = st.columns([3, 2, 2])
-
-    in_repo    = doc_type in client_docs
-    in_history = doc_type in docs_by_type
-    doc_record = client_docs.get(doc_type) or docs_by_type.get(doc_type)
-    gap_info   = doc_gap_status.get(doc_type)
-
-    with col_label:
-        reg_tags = " · ".join(
-            f"`{REG_LABELS.get(r, r)}`"
-            for r in meta["regulations"]
-            if r in regulations
-        )
-        st.markdown(f"**{meta['label']}**  {reg_tags}")
-
-        # S27: the verdict comes from register.document_status(), which has no
-        # Streamlit in it. This page only chooses a colour.
-        _status = REG.document_status(
-            doc_type=doc_type,
-            languages=doc_languages,
-            register_rows=register.get(doc_type),
-            # None, not empty, when the lookup failed: empty means "we have no
-            # template", None means "we did not check", and reporting our own
-            # gap on a failed lookup tells a client we cannot help them when we
-            # do not know that.
-            template_languages=template_langs.get(doc_type)
-                if template_langs else None,
-        )
-        _all_statuses.append(_status)
-        _note = REG.status_note(_status, multilingual=len(doc_languages) > 1,
-                                include_unavailable=False)
-        if _note:
-            st.caption(_note.capitalize())
-
-    with col_status:
-        # Register state outranks the older in_repo / in_history flags: those
-        # cannot tell a document the client OPERATES UNDER from one that was
-        # merely produced.
-        _st8 = _status["state"]
-        if _st8 == REG.IN_FORCE:
-            st.success(tr("✅ In force"))
-        elif _st8 == REG.PARTIAL:
-            st.warning("🟡 " + REG.status_note(_status).split(" · ")[0].capitalize())
-        elif _st8 == REG.DRAFT:
-            st.warning(tr("🟠 Draft — not adopted"))
-        elif _st8 == REG.NOT_AVAILABLE:
-            # Ours, not theirs. Blue rather than red, because red on a row the
-            # client cannot act on reads as an accusation.
-            st.info(tr("🕓 Not available yet"))
-        elif _st8 == REG.ARCHIVED:
-            st.info(tr("📁 Archived"))
-        elif gap_info:
-            # Show gap assessment result — most informative
-            gs = gap_info["status"]
-            if gs == "compliant":
-                st.success(tr("✅ Compliant"))
-            elif gs == "partial":
-                st.warning(tr("🟡 Partial"))
-            else:
-                st.error(tr("❌ Not compliant"))
-        elif in_repo or in_history:  # pre-S27 rows with no register entry
-            # Document exists but no gap assessment
-            source = (client_docs.get(doc_type) or {}).get("source", "")
-            if source == "complai_generated":
-                st.success(tr("✅ Generated"))
-            else:
-                st.info(tr("ℹ️ In repository"))
-        else:
-            # NOT_GENERATED: the template exists, the client has not produced
-            # it. Distinct from "not available", which is ours.
-            st.error(tr("➕ Not generated"))
-
-    with col_action:
-        if not in_repo and not in_history:
-            if st.button(tr("Generate →"), key=f"gen_{doc_type}"):
-                st.switch_page("app_pages/documents.py")
-        else:
-            if st.button(tr("Gap assessment →"), key=f"gap_{doc_type}"):
-                st.switch_page("app_pages/gap.py")
-
-    # Expandable details from gap assessment
-    if gap_info and gap_info["details"]:
-        with st.expander(tr("Details — {meta_label}").format(meta_label=meta['label']), expanded=False):
-            for item in gap_info["details"]:
-                s = item["status"]
-                icon = "✅" if s == "compliant" else ("🟡" if s == "partial" else "❌")
-                st.markdown(f"{icon} **{item['id'].upper()}** — {item['explanation']}")
-                if item.get("recommendation"):
-                    st.caption(f"→ {item['recommendation']}")
-
-if len(doc_languages) > 1 and REG.unavailable_banner(_all_statuses):
-    _unavailable_slot.info(REG.unavailable_banner(_all_statuses))
-
-st.divider()
-
-# ═══════════════════════════════════════════════════════════════
-# SECTION 2b — Operational obligations
-# ═══════════════════════════════════════════════════════════════
-# These are practices, procedures and arrangements — data subject rights
-# handling, privacy by design, staff training, access control. No document
-# discharges them, which is exactly why they used to distort the document
-# scores: a complete privacy policy was marked Partial because it could not
-# satisfy obligations that were never about the policy. They are surfaced
-# here on their own terms instead of being hidden or mis-attributed.
-# Usability audit C6 follow-up: these counts come from the last gap
-# assessment, not from today's data, so they sit folded under a dated title
-# instead of beside the headline figure as a second score.
-operational = operational_for_regulations(regulations)
-
-if last_gap:
-    with st.expander(tr("⚙️ Your practices — what the gap assessment of {gap_date} found").format(gap_date=gap_date),
-                     expanded=False):
-        st.caption(
-            tr("Practices and procedures no document can satisfy, as assessed on {gap_date}. A snapshot of that day: the figure at the top is today's.").format(gap_date=gap_date)
-        )
-
-        # Obligations that do not bind yet are reported but never counted as
-        # failures. Marking a client red today for a duty arriving in December
-        # 2027 is a false alarm, and false alarms are how a compliance tool
-        # loses the client's attention for the alarms that matter.
-        operational, forthcoming = split_by_force(operational)
-
-        op_rows = []
-        for ob in operational:
-            res = gap_by_id.get(ob["id"])
-            # No result at all means the obligation postdates the last assessment
-            # — which happens every time Compliance Pulse adds a requirement.
-            # Defaulting that to "missing" would report an untested obligation as
-            # a failure.
-            status = (res or {}).get("status", "not_assessed")
-            op_rows.append((ob, status, res or {}))
-
-        n_ok      = sum(1 for _, s, _ in op_rows if s == "compliant")
-        n_partial = sum(1 for _, s, _ in op_rows if s == "partial")
-        n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
-        n_unknown = sum(1 for _, s, _ in op_rows if s == "not_assessed")
-        n_open    = len(op_rows) - n_ok - n_partial - n_na - n_unknown
-
-        st.markdown(" · ".join(filter(None, [
-            f"{n_ok} in place", f"{n_partial} partly", f"{n_open} not in place",
-            f"{n_unknown} not assessed" if n_unknown else "",
-            f"{len(forthcoming)} not yet in force" if forthcoming else "",
-        ])))
-
-        if n_unknown:
-            st.caption(
-                tr("{plural_n_unknown_obligat} {was_if_n_unknown_1_else} not covered by the assessment on {gap_date} — most likely added since. Re-run to include them.").format(plural_n_unknown_obligat=plural(n_unknown, 'obligation'), was_if_n_unknown_1_else='was' if n_unknown == 1 else 'were', gap_date=gap_date)
-            )
-
-        ICONS = {"compliant": "✅", "partial": "🟡", "not_applicable": "⚪",
-                 "not_assessed": "🔍", "missing": "❌"}
-
-        # Highest priority first — an operational gap on access control matters
-        # more than one on penetration testing.
-        PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
-        op_rows.sort(key=lambda r: (
-            0 if r[1] in ("missing", "partial") else 1,
-            PRIORITY_RANK.get(r[0]["priority"], 9),
-        ))
-
-        for reg in regulations:
-            reg_rows = [r for r in op_rows
-                        if REG_LABELS.get(r[0]["regulation"]) and
-                        (r[0]["regulation"] == reg or
-                         (reg == "GDPR" and r[0]["regulation"] == "EPRIVACY"))]
-            if not reg_rows:
-                continue
-            st.markdown(
-                tr("##### {reg_labels_get_reg_reg} — {sum_1_for_s_in_reg_rows} of {len_reg_rows} need attention").format(reg_labels_get_reg_reg=REG_LABELS.get(reg, reg), sum_1_for_s_in_reg_rows=sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial')), len_reg_rows=len(reg_rows))
-            )
-            for ob, status, res in reg_rows:
-                st.markdown(
-                    f"{ICONS.get(status, '❔')} **{ob['title']}**  "
-                    f"`{ob['article']}`"
-                )
-                if not ob.get("statutory", True):
-                    st.caption(tr("↳ Recommended by RECOSA — not a standalone "
-                               "statutory requirement."))
-                explanation = res.get("explanation") or ob["description"]
-                st.caption(explanation)
-                if res.get("recommendation") and status != "compliant":
-                    st.caption(f"→ {res['recommendation']}")
-
-        if forthcoming:
-            st.markdown(tr("##### 🕓 Not yet in force ({len_forthcoming})").format(len_forthcoming=len(forthcoming)))
-            st.caption(
-                tr("Already law, but not yet binding. Nothing to do today — "
-                "shown so the dates are not a surprise.")
-            )
-            for ob in sorted(forthcoming, key=lambda o: o["applies_from"]):
-                st.markdown(
-                    tr("**{ob_title}**  `{ob_article}`  ·  applies from **{applies_from_label_ob}**").format(ob_title=ob['title'], ob_article=ob['article'], applies_from_label_ob=applies_from_label(ob))
-                )
-                st.caption(ob["description"])
-
-st.divider()
-
-# ═══════════════════════════════════════════════════════════════
-# SECTION 3 — Activity Summary
-# ═══════════════════════════════════════════════════════════════
-st.subheader(tr("📌 Activity summary"))
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown(tr("**🔔 Regulatory alerts**"))
-    if unread_alerts > 0:
-        st.warning(plural(unread_alerts, "unread alert"))
-        if st.button(tr("View alerts →")):
-            st.switch_page("app_pages/alerts.py")
-    else:
-        st.success(tr("All alerts read ✅"))
-
-with col2:
-    st.markdown(tr("**🔍 Gap assessment**"))
-    if last_gap:
-        score_gdpr    = last_gap.get("score_gdpr", "—")
-        score_nis2    = last_gap.get("score_nis2", "—")
-        score_overall = last_gap.get("score_overall", "—")
-        # C6: named for what it measures — the quality of your documents on
-        # the day of the run — so it no longer competes with the headline.
-        st.info(tr("Document quality, assessed {gap_date}").format(gap_date=gap_date))
-        st.caption(tr("GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100").format(score_gdpr=score_gdpr, score_nis2=score_nis2, score_overall=score_overall))
-        try:
-            _gap_age = (datetime.now(timezone.utc) - datetime.fromisoformat(
-                str(last_gap.get("created_at")).replace("Z", "+00:00"))).days
-        except Exception:
-            _gap_age = 0
-        if _gap_age > 30:
-            st.caption(tr(":orange[{gap_age} days old — rerun it to refresh.]").format(gap_age=_gap_age))
-        if st.button(tr("Run new assessment →")):
-            st.switch_page("app_pages/gap.py")
-    else:
-        st.warning(tr("No assessment run yet"))
-        if st.button(tr("Run assessment →")):
-            st.switch_page("app_pages/gap.py")
-
-with col3:
-    st.markdown(tr("**💬 Assistant**"))
-    st.info(tr("Ask any compliance question"))
-    if st.button(tr("Open the assistant →")):
-        st.switch_page("app_pages/chat.py")
-
-# ── Fill the "What to do next" slot (see the top of the page) ──
-from database import count_unread_replies as _unread_replies
-_tasks = _ob_state["open_tasks"] if _ob_state else []
-_assigned = (_ob_state or {}).get("assignments") or {}
-_next = [f for f in _tasks if f.get("link") != "incidents"][:3]
-
-# ── Getting started (usability audit batch 3) ─────────────────
+# ── Getting started (usability audit batch 3; D-204 onboarding mode) ──────
 # The five steps in the order the product works: each one feeds the next.
-# Shown until all five are done; each is worked out from the data, nothing
-# to tick by hand.
+# Worked out from the data, nothing to tick by hand. Built here, before the
+# status, so a new customer sees the guide at once instead of after the
+# several seconds the action plan takes.
+#
+# D-204: until all five are done the page is in onboarding mode. The guide is
+# the page; the status, document checklist and activity summary sit behind a
+# toggle. For a new customer they are mostly empty and every row carries its
+# own button ("Generate →" before there is an inventory), which pulled them
+# away from the one step that matters next.
 _in_force_any = any(r.get("status") == "in_force"
                     for per_lang in (register or {}).values() for r in per_lang.values())
 _generated_any = bool(docs_by_type) or bool(register)
@@ -499,7 +204,7 @@ _steps = [
     ("Complete the company profile", bool(client.get("contact_email") and client.get("legal_name")),
      "app_pages/company.py", "Legal name and a contact email are what documents need most."),
     ("Add your systems and activities", _has_inventory, "app_pages/inventory.py",
-     "The tools you use and what you do with personal data."),
+     "The tools you use and what you do with personal data. Start with a scan of your website."),
     ("Run a gap assessment", bool(last_gap), "app_pages/gap.py",
      "A first score per regulation, and findings for the action plan."),
     ("Generate your documents", _generated_any, "app_pages/documents.py",
@@ -507,59 +212,380 @@ _steps = [
     ("Adopt them (mark in force)", _in_force_any, "app_pages/compliance_record.py",
      "A document counts once your company operates under it."),
 ]
-if not all(done for _, done, _, _ in _steps):
+_onboarding = not all(done for _, done, _, _ in _steps)
+if _onboarding:
     with _start_slot.container(border=True):
         _n_done = sum(1 for _, done, _, _ in _steps if done)
-        st.markdown(tr("**Getting started** · {n_done} of {len_steps} done").format(n_done=_n_done, len_steps=len(_steps)))
-        st.progress(_n_done / len(_steps))
+        st.markdown(tr("### Set up {company_name} in five steps").format(company_name=company_name))
+        st.caption(tr("Follow them in order: each step feeds the next. "
+                      "Your compliance status fills in as you go."))
+        st.progress(_n_done / len(_steps),
+                    text=tr("{n_done} of {len_steps} done").format(n_done=_n_done, len_steps=len(_steps)))
         _next_step = next(i for i, (_, done, _, _) in enumerate(_steps) if not done)
         for _i, (_label, _done, _page, _why) in enumerate(_steps):
-            _c1, _c2 = st.columns([5, 1])
-            _c1.markdown(("✅ ~~" + _label + "~~") if _done else
-                         (f"**{_i + 1}. {_label}**  \n:gray[{_why}]" if _i == _next_step
-                          else f"{_i + 1}. {_label}"))
-            if _i == _next_step and _c2.button(tr("Start"), key="home_start", type="primary",
-                                               use_container_width=True):
-                st.switch_page(_page)
-_alerts_n = count_unread_alerts(user_id)
-_replies_n = _unread_replies(user_id)
+            if _i == _next_step:
+                with st.container(border=True):
+                    _c1, _c2 = st.columns([4, 1], vertical_alignment="center")
+                    _c1.markdown(f"**{_i + 1}. {tr(_label)}**  \n{tr(_why)}")
+                    if _c2.button(tr("Start →"), key="home_start", type="primary",
+                                  use_container_width=True):
+                        st.switch_page(_page)
+            elif _done:
+                st.markdown(f"✅ :gray[~~{tr(_label)}~~]")
+            else:
+                st.markdown(f":gray[{_i + 1}. {tr(_label)}]")
+    _next_slot.empty()
+    _show_full = st.toggle(tr("Show my full status anyway"), key="home_show_full",
+                           help=tr("Your status, document checklist and activity summary. "
+                                   "Mostly empty until the steps above are done."))
+else:
+    _show_full = True
 
-with _next_slot.container(border=True):
-    st.markdown(tr("**What to do next**"))
-    if not _next:
-        st.success(tr("Nothing outstanding on the action plan."))
-    _sev_icon = {"blocking": "🔴", "due": "🟠", "open": "⚪"}
-    for _i, _f in enumerate(_next):
-        _c1, _c2 = st.columns([5, 1])
-        _c1.markdown(f"{_sev_icon.get(_f['severity'], '⚪')} **{_f['title']}**"
-                     + (f"  \n:gray[{_f['detail']}]" if _f.get("detail") else ""))
-        _page = _OV.TASK_LINK_PAGES.get(_f.get("link") or "")
-        if _page and _c2.button(tr("Fix it"), key=f"home_fix_{_i}", use_container_width=True):
-            st.switch_page(_page)
-    # S56: what is handled by you, and what is new in your inbox.
+_ob_state = None
+if _show_full:
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 1 — Regulation Status
+    # ═══════════════════════════════════════════════════════════════
+    st.subheader(tr("Compliance status — {company_name}").format(company_name=company_name))
+
+    # Usability audit C6 (D-123): the one headline figure, the same as on
+    # Obligations and the Compliance record. It replaces the On track / In progress
+    # words, which came from document coverage or the gap assessment depending on
+    # what existed. Loaded once here and reused for "What to do next" below.
+    import obligation_view as _OV
     try:
-        import work_items as _W
-        _mine_n = sum(1 for _f in _tasks
-                      if (_assigned.get(_f["finding_key"]) or {}).get("assignee_id") == user_id)
-        _inbox_new = _W.unread_count(user_id)
-    except Exception:
-        _mine_n, _inbox_new = 0, 0
-    if _mine_n or _inbox_new:
-        _m1, _m2 = st.columns(2)
-        if _mine_n and _m1.button(plural(_mine_n, "task") + " handled by you", key="home_mine",
-                                  use_container_width=True, type="primary"):
-            st.session_state["ap_only_mine"] = True
+        _ob_state = _OV.load_state(user_id, client)
+    except Exception as e:
+        st.warning(tr("Could not work out your obligations: {e}").format(e=e))
+        _ob_state = None
+    if _ob_state:
+        from guide import notice
+        notice("headline_v2",
+               "Your status is now one figure per regulation: the share of your "
+               "obligations that are in place. It counts practices as well as "
+               "documents, so it may be lower than the document figure you saw "
+               "before — but it is more complete, and it moves as soon as you fix "
+               "something.")
+        _OV.render_headline(_ob_state)
+        _doc_bits = []
+        if gap_date:
+            _doc_bits.append(tr("Last gap assessment: {gap_date}").format(gap_date=gap_date))
+        st.caption(" · ".join(_doc_bits + [tr("Details per obligation on the Obligations page.")]))
+        if st.button(tr("Open obligations"), key="home_open_obligations"):
+            st.switch_page("app_pages/obligations.py")
+
+    st.divider()
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 2 — Document Checklist
+    # ═══════════════════════════════════════════════════════════════
+    st.subheader(tr("📋 Document checklist"))
+    if gap_date:
+        st.caption(tr("Status from gap assessment run on {gap_date}. Click a row to see details.").format(gap_date=gap_date))
+    else:
+        st.caption(tr("Run a gap assessment to see per-document compliance status."))
+
+    relevant_docs = {
+        k: v for k, v in DOC_CATALOG.items()
+        if v["regulations"] and any(r in regulations for r in v["regulations"])
+    }
+
+    # H7: the "no template yet in this language" sentence, once above the list
+    # instead of on every row; filled after the loop has the statuses.
+    _unavailable_slot = st.empty()
+    _all_statuses = []
+
+    for doc_type, meta in relevant_docs.items():
+        col_label, col_status, col_action = st.columns([3, 2, 2])
+
+        in_repo    = doc_type in client_docs
+        in_history = doc_type in docs_by_type
+        doc_record = client_docs.get(doc_type) or docs_by_type.get(doc_type)
+        gap_info   = doc_gap_status.get(doc_type)
+
+        with col_label:
+            reg_tags = " · ".join(
+                f"`{REG_LABELS.get(r, r)}`"
+                for r in meta["regulations"]
+                if r in regulations
+            )
+            st.markdown(f"**{meta['label']}**  {reg_tags}")
+
+            # S27: the verdict comes from register.document_status(), which has no
+            # Streamlit in it. This page only chooses a colour.
+            _status = REG.document_status(
+                doc_type=doc_type,
+                languages=doc_languages,
+                register_rows=register.get(doc_type),
+                # None, not empty, when the lookup failed: empty means "we have no
+                # template", None means "we did not check", and reporting our own
+                # gap on a failed lookup tells a client we cannot help them when we
+                # do not know that.
+                template_languages=template_langs.get(doc_type)
+                    if template_langs else None,
+            )
+            _all_statuses.append(_status)
+            _note = REG.status_note(_status, multilingual=len(doc_languages) > 1,
+                                    include_unavailable=False)
+            if _note:
+                st.caption(_note.capitalize())
+
+        with col_status:
+            # Register state outranks the older in_repo / in_history flags: those
+            # cannot tell a document the client OPERATES UNDER from one that was
+            # merely produced.
+            _st8 = _status["state"]
+            if _st8 == REG.IN_FORCE:
+                st.success(tr("✅ In force"))
+            elif _st8 == REG.PARTIAL:
+                st.warning("🟡 " + REG.status_note(_status).split(" · ")[0].capitalize())
+            elif _st8 == REG.DRAFT:
+                st.warning(tr("🟠 Draft — not adopted"))
+            elif _st8 == REG.NOT_AVAILABLE:
+                # Ours, not theirs. Blue rather than red, because red on a row the
+                # client cannot act on reads as an accusation.
+                st.info(tr("🕓 Not available yet"))
+            elif _st8 == REG.ARCHIVED:
+                st.info(tr("📁 Archived"))
+            elif gap_info:
+                # Show gap assessment result — most informative
+                gs = gap_info["status"]
+                if gs == "compliant":
+                    st.success(tr("✅ Compliant"))
+                elif gs == "partial":
+                    st.warning(tr("🟡 Partial"))
+                else:
+                    st.error(tr("❌ Not compliant"))
+            elif in_repo or in_history:  # pre-S27 rows with no register entry
+                # Document exists but no gap assessment
+                source = (client_docs.get(doc_type) or {}).get("source", "")
+                if source == "complai_generated":
+                    st.success(tr("✅ Generated"))
+                else:
+                    st.info(tr("ℹ️ In repository"))
+            else:
+                # NOT_GENERATED: the template exists, the client has not produced
+                # it. Distinct from "not available", which is ours.
+                st.error(tr("➕ Not generated"))
+
+        with col_action:
+            if not in_repo and not in_history:
+                if st.button(tr("Generate →"), key=f"gen_{doc_type}"):
+                    st.switch_page("app_pages/documents.py")
+            else:
+                if st.button(tr("Gap assessment →"), key=f"gap_{doc_type}"):
+                    st.switch_page("app_pages/gap.py")
+
+        # Expandable details from gap assessment
+        if gap_info and gap_info["details"]:
+            with st.expander(tr("Details — {meta_label}").format(meta_label=meta['label']), expanded=False):
+                for item in gap_info["details"]:
+                    s = item["status"]
+                    icon = "✅" if s == "compliant" else ("🟡" if s == "partial" else "❌")
+                    st.markdown(f"{icon} **{item['id'].upper()}** — {item['explanation']}")
+                    if item.get("recommendation"):
+                        st.caption(f"→ {item['recommendation']}")
+
+    if len(doc_languages) > 1 and REG.unavailable_banner(_all_statuses):
+        _unavailable_slot.info(REG.unavailable_banner(_all_statuses))
+
+    st.divider()
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 2b — Operational obligations
+    # ═══════════════════════════════════════════════════════════════
+    # These are practices, procedures and arrangements — data subject rights
+    # handling, privacy by design, staff training, access control. No document
+    # discharges them, which is exactly why they used to distort the document
+    # scores: a complete privacy policy was marked Partial because it could not
+    # satisfy obligations that were never about the policy. They are surfaced
+    # here on their own terms instead of being hidden or mis-attributed.
+    # Usability audit C6 follow-up: these counts come from the last gap
+    # assessment, not from today's data, so they sit folded under a dated title
+    # instead of beside the headline figure as a second score.
+    operational = operational_for_regulations(regulations)
+
+    if last_gap:
+        with st.expander(tr("⚙️ Your practices — what the gap assessment of {gap_date} found").format(gap_date=gap_date),
+                         expanded=False):
+            st.caption(
+                tr("Practices and procedures no document can satisfy, as assessed on {gap_date}. A snapshot of that day: the figure at the top is today's.").format(gap_date=gap_date)
+            )
+
+            # Obligations that do not bind yet are reported but never counted as
+            # failures. Marking a client red today for a duty arriving in December
+            # 2027 is a false alarm, and false alarms are how a compliance tool
+            # loses the client's attention for the alarms that matter.
+            operational, forthcoming = split_by_force(operational)
+
+            op_rows = []
+            for ob in operational:
+                res = gap_by_id.get(ob["id"])
+                # No result at all means the obligation postdates the last assessment
+                # — which happens every time Compliance Pulse adds a requirement.
+                # Defaulting that to "missing" would report an untested obligation as
+                # a failure.
+                status = (res or {}).get("status", "not_assessed")
+                op_rows.append((ob, status, res or {}))
+
+            n_ok      = sum(1 for _, s, _ in op_rows if s == "compliant")
+            n_partial = sum(1 for _, s, _ in op_rows if s == "partial")
+            n_na      = sum(1 for _, s, _ in op_rows if s == "not_applicable")
+            n_unknown = sum(1 for _, s, _ in op_rows if s == "not_assessed")
+            n_open    = len(op_rows) - n_ok - n_partial - n_na - n_unknown
+
+            st.markdown(" · ".join(filter(None, [
+                f"{n_ok} in place", f"{n_partial} partly", f"{n_open} not in place",
+                f"{n_unknown} not assessed" if n_unknown else "",
+                f"{len(forthcoming)} not yet in force" if forthcoming else "",
+            ])))
+
+            if n_unknown:
+                st.caption(
+                    tr("{plural_n_unknown_obligat} {was_if_n_unknown_1_else} not covered by the assessment on {gap_date} — most likely added since. Re-run to include them.").format(plural_n_unknown_obligat=plural(n_unknown, 'obligation'), was_if_n_unknown_1_else='was' if n_unknown == 1 else 'were', gap_date=gap_date)
+                )
+
+            ICONS = {"compliant": "✅", "partial": "🟡", "not_applicable": "⚪",
+                     "not_assessed": "🔍", "missing": "❌"}
+
+            # Highest priority first — an operational gap on access control matters
+            # more than one on penetration testing.
+            PRIORITY_RANK = {"high": 0, "medium": 1, "low": 2}
+            op_rows.sort(key=lambda r: (
+                0 if r[1] in ("missing", "partial") else 1,
+                PRIORITY_RANK.get(r[0]["priority"], 9),
+            ))
+
+            for reg in regulations:
+                reg_rows = [r for r in op_rows
+                            if REG_LABELS.get(r[0]["regulation"]) and
+                            (r[0]["regulation"] == reg or
+                             (reg == "GDPR" and r[0]["regulation"] == "EPRIVACY"))]
+                if not reg_rows:
+                    continue
+                st.markdown(
+                    tr("##### {reg_labels_get_reg_reg} — {sum_1_for_s_in_reg_rows} of {len_reg_rows} need attention").format(reg_labels_get_reg_reg=REG_LABELS.get(reg, reg), sum_1_for_s_in_reg_rows=sum(1 for _, s, _ in reg_rows if s in ('missing', 'partial')), len_reg_rows=len(reg_rows))
+                )
+                for ob, status, res in reg_rows:
+                    st.markdown(
+                        f"{ICONS.get(status, '❔')} **{ob['title']}**  "
+                        f"`{ob['article']}`"
+                    )
+                    if not ob.get("statutory", True):
+                        st.caption(tr("↳ Recommended by RECOSA — not a standalone "
+                                   "statutory requirement."))
+                    explanation = res.get("explanation") or ob["description"]
+                    st.caption(explanation)
+                    if res.get("recommendation") and status != "compliant":
+                        st.caption(f"→ {res['recommendation']}")
+
+            if forthcoming:
+                st.markdown(tr("##### 🕓 Not yet in force ({len_forthcoming})").format(len_forthcoming=len(forthcoming)))
+                st.caption(
+                    tr("Already law, but not yet binding. Nothing to do today — "
+                    "shown so the dates are not a surprise.")
+                )
+                for ob in sorted(forthcoming, key=lambda o: o["applies_from"]):
+                    st.markdown(
+                        tr("**{ob_title}**  `{ob_article}`  ·  applies from **{applies_from_label_ob}**").format(ob_title=ob['title'], ob_article=ob['article'], applies_from_label_ob=applies_from_label(ob))
+                    )
+                    st.caption(ob["description"])
+
+    st.divider()
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 3 — Activity Summary
+    # ═══════════════════════════════════════════════════════════════
+    st.subheader(tr("📌 Activity summary"))
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown(tr("**🔔 Regulatory alerts**"))
+        if unread_alerts > 0:
+            st.warning(plural(unread_alerts, "unread alert"))
+            if st.button(tr("View alerts →")):
+                st.switch_page("app_pages/alerts.py")
+        else:
+            st.success(tr("All alerts read ✅"))
+
+    with col2:
+        st.markdown(tr("**🔍 Gap assessment**"))
+        if last_gap:
+            score_gdpr    = last_gap.get("score_gdpr", "—")
+            score_nis2    = last_gap.get("score_nis2", "—")
+            score_overall = last_gap.get("score_overall", "—")
+            # C6: named for what it measures — the quality of your documents on
+            # the day of the run — so it no longer competes with the headline.
+            st.info(tr("Document quality, assessed {gap_date}").format(gap_date=gap_date))
+            st.caption(tr("GDPR: {score_gdpr}/100  ·  NIS2: {score_nis2}/100  ·  Overall: {score_overall}/100").format(score_gdpr=score_gdpr, score_nis2=score_nis2, score_overall=score_overall))
+            try:
+                _gap_age = (datetime.now(timezone.utc) - datetime.fromisoformat(
+                    str(last_gap.get("created_at")).replace("Z", "+00:00"))).days
+            except Exception:
+                _gap_age = 0
+            if _gap_age > 30:
+                st.caption(tr(":orange[{gap_age} days old — rerun it to refresh.]").format(gap_age=_gap_age))
+            if st.button(tr("Run new assessment →")):
+                st.switch_page("app_pages/gap.py")
+        else:
+            st.warning(tr("No assessment run yet"))
+            if st.button(tr("Run assessment →")):
+                st.switch_page("app_pages/gap.py")
+
+    with col3:
+        st.markdown(tr("**💬 Assistant**"))
+        st.info(tr("Ask any compliance question"))
+        if st.button(tr("Open the assistant →")):
+            st.switch_page("app_pages/chat.py")
+
+# ── Fill the "What to do next" slot (see the top of the page) ──
+from database import count_unread_replies as _unread_replies
+_tasks = _ob_state["open_tasks"] if _ob_state else []
+_assigned = (_ob_state or {}).get("assignments") or {}
+_next = [f for f in _tasks if f.get("link") != "incidents"][:3]
+
+# D-204: no "What to do next" box in onboarding mode — the guide is the next step.
+if not _onboarding:
+    _alerts_n = count_unread_alerts(user_id)
+    _replies_n = _unread_replies(user_id)
+
+    with _next_slot.container(border=True):
+        st.markdown(tr("**What to do next**"))
+        if not _next:
+            st.success(tr("Nothing outstanding on the action plan."))
+        _sev_icon = {"blocking": "🔴", "due": "🟠", "open": "⚪"}
+        for _i, _f in enumerate(_next):
+            _c1, _c2 = st.columns([5, 1])
+            _c1.markdown(f"{_sev_icon.get(_f['severity'], '⚪')} **{_f['title']}**"
+                         + (f"  \n:gray[{_f['detail']}]" if _f.get("detail") else ""))
+            _page = _OV.TASK_LINK_PAGES.get(_f.get("link") or "")
+            if _page and _c2.button(tr("Fix it"), key=f"home_fix_{_i}", use_container_width=True):
+                st.switch_page(_page)
+        # S56: what is handled by you, and what is new in your inbox.
+        try:
+            import work_items as _W
+            _mine_n = sum(1 for _f in _tasks
+                          if (_assigned.get(_f["finding_key"]) or {}).get("assignee_id") == user_id)
+            _inbox_new = _W.unread_count(user_id)
+        except Exception:
+            _mine_n, _inbox_new = 0, 0
+        if _mine_n or _inbox_new:
+            _m1, _m2 = st.columns(2)
+            if _mine_n and _m1.button(plural(_mine_n, "task") + " handled by you", key="home_mine",
+                                      use_container_width=True, type="primary"):
+                st.session_state["ap_only_mine"] = True
+                st.switch_page("app_pages/action_plan.py")
+            if _inbox_new and _m2.button(tr("Inbox ({inbox_new} new)").format(inbox_new=_inbox_new), key="home_inbox",
+                                         use_container_width=True):
+                st.switch_page("app_pages/inbox.py")
+        _b1, _b2, _b3 = st.columns(3)
+        if _tasks and _b1.button(tr("Action plan ({len_tasks})").format(len_tasks=len(_tasks)), key="home_plan",
+                                 use_container_width=True):
             st.switch_page("app_pages/action_plan.py")
-        if _inbox_new and _m2.button(tr("Inbox ({inbox_new} new)").format(inbox_new=_inbox_new), key="home_inbox",
-                                     use_container_width=True):
-            st.switch_page("app_pages/inbox.py")
-    _b1, _b2, _b3 = st.columns(3)
-    if _tasks and _b1.button(tr("Action plan ({len_tasks})").format(len_tasks=len(_tasks)), key="home_plan",
-                             use_container_width=True):
-        st.switch_page("app_pages/action_plan.py")
-    if _alerts_n and _b2.button(tr("Alerts ({alerts_n} unread)").format(alerts_n=_alerts_n), key="home_alerts",
-                                use_container_width=True):
-        st.switch_page("app_pages/alerts.py")
-    if _replies_n and _b3.button(plural(_replies_n, "support reply", "support replies"),
-                                 key="home_support", use_container_width=True):
-        st.switch_page("app_pages/support.py")
+        if _alerts_n and _b2.button(tr("Alerts ({alerts_n} unread)").format(alerts_n=_alerts_n), key="home_alerts",
+                                    use_container_width=True):
+            st.switch_page("app_pages/alerts.py")
+        if _replies_n and _b3.button(plural(_replies_n, "support reply", "support replies"),
+                                     key="home_support", use_container_width=True):
+            st.switch_page("app_pages/support.py")

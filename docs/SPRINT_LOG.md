@@ -8884,6 +8884,42 @@ Two points to settle when scoping:
 Until S77 is built, the S74 flow stays as it is: the plan request is a
 ticket, and the cycle is set in the back office.
 
+### D-204 — Onboarding: Home follows the guide, Systems ranks its three ways in, 23 Nov
+
+By the user: Home "is not very user friendly", a new user "should follow the
+guide", and on Systems the scan, the common-tool list and "Add a system"
+"seem not to have the same importance".
+
+**Home.** Until the five getting-started steps are done, the page is in
+onboarding mode:
+- the guide comes first and renders at once, as "Set up {company} in five
+  steps" with the current step boxed and one **Start →** button;
+- the compliance status, document checklist, practices, activity summary and
+  "What to do next" box sit behind a **Show my full status anyway** toggle;
+- the step labels are now translated (they were English in FR/NL).
+
+Once all five are done, the page is as before.
+
+**Systems.** The three ways to add a tool are a funnel, and the page now
+says so:
+- a "Setup, step 2 of 5" banner when there are no systems;
+- ① the website scan (the one run at company creation) first and open;
+- ② the list, open on its own only when the scan has nothing to tick;
+- ③ "Add by hand", a line and a button. The blank form no longer opens by
+  default.
+
+Also:
+- with systems but no activities, a warning points to the Processing
+  activities tab — the step needs both;
+- with both and no gap assessment yet, "Setup step 2 done" and
+  **Next step →**;
+- the metrics row is hidden while the inventory is empty;
+- the third tab reads "Controllers you process for (if any)" until there is
+  one.
+
+Checked locally on creagent, both modes, with the onboarding state forced by
+a temporary override (removed). Nothing written to the database.
+
 ---
 
 *End of record. Append at sprint close.*
