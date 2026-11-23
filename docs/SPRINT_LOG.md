@@ -8846,6 +8846,15 @@ stored size.
 2. The key goes into `deploy/.env` on the server as `NBB_CBSO_KEY`.
 3. One real lookup confirms the JSON shape.
 
+**Deployed the same day:**
+- both migrations were applied first, then update.sh ran; admin, app and
+  quiz are healthy, and the crontab is unchanged;
+- checked on production: app.recosa.eu's sign-up cards read "€49/month ·
+  €539/year";
+- the heartbeat dry run is clean and skips the filed figures while there is
+  no NBB key;
+- no account has a billing cycle yet: it is set when a client subscribes.
+
 ---
 
 *End of record. Append at sprint close.*
