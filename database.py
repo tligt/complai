@@ -1743,18 +1743,33 @@ def expire_account_trial_if_due(acc: dict | None) -> dict | None:
 # ── The person-level names, kept for their callers ───────────────────────
 # Each acts on the account the person owns (opened if needed).
 
-def start_trial(user_id: str, tier: str | None = None) -> bool:
+def start_trial(user_id: str, tier: str | None = None,
+                since: datetime | str | None = None) -> bool:
     """Start the account's one free trial, TRIAL_DAYS days. Only from
     'registered': an expired trial does not restart, and an invited
     colleague starts none (they own no account).
 
     `tier`: the plan chosen at sign-up (D-126). Without one — the free
-    check's "Start free trial" button — the account's plan is kept."""
+    check's "Start free trial" button — the account's plan is kept.
+
+    `since` (D-211): count the trial from this moment, the sign-up, not from
+    now — so an account that signed up long ago and only logs in now gets
+    what is left of its 14 days, or none: it goes straight to 'expired'."""
     acc = ensure_account(user_id, plan=tier)
     if not acc or acc["status"] != "registered":
         return False
-    ok, _ = change_account(acc["id"], status="trial",
-                           plan=tier if tier in SUBSCRIPTION_TIERS else None,
+    plan = tier if tier in SUBSCRIPTION_TIERS else None
+    ends = None
+    if since:
+        start = since if isinstance(since, datetime) else datetime.fromisoformat(
+            str(since).replace("Z", "+00:00"))
+        ends = start + timedelta(days=TRIAL_DAYS)
+        if ends <= datetime.now(timezone.utc):
+            ok, _ = change_account(acc["id"], status="expired", plan=plan,
+                                   note=f"The {TRIAL_DAYS}-day free trial, counted from sign-up "
+                                        f"on {start:%d %b %Y}, had already ended", by=user_id)
+            return False
+    ok, _ = change_account(acc["id"], status="trial", plan=plan, trial_ends_at=ends,
                            note=f"Started the {TRIAL_DAYS}-day free trial", by=user_id)
     return ok
 

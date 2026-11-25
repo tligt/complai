@@ -280,6 +280,23 @@ def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[
     # An address that already has an account gets the same answer as a new
     # one (Supabase does not say which, so the form cannot be used to find
     # out who has an account).
+    #
+    # D-211: the 14-day trial starts now, at sign-up, not at the first login:
+    # no account sits entitled to a full trial for months. Not with an
+    # invitation code (the first login makes that account active). A known
+    # address comes back with no identities: nothing to start then.
+    try:
+        user = r.json()
+        user = user.get("user") or user
+        if user.get("id") and user.get("identities") != [] and not st.session_state.get("invite"):
+            from database import start_trial
+            if start_trial(user["id"]):
+                _rpc("record_funnel_event", {"p_event": "trial_started", "p_tool": None,
+                                             "p_source": st.session_state.get("src"),
+                                             "p_visit": st.session_state.get("visit")})
+                analytics.track("trial_started", where="check", src=st.session_state.get("src"))
+    except Exception as e:
+        print(f"Trial not started at sign-up (starts at first login instead): {e}")
     return True, ""
 
 
@@ -910,7 +927,7 @@ def _account_form(pending: dict) -> None:
         if ss.get("invite"):
             st.caption("With your invitation, this account gets full access to RECOSA "
                        "Professional, free during the beta.")
-        st.markdown(f'<div class="fc-fine">This creates your RECOSA account with a 14-day free trial of everything — no credit card. We use '
+        st.markdown(f'<div class="fc-fine">This creates your RECOSA account and starts your 14-day free trial of everything — no credit card. We use '
                     f'your email to send the results and to log you in; updates only if you tick '
                     f'the box. <a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy policy</a></div>',
                     unsafe_allow_html=True)
@@ -943,7 +960,7 @@ def _account_form(pending: dict) -> None:
                     "the full report comes to you by email, as a PDF" if site else
                     "your full result comes to you by email")
             body = (f"Confirm your address and {what}; log in to RECOSA to see it straight away. "
-                    "Your 14-day free trial starts when you first log in.")
+                    "Your 14-day free trial has started.")
         else:
             body = (((f"Confirm your address and {_and(results)} "
                       f"{'come' if len(results) > 1 else 'comes'} to you by email. ")

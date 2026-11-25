@@ -241,20 +241,23 @@ if (_profile.get("subscription_status") or "registered") in ("registered", "tria
             _profile = {**_profile, "subscription_status": "active", "subscription_tier": "professional"}
             st.session_state.invite_welcome = True
 
-# D-211: no free accounts. Someone who signed up themselves and has no trial
-# yet (the free check's sign-up, or an account from before D-211) starts the
-# 14-day trial at login. Not an invited colleague: the owner's plan covers them,
-# and they open no account of their own.
+# D-211: no free accounts. The trial starts at sign-up (auth.py, the free
+# check); this catches a self sign-up still without one (an account from
+# before D-211, or a start that failed). Counted from the sign-up date, so a
+# login months later gets what is left of the 14 days, or an ended trial.
+# Not an invited colleague: the owner's plan covers them, and they open no
+# account of their own.
 if ((_profile.get("subscription_status") or "registered") == "registered"
         and _profile.get("role") != "admin"
         and _profile.get("signup_source") != "invite"
         and not any(c.get("role") != "owner" for c in load_accessible_clients(user_id))):
     from database import start_trial as _start_trial
-    if _start_trial(user_id):
+    if _start_trial(user_id, since=_profile.get("created_at")):
         record_funnel_event("trial_started", None, _profile.get("signup_source"), None)
         import analytics as _an
         _an.track("trial_started", src=_profile.get("signup_source"))
-        _profile = {**_profile, **expire_trial_if_due(get_user_profile(user_id))}
+    # Started, or already over (expired): either way the account changed.
+    _profile = {**_profile, **expire_trial_if_due(get_user_profile(user_id))}
 
 limited_access = (
     _profile.get("role") != "admin"

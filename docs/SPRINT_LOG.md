@@ -9044,14 +9044,17 @@ third kind of user. Revises D-115's "registered" stage.
 
 - **App sign-up form:** `start_trial` with or without a plan (without one:
   the account's, Professional).
-- **First login** (`app.py`): a self sign-up still 'registered' starts the
-  14-day trial — the free check's sign-up, and accounts left from before
-  (the visitor's starts at their next login; they had no account row, so
-  `start_trial` opens it). Not admins, not invited colleagues
-  (`signup_source` 'invite', covered by the owner's plan), not members of
-  someone else's company. Sends `trial_started` like the button did.
-- **Wording:** the free check says "a 14-day free trial" instead of a free
-  account; Account page "Trial ended" / "No plan yet"; the back office's
+- **Free check sign-up** (`quiz_app._signup`): the trial starts at sign-up,
+  not at the first login — the user: no account entitled to a full trial
+  months later, and a mild sense of urgency. Not with an invitation code.
+- **First login** (`app.py`), the safety net for a self sign-up still
+  'registered' (from before D-211, or a failed start): the trial is counted
+  from the sign-up date (`start_trial(since=)`), so a late first login gets
+  what is left, or goes straight to 'expired'. The visitor (signed up 24
+  Nov, no account row) gets a trial ending 8 Dec at their next login. Not
+  admins, not invited colleagues, not members of someone else's company.
+- **Wording:** the free check says "starts your 14-day free trial" and "has
+  started" instead of a free account; Account page "Trial ended" / "No plan yet"; the back office's
   'registered' reads "Trial not started".
 - **Agreed, not built yet:** an expired trial keeps read-only access to
   everything it built; five email flows (onboarding, trial ending, expired,
