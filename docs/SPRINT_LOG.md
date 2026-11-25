@@ -9024,6 +9024,18 @@ is on disk: `journalctl -t recosa-app-1 --since "2 days ago"`.
 the logs can hold e-mail and IP addresses. Cron jobs unchanged (already
 `/var/log/recosa/*.log`). Caddy keeps no access log; not changed.
 
+### D-210 — A new company starts with the last 60 days of alerts, 25 Nov
+
+By the user ("fully agree"), from the onboarding discussion: alerts were
+created only at approval, for the companies existing then, so a company
+created today had an empty Alerts page. `create_client_record` now calls
+`backfill_client_alerts`: every update approved in the last 60 days that
+matches (`alert_matches`, the rule `create_client_alerts` already used:
+a regulation in common, EU-wide or the company's country). Not emailed
+(`email_sent` true), dated at the update's approval. Checked against dev
+data without writing: a BE company with GDPR/NIS2/AI Act gets 16 of 20,
+French-only items stay out.
+
 ---
 
 *End of record. Append at sprint close.*

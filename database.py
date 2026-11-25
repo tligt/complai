@@ -106,6 +106,7 @@ def create_client_record(user_id: str, profile: dict) -> dict | None:
             log_audit_event(created["id"], "company",
                             f"Created the company {created['company_name']}",
                             user_id=user_id, event_subtype="created")
+            backfill_client_alerts(created)   # D-210
         return created
     except Exception as e:
         _st().error(f"Could not create client: {e}")
@@ -2740,26 +2741,57 @@ def reject_regulatory_update(update_id: str) -> bool:
         return False
 
 
+def alert_matches(client: dict, update: dict) -> bool:
+    """A regulatory update concerns a client: a regulation in common (or the
+    update names none), and the update is EU-wide or names the client's
+    country."""
+    update_regs = set(update.get("regulations") or [])
+    update_countries = set(update.get("countries") or ["EU"])
+    reg_match = bool(set(client.get("regulations") or []) & update_regs) or not update_regs
+    country_match = "EU" in update_countries or client.get("country", "EU") in update_countries
+    return reg_match and country_match
+
+
+BACKFILL_ALERT_DAYS = 60
+
+
+def backfill_client_alerts(client: dict, days: int = BACKFILL_ALERT_DAYS) -> int:
+    """D-210: a new company gets the matching alerts approved in the last
+    `days` days, so its Alerts page isn't empty on day one. Alerts are
+    otherwise only created at approval, for the companies that exist then.
+
+    Not emailed: marked email_sent so no later send picks them up, and dated
+    when the update was approved, so they sort where they belong."""
+    try:
+        admin = get_supabase_admin()
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        updates = admin.table("regulatory_updates") \
+            .select("id, regulations, countries, approved_at") \
+            .eq("status", "approved") \
+            .gte("approved_at", since) \
+            .execute().data or []
+        rows = [{"user_id": client["user_id"], "client_id": client["id"], "update_id": u["id"],
+                 "email_sent": True, "notified_at": u["approved_at"]}
+                for u in updates if alert_matches(client, u)]
+        if rows:
+            admin.table("client_alerts").insert(rows).execute()
+        return len(rows)
+    except Exception as e:
+        print(f"Could not backfill alerts for the new company: {e}")
+        return 0
+
+
 def create_client_alerts(update_id: str, update: dict) -> int:
     """Create alerts for all clients whose regulations match this update."""
     try:
         supabase = get_supabase_admin()
-        update_regs = set(update.get("regulations") or [])
-        update_countries = set(update.get("countries") or ["EU"])
         clients_res = supabase.table("clients") \
             .select("id, user_id, regulations, country") \
             .execute()
         clients = clients_res.data or []
         alerts = []
         for client in clients:
-            client_regs = set(client.get("regulations") or [])
-            client_country = client.get("country", "EU")
-            reg_match = bool(client_regs & update_regs) or not update_regs
-            country_match = (
-                "EU" in update_countries or
-                client_country in update_countries
-            )
-            if reg_match and country_match:
+            if alert_matches(client, update):
                 alerts.append({
                     "user_id": client["user_id"],
                     "client_id": client["id"],
