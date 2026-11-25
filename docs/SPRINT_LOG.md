@@ -9012,6 +9012,18 @@ the original article, and a line saying which language it is in.
   `/root/compliance-pulse-index.ts.20261125`) and edge functions restarted,
   backfill 13 items. Pulse feed checked: French items have English titles.
 
+### D-209 — App logs kept across deploys, 25 Nov
+
+By the user, after a real free-check visitor (kompas-it.be, 24 Nov) whose
+session could not be traced: `update.sh` recreates the containers and
+Docker's json-file logs went with them. app, admin and quiz now log to the
+host's systemd journal (`logging: journald`, tag = container name), which
+is on disk: `journalctl -t recosa-app-1 --since "2 days ago"`.
+`docker compose logs` still works for the running container. Capped at
+2 GB and 90 days (`deploy/journald-recosa.conf`, installed by `update.sh`):
+the logs can hold e-mail and IP addresses. Cron jobs unchanged (already
+`/var/log/recosa/*.log`). Caddy keeps no access log; not changed.
+
 ---
 
 *End of record. Append at sprint close.*
