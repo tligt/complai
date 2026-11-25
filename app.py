@@ -93,6 +93,28 @@ if any(k in st.query_params for k in ("src", "quiz", "site", "scope", "aiact", "
         if _k in st.query_params:
             del st.query_params[_k]
 
+# D-212: the "Stop these emails" link of the onboarding emails. Works without
+# logging in: the token is signed (onboarding.stop_token). Stops onboarding
+# and win-back emails, not payment or deletion warnings.
+if st.query_params.get("stop_emails"):
+    import onboarding as _OBS
+    _uid = _OBS.user_from_stop_token(st.query_params.get("stop_emails"))
+    del st.query_params["stop_emails"]
+    _lang_stop = "en"
+    if _uid:
+        from datetime import datetime as _dts, timezone as _tzs
+        from database import get_supabase_admin as _gsa
+        _row = (_gsa().table("profiles").select("ui_language").eq("id", _uid).limit(1)
+                .execute().data or [{}])[0]
+        _lang_stop = _row.get("ui_language") or "en"
+        _gsa().table("profiles").update(
+            {"lifecycle_emails_off_at": _dts.now(_tzs.utc).isoformat()}).eq("id", _uid).execute()
+        st.success(tr("You will not receive RECOSA's onboarding and reminder emails any more.",
+                      _lang_stop))
+    else:
+        st.warning(tr("This link is not valid. Log in and write to us through Support if you "
+                      "want to stop these emails.", _lang_stop))
+
 # ── Auth ──────────────────────────────────────────────────────
 init_auth("client")
 

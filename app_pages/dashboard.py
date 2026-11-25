@@ -200,18 +200,18 @@ try:
         _INVS.load_activities(user_id, client_id))
 except Exception:
     _has_inventory = True
-_steps = [
-    ("Complete the company profile", bool(client.get("contact_email") and client.get("legal_name")),
-     "app_pages/company.py", "Legal name and a contact email are what documents need most."),
-    ("Add your systems and activities", _has_inventory, "app_pages/inventory.py",
-     "The tools you use and what you do with personal data. Start with a scan of your website."),
-    ("Run a gap assessment", bool(last_gap), "app_pages/gap.py",
-     "A first score per regulation, and findings for the action plan."),
-    ("Generate your documents", _generated_any, "app_pages/documents.py",
-     "Privacy policy, register of processing, and the rest your regulations require."),
-    ("Adopt them (mark in force)", _in_force_any, "app_pages/compliance_record.py",
-     "A document counts once your company operates under it."),
-]
+# D-212: labels, pages and order from onboarding.STEPS, which the onboarding
+# emails follow too (monitor_onboarding.py works out the same five steps).
+import onboarding as _OB
+_done_by_key = {
+    "profile": bool(client.get("contact_email") and client.get("legal_name")),
+    "inventory": _has_inventory,
+    "gap": bool(last_gap),
+    "documents": _generated_any,
+    "adopt": _in_force_any,
+}
+_steps = [(_OB.STEPS[k][0], _done_by_key[k], _OB.STEPS[k][1], _OB.STEPS[k][3])
+          for k in _OB.STEP_ORDER]
 _onboarding = not all(done for _, done, _, _ in _steps)
 if _onboarding:
     with _start_slot.container(border=True):

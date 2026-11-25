@@ -20,6 +20,10 @@ if ! cmp -s journald-recosa.conf /etc/systemd/journald.conf.d/recosa.conf; then
   install -D -m 644 journald-recosa.conf /etc/systemd/journald.conf.d/recosa.conf
   systemctl restart systemd-journald
 fi
+# D-212: the jobs' crontab, so a new job goes live with its code.
+if ! cmp -s crontab /etc/cron.d/recosa; then
+  install -m 0644 crontab /etc/cron.d/recosa
+fi
 docker compose build
 docker compose up -d --no-deps app admin quiz
 # Caddyfile changes: a bind-mounted file does not recreate the container.

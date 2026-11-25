@@ -593,6 +593,33 @@ def _post_short(cfg, to_email: str, subject: str, text_body: str, html_body: str
         return False
 
 
+def send_lifecycle_email(to_email: str, subject: str, text_body: str,
+                         html_body: str | None, sender: tuple[str, str] | None = None) -> bool:
+    """D-212: an onboarding (later: trial, win-back) email. A personal one
+    (sender given) is plain text, from that person, and replies go to them."""
+    cfg = _notify_config()
+    if not (cfg and to_email):
+        return False
+    api_key, from_email, from_name, _base = cfg
+    name, address = sender or (from_name, from_email)
+    payload = {"sender": {"name": name, "email": address}, "to": [{"email": to_email}],
+               "subject": subject, "textContent": text_body}
+    if html_body:
+        payload["htmlContent"] = html_body
+    if sender:
+        payload["replyTo"] = {"name": name, "email": address}
+    try:
+        r = requests.post("https://api.brevo.com/v3/smtp/email",
+                          headers={"api-key": api_key, "Content-Type": "application/json"},
+                          json=payload, timeout=15)
+        if r.status_code not in (200, 201, 202):
+            print(f"Lifecycle email refused: {r.status_code} {r.text[:200]}")
+        return r.status_code in (200, 201, 202)
+    except Exception as e:
+        print(f"Lifecycle email error: {e}")
+        return False
+
+
 def send_ticket_reply_notification(
     to_email: str,
     ticket_id: str,

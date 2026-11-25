@@ -32,5 +32,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 40 3 * * *    root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_heartbeat.py >> /var/log/recosa/monitor_heartbeat.log 2>&1
 # Owner alerts (D-201) — a finished free check, a new account, a paying client; each once
 4-59/10 * * * *  root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python owner_alerts.py >> /var/log/recosa/owner_alerts.log 2>&1
+# Onboarding emails (D-212) — hourly; at most one per trial account per run, none within 20 h of the last
+17 * * * *    root  cd /opt/recosa/app/deploy && docker compose run --rm -T jobs python monitor_onboarding.py >> /var/log/recosa/monitor_onboarding.log 2>&1
 # Nightly backup to Scaleway Object Storage
 30 2 * * *    root  /opt/recosa/app/deploy/backup.sh >> /var/log/recosa/backup.log 2>&1

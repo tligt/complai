@@ -9064,6 +9064,35 @@ third kind of user. Revises D-115's "registered" stage.
   payments, churned) with deletion at 60 / 120 days; a back-office
   lifecycle timeline; blocking an account; self-serve cancelling (S77).
 
+### D-212 — Onboarding emails (flow 1 of 5), 25 Nov
+
+By the user, as agreed the same day. `monitor_onboarding.py`, hourly
+(`deploy/crontab`), for every account on trial, first 10 days:
+
+| Day | Email |
+|---|---|
+| 0 | Welcome; first step: company profile (or "add your company") |
+| 1 | Personal, plain text, from fabrice@recosa.eu, replies to him |
+| 2, 4, 6 | The first setup step not done yet (one text per step) |
+| 8 | 5 of 5: "You're set up" and what RECOSA does now; else "n of 5 done" |
+
+- **Rules** (`onboarding.next_email`, `test_onboarding.py`): one per run, none
+  within 20 h of the last; welcome first; otherwise the most recent due
+  (missed ones are passed over, not sent late in a row); all five done →
+  the wrap-up from day 2. Days from the trial's start.
+- **Who:** the account owner, in their language (EN/FR/NL); not admins, test
+  accounts, or people who used the stop link. `lifecycle_emails` records
+  each send (`migration_d212_lifecycle_emails.sql`).
+- **Stop link:** `?stop_emails=<signed token>`, works without logging in;
+  sets `profiles.lifecycle_emails_off_at`. Payment and deletion warnings
+  (later flows) ignore it.
+- **The five steps** live in `onboarding.STEPS`; Home's guide now reads its
+  labels and pages from there, so the guide and the emails can't drift.
+- Links carry utm_medium=email, utm_campaign=onboarding, utm_content=<email>.
+- `update.sh` now installs `deploy/crontab` when it changed.
+- Checked: tests (schedule, stop link, every email × language × progress),
+  a preview of all six, a dry run and the step queries on dev.
+
 ---
 
 *End of record. Append at sprint close.*
