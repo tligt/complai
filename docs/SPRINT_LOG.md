@@ -9056,6 +9056,9 @@ third kind of user. Revises D-115's "registered" stage.
 - **Wording:** the free check says "starts your 14-day free trial" and "has
   started" instead of a free account; Account page "Trial ended" / "No plan yet"; the back office's
   'registered' reads "Trial not started".
+- **Deployed 25 Nov** with D-210 (9d2c9cc): apps healthy, the check app
+  reads accounts with the service key (needed to start the trial), no errors
+  in the journal. Not yet seen: a real sign-up starting its trial.
 - **Agreed, not built yet:** an expired trial keeps read-only access to
   everything it built; five email flows (onboarding, trial ending, expired,
   payments, churned) with deletion at 60 / 120 days; a back-office
