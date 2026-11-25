@@ -9124,6 +9124,10 @@ By the user. Takes over from onboarding at day 10:
 - Checked: `test_lifecycle.py` (schedule, dates in EN/FR/NL, every email),
   figures against dev companies, dry run, preview. Not seen: the
   "Choose your plan" page logged in as a trial user.
+- **Deployed 25 Nov** (e653a6f): `update.sh` installed the renamed cron line
+  itself (its re-run after pull works). Production: tests pass, dry run has
+  nothing to send (the only trial is the admin's), apps healthy, no errors.
+  An email link logged out keeps /subscribe through the login screen.
 
 ---
 
