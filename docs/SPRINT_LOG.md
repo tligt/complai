@@ -9155,6 +9155,8 @@ By the user. Days from the trial's end:
   Dev dry run: two test accounts (ended 2 days ago) would be switched and
   get "ended". Production: the admin's own trial ends 26 Nov 22:59 UTC and
   will then show as expired (an admin keeps full access).
+- **Deployed 25 Nov** (2f2ff06): tests pass on the server, dry run has
+  nothing to send or switch yet, apps healthy, no errors.
 
 ---
 
