@@ -170,6 +170,11 @@ if is_logged_in():
 
 if not is_logged_in():
     import login_page
+    # Kept until the next login (auth.start_login): the login screen redraws
+    # the page, and a message shown once was gone by then.
+    if st.session_state.get("account_blocked"):
+        from auth import BLOCKED_MSG
+        st.error(tr(BLOCKED_MSG))
     if st.session_state.pop("recovery_failed", False):
         st.warning(tr("That reset link has expired or was already used. Ask for a new one below."))
     if st.session_state.pop("session_ended", False):
@@ -235,6 +240,12 @@ if not st.session_state.get("signin_logged"):
 # covers them), always get the full app. A profile that can't be read
 # fails open, as before S49.
 _profile = expire_trial_if_due(get_user_profile(user_id))
+# D-217: a blocked account's owner is signed out (the login service refuses
+# new sign-ins and token refreshes too; this ends a session still open).
+if _profile.get("role") != "admin" and _profile.get("subscription_status") == "blocked":
+    from auth import logout as _logout_blocked
+    st.session_state["account_blocked"] = True
+    _logout_blocked()
 # S64 interface slice (D-164): the user's interface language, read by i18n._
 # on every page. The Account page saves it; read here on every run so a
 # change shows at once.

@@ -1621,5 +1621,6 @@
  "Your trial has ended: RECOSA is read-only. Nothing was saved.": "Votre essai est terminé : RECOSA est en lecture seule. Rien n'a été enregistré.",
  "🔒 **Your trial has ended: RECOSA is read-only.** You can see and download everything you set up, but not change it. Choose a plan to continue.": "🔒 **Votre essai est terminé : RECOSA est en lecture seule.** Vous pouvez consulter et télécharger tout ce que vous avez configuré, mais pas le modifier. Choisissez une formule pour continuer.",
  "Your trial has ended: RECOSA is read-only. Choose a plan to change or create anything.": "Votre essai est terminé : RECOSA est en lecture seule. Choisissez une formule pour modifier ou créer quoi que ce soit.",
- "your trial has ended and RECOSA is read-only. Choose a plan to make changes.": "votre essai est terminé et RECOSA est en lecture seule. Choisissez une formule pour faire des modifications."
+ "your trial has ended and RECOSA is read-only. Choose a plan to make changes.": "votre essai est terminé et RECOSA est en lecture seule. Choisissez une formule pour faire des modifications.",
+ "This account has been blocked. If you think this is a mistake, write to fabrice@recosa.eu.": "Ce compte a été bloqué. Si vous pensez qu'il s'agit d'une erreur, écrivez à fabrice@recosa.eu."
 }

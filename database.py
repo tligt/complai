@@ -1462,7 +1462,7 @@ SUBSCRIPTION_STATUSES = {
 # append-only (a database trigger refuses anything else). Written with the
 # service role only.
 
-ACCOUNT_STATUSES = {**SUBSCRIPTION_STATUSES, "cancelled": "Cancelled"}
+ACCOUNT_STATUSES = {**SUBSCRIPTION_STATUSES, "cancelled": "Cancelled", "blocked": "Blocked"}   # D-217
 # Plans that hold more than one company (Advisory: a consultant's clients;
 # Enterprise: a group and its divisions).
 MULTI_COMPANY_PLANS = ("advisory", "enterprise")
@@ -1685,6 +1685,78 @@ def billing_since(account_id: str | None) -> datetime | None:
         return datetime.fromisoformat(start.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
         return None
+
+
+# ── Blocking an account (D-217) ───────────────────────────────────────────
+# Fraud, a payment with a stolen card: the account goes to 'blocked' (with
+# the reason, dated, in its history like any status change), its owner can
+# no longer sign in (a ban at the login service, which also ends open
+# sessions at their next token refresh), and no email goes to its companies.
+# Nothing is deleted: the data may be needed as evidence. Unblocking lifts
+# the ban and sets the status chosen.
+
+BAN_FOREVER = "876000h"   # 100 years: GoTrue's way of saying "until lifted"
+
+
+def _set_ban(user_id: str | None, banned: bool) -> bool:
+    if not user_id:
+        return False
+    try:
+        get_supabase_admin().auth.admin.update_user_by_id(
+            user_id, {"ban_duration": BAN_FOREVER if banned else "none"})
+        return True
+    except Exception as e:
+        print(f"Could not {'ban' if banned else 'unban'} {user_id}: {e}")
+        return False
+
+
+def block_account(account_id: str, reason: str, by: str | None = None) -> tuple[bool, str | None]:
+    reason = (reason or "").strip()
+    if not reason:
+        return False, "Give the reason for blocking."
+    acc = get_account(account_id)
+    if not acc:
+        return False, "Account not found."
+    if acc["status"] == "blocked":
+        return True, None
+    ok, err = change_account(account_id, status="blocked", note=f"Blocked: {reason}", by=by)
+    if not ok:
+        return False, err
+    if not _set_ban(acc.get("owner_user_id"), True):
+        return True, ("Blocked, but the owner's sign-in could not be stopped at the login "
+                      "service. The app still refuses the account; try again to add the ban.")
+    return True, None
+
+
+def unblock_account(account_id: str, status: str, reason: str = "",
+                    by: str | None = None) -> tuple[bool, str | None]:
+    if status not in ACCOUNT_STATUSES or status == "blocked":
+        return False, "Choose the status to give the account back."
+    acc = get_account(account_id)
+    if not acc:
+        return False, "Account not found."
+    note = "Unblocked" + (f": {reason.strip()}" if (reason or "").strip() else "")
+    ok, err = change_account(account_id, status=status, note=note, by=by)
+    if not ok:
+        return False, err
+    if not _set_ban(acc.get("owner_user_id"), False):
+        return True, "Unblocked, but the owner's sign-in ban could not be lifted. Try again."
+    return True, None
+
+
+def blocked_client_ids() -> set[str]:
+    """Companies of blocked accounts: the email jobs leave them out."""
+    try:
+        sb = get_supabase_admin()
+        accs = [a["id"] for a in sb.table("accounts").select("id").eq("status", "blocked")
+                .execute().data or []]
+        if not accs:
+            return set()
+        return {c["id"] for c in sb.table("clients").select("id").in_("account_id", accs)
+                .execute().data or []}
+    except Exception as e:
+        print(f"Could not list blocked companies: {e}")
+        return set()
 
 
 def update_account_details(account_id: str, fields: dict, by: str | None = None) -> bool:
@@ -2806,8 +2878,11 @@ def create_client_alerts(update_id: str, update: dict) -> int:
             .select("id, user_id, regulations, country") \
             .execute()
         clients = clients_res.data or []
+        blocked = blocked_client_ids()   # D-217: a blocked account gets no alert (nor its email)
         alerts = []
         for client in clients:
+            if client["id"] in blocked:
+                continue
             if alert_matches(client, update):
                 alerts.append({
                     "user_id": client["user_id"],

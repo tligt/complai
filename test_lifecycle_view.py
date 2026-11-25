@@ -28,6 +28,7 @@ check("trial past its end: drop-out (job not run yet)",
       LV.stage_of({"status": "trial", "trial_ends_at": iso(NOW - timedelta(days=2))}, NOW) == ("dropout", 2))
 check("expired day 7", LV.stage_of({"status": "expired", "trial_ends_at": iso(NOW - timedelta(days=7))}, NOW) == ("dropout", 7))
 check("customer since", LV.stage_of({"status": "active"}, NOW, NOW - timedelta(days=40)) == ("customer", 40))
+check("blocked since", LV.stage_of({"status": "blocked"}, NOW, NOW - timedelta(days=3)) == ("blocked", 3))
 check("churned since", LV.stage_of({"status": "cancelled"}, NOW, NOW - timedelta(days=5)) == ("churned", 5))
 
 check("next on trial day 3", LV.next_planned("trial", 3, {"welcome", "personal", "step_a"}) == (4, "step_b"))

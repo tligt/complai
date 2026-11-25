@@ -36,7 +36,7 @@ load_dotenv()
 
 import heartbeat as HB
 import tasks as T
-from database import get_document_versions, get_supabase_admin
+from database import blocked_client_ids, get_document_versions, get_supabase_admin
 from email_sender import send_heartbeat_digest
 from obligations import DOCUMENT_TYPES
 
@@ -90,8 +90,11 @@ def run(now: datetime | None = None, dry_run: bool = False) -> dict:
           + (" — DRY RUN" if dry_run else ""))
     totals = {"opened": 0, "closed": 0, "sent": 0, "errors": 0}
 
+    blocked = blocked_client_ids()   # D-217: no email to a blocked account's companies
     for c in clients:
         cid = c["id"]
+        if cid in blocked:
+            continue
         try:
             systems = sb.table("systems").select("id, name, created_at").eq("client_id", cid).execute().data or []
             links = sb.table("activity_systems").select("system_id").eq("client_id", cid).execute().data or []

@@ -156,8 +156,14 @@ def _cycle_label(c: str | None) -> str:
 
 
 def subscription_form(acc: dict, where: str, trial_only: bool = False) -> None:
+    if acc["status"] == "blocked":
+        # D-217: blocking and unblocking go through block_form, which also
+        # stops or restores the owner's sign-in.
+        st.warning("This account is blocked. Unblock it below to change its plan or status.")
+        return
     with st.form(f"sub_{where}_{acc['id']}"):
-        plans, statuses = list(SUBSCRIPTION_TIERS), list(ACCOUNT_STATUSES)
+        plans = list(SUBSCRIPTION_TIERS)
+        statuses = [s for s in ACCOUNT_STATUSES if s != "blocked"]
         if trial_only:
             tv.locked("Plan", SUBSCRIPTION_TIERS.get(acc["plan"]), "Change the plan with "
                       "\"Change plan or status\".", key=f"lp_{where}_{acc['id']}")
@@ -365,6 +371,47 @@ def monitored_dialog(acc: dict) -> None:
         st.rerun()
 
 
+def block_form(acc: dict) -> None:
+    """D-217: block (fraud, a stolen card…) or unblock an account."""
+    from database import block_account, unblock_account
+    st.markdown("**Block this account**" if acc["status"] != "blocked" else "**Unblock this account**")
+    if acc["status"] != "blocked":
+        st.caption("For fraud, or a payment with a stolen card. The owner can no longer sign "
+                   "in (open sessions end too), no email goes to its companies, and nothing "
+                   "is deleted. Unblocking puts everything back.")
+        with st.form(f"block_{acc['id']}"):
+            reason = st.text_input("Reason (kept in the history)",
+                                   placeholder="e.g. chargeback: card reported stolen")
+            sure = st.checkbox("I want to block this account")
+            go = st.form_submit_button("Block the account", type="primary")
+        if go:
+            if not sure:
+                st.warning("Tick the box to confirm.")
+            else:
+                ok, msg = block_account(acc["id"], reason, by=admin_id)
+                if ok:
+                    st.session_state.acc_notice = msg or "Blocked. The owner can no longer sign in."
+                    st.session_state.acc_open = acc["id"]
+                    st.rerun()
+                else:
+                    st.error(msg)
+    else:
+        with st.form(f"unblock_{acc['id']}"):
+            options = [s for s in ACCOUNT_STATUSES if s != "blocked"]
+            back = st.selectbox("Status to give back", options,
+                                index=options.index("expired"), format_func=ACCOUNT_STATUSES.get)
+            reason = st.text_input("Note for the history (optional)")
+            go = st.form_submit_button("Unblock the account", type="primary")
+        if go:
+            ok, msg = unblock_account(acc["id"], back, reason, by=admin_id)
+            if ok:
+                st.session_state.acc_notice = msg or "Unblocked. The owner can sign in again."
+                st.session_state.acc_open = acc["id"]
+                st.rerun()
+            else:
+                st.error(msg)
+
+
 @st.dialog("Change plan or status", width="large")
 def plan_dialog(acc: dict) -> None:
     st.caption(client_name(acc))
@@ -466,6 +513,9 @@ with tab_clients:
         notice = st.session_state.pop("acc_notice", None)
         if notice:
             st.success(notice)
+        if acc["status"] == "blocked":
+            st.error("🚫 Blocked. The owner cannot sign in and no email goes to its companies. "
+                     "The reason is in the History tab.")
 
         t_contract, t_sub, t_hist, t_people = st.tabs(
             ["Client company and contract", "Subscription", "History", "People"])
@@ -475,6 +525,8 @@ with tab_clients:
 
         with t_sub:
             subscription_form(acc, "tab")
+            st.divider()
+            block_form(acc)
 
         with t_hist:
             periods = load_account_periods(acc["id"])

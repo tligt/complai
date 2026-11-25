@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import incident_rules as R
-from database import get_supabase_admin
+from database import blocked_client_ids, get_supabase_admin
 from email_sender import send_incident_reminder
 
 
@@ -52,9 +52,12 @@ def run(now: datetime | None = None) -> dict:
             emails[uid] = (p[0].get("email") if p else None) or ""
         return emails.get(uid) or None
 
+    blocked = blocked_client_ids()   # D-217: no email to a blocked account's companies
     for inc in incidents:
         try:
             cid = inc["client_id"]
+            if cid in blocked:
+                continue
             if cid not in clients:
                 clients[cid] = (_rows("clients", id=cid) or [{}])[0]
                 contexts[cid] = {

@@ -9222,6 +9222,34 @@ same day. Admin → Lifecycle (`pages_admin/lifecycle.py`, logic in
   error — 15 free-check visits in 30 days, 1 sign-up without a trial (the
   visitor), the admin's own trial when admin accounts are included.
 
+### D-217 — Blocking an account, 25 Nov
+
+By the user ("fraud, paid with a stolen card"), as agreed the same day.
+Admin → Companies → an account → Subscription tab → "Block this account".
+
+- **Block:** a reason is required, and a tick to confirm. The account goes to
+  the new status **blocked** (`migration_d217_blocked.sql`), the reason in
+  its history ("Blocked: …"), and its owner is **banned at the login
+  service** (GoTrue `ban_duration`): no new sign-in, and an open session
+  fails its next token refresh. The app also signs a blocked owner out at
+  the next click. Either way the login screen says "This account has been
+  blocked. If you think this is a mistake, write to fabrice@recosa.eu."
+- **No email** to a blocked account's companies: regulatory alerts, the
+  heartbeat, training reminders, incident reminders and scheduled website
+  audits skip them (`blocked_client_ids`); the lifecycle emails only go to
+  trials and expired trials. **Nothing is deleted** (evidence).
+- **Unblock:** choose the status to give back; the ban is lifted. The
+  plan/status form stays closed while blocked, so a block is only undone
+  this way.
+- Lifecycle page: a Blocked count and stage.
+- Checked on dev with the test account: block → "User is banned" and the
+  message at the login form; blocked during an open session → signed out
+  with the message on the next click (it was lost to the login screen's
+  redraw at first; now kept until the next login); block and unblock
+  through the Companies forms (headless). Left unblocked.
+- Not covered: members invited to a blocked account's companies keep their
+  own sign-in (only the owner is banned).
+
 ---
 
 *End of record. Append at sprint close.*

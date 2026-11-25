@@ -80,6 +80,7 @@ def start_login(res) -> None:
     """A fresh login (password, reset link, confirmation link): this tab's
     state, and from S51 a stored login with its cookie, so a refresh or
     another tab keeps it."""
+    st.session_state.pop("account_blocked", None)   # D-217
     old = st.session_state.get("sid")
     if old:
         sessions.delete(old)
@@ -285,6 +286,8 @@ def _rotate(app: str, sid: str, row: dict):
         res = _new_client().auth.refresh_session(row["refresh"])
     except Exception as e:
         print(f"Refresh of the stored login failed: {e}")
+        if is_banned(e):                              # D-217: say why on the login screen
+            st.session_state["account_blocked"] = True
         res = None
     if res and res.session:
         if sessions.swap_tokens(sid, row["sealed"], res.session.access_token,
@@ -332,7 +335,9 @@ def _refresh_here(remaining: float | None) -> None:
         res = _new_client().auth.refresh_session(st.session_state.refresh_token)
         if res and res.session:
             _set_login(res.user, res.session.access_token, res.session.refresh_token)
-    except Exception:
+    except Exception as e:
+        if is_banned(e):                              # D-217
+            st.session_state["account_blocked"] = True
         # Only a session whose access token has actually run out is
         # over. If it is still valid, a failed refresh (e.g. another
         # rerun already rotated the token) must not log the user out.
@@ -469,7 +474,18 @@ def _auth_error(e: Exception) -> str:
     if "Email not confirmed" in msg:
         return ("Your email isn't confirmed yet. Open the link we sent you, "
                 "then log in.")
+    if is_banned(e):                                  # D-217
+        return BLOCKED_MSG
     return f"Login failed: {msg}"
+
+
+# D-217: a blocked account's owner is banned at the login service.
+BLOCKED_MSG = ("This account has been blocked. If you think this is a mistake, write to "
+               "fabrice@recosa.eu.")
+
+
+def is_banned(e: Exception) -> bool:
+    return "banned" in str(e).lower() or getattr(e, "code", None) == "user_banned"
 
 
 def _plan_cards(default: str) -> str:

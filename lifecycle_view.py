@@ -31,6 +31,7 @@ STAGES = {
     "customer": "Customer",
     "dropout": "Drop-out",
     "churned": "Churned",
+    "blocked": "Blocked",          # D-217
 }
 
 # Each lane: its length in days, and its emails as (day, label, flow, live).
@@ -69,6 +70,8 @@ def stage_of(acc: dict | None, now: datetime, since: datetime | None = None) -> 
         return "customer", (now - since).days if since else None
     if status == "cancelled":
         return "churned", (now - since).days if since else None
+    if status == "blocked":
+        return "blocked", (now - since).days if since else None
     return "registered", None
 
 

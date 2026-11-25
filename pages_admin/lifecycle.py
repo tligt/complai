@@ -32,12 +32,13 @@ pros = LV.prospects(sb)
 
 # ── Counts ────────────────────────────────────────────────────────────────
 by_stage = {s: [r for r in rows if r["stage"] == s] for s in LV.STAGES}
-cols = st.columns(6)
+cols = st.columns(7)
 cols[0].metric("Prospects (30 days)", pros.get("check_landing", 0),
                help="Visits to the free check in the last 30 days.")
 for col, (stage, label) in zip(cols[1:], [("trial", "Trial"), ("customer", "Customers"),
                                           ("dropout", "Drop-outs"), ("churned", "Churned"),
-                                          ("registered", "Trial not started")]):
+                                          ("registered", "Trial not started"),
+                                          ("blocked", "Blocked")]):
     col.metric(label, len(by_stage[stage]))
 
 # ── Timeline ──────────────────────────────────────────────────────────────

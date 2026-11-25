@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import (
+    blocked_client_ids,
     get_supabase_admin,
     save_audit,
     upload_file,
@@ -66,8 +67,12 @@ def run_audit_monitoring(triggered_by: str = "cron") -> dict:
     total_errors = 0
     source_stats = []
 
+    blocked = blocked_client_ids()   # D-217: no audit, no email for a blocked account
     for sub in subs:
         domain = sub["site_domain"]
+        if sub.get("client_id") in blocked:
+            total_skipped += 1
+            continue
         if not _is_due(sub):
             total_skipped += 1
             continue

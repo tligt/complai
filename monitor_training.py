@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import training_rules as TR
-from database import get_supabase_admin
+from database import blocked_client_ids, get_supabase_admin
 from email_sender import send_training_nudge
 
 NUDGE_DAYS = 30
@@ -36,7 +36,10 @@ def run(now: datetime | None = None) -> dict:
     print(f"RECOSA Training Reminders — {now:%Y-%m-%d %H:%M} UTC — {len(client_ids)} company(ies)")
     sent = errors = 0
 
+    blocked = blocked_client_ids()   # D-217: no email to a blocked account's companies
     for cid in client_ids:
+        if cid in blocked:
+            continue
         try:
             client = (sb.table("clients").select("*").eq("id", cid).execute().data or [{}])[0]
             last = client.get("training_nudged_at")
