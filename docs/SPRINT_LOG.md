@@ -9192,6 +9192,9 @@ subscribe. Before, it saw only its free check result and the subscribe page.
   refused with the message and the database unchanged.
 - Not yet: members of an expired owner's company keep full access (as
   before); the deletion warnings (D-214) still wait for the deletion job.
+- **Deployed 25 Nov** (f151530): read-only, lifecycle, onboarding and i18n
+  tests pass on the server; apps healthy, no errors. No account on
+  production is read-only yet (the only one is the admin's, never read-only).
 
 ---
 
