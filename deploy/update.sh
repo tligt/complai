@@ -11,7 +11,12 @@
 
 set -euo pipefail
 cd /opt/recosa/app
-git pull --ff-only
+# D-212: the pull can change this very script, and bash goes on reading the
+# old one from where it was. So pull, then start again on the new copy.
+if [ "${RECOSA_UPDATE_PULLED:-}" != "1" ]; then
+  git pull --ff-only
+  RECOSA_UPDATE_PULLED=1 exec bash /opt/recosa/app/deploy/update.sh "$@"
+fi
 git log --oneline -1
 
 cd deploy

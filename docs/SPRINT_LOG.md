@@ -9092,6 +9092,13 @@ By the user, as agreed the same day. `monitor_onboarding.py`, hourly
 - `update.sh` now installs `deploy/crontab` when it changed.
 - Checked: tests (schedule, stop link, every email × language × progress),
   a preview of all six, a dry run and the step queries on dev.
+- **Deployed 25 Nov** (migration, code, cron). The first run of the new
+  `update.sh` was still the old copy (bash reads the script as it runs, and
+  `git pull` had just replaced it), so the crontab was installed by hand;
+  `update.sh` now pulls, then re-runs itself. Production dry run: one trial
+  account (the admin's), nothing to send. The stop link's message was lost
+  to the login screen's rerun; now kept for the session (checked locally,
+  valid and invalid link).
 
 ---
 

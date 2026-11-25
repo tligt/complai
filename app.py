@@ -109,11 +109,17 @@ if st.query_params.get("stop_emails"):
         _lang_stop = _row.get("ui_language") or "en"
         _gsa().table("profiles").update(
             {"lifecycle_emails_off_at": _dts.now(_tzs.utc).isoformat()}).eq("id", _uid).execute()
-        st.success(tr("You will not receive RECOSA's onboarding and reminder emails any more.",
-                      _lang_stop))
+        st.session_state.stop_emails_msg = ("success", tr(
+            "You will not receive RECOSA's onboarding and reminder emails any more.", _lang_stop))
     else:
-        st.warning(tr("This link is not valid. Log in and write to us through Support if you "
-                      "want to stop these emails.", _lang_stop))
+        st.session_state.stop_emails_msg = ("warning", tr(
+            "This link is not valid. Log in and write to us through Support if you "
+            "want to stop these emails.", _lang_stop))
+# Kept for the session and shown on every run: the login screen reruns the
+# page, and the link (removed from the address above) is gone by then.
+if st.session_state.get("stop_emails_msg"):
+    _kind, _msg = st.session_state.stop_emails_msg
+    (st.success if _kind == "success" else st.warning)(_msg)
 
 # ── Auth ──────────────────────────────────────────────────────
 init_auth("client")
@@ -154,6 +160,9 @@ if (st.query_params.get("type") in ("email", "signup")
 # D-180: Umami events — this run's (landing, email confirmed) and any the
 # previous run queued (sign-up, trial). Before the login screen's st.stop.
 analytics.flush()
+
+if is_logged_in():
+    st.session_state.pop("stop_emails_msg", None)   # shown once in the app, then gone
 
 if not is_logged_in():
     import login_page
