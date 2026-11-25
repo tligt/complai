@@ -396,12 +396,13 @@ def send_regulatory_alert(update: dict) -> dict:
     Brevo accepted are marked email_sent, so a failed send can be retried.
 
     Returns {"sent": [email, ...], "failed": [(email, reason), ...],
-    "error": str | None}.
+    "error": str | None, "note": str | None}. "note" says why nothing was
+    sent when there was no one to send to, so the admin isn't left guessing.
     """
     import os, requests
     from database import get_supabase_admin
 
-    result = {"sent": [], "failed": [], "error": None}
+    result = {"sent": [], "failed": [], "error": None, "note": None}
     api_key = os.environ.get("BREVO_API_KEY","")
     from_email = os.environ.get("BREVO_FROM_EMAIL","audit@complai.be")
     from_name = os.environ.get("BREVO_FROM_NAME","RECOSA")
@@ -419,6 +420,21 @@ def send_regulatory_alert(update: dict) -> dict:
             .eq("email_sent", False) \
             .execute().data or []
         if not alerts:
+            # No unsent alert: either every alert was already emailed, or no
+            # client matched (create_client_alerts: a regulation in common,
+            # and the update is EU-wide or names the client's country).
+            emailed = admin.table("client_alerts") \
+                .select("user_id") \
+                .eq("update_id", update["id"]) \
+                .execute().data or []
+            n = len({a["user_id"] for a in emailed})
+            result["note"] = (
+                f"Already emailed to every matching recipient ({n}), so nothing new was sent."
+                if emailed else
+                "No client matches this alert's regulations and countries "
+                f"({', '.join(update.get('regulations') or []) or 'any regulation'}; "
+                f"{', '.join(update.get('countries') or ['EU'])}), so no email was sent."
+            )
             return result
 
         # client_alerts has no foreign key to profiles, so an embedded

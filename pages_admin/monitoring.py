@@ -434,11 +434,15 @@ with tab_reg:
     if flash:
         title, sent = flash
         if sent["sent"]:
-            st.success(f"📧 “{title}” emailed to: {', '.join(sent['sent'])}")
+            n = len(sent["sent"])
+            st.success(f"📧 “{title}” emailed to {n} recipient{'s' if n != 1 else ''}: "
+                       f"{', '.join(sent['sent'])}")
         for email, reason in sent["failed"]:
             st.error(f"📧 “{title}” not sent to {email}: {reason}")
         if sent["error"]:
             st.error(f"📧 “{title}” email failed: {sent['error']}")
+        if sent.get("note"):
+            st.warning(f"📧 “{title}”: {sent['note']}")
         if not (sent["sent"] or sent["failed"] or sent["error"]):
             st.info(f"📧 “{title}”: no matching clients, so no email was sent.")
 

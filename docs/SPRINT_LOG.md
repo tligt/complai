@@ -8969,6 +8969,16 @@ already records the request, and record_funnel_event's allow-list would
 need a migration. With S77 Mollie, a paid-subscription event joins it.
 Not clicked live (it would create a real billing ticket).
 
+### D-207 — Monitoring says why an alert email wasn't sent, and how many were, 25 Nov
+
+By the user, after RA-2026-0069 (FR only, "send email" on) reached no one:
+production's only client is BE, so create_client_alerts made no alerts and
+send_regulatory_alert returned with nothing to show. It now returns a
+`note`, shown as a warning after approval: no client matches (with the
+alert's regulations and countries), or already emailed to every matching
+recipient (with the count). The success message gives the number of
+recipients. Tested against dev data for both notes; not clicked in the admin.
+
 ---
 
 *End of record. Append at sprint close.*
