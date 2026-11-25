@@ -201,7 +201,7 @@ try:
 except Exception:
     _has_inventory = True
 # D-212: labels, pages and order from onboarding.STEPS, which the onboarding
-# emails follow too (monitor_onboarding.py works out the same five steps).
+# emails follow too (monitor_lifecycle.py works out the same five steps).
 import onboarding as _OB
 _done_by_key = {
     "profile": bool(client.get("contact_email") and client.get("legal_name")),

@@ -21,7 +21,7 @@ Rules (next_email):
 - all five steps done: the step emails are skipped and the wrap-up ("you're
   set up") goes at the next slot from day 2.
 
-Pure parts here are tested by test_onboarding.py; monitor_onboarding.py
+Pure parts here are tested by test_onboarding.py; monitor_lifecycle.py
 loads the data and sends.
 """
 

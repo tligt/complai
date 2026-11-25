@@ -4,7 +4,7 @@ language (the English text is the catalogue key, as everywhere: i18n.py).
 
 compose(key, ...) → Email: subject, text, html (None for the personal one,
 which is plain text), and the sender to use. Nothing here sends: see
-monitor_onboarding.py. preview_onboarding.py writes them all to files.
+monitor_lifecycle.py.
 """
 
 from __future__ import annotations
@@ -66,8 +66,8 @@ class Email:
     sender: tuple[str, str] | None = None     # (name, address); None: the default
 
 
-def _link(base_url: str, path: str, key: str) -> str:
-    tags = f"utm_source=recosa&utm_medium=email&utm_campaign=onboarding&utm_content={key}"
+def _link(base_url: str, path: str, key: str, campaign: str = "onboarding") -> str:
+    tags = f"utm_source=recosa&utm_medium=email&utm_campaign={campaign}&utm_content={key}"
     return f"{base_url}/{path}?{tags}" if path else f"{base_url}/?{tags}"
 
 

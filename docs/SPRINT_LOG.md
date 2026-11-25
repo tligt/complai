@@ -9100,6 +9100,31 @@ By the user, as agreed the same day. `monitor_onboarding.py`, hourly
   to the login screen's rerun; now kept for the session (checked locally,
   valid and invalid link).
 
+### D-213 — Trial-ending emails (flow 2 of 5), and "Choose your plan" during the trial, 25 Nov
+
+By the user. Takes over from onboarding at day 10:
+
+| Day | Email |
+|---|---|
+| 10 | "4 days left": what the company built (systems, activities, documents,
+  score, alerts — only those it has), prices, "subscribing keeps it all" |
+| 13 | "Your trial ends tomorrow": everything is kept, choose a plan |
+
+- Both link to **"Choose your plan"** (`/subscribe`, hidden from the menu):
+  a trial user had no way to choose a plan before the trial ended (the
+  subscribe page showed only once expired, the Account page offered only
+  upgrades). `render_subscribe` now has a trial mode ("Your free trial ends
+  on …") with the same plan cards and plan request; the Account page shows
+  "Choose my plan" during the trial.
+- **One job for both flows:** `monitor_onboarding.py` → `monitor_lifecycle.py`
+  (cron updated; log `/var/log/recosa/monitor_lifecycle.log`). One email per
+  account per run, none within 20 h of the last of any flow.
+- Neither email says "read-only": that access after the trial is agreed but
+  not built. The stop link is honoured (they are reminders).
+- Checked: `test_lifecycle.py` (schedule, dates in EN/FR/NL, every email),
+  figures against dev companies, dry run, preview. Not seen: the
+  "Choose your plan" page logged in as a trial user.
+
 ---
 
 *End of record. Append at sprint close.*

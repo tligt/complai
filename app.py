@@ -413,8 +413,15 @@ inbox = st.Page("app_pages/inbox.py",
 _show_inbox = bool(_inbox_n) or any(
     _W.has_team(c["id"]) for c in (load_accessible_clients(user_id) or [])[:10])
 
+# D-213: "Choose your plan" at /subscribe — not in the menu; the trial-ending
+# emails and the Account page link to it.
+from subscribe_view import render_subscribe as _render_subscribe
+subscribe_pg = st.Page(_render_subscribe, title=tr("Choose your plan"), icon="💳",
+                       url_path="subscribe", visibility="hidden")
+st.session_state["_subscribe_page"] = subscribe_pg   # for the Account page's button
+
 _sections = {
-    "":         [home, plan] + ([inbox] if _show_inbox else []),
+    "":         [home, plan] + ([inbox] if _show_inbox else []) + [subscribe_pg],
     "Assess":   [oblig, gap, risk],
     "Records":  [inventory, ai_inv, training, documents, record],
     "Respond":  [incidents, wording],

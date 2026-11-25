@@ -28,12 +28,23 @@ def render_subscribe() -> None:
     profile = get_user_profile(user_id)
     status = profile.get("subscription_status") or "registered"
 
-    st.title(tr("Unlock RECOSA"))
+    # D-213: on trial, this is "Choose your plan" (the trial-ending emails link
+    # here, /subscribe), with the same plan cards and plan request.
+    if status == "trial":
+        st.title(tr("Choose your plan"))
+        _ends = (profile.get("trial_ends_at") or "")[:10]
+        if _ends:
+            from display import fmt_date
+            _ends = fmt_date(_ends)
+        st.info(tr("Your free trial ends on {date}. Choose the plan to continue with: everything "
+                   "you have set up stays as it is.").format(date=_ends or "—"))
+    else:
+        st.title(tr("Unlock RECOSA"))
 
     if status == "expired":
         st.info(tr("Your free trial has ended. Your data is kept — choose a plan to "
                 "continue where you left off."))
-    else:
+    elif status != "trial":
         st.markdown(
             tr("This part of RECOSA is included in every plan. Start a **{trial_days}-day free trial** to use all of it — no credit card needed.").format(trial_days=TRIAL_DAYS)
         )

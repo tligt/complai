@@ -180,10 +180,12 @@ if not _managed_by:
 st.markdown(tr("**Changing plan**"))
 if _managed_by:
     st.caption(tr("The plan is managed by the owner of {managed_by}.").format(managed_by=_managed_by))
-elif _status in ("registered", "expired"):
-    st.caption(tr("To subscribe, write to us through Support."))
-    if st.button(tr("Contact support"), key="plan_support"):
-        st.switch_page("app_pages/support.py")
+elif _status in ("registered", "expired", "trial"):
+    # D-213: the plan cards and the plan request, on /subscribe.
+    st.caption(tr("Choose the plan to continue with after your trial.") if _status == "trial"
+               else tr("Choose a plan to use all of RECOSA again."))
+    if st.button(tr("Choose my plan"), type="primary", key="plan_choose"):
+        st.switch_page(st.session_state.get("_subscribe_page") or "app_pages/support.py")
 elif _tier == "starter":
     # Upgrade only, same reasoning as below: Starter's shape is a subset of
     # Professional's, so gaining room cannot invalidate anything.
