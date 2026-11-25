@@ -9129,6 +9129,33 @@ By the user. Takes over from onboarding at day 10:
   nothing to send (the only trial is the admin's), apps healthy, no errors.
   An email link logged out keeps /subscribe through the login screen.
 
+### D-214 — Expired-trial emails (flow 3 of 5), 25 Nov
+
+By the user. Days from the trial's end:
+
+| Day | Email |
+|---|---|
+| 0 | "Your trial has ended": everything kept, choose a plan, prices |
+| 7 | Regulatory updates since the trial ended, and how many concern them |
+| 21 | Personal, plain text from fabrice@recosa.eu: "What stopped you?" |
+| 45 | Deletion warning (deleted on day 60) — **written, not sent** |
+| 55 | Last warning — **written, not sent** |
+
+- **The deletion warnings stay off** (`expired_trial.DELETION_ACTIVE`):
+  nothing deletes an account yet, and an expired account cannot open its
+  documents to download them (read-only access after the trial is agreed,
+  not built). They go on with the deletion job and read-only access.
+- **Trials past their end are switched to 'expired' by the job**: the app
+  did it only at the owner's next login, so an owner who never came back
+  stayed "on trial" for ever (in the back office too).
+- The stop link stops the win-back emails (0, 7, 21), not the deletion
+  warnings.
+- `monitor_lifecycle.py` now runs flows 1–3; `test_lifecycle.py` covers
+  flow 3 (schedule, opt-out, deletion switch, every email × language).
+  Dev dry run: two test accounts (ended 2 days ago) would be switched and
+  get "ended". Production: the admin's own trial ends 26 Nov 22:59 UTC and
+  will then show as expired (an admin keeps full access).
+
 ---
 
 *End of record. Append at sprint close.*

@@ -1,18 +1,24 @@
 """
-monitor_lifecycle.py — D-212/D-213. Sends the lifecycle emails of accounts on
-trial: onboarding (flow 1, days 0–9, onboarding.py) and trial ending
-(flow 2, days 10–13, trial_ending.py). Run hourly by cron (deploy/crontab).
-Was monitor_onboarding.py.
+monitor_lifecycle.py — D-212/D-213/D-214. Sends the lifecycle emails, run
+hourly by cron (deploy/crontab). Was monitor_onboarding.py.
+
+    on trial   days 0–9    onboarding      (flow 1, onboarding.py)
+               days 10–13  trial ending    (flow 2, trial_ending.py)
+    expired    days 0–59   expired trial   (flow 3, expired_trial.py), from the trial's end
 
     python monitor_lifecycle.py            # send
-    python monitor_lifecycle.py --dry-run  # print what would be sent, send nothing
+    python monitor_lifecycle.py --dry-run  # print what would be sent, send or change nothing
 
-At most one email per account per run, and none within 20 hours of the
-last lifecycle email of any flow. Left out: admins, test accounts
-(signup_source "test"), people who used the "stop these emails" link, and
-accounts with no owner email. Sent to the account's owner only, in their
-language; each send is recorded in lifecycle_emails, so nothing goes out
-twice.
+A trial past its end is switched to 'expired' here (D-214): the app only did
+it at the owner's next login, so an owner who never came back stayed "on
+trial" for ever, in the back office too.
+
+At most one email per account per run, and none within 20 hours of the last
+lifecycle email of any flow. Left out: admins, test accounts (signup_source
+"test") and accounts with no owner email. The "stop these emails" link stops
+every email here except the deletion warnings (flow 3), which concern the
+service itself. Sent to the account's owner only, in their language; each
+send is recorded in lifecycle_emails, so nothing goes out twice.
 """
 
 import os
@@ -25,11 +31,13 @@ try:
 except ImportError:
     pass
 
+import expired_trial as ET
+import expired_trial_emails as ETE
 import onboarding as OB
 import onboarding_emails as OE
 import trial_ending as TE
 import trial_ending_emails as TEE
-from database import TRIAL_DAYS, get_supabase_admin
+from database import TRIAL_DAYS, expire_account_trial_if_due, get_supabase_admin
 from email_sender import _lang, send_lifecycle_email
 
 
@@ -42,21 +50,30 @@ def run(dry_run: bool = False) -> None:
     now = datetime.now(timezone.utc)
     base_url = (os.environ.get("APP_BASE_URL") or "https://app.recosa.eu").rstrip("/")
 
-    accounts = sb.table("accounts").select("id, owner_user_id, trial_ends_at, status") \
-        .eq("status", "trial").execute().data or []
-    print(f"{now:%Y-%m-%d %H:%M} — {len(accounts)} account(s) on trial")
+    accounts = sb.table("accounts").select("*").in_("status", ["trial", "expired"]) \
+        .execute().data or []
+    print(f"{now:%Y-%m-%d %H:%M} — {len(accounts)} account(s) on trial or expired")
     for acc in accounts:
         try:
             ends = _ts(acc.get("trial_ends_at"))
-            if not (ends and acc.get("owner_user_id")) or ends <= now:
+            if not (ends and acc.get("owner_user_id")):
                 continue
-            day = OB.trial_day(ends, now, TRIAL_DAYS)
+            status = acc["status"]
+            if status == "trial" and ends <= now:
+                if dry_run:
+                    print(f"  [dry run] would switch account {acc['id']} to expired")
+                else:
+                    expire_account_trial_if_due(acc)
+                    print(f"  switched account {acc['id']} to expired (trial ended {ends:%d %b})")
+                status = "expired"
+
             owner = (sb.table("profiles").select(
                 "id, email, ui_language, role, signup_source, lifecycle_emails_off_at")
                 .eq("id", acc["owner_user_id"]).limit(1).execute().data or [None])[0]
             if (not owner or not owner.get("email") or owner.get("role") == "admin"
-                    or owner.get("signup_source") == "test" or owner.get("lifecycle_emails_off_at")):
+                    or owner.get("signup_source") == "test"):
                 continue
+            opted_out = bool(owner.get("lifecycle_emails_off_at"))
 
             rows = sb.table("lifecycle_emails").select("flow, email_key, sent_at") \
                 .eq("account_id", acc["id"]).execute().data or []
@@ -74,22 +91,35 @@ def run(dry_run: bool = False) -> None:
             company = (client or {}).get("company_name")
 
             flow, key, detail, email = None, None, None, None
-            if day < OB.FLOW_END_DAY:
-                done = OB.step_status(sb, client)
-                key = OB.next_email(day, sent_by_flow.get(OB.FLOW, {}), now, all(done.values()))
-                if key:
-                    flow = OB.FLOW
-                    detail = OB.first_pending(done) if key in OB.STEP_EMAILS + ("wrapup",) else None
-                    email = OE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
-                                       company=company, done=done)
+            if status == "trial":
+                if opted_out:
+                    continue
+                day = OB.trial_day(ends, now, TRIAL_DAYS)
+                if day < OB.FLOW_END_DAY:
+                    done = OB.step_status(sb, client)
+                    key = OB.next_email(day, sent_by_flow.get(OB.FLOW, {}), now, all(done.values()))
+                    if key:
+                        flow = OB.FLOW
+                        detail = OB.first_pending(done) if key in OB.STEP_EMAILS + ("wrapup",) else None
+                        email = OE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
+                                           company=company, done=done)
+                else:
+                    key = TE.next_email(day, set(sent_by_flow.get(TE.FLOW, {})))
+                    if key:
+                        flow = TE.FLOW
+                        figs = TE.figures(sb, client) if key == "four_days" else {}
+                        detail = ", ".join(f"{k}={v}" for k, v in figs.items() if v) or None
+                        email = TEE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
+                                            company=company, ends_at=ends, figures=figs)
             else:
-                key = TE.next_email(day, set(sent_by_flow.get(TE.FLOW, {})))
+                day = ET.days_since(ends, now)
+                key = ET.next_email(day, set(sent_by_flow.get(ET.FLOW, {})), opted_out)
                 if key:
-                    flow = TE.FLOW
-                    figs = TE.figures(sb, client) if key == "four_days" else {}
-                    detail = ", ".join(f"{k}={v}" for k, v in figs.items() if v) or None
-                    email = TEE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
-                                        company=company, ends_at=ends, figures=figs)
+                    flow = ET.FLOW
+                    missed = ET.missed_updates(sb, client, ends) if key == "missing" else (0, 0)
+                    detail = f"updates={missed[0]}, theirs={missed[1]}" if key == "missing" else None
+                    email = ETE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
+                                        company=company, ended_at=ends, now=now, missed=missed)
             if not email:
                 continue
 
