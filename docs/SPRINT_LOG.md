@@ -9249,6 +9249,9 @@ Admin → Companies → an account → Subscription tab → "Block this account"
   through the Companies forms (headless). Left unblocked.
 - Not covered: members invited to a blocked account's companies keep their
   own sign-in (only the owner is banned).
+- **Deployed 25 Nov** (3dd0b94, migration first): tests pass on the server;
+  Companies (block form shown) and Lifecycle (Blocked: 0) draw on production
+  data without error; the heartbeat dry run runs with the blocked filter.
 
 ---
 
