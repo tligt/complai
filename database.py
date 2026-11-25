@@ -1445,7 +1445,7 @@ def create_user_profile(
 TRIAL_DAYS = 14
 
 SUBSCRIPTION_STATUSES = {
-    "registered": "Free account",
+    "registered": "Trial not started",   # D-211: no free accounts; starts at login
     "trial":      "Trial",
     "active":     "Subscribed",
     "expired":    "Trial ended",

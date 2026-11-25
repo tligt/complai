@@ -9036,6 +9036,28 @@ a regulation in common, EU-wide or the company's country). Not emailed
 data without writing: a BE company with GDPR/NIS2/AI Act gets 16 of 20,
 French-only items stay out.
 
+### D-211 — No free accounts: every sign-up starts the trial, 25 Nov
+
+By the user: a free account was an extra step with nothing to see behind it
+(the first real visitor, kompas-it.be, stopped there on 24 Nov), and a
+third kind of user. Revises D-115's "registered" stage.
+
+- **App sign-up form:** `start_trial` with or without a plan (without one:
+  the account's, Professional).
+- **First login** (`app.py`): a self sign-up still 'registered' starts the
+  14-day trial — the free check's sign-up, and accounts left from before
+  (the visitor's starts at their next login; they had no account row, so
+  `start_trial` opens it). Not admins, not invited colleagues
+  (`signup_source` 'invite', covered by the owner's plan), not members of
+  someone else's company. Sends `trial_started` like the button did.
+- **Wording:** the free check says "a 14-day free trial" instead of a free
+  account; Account page "Trial ended" / "No plan yet"; the back office's
+  'registered' reads "Trial not started".
+- **Agreed, not built yet:** an expired trial keeps read-only access to
+  everything it built; five email flows (onboarding, trial ending, expired,
+  payments, churned) with deletion at 60 / 120 days; a back-office
+  lifecycle timeline; blocking an account; self-serve cancelling (S77).
+
 ---
 
 *End of record. Append at sprint close.*

@@ -612,7 +612,10 @@ def _signup_form(funnel: dict) -> None:
             analytics.track("invite_redeemed", src=source)
             st.session_state.signup_invite = True
             plan = None
-        elif plan and start_trial(res.user.id, plan):
+        elif start_trial(res.user.id, plan):
+            # D-211: every sign-up starts the trial, with or without a plan
+            # chosen on the website (then the account's: Professional).
+            plan = plan or "professional"
             record_funnel_event("trial_started", None, source, funnel.get("utm"))
             analytics.track("trial_started", src=source, plan=plan)
     st.session_state.signup_sent_to = new_email

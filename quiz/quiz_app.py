@@ -515,7 +515,7 @@ def _header() -> None:
         funnel.TOOL_AI:      ("AI Act Quick Check",
                               "Where you stand on what the AI Act asks of companies that "
                               "use AI tools."),
-        "results": ("Your results", "The headline is free. The full report comes with a free account."),
+        "results": ("Your results", "The headline is free. The full report comes with a 14-day free trial."),
     }
     h, sub = titles[ss.step]
     st.markdown(f'<span class="fc-pill">Free · no credit card · a few minutes</span>'
@@ -910,7 +910,7 @@ def _account_form(pending: dict) -> None:
         if ss.get("invite"):
             st.caption("With your invitation, this account gets full access to RECOSA "
                        "Professional, free during the beta.")
-        st.markdown(f'<div class="fc-fine">This creates your free RECOSA account — no credit card. We use '
+        st.markdown(f'<div class="fc-fine">This creates your RECOSA account with a 14-day free trial of everything — no credit card. We use '
                     f'your email to send the results and to log you in; updates only if you tick '
                     f'the box. <a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy policy</a></div>',
                     unsafe_allow_html=True)
@@ -942,7 +942,8 @@ def _account_form(pending: dict) -> None:
                     + " come to you by email" if len(parts) > 1 else
                     "the full report comes to you by email, as a PDF" if site else
                     "your full result comes to you by email")
-            body = f"Confirm your address and {what}; log in to RECOSA to see it straight away."
+            body = (f"Confirm your address and {what}; log in to RECOSA to see it straight away. "
+                    "Your 14-day free trial starts when you first log in.")
         else:
             body = (((f"Confirm your address and {_and(results)} "
                       f"{'come' if len(results) > 1 else 'comes'} to you by email. ")

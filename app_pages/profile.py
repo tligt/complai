@@ -129,9 +129,10 @@ PLAN_INCLUDES = {
 with st.container(border=True):
     p1, p2 = st.columns([3, 2])
     if _status in ("registered", "expired"):
-        p1.markdown(tr("**Free account**"))
-        p1.caption(tr("The free compliance check and your company profile. The rest "
-                   "of RECOSA opens with a subscription."))
+        # D-211: no free accounts; 'registered' is only the moment before
+        # the trial starts at login.
+        p1.markdown(tr("**Trial ended**") if _status == "expired" else tr("**No plan yet**"))
+        p1.caption(tr("Everything you set up is kept. Choose a plan to use all of RECOSA again."))
         if _status == "expired":
             p2.warning(tr("Your free trial has ended."))
     else:
