@@ -9007,6 +9007,10 @@ the original article, and a line saying which language it is in.
   title). English title editable only while pending.
 - **Production needs, in order:** the migration, the code, the
   compliance-pulse function redeployed, then `backfill_title_en.py --write`.
+- **Deployed 25 Nov** with D-207: migration, `update.sh` (f65afd1), the
+  function copied into `volumes/functions` (previous copy saved as
+  `/root/compliance-pulse-index.ts.20261125`) and edge functions restarted,
+  backfill 13 items. Pulse feed checked: French items have English titles.
 
 ---
 
