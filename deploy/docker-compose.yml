@@ -17,6 +17,17 @@
 
 name: recosa
 
+# D-209: the apps' output goes to the host's systemd journal, which is kept
+# on disk, so a deploy (update.sh recreates the containers) no longer wipes
+# it. Read with:  journalctl -t recosa-app-1 --since "2 days ago"
+# (recosa-admin-1, recosa-quiz-1). `docker compose logs` still works for the
+# running container. Size and age are capped by journald-recosa.conf.
+x-logging: &logging
+  logging:
+    driver: journald
+    options:
+      tag: "{{.Name}}"
+
 x-app: &app
   build:
     context: ..
@@ -34,17 +45,17 @@ x-app: &app
 
 services:
   app:
-    <<: *app
+    <<: [*app, *logging]
     command: ["streamlit", "run", "app.py", "--server.port", "8501"]
     environment: { PORT: "8501" }
 
   admin:
-    <<: *app
+    <<: [*app, *logging]
     command: ["streamlit", "run", "admin_app.py", "--server.port", "8502"]
     environment: { PORT: "8502" }
 
   quiz:
-    <<: *app
+    <<: [*app, *logging]
     command: ["streamlit", "run", "quiz/quiz_app.py", "--server.port", "8503"]
     environment: { PORT: "8503" }
 

@@ -15,6 +15,11 @@ git pull --ff-only
 git log --oneline -1
 
 cd deploy
+# D-209: journal limits for the apps' logs (they go to journald).
+if ! cmp -s journald-recosa.conf /etc/systemd/journald.conf.d/recosa.conf; then
+  install -D -m 644 journald-recosa.conf /etc/systemd/journald.conf.d/recosa.conf
+  systemctl restart systemd-journald
+fi
 docker compose build
 docker compose up -d --no-deps app admin quiz
 # Caddyfile changes: a bind-mounted file does not recreate the container.
