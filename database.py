@@ -11,6 +11,8 @@ from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 from postgrest.exceptions import APIError
 
+import readonly as _readonly   # D-215
+
 # S54: a read-only person's change is refused by the database with 42501
 # ("new row violates row-level security policy for table ...", or the delete
 # trigger's own sentence). Pages show errors as f"Could not save: {e}", so
@@ -47,7 +49,7 @@ def get_supabase() -> Client:
     try:
         cached = _st().session_state.get("_sb_client")
         if cached and cached[0] == token:
-            return cached[1]
+            return _readonly.wrap(cached[1])
     except Exception:
         cached = None
     url = os.environ.get("SUPABASE_URL")
@@ -59,7 +61,7 @@ def get_supabase() -> Client:
         _st().session_state["_sb_client"] = (token, client)
     except Exception:
         pass
-    return client
+    return _readonly.wrap(client)   # D-215: an expired trial writes nothing
 
 
 # ── Clients ───────────────────────────────────────────────────────────────────
@@ -413,7 +415,7 @@ def get_supabase_admin() -> Client:
         url = os.environ.get("SUPABASE_URL")
         key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_KEY")
         _ADMIN_CLIENT = create_client(url, key)
-    return _ADMIN_CLIENT
+    return _readonly.wrap(_ADMIN_CLIENT)   # D-215: unchanged outside a read-only session
 
 
 def upload_file(bucket: str, path: str, file_bytes: bytes,

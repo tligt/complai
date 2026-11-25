@@ -89,6 +89,7 @@ def classify_regulations(question: str, candidate_regs: list[str]) -> list[str]:
         f"Question: {question}"
     )
     try:
+        import readonly; readonly.check("the assistant")   # D-215: no AI call when read-only
         response = requests.post(
             "https://api.mistral.ai/v1/chat/completions",
             headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -174,6 +175,7 @@ def answer_question(
     messages = [{"role": msg["role"], "content": msg["content"]} for msg in history]
     messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuestion: {question}"})
 
+    import readonly; readonly.check("the assistant")   # D-215: no AI call when read-only
     response = requests.post(
         "https://api.mistral.ai/v1/chat/completions",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},

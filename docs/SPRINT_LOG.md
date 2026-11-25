@@ -9158,6 +9158,41 @@ By the user. Days from the trial's end:
 - **Deployed 25 Nov** (2f2ff06): tests pass on the server, dry run has
   nothing to send or switch yet, apps healthy, no errors.
 
+### D-215 — Read-only access after the trial, 25 Nov
+
+By the user (agreed earlier the same day): an expired trial keeps seeing and
+downloading everything it built, and changes nothing — the nudge to
+subscribe. Before, it saw only its free check result and the subscribe page.
+
+- **Who:** an expired account's owner with a company (`app.py`,
+  `read_only`). Without a company there is nothing to see: the subscribe
+  page as before. Admins and members of someone else's company: unchanged.
+- **Full menu, a banner on every page** ("Your trial has ended: RECOSA is
+  read-only… Choose my plan"); the Assistant stays behind the subscribe page.
+- **`readonly.py`: one guard on the database clients.** In a read-only
+  session `get_supabase()` and `get_supabase_admin()` come wrapped: insert /
+  update / upsert / delete and storage uploads/removals raise
+  `ReadOnlyError` and are not sent; reads, downloads and signed URLs pass.
+  Still writable: sign-in and profile, support and the plan request, billing
+  company details, alerts marked read, funnel counts. Jobs have no session:
+  never read-only.
+- **Raising, not a silent empty result:** the first version returned an
+  empty result; the company page then said "Saved." and showed the new
+  value. Now each page's own "Could not save…" path runs, with a plain,
+  translated reason, plus a notice that survives the page's reload.
+  `task_events` (the action plan's history, written while it draws) is
+  refused quietly.
+- **Nothing new generated, no AI cost:** `readonly.check()` before every
+  Mistral call (documents, gap assessment, drafting, translation, assistant),
+  at the start of template generation and `build_docx`, and on the website
+  audit's Run. The branding sample isn't built in read-only.
+- Checked: `test_readonly.py`; locally with a dev test account
+  (readonly-test@example.com, expired, a company): all 19 pages load
+  without error, banner shown, Assistant locked, a company-profile save
+  refused with the message and the database unchanged.
+- Not yet: members of an expired owner's company keep full access (as
+  before); the deletion warnings (D-214) still wait for the deletion job.
+
 ---
 
 *End of record. Append at sprint close.*

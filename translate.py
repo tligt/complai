@@ -158,6 +158,7 @@ def translate_fields(
     user = f"Translate into {wanted}.\n\nFields:\n{described}"
 
     try:
+        import readonly; readonly.check("translating")   # D-215: no AI call when read-only
         resp = requests.post(
             API_URL,
             headers={

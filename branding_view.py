@@ -95,7 +95,8 @@ def render(client: dict, user_id: str) -> None:
     with right:
         st.markdown("**Preview**" + ("" if saved.branded else " — RECOSA's neutral style"))
         _preview(saved, company)
-        if saved.branded:
+        import readonly
+        if saved.branded and not readonly.active():   # D-215: builds a document
             from document_generator import build_docx
             st.download_button(
                 tr("Download a sample document"), key=f"brand_sample_{cid}",

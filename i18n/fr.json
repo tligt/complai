@@ -1617,5 +1617,9 @@
  "5 days before your RECOSA account is deleted": "Plus que 5 jours avant la suppression de votre compte RECOSA",
  "Your trial ended on {ended}. An account without a plan is deleted 60 days after its trial ends: the account of {company} and everything in it will be deleted on {date}.": "Votre essai s'est terminé le {ended}. Un compte sans formule est supprimé 60 jours après la fin de son essai : le compte de {company} et tout ce qu'il contient seront supprimés le {date}.",
  "Download what you want to keep before then, or choose a plan: everything stays and keeps working.": "Téléchargez d'ici là ce que vous souhaitez garder, ou choisissez une formule : tout reste en place et continue de fonctionner.",
- "Your RECOSA account": "Votre compte RECOSA"
+ "Your RECOSA account": "Votre compte RECOSA",
+ "Your trial has ended: RECOSA is read-only. Nothing was saved.": "Votre essai est terminé : RECOSA est en lecture seule. Rien n'a été enregistré.",
+ "🔒 **Your trial has ended: RECOSA is read-only.** You can see and download everything you set up, but not change it. Choose a plan to continue.": "🔒 **Votre essai est terminé : RECOSA est en lecture seule.** Vous pouvez consulter et télécharger tout ce que vous avez configuré, mais pas le modifier. Choisissez une formule pour continuer.",
+ "Your trial has ended: RECOSA is read-only. Choose a plan to change or create anything.": "Votre essai est terminé : RECOSA est en lecture seule. Choisissez une formule pour modifier ou créer quoi que ce soit.",
+ "your trial has ended and RECOSA is read-only. Choose a plan to make changes.": "votre essai est terminé et RECOSA est en lecture seule. Choisissez une formule pour faire des modifications."
 }

@@ -73,6 +73,7 @@ def generate_templated_document(
     a client expecting a Dutch policy needs to be told it is unavailable, not
     left to notice a third file missing.
     """
+    import readonly; readonly.check("generating documents")   # D-215: nothing new when read-only
     from document_generator import build_docx, convert_docx_to_pdf  # noqa: PLC0415
     from document_generator import save_document_with_files  # noqa: PLC0415
     from obligations import DOCUMENT_TYPES  # noqa: PLC0415

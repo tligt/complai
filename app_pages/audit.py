@@ -85,6 +85,7 @@ if logged_in:
         if not website_url.strip():
             st.error(tr("Please enter a website URL."))
         else:
+            import readonly; readonly.check("website audits")   # D-215
             with st.spinner(tr("Crawling website and running compliance checks...")):
                 crawl_result = crawl(website_url.strip())
                 if crawl_result.error:

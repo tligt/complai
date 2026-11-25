@@ -27,6 +27,10 @@ st.set_page_config(
     # over the page on every load on a phone (usability audit C4, 26 Oct).
     initial_sidebar_state="auto",
 )
+# D-215: read-only is worked out again on every run, below, once the account
+# is known; until then nothing is held from a previous run.
+st.session_state["read_only"] = False
+st.session_state["_ro_noticed_run"] = False
 
 # ── Global CSS ────────────────────────────────────────────────
 # Shared with the back office (D-140): brand.py, and the theme in
@@ -290,11 +294,18 @@ if ((_profile.get("subscription_status") or "registered") == "registered"
     # Started, or already over (expired): either way the account changed.
     _profile = {**_profile, **expire_trial_if_due(get_user_profile(user_id))}
 
-limited_access = (
+_without_plan = (
     _profile.get("role") != "admin"
     and (_profile.get("subscription_status") or "active") in ("registered", "expired")
     and not any(c.get("role") != "owner" for c in load_accessible_clients(user_id))
 )
+# D-215: an ended trial with a company keeps read-only access to everything
+# it built (readonly.py stops every write and AI call). Without a company
+# there is nothing to see: the subscribe page, as before.
+read_only = (_without_plan and _profile.get("subscription_status") == "expired"
+             and bool(load_accessible_clients(user_id)))
+limited_access = _without_plan and not read_only
+st.session_state["read_only"] = read_only
 
 with st.sidebar:
     if _profile.get("subscription_status") == "trial" and _profile.get("trial_ends_at"):
@@ -449,6 +460,15 @@ if limited_access:
                          icon="🎯", default=True)
     _sections = {name: [_locked(p) for p in pages] for name, pages in _sections.items()}
     _sections[""] = [free_check] + _sections[""]
+elif read_only:
+    # D-215: everything readable; the Assistant is only conversation, so it
+    # stays behind the subscribe page.
+    from subscribe_view import render_subscribe as _rs
+    _sections["Tools"] = [st.Page(_rs, title=p.title, icon=p.icon, url_path=p.url_path)
+                          if p is chat else p for p in _sections["Tools"]]
+    if _profile.get("pending_result"):
+        free_check = st.Page("app_pages/free_check.py", title=tr("Your free check"), icon="🎯")
+        _sections["Account"].append(free_check)
 elif _profile.get("pending_result"):
     # A full account that took a free check (already a client, or logged in
     # from the public app's "Log in instead"): the result is under Account.
@@ -494,7 +514,27 @@ if st.session_state.pop("open_free_check", False) and not limited_access:
 from auth import go_to_requested_page
 go_to_requested_page(pg, _sections)
 
-pg.run()
+# D-215: read-only, said on every page (not on the plan page itself).
+if read_only and pg.url_path != "subscribe":
+    with st.container(border=True):
+        _ro1, _ro2 = st.columns([4, 1], vertical_alignment="center")
+        _ro1.markdown(tr("🔒 **Your trial has ended: RECOSA is read-only.** You can see and "
+                         "download everything you set up, but not change it. Choose a plan "
+                         "to continue."))
+        if _ro2.button(tr("Choose my plan"), type="primary", key="ro_choose_plan",
+                       use_container_width=True):
+            st.switch_page(subscribe_pg)
+
+import readonly as _readonly_mod
+if read_only:
+    _readonly_mod.show_pending_notice()   # a refusal just before a page reload
+try:
+    pg.run()
+except _readonly_mod.ReadOnlyError:
+    # An action a page did not expect to be refused (an AI call, a new
+    # document): say why instead of showing an error.
+    st.info(tr("Your trial has ended: RECOSA is read-only. Choose a plan to change or "
+               "create anything."))
 
 # ── Help widget ───────────────────────────────────────────────
 # Mounted once here rather than per page. app.py runs on every page load;

@@ -138,6 +138,7 @@ def draft(
     )
 
     try:
+        import readonly; readonly.check("drafting")   # D-215: no AI call when read-only
         resp = requests.post(
             API_URL,
             headers={"Authorization": f"Bearer {key}",

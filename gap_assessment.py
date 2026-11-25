@@ -177,6 +177,7 @@ DOCUMENT:
 
     for attempt in range(3):
         try:
+            import readonly; readonly.check("the gap assessment")   # D-215: no AI call when read-only
             response = requests.post(
                 "https://api.mistral.ai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}",
@@ -258,6 +259,7 @@ CHECK THESE OBLIGATIONS:
 
     for attempt in range(3):
         try:
+            import readonly; readonly.check("the gap assessment")   # D-215: no AI call when read-only
             response = requests.post(
                 "https://api.mistral.ai/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}",
