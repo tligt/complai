@@ -9218,6 +9218,9 @@ same day. Admin → Lifecycle (`pages_admin/lifecycle.py`, logic in
   demo against dev data (2 drop-outs, 3 not started, 75 visits); history
   of a dev test account. Fixed on the way: next planned said "day 7" when
   the day-0 email was still due; the row click needed a row action.
+- **Deployed 25 Nov** (26b35a8): the page runs on production data without
+  error — 15 free-check visits in 30 days, 1 sign-up without a trial (the
+  visitor), the admin's own trial when admin accounts are included.
 
 ---
 
