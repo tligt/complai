@@ -9196,6 +9196,29 @@ subscribe. Before, it saw only its free check result and the subscribe page.
   tests pass on the server; apps healthy, no errors. No account on
   production is read-only yet (the only one is the admin's, never read-only).
 
+### D-216 — Back office: the Lifecycle page, 25 Nov
+
+By the user ("where can I see all that?"): the timeline agreed earlier the
+same day. Admin → Lifecycle (`pages_admin/lifecycle.py`, logic in
+`lifecycle_view.py`):
+
+- **Counts:** free-check visits (30 days), trial, customers, drop-outs,
+  churned, trial not started.
+- **Prospect funnel** (30 days): visits → scope → results → sign-ups.
+- **One lane per stage**, its emails as dots on their days, read from the
+  flows' own schedules (dashed: not sent yet — the deletion warnings, the
+  churned flow); each account a chip on its current day.
+- **Accounts table:** stage, day, emails sent, last email, next planned (as
+  the job decides it: welcome first, then the most recent due), stopped
+  emails. "History" opens sign-up, company, every status change, every
+  email sent, opt-out, last sign-in.
+- Admin and test accounts hidden unless asked. Sign-ups with no account
+  (free check before D-211) show as "Trial not started".
+- Checked: `test_lifecycle_view.py`; the page run headless and in a local
+  demo against dev data (2 drop-outs, 3 not started, 75 visits); history
+  of a dev test account. Fixed on the way: next planned said "day 7" when
+  the day-0 email was still due; the row click needed a row action.
+
 ---
 
 *End of record. Append at sprint close.*

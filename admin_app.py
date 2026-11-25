@@ -46,6 +46,7 @@ home       = st.Page("pages_admin/home.py",       title="Home",           icon="
 dashboard  = st.Page("pages_admin/dashboard.py",  title="Dashboard",      icon=":material/monitoring:")
 acquisition = st.Page("pages_admin/acquisition.py", title="Acquisition",  icon=":material/campaign:")
 companies  = st.Page("pages_admin/companies.py",  title="Companies",      icon=":material/domain:")
+lifecycle  = st.Page("pages_admin/lifecycle.py",  title="Lifecycle",      icon=":material/timeline:")   # D-216
 users      = st.Page("pages_admin/users.py",      title="Users",          icon=":material/group:")
 monitoring = st.Page("pages_admin/monitoring.py", title="Monitoring",     icon=":material/radar:")
 kb         = st.Page("pages_admin/kb.py",         title="Knowledge Base", icon=":material/menu_book:")
@@ -64,7 +65,7 @@ tickets = st.Page(
 )
 
 _admin_sections = {
-    "Admin":   [home, dashboard, acquisition, companies, users, countries, audit_log, versions],
+    "Admin":   [home, dashboard, acquisition, companies, lifecycle, users, countries, audit_log, versions],
     "Support": [tickets, feedback],
     "Content": [monitoring, kb],
 }
