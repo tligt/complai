@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
     // ── Fetch regulatory updates ──────────────────────────────
     let regQuery = supabase
       .from("regulatory_updates")
-      .select("id, title, summary, url, source, regulations, countries, severity, published_at, approved_at, language")
+      .select("id, title, title_en, summary, url, source, regulations, countries, severity, published_at, approved_at, language")
       .eq("status", "approved")
       .eq("published_to_pulse", true)
       .order("approved_at", { ascending: false })
@@ -82,7 +82,10 @@ Deno.serve(async (req) => {
         id:              item.id,
         content_type:    "regulatory",
         display_type:    "Regulatory News",
-        title:           item.title,
+        // D-208: the summary is in English, so the title is too; `language`
+        // stays the source article's language.
+        title:           item.title_en || item.title,
+        title_original:  item.title,
         summary:         item.summary,
         url:             item.url || null,       // external source link
         detail_url:      null,                    // regulatory items have no internal detail page

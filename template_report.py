@@ -30,6 +30,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, Iterable, Mapping
 
 from template_renderer import Block, FieldSpec
+from i18n import alert_title
 
 REPORT_FIELDS = [
     FieldSpec("legal_name", "Legal name of the company", required=True),
@@ -392,9 +393,11 @@ def build_report_block_context(client_id: str, language: str, **options: Any) ->
                 .eq("value_type", "training_requirement").is_("workspace_id", "null").execute().data or [])]
         alerts = rows("client_alerts", client_id=client_id)
         upd_ids = [a["update_id"] for a in alerts if a.get("update_id")]
-        updates = {u["id"]: u for u in (sb.table("regulatory_updates").select("id, title, regulations")
+        updates = {u["id"]: u for u in (sb.table("regulatory_updates").select("id, title, title_en, regulations")
                    .in_("id", upd_ids).execute().data or [])} if upd_ids else {}
-        regulatory = [{**updates[a["update_id"]], "notified_at": a.get("notified_at")}
+        regulatory = [{**updates[a["update_id"]],
+                       "title": alert_title(updates[a["update_id"]]),   # D-208
+                       "notified_at": a.get("notified_at")}
                       for a in alerts if a.get("update_id") in updates]
         ctx = build_report_context_from(
             client=client, start=start, end=end,

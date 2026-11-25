@@ -69,6 +69,27 @@ tr = translate
 _ = translate   # outside pages only: pages reuse "_" as a throwaway name
 
 
+# ── Regulatory alerts from sources not in English (D-208) ────────────────
+# An alert is written once, in English (D-168): the summary, what to do, and
+# its English title. The source article stays in its own language, so the
+# reader is told which before following the link.
+_SOURCE_LANGUAGE = {"fr": "in French", "nl": "in Dutch", "de": "in German", "es": "in Spanish"}
+
+
+def alert_title(update: dict | None) -> str:
+    """The title shown everywhere: the English one when the source isn't in
+    English, else the source's own."""
+    u = update or {}
+    return (u.get("title_en") or "").strip() or u.get("title") or ""
+
+
+def source_language_note(update: dict | None, lang: str | None = None) -> str | None:
+    """"in French" / "in Dutch" (translated) when the source article isn't in
+    English, else None."""
+    key = _SOURCE_LANGUAGE.get(((update or {}).get("language") or "en").lower()[:2])
+    return translate(key, lang) if key else None
+
+
 # ── The language we write to someone in (D-167) ──────────────────────────
 LANGUAGE_NAMES = {"en": "English", "fr": "Français", "nl": "Nederlands", "de": "Deutsch"}
 

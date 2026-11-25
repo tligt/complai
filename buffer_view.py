@@ -26,6 +26,7 @@ import streamlit as st
 import buffer_client as B
 import linkedin_post as LP
 from database import get_supabase_admin
+from i18n import alert_title, source_language_note
 
 TZ = ZoneInfo("Europe/Brussels")
 _MODES = {"queue": "Add to the queue", "scheduled": "Schedule", "draft": "Save as a draft in Buffer"}
@@ -130,7 +131,9 @@ def render_send(item: dict, table: str, text: str, user_id: str | None = None) -
                                       "the card gives it a picture.")
 
         # ── What will go out ─────────────────────────────────────────────
-        post, comment = LP.with_source(LP.plain_text(text), src_mode, src_name, src_url)
+        # D-208: the post is in English; say when the article it cites isn't.
+        post, comment = LP.with_source(LP.plain_text(text), src_mode, src_name, src_url,
+                                       source_language_note(item, "en"))
         with st.container(border=True):
             st.caption("What LinkedIn will show")
             st.text(post)
@@ -160,7 +163,7 @@ def render_send(item: dict, table: str, text: str, user_id: str | None = None) -
             image_url = None
             if with_image:
                 try:
-                    image_url = LP.upload_card(LP.headline_card(item.get("title") or "",
+                    image_url = LP.upload_card(LP.headline_card(alert_title(item),
                                                                 item.get("category")))
                 except Exception as e:
                     print(f"RECOSA card not made: {e}")

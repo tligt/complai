@@ -30,6 +30,7 @@ from database import (
     get_supabase_admin,
 )
 from email_sender import send_regulatory_alert
+from i18n import alert_title
 import monitoring_queue as MQ
 import table_view as tv
 from slug_generation import slugify
@@ -203,7 +204,9 @@ use line breaks, "•" for list items and emojis for emphasis. Hashtags at the e
 Write the company name exactly as RECOSA (it becomes a mention of the RECOSA page).
 Do not add a source line or any link: they are added when the post is sent."""
 
-    user_prompt = f"""TITLE: {item.get('title', '')}
+    # D-208: the English title, so a French or Dutch source doesn't pull the
+    # post into its language. The source line says the article's language.
+    user_prompt = f"""TITLE: {alert_title(item)}
 SUMMARY: {item.get('summary', '')}
 SOURCE: {item.get('source', '')}
 
@@ -357,6 +360,9 @@ with tab_reg:
         )
         with st.form("manual_reg_form", clear_on_submit=True):
             m_title = st.text_input("Title *")
+            m_title_en = st.text_input(
+                "English title (if the source isn't in English)",
+                help="Shown in emails, the client app, LinkedIn and the Pulse (D-208).")
             col_m1, col_m2 = st.columns(2)
             with col_m1:
                 m_source = st.text_input("Source *", placeholder="e.g. CCB")
@@ -383,6 +389,7 @@ with tab_reg:
                     manual_item = {
                         "source":             m_source.strip(),
                         "title":              m_title.strip(),
+                        "title_en":           (m_title_en.strip() or None) if m_lang != "en" else None,
                         "summary":            m_summary.strip(),
                         "url":                m_url.strip() or None,
                         "regulations":        regs,
@@ -443,8 +450,6 @@ with tab_reg:
             st.error(f"📧 “{title}” email failed: {sent['error']}")
         if sent.get("note"):
             st.warning(f"📧 “{title}”: {sent['note']}")
-        if not (sent["sent"] or sent["failed"] or sent["error"]):
-            st.info(f"📧 “{title}”: no matching clients, so no email was sent.")
 
     if not updates:
         st.info("No regulatory updates found.")
@@ -463,11 +468,13 @@ with tab_reg:
             with st.expander(
                 f"{severity_icon} {status_icon} "
                 + (f"{u['alert_ref']} · " if u.get("alert_ref") else "")
-                + f"{u.get('title', 'Untitled')} — {u.get('source', '')}",
+                + f"{alert_title(u) or 'Untitled'} — {u.get('source', '')}",
                 expanded=True
             ):
                 col_a, col_b = st.columns([3, 1])
                 with col_a:
+                    if alert_title(u) != (u.get("title") or ""):
+                        st.caption(f"Original title: {u.get('title')}")
                     st.markdown(f"**Summary:** {u.get('summary', '—')}")
                     regs = ", ".join(u.get("regulations") or [])
                     countries = ", ".join(u.get("countries") or [])
@@ -495,6 +502,17 @@ with tab_reg:
                             value=current_url,
                             key=f"fix_url_{u['id']}",
                         )
+
+                        # D-208: a French or Dutch source gets an English title,
+                        # used in the email, the app, LinkedIn and the Pulse.
+                        is_foreign = (u.get("language") or "en") != "en"
+                        current_title_en = u.get("title_en") or ""
+                        edited_title_en = st.text_input(
+                            "English title", value=current_title_en,
+                            key=f"title_en_{u['id']}",
+                            help="The source is not in English: this title is shown instead "
+                                 "of the original everywhere outside this page.",
+                        ) if is_foreign else current_title_en
 
                         severity_choice = st.selectbox(
                             "Severity",
@@ -536,6 +554,12 @@ with tab_reg:
                                     ).eq("id", u["id"]).execute()
                                     # Ingestion below reads u, so it must see the corrected URL
                                     u["url"] = new_url or None
+                                new_title_en = edited_title_en.strip()
+                                if new_title_en != current_title_en:
+                                    get_supabase_admin().table("regulatory_updates").update(
+                                        {"title_en": new_title_en or None}
+                                    ).eq("id", u["id"]).execute()
+                                    u["title_en"] = new_title_en or None
                                 if u.get("status") == "url_flagged":
                                     get_supabase_admin().table("regulatory_updates").update(
                                         {"status": "pending"}
@@ -552,7 +576,7 @@ with tab_reg:
                                     sent = send_regulatory_alert(u)
                                     # Shown above the list after the rerun, since
                                     # this expander comes back collapsed.
-                                    st.session_state["reg_email_flash"] = (u.get("title", ""), sent)
+                                    st.session_state["reg_email_flash"] = (alert_title(u), sent)
                                 # Ingest to Qdrant — always happens regardless of
                                 # freshness, since old-but-valid content is still
                                 # useful in the knowledge base

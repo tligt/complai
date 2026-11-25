@@ -8978,6 +8978,35 @@ send_regulatory_alert returned with nothing to show. It now returns a
 alert's regulations and countries), or already emailed to every matching
 recipient (with the count). The success message gives the number of
 recipients. Tested against dev data for both notes; not clicked in the admin.
+Also removes the older "no matching clients" info line (4a9dc09), which the
+note replaces and which would have shown alongside it.
+
+### D-208 — Alerts from French and Dutch sources: English throughout, source language noted, 25 Nov
+
+By the user, after RA-2026-0069 (CNIL, French): English summary, English
+LinkedIn post, but the French title in the email and on the LinkedIn image.
+Chosen over "everything in French": English everywhere, the link going to
+the original article, and a line saying which language it is in.
+
+- **`regulatory_updates.title_en`** (`migration_d208_title_en.sql`): the
+  English title, NULL for English sources; `title` keeps the original. The
+  monitor's analysis returns it; the manual form and the pending review have
+  a field for it. `backfill_title_en.py` fills existing rows (dev: 9 done).
+- **`i18n.alert_title` / `source_language_note`** used by: the alert email
+  (title, subject, "Read the full document (in French)" in the reader's
+  language), the client Alerts page ("Source article in French", translated),
+  the LinkedIn draft prompt, the Buffer post's source line ("Source: CNIL
+  (article in French)") and image card, the client report's regulatory
+  section, and the Pulse feed (`title` English, `title_original` added,
+  `language` still the source's).
+- The admin review shows the English title with "Original title" under it.
+- **Later (the user):** a Pulse in FR and NL needs three versions per item —
+  title_fr / title_nl and the summaries alongside, the same pattern.
+- Not done: marketing_updates (same mix possible; its LinkedIn source line
+  gets the language note through buffer_view, the image still uses its
+  title). English title editable only while pending.
+- **Production needs, in order:** the migration, the code, the
+  compliance-pulse function redeployed, then `backfill_title_en.py --write`.
 
 ---
 

@@ -1,4 +1,4 @@
-from i18n import tr  # S64 interface translation (D-164)
+from i18n import alert_title, source_language_note, tr  # S64 interface translation (D-164)
 import streamlit as st
 
 from display import country_label, fmt_datetime, plural, regulation_label, regulations_text
@@ -45,7 +45,7 @@ def _alerts_panel(user_id: str):
         # this to alerts for clients the account owns or is a member of.
         supabase = get_supabase()
         alerts = (supabase.table("client_alerts")
-                  .select("*, regulatory_updates(id, alert_ref, title, summary, url, severity, "
+                  .select("*, regulatory_updates(id, alert_ref, title, title_en, summary, url, severity, "
                           "source, regulations, countries, published_at, action_description, language)")
                   .order("notified_at", desc=True)
                   .limit(300)
@@ -94,7 +94,6 @@ def _alerts_panel(user_id: str):
     fresh = [a for a in shown if not a.get("read_at")]
     older = [a for a in shown if a.get("read_at")]
 
-    _LANG = {"fr": "French", "nl": "Dutch", "de": "German"}
 
     # One alert row per company: an account with two companies sees the same
     # update twice, so each card names the company it was sent for.
@@ -111,13 +110,14 @@ def _alerts_panel(user_id: str):
             dt = fmt_datetime(raw)
         except Exception:
             dt = raw[:10] if raw else ""
-        title = update.get("title", "Regulatory update")
-        lang = _LANG.get((update.get("language") or "en").lower()[:2])
+        title = alert_title(update) or tr("Regulatory update")
+        # D-208: the English title, and the source article's language.
+        src_note = source_language_note(update)
         with st.container(border=True):
             col_content, col_action = st.columns([8, 2])
             with col_content:
                 st.markdown(f"{icon} " + (f"**{title}**" if not is_read else title)
-                            + (f"  :gray[· in {lang}]" if lang else ""))
+                            + (f"  :gray[· {tr('Source article')} {src_note}]" if src_note else ""))
                 if full and update.get("summary"):
                     st.caption(update["summary"])
                 if full and update.get("action_description"):

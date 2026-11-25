@@ -2,7 +2,7 @@ import os
 import base64
 import requests
 
-from i18n import LANGUAGES, translate as tr
+from i18n import LANGUAGES, alert_title, source_language_note, translate as tr
 
 # ── The recipient's language (S64, D-168) ─────────────────────────────────
 # Every email is written in its reader's language: the person's own
@@ -464,7 +464,8 @@ def send_regulatory_alert(update: dict) -> dict:
                 result["failed"].append((f"user {user_id}", "no email on profile"))
                 continue
             # D-168: the frame in the reader's language. The alert itself
-            # (title, summary, what to do) is written once, by us, in English.
+            # (title, summary, what to do) is written once, by us, in English;
+            # D-208: the English title too when the source isn't in English.
             lang = lang_by_user.get(user_id, "en")
             severity_label = {"urgent": "🔴 " + tr("Urgent", lang),
                               "important": "🟡 " + tr("Important", lang),
@@ -474,15 +475,19 @@ def send_regulatory_alert(update: dict) -> dict:
                 + tr("What to do:", lang) + '</strong> '
                 + update.get("action_description", "") + "</div>"
             ) if update.get("action_description") else ""
+            # D-208: say the article is in French/Dutch before the reader clicks.
+            src_note = source_language_note(update, lang)
             link_html = (
                 '<p><a href="' + update.get("url", "")
-                + '" style="color:#003366;font-weight:bold">' + tr("Read the full document", lang) + ' →</a></p>'
+                + '" style="color:#003366;font-weight:bold">' + tr("Read the full document", lang)
+                + (f" ({src_note})" if src_note else "") + ' →</a></p>'
             ) if update.get("url") else ""
+            title = alert_title(update)
 
             html = email_layout(
                 tr("Regulatory alert", lang),
                 f'''<p style="color:#666;font-size:12px;margin:0 0 12px">{ref_prefix}{severity_label} · {update.get('source','')} · {(update.get('published_at') or '')[:10]}</p>
-    <h2 style="color:{BRAND_DARK};font-size:18px;margin:0 0 12px">{update.get('title','')}</h2>
+    <h2 style="color:{BRAND_DARK};font-size:18px;margin:0 0 12px">{title}</h2>
     <p style="color:#444">{update.get('summary','')}</p>
     {action_html}
     {link_html}''',
@@ -497,7 +502,7 @@ def send_regulatory_alert(update: dict) -> dict:
                     json={
                         "sender": {"name": from_name, "email": from_email},
                         "to": [{"email": email}],
-                        "subject": f"[RECOSA] {ref_prefix}{severity_label} — {update.get('title','')}",
+                        "subject": f"[RECOSA] {ref_prefix}{severity_label} — {title}",
                         "htmlContent": html,
                     },
                     timeout=15,

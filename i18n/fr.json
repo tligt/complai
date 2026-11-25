@@ -1532,5 +1532,11 @@
  "✅ **Setup step 2 done.** You can complete the details later. Next: a gap assessment, for a first score per regulation.": "✅ **Étape 2 terminée.** Vous pourrez compléter les détails plus tard. Ensuite : une analyse des écarts, pour un premier score par réglementation.",
  "Next step →": "Étape suivante →",
  "③ Not in our list? Add a tool manually": "③ Pas dans notre liste ? Ajoutez un outil manuellement",
- "For a tool the scan and our list do not know. Only the name is required; you can complete the rest later.": "Pour un outil que l'analyse et notre liste ne connaissent pas. Seul le nom est obligatoire ; vous pourrez compléter le reste plus tard."
+ "For a tool the scan and our list do not know. Only the name is required; you can complete the rest later.": "Pour un outil que l'analyse et notre liste ne connaissent pas. Seul le nom est obligatoire ; vous pourrez compléter le reste plus tard.",
+ "in French": "en français",
+ "in Dutch": "en néerlandais",
+ "in German": "en allemand",
+ "in Spanish": "en espagnol",
+ "Source article": "Article source",
+ "Regulatory update": "Mise à jour réglementaire"
 }

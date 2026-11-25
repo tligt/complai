@@ -260,6 +260,7 @@ def summarise_and_categorise(
 Analyse this regulatory news item and return ONLY valid JSON:
 {
   "relevant": true/false,
+  "title_en": "the title translated into English (the title as given if it is already in English)",
   "summary": "2-3 sentence plain English summary of what this means for EU SMEs",
   "severity": "info|important|urgent",
   "regulations": ["GDPR"|"NIS2"|"EU_AI_ACT"|"EPRIVACY"|"EAA"|"CONSUMER_RIGHTS"],
@@ -338,6 +339,10 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
             results.append({
                 "source":             source_config["name"],
                 "title":              title,
+                # D-208: English title for non-English sources (email, app,
+                # LinkedIn, Pulse); the original stays in "title".
+                "title_en":           ((analysis.get("title_en") or "").strip() or None)
+                                      if lang != "en" else None,
                 "summary":            analysis.get("summary", description[:300]),
                 "url":                item["url"],
                 "regulations":        regs,

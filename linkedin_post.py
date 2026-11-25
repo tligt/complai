@@ -57,14 +57,19 @@ def plain_text(text: str) -> str:
 
 
 def with_source(text: str, mode: str, source_name: str | None,
-                url: str | None) -> tuple[str, str | None]:
-    """(post text, first comment) for the chosen source mode."""
+                url: str | None, language_note: str | None = None) -> tuple[str, str | None]:
+    """(post text, first comment) for the chosen source mode. language_note
+    ("in French") says the article isn't in English (D-208)."""
     name = (source_name or "").strip()
     url = (url or "").strip()
+    note = f" (article {language_note})" if language_note else ""
     if mode == "link" and url:
-        return f"{text}\n\nSource: {url}", None
+        return f"{text}\n\nSource{note}: {url}", None
     if mode == "comment" and (name or url):
-        line = f"\n\nSource: {name}" if name else ""
+        if name:
+            line = f"\n\nSource: {name}{note}"
+        else:
+            line = f"\n\nSource: article {language_note}" if language_note else ""
         return f"{text}{line}", (f"Source: {url}" if url else None)
     return text, None
 
