@@ -279,7 +279,7 @@ S34.
 
 **Delivered:** S1–S27, S28, S29, S29A, S30, S32, S33, S34, S36, S37, S38, S41, S42, S43, S44, S45, S47, S48, S49, S50, S51, S52, S53, S54, S55, S57, S59, S60, S61, S62, S63, S64, S65, S66, S71, S72, S74.
 
-**Cancelled:** S11, S31, S35, S39, S40.
+**Cancelled:** S11, S31, S35, S39, S40, S46 (replaced by S77), S58 (became Evidara).
 
 | # | Sprint | Notes |
 |---|---|---|
