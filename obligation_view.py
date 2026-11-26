@@ -36,12 +36,18 @@ TASK_LINK_PAGES = {
 
 
 def _heartbeat(client_id: str, systems: list, links: list) -> list:
-    """S67 (D-188). Never allowed to break the action plan."""
+    """S67 (D-188). Never allowed to break the action plan.
+
+    The website drift (D-218) is read from clients.website_drift as the nightly
+    crawl stored it — never crawled here — and read from the database, not the
+    caller's client dict: some callers pass a partial one, and a missing value
+    would make the reconcile below close every drift finding."""
     try:
         import heartbeat as HB
-        from database import get_document_versions
+        from database import get_document_versions, get_website_drift
         return HB.findings(docs=get_document_versions(client_id), systems=systems,
-                           links=links, doc_labels=DOCUMENT_TYPES)
+                           links=links, drift=get_website_drift(client_id),
+                           doc_labels=DOCUMENT_TYPES)
     except Exception as e:
         print(f"Heartbeat not computed: {e}")
         return []

@@ -1622,5 +1622,19 @@
  "🔒 **Your trial has ended: RECOSA is read-only.** You can see and download everything you set up, but not change it. Choose a plan to continue.": "🔒 **Votre essai est terminé : RECOSA est en lecture seule.** Vous pouvez consulter et télécharger tout ce que vous avez configuré, mais pas le modifier. Choisissez une formule pour continuer.",
  "Your trial has ended: RECOSA is read-only. Choose a plan to change or create anything.": "Votre essai est terminé : RECOSA est en lecture seule. Choisissez une formule pour modifier ou créer quoi que ce soit.",
  "your trial has ended and RECOSA is read-only. Choose a plan to make changes.": "votre essai est terminé et RECOSA est en lecture seule. Choisissez une formule pour faire des modifications.",
- "This account has been blocked. If you think this is a mistake, write to fabrice@recosa.eu.": "Ce compte a été bloqué. Si vous pensez qu'il s'agit d'une erreur, écrivez à fabrice@recosa.eu."
+ "This account has been blocked. If you think this is a mistake, write to fabrice@recosa.eu.": "Ce compte a été bloqué. Si vous pensez qu'il s'agit d'une erreur, écrivez à fabrice@recosa.eu.",
+ "A policy that is not published informs no one (GDPR Art. 12).": "Une politique qui n'est pas publiée n'informe personne (RGPD art. 12).",
+ "Your website shows {doc} v{old}; v{new} is in force": "Votre site web affiche {doc} v{old} ; la v{new} est en vigueur",
+ "v{new} ({lang}) is in force since {date}. Replace the text at {url} with it.": "La v{new} ({lang}) est en vigueur depuis le {date}. Remplacez le texte de {url} par celle-ci.",
+ "The {doc} on your website does not match the version in force": "{doc} sur votre site web ne correspond pas à la version en vigueur",
+ "About {pct}% of v{new} ({lang}) was found at {url}. Publish the version in force, or, if the website's text is the right one, record it as a new version.": "Environ {pct} % de la v{new} ({lang}) a été trouvé sur {url}. Publiez la version en vigueur ou, si le texte du site est le bon, enregistrez-le comme nouvelle version.",
+ "{doc} not found on your website": "{doc} introuvable sur votre site web",
+ "RECOSA looked for it on {site} and found no page with it. If it is published, give its web address on the Documents page.": "RECOSA l'a cherchée sur {site} sans trouver de page qui la contient. Si elle est publiée, indiquez son adresse web sur la page Documents.",
+ "{doc} on your website could not be checked": "{doc} sur votre site web n'a pas pu être vérifiée",
+ "The page at {url} shows no readable text without running JavaScript. Check by hand that it shows v{new} ({lang}), then dismiss this.": "La page {url} n'affiche aucun texte lisible sans exécuter JavaScript. Vérifiez vous-même qu'elle affiche la v{new} ({lang}), puis écartez ce point.",
+ "Published at (web address, optional)": "Publiée à l'adresse (adresse web, facultatif)",
+ "The page on your website that shows this policy. RECOSA checks every night that it shows the version in force. Left empty, RECOSA looks for it on your website.": "La page de votre site web qui affiche cette politique. RECOSA vérifie chaque nuit qu'elle affiche la version en vigueur. Laissée vide, RECOSA la cherche sur votre site web.",
+ "Published at {url}": "Publiée à l'adresse {url}",
+ "Web address not given — RECOSA looks for it on your website.": "Adresse web non indiquée — RECOSA la cherche sur votre site web.",
+ "Could not save the web address. Nothing has changed.": "Impossible d'enregistrer l'adresse web. Rien n'a été modifié."
 }

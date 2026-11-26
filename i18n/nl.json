@@ -1622,5 +1622,19 @@
  "🔒 **Your trial has ended: RECOSA is read-only.** You can see and download everything you set up, but not change it. Choose a plan to continue.": "🔒 **Uw proefperiode is afgelopen: RECOSA is alleen-lezen.** U kunt alles wat u hebt ingesteld bekijken en downloaden, maar niet wijzigen. Kies een abonnement om verder te gaan.",
  "Your trial has ended: RECOSA is read-only. Choose a plan to change or create anything.": "Uw proefperiode is afgelopen: RECOSA is alleen-lezen. Kies een abonnement om iets te wijzigen of aan te maken.",
  "your trial has ended and RECOSA is read-only. Choose a plan to make changes.": "uw proefperiode is afgelopen en RECOSA is alleen-lezen. Kies een abonnement om wijzigingen aan te brengen.",
- "This account has been blocked. If you think this is a mistake, write to fabrice@recosa.eu.": "Dit account werd geblokkeerd. Denkt u dat dit een vergissing is, schrijf dan naar fabrice@recosa.eu."
+ "This account has been blocked. If you think this is a mistake, write to fabrice@recosa.eu.": "Dit account werd geblokkeerd. Denkt u dat dit een vergissing is, schrijf dan naar fabrice@recosa.eu.",
+ "A policy that is not published informs no one (GDPR Art. 12).": "Een beleid dat niet gepubliceerd is, informeert niemand (AVG art. 12).",
+ "Your website shows {doc} v{old}; v{new} is in force": "Uw website toont {doc} v{old}; v{new} is van kracht",
+ "v{new} ({lang}) is in force since {date}. Replace the text at {url} with it.": "v{new} ({lang}) is van kracht sinds {date}. Vervang de tekst op {url} erdoor.",
+ "The {doc} on your website does not match the version in force": "{doc} op uw website komt niet overeen met de versie die van kracht is",
+ "About {pct}% of v{new} ({lang}) was found at {url}. Publish the version in force, or, if the website's text is the right one, record it as a new version.": "Ongeveer {pct}% van v{new} ({lang}) werd gevonden op {url}. Publiceer de versie die van kracht is, of registreer de tekst van de website als nieuwe versie als die de juiste is.",
+ "{doc} not found on your website": "{doc} niet gevonden op uw website",
+ "RECOSA looked for it on {site} and found no page with it. If it is published, give its web address on the Documents page.": "RECOSA heeft ernaar gezocht op {site} en geen pagina gevonden die het bevat. Als het gepubliceerd is, geef dan het webadres op de pagina Documenten.",
+ "{doc} on your website could not be checked": "{doc} op uw website kon niet worden gecontroleerd",
+ "The page at {url} shows no readable text without running JavaScript. Check by hand that it shows v{new} ({lang}), then dismiss this.": "De pagina {url} toont geen leesbare tekst zonder JavaScript uit te voeren. Controleer zelf dat ze v{new} ({lang}) toont en sluit dit punt dan af.",
+ "Published at (web address, optional)": "Gepubliceerd op (webadres, optioneel)",
+ "The page on your website that shows this policy. RECOSA checks every night that it shows the version in force. Left empty, RECOSA looks for it on your website.": "De pagina op uw website die dit beleid toont. RECOSA controleert elke nacht of ze de versie toont die van kracht is. Leeg gelaten zoekt RECOSA ernaar op uw website.",
+ "Published at {url}": "Gepubliceerd op {url}",
+ "Web address not given — RECOSA looks for it on your website.": "Webadres niet opgegeven — RECOSA zoekt ernaar op uw website.",
+ "Could not save the web address. Nothing has changed.": "Het webadres kon niet worden opgeslagen. Er is niets gewijzigd."
 }

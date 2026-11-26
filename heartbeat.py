@@ -6,8 +6,9 @@ NO STREAMLIT. NO SUPABASE. NO I/O. Like tasks.py (D-61): rows in, findings out.
 Everything else RECOSA checks is checked when somebody opens a page. These are
 the things nobody triggers: a legal hold that outlives its matter, a superseded
 version reaching its deletion date, a policy nobody has re-read in a year, a
-tool added and never tied to any processing. monitor_heartbeat.py runs them
-every night for every company; obligation_view runs the same function when the
+tool added and never tied to any processing, a website showing another text
+than the policy in force (D-218, crawled nightly, read here).
+monitor_heartbeat.py runs them every night for every company; obligation_view runs the same function when the
 action plan is opened, so the two can never disagree about what is open.
 
 NOTHING HERE ACTS. A finding asks; it never releases a hold, deletes, or adopts
@@ -163,11 +164,59 @@ def unused_systems(systems: Iterable[Mapping[str, Any]], links: Iterable[Mapping
     return out
 
 
+def website_drift(drift: Mapping[str, Any] | None,
+                  doc_labels: Mapping[str, str]) -> list[dict[str, Any]]:
+    """D-218. The published policy against the version in force.
+
+    Reads what monitor_heartbeat.py stored in clients.website_drift (the crawl
+    is too slow for a page open); website_drift.py explains the comparison.
+    One key per document type, whatever the state: the page moving from
+    "older" to "differs" is the same thing still to fix, not a new one.
+    """
+    out = []
+    for r in (drift or {}).get("results") or []:
+        state = r.get("state")
+        kind = doc_labels.get(r.get("document_type"), r.get("document_type") or "—")
+        v = r.get("in_force_version")
+        lang = (r.get("language") or "").upper()
+        url = r.get("url") or ""
+        since = _day(r.get("in_force_since"))
+        art12 = tr("A policy that is not published informs no one (GDPR Art. 12).")
+        if state == "older":
+            title = tr("Your website shows {doc} v{old}; v{new} is in force").format(
+                doc=kind, old=r.get("version_shown"), new=v)
+            detail = (tr("v{new} ({lang}) is in force since {date}. Replace the text at {url} with it.")
+                      .format(new=v, lang=lang, date=since.isoformat() if since else "—", url=url)
+                      + " " + art12)
+        elif state == "differs":
+            title = tr("The {doc} on your website does not match the version in force").format(doc=kind)
+            detail = tr("About {pct}% of v{new} ({lang}) was found at {url}. Publish the version in "
+                        "force, or, if the website's text is the right one, record it as a new "
+                        "version.").format(pct=round(100 * (r.get("score") or 0)), new=v, lang=lang, url=url)
+        elif state == "not_found":
+            title = tr("{doc} not found on your website").format(doc=kind)
+            detail = (tr("RECOSA looked for it on {site} and found no page with it. If it is "
+                         "published, give its web address on the Documents page.")
+                      .format(site=(drift or {}).get("site") or url)
+                      + " " + art12)
+        elif state == "unreadable":
+            title = tr("{doc} on your website could not be checked").format(doc=kind)
+            detail = tr("The page at {url} shows no readable text without running JavaScript. "
+                        "Check by hand that it shows v{new} ({lang}), then dismiss this.").format(
+                url=url, new=v, lang=lang)
+        else:
+            continue
+        out.append(_finding(PRODUCER, f"drift:{r.get('document_type')}", title, OPEN,
+                            detail, link="documents"))
+    return out
+
+
 def findings(
     *,
     docs: Iterable[Mapping[str, Any]] = (),
     systems: Iterable[Mapping[str, Any]] = (),
     links: Iterable[Mapping[str, Any]] = (),
+    drift: Mapping[str, Any] | None = None,
     doc_labels: Mapping[str, str] | None = None,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
@@ -176,6 +225,7 @@ def findings(
     docs: ALL client_documents rows of the company (drafts, in force and
     superseded) — the hold and retention rules are about superseded versions,
     which the register status view leaves out.
+    drift: clients.website_drift as the nightly crawl stored it (D-218).
     """
     today = today or date.today()
     docs = list(docs)
@@ -183,7 +233,8 @@ def findings(
     return (stale_holds(docs, labels, today)
             + retention_ending(docs, labels, today)
             + not_reviewed(docs, labels, today)
-            + unused_systems(list(systems), list(links), today))
+            + unused_systems(list(systems), list(links), today)
+            + website_drift(drift, labels))
 
 
 def scoped(events: Iterable[Mapping[str, Any]], producers: Iterable[str] = (PRODUCER,)) -> list:

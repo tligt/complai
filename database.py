@@ -824,6 +824,29 @@ def get_document_versions(client_id: str, sb=None) -> list[dict]:
         return []
 
 
+def get_website_drift(client_id: str, sb=None) -> dict | None:
+    """D-218. What the nightly crawl last saw on the company's website.
+
+    Raises rather than returning None on a read error: None means "nothing to
+    check", and the action plan would close every drift finding on it.
+    """
+    rows = ((sb or get_supabase()).table("clients").select("website_drift")
+            .eq("id", client_id).execute().data or [])
+    return (rows[0].get("website_drift") if rows else None)
+
+
+def set_published_url(document_row_id: str, url: str | None) -> bool:
+    """D-218. Where a policy version is published, for the website-drift crawl."""
+    try:
+        get_supabase().table("client_documents").update(
+            {"published_url": (url or "").strip() or None}
+        ).eq("id", document_row_id).execute()
+        return True
+    except Exception as e:
+        print(f"Published address not saved: {e}")
+        return False
+
+
 def get_client_document_history(
     client_id: str, user_id: str, document_type: str,
     language: str | None = None,
@@ -987,6 +1010,7 @@ def adopt_client_document(
     effective_from: "date | None" = None,
     published_at: "date | None" = None,
     change_comment: str | None = None,
+    published_url: str | None = None,
 ) -> dict | None:
     """Move a draft to in_force, superseding whatever it replaces.
 
@@ -1065,6 +1089,9 @@ def adopt_client_document(
             patch["published_at"] = published_at.isoformat()
         if change_comment is not None:
             patch["change_comment"] = change_comment
+        if (published_url or "").strip():
+            # D-218: where it is published, for the website-drift crawl.
+            patch["published_url"] = published_url.strip()
 
         updated = (supabase.table("client_documents").update(patch)
                    .eq("id", document_row_id).execute().data or [None])[0]

@@ -393,7 +393,7 @@ the only sprint that *is* the gate.
 | **S64** | **Localization — languages per country, and a checklist per country added** | **Closed 13 Nov (D-173).** Delivered: the locale model (no borrowing across countries; nl-NL = nl-BE for now), the 10-item checklist per country (BE, FR, NL, LU), Dutch labels, 13 of 14 templates in Dutch as drafts, and the French/Dutch interface and emails (D-163–D-171). BE and FR are the target markets for the current beta push and need nothing further here. The rest — NL/LU's own country data, the official Dutch SCC text, and a lawyer's review of the Dutch templates — continues as **S72**, not carried here open-ended. was S63 until D-152; **Rescoped 6 Nov (D-148)**, was *Dutch language support*. First use: Benelux. Scope note in 3b. was S62 until D-131; S61 until D-115; S59, S56 before |
 | ~~S65~~ | ~~RoPA consistency checks~~ | **Closed 23 Nov (D-201):** checked in the app on a copy of the demo company — the checks panel lists its points per activity. — **Built and deployed 18 Nov (D-186).** Eight advisory rules (`ropa_checks.py`), on the RoPA page, the activity form and the action plan; `readiness()` now accepts structured retention. Scope in 3b (under its old number S60). was S64 until D-152; was S63 until D-131; S62 until D-115; S60, S57 before. Depends on S26C |
 | ~~S66~~ | ~~Cookie Policy purpose granularity~~ | **Closed 23 Nov (D-201):** the purposes show on the system form, one row each with a description per document language. — **Built and deployed 18 Nov (D-187), migration on dev and production.** One Cookie Policy row per vendor and purpose (`system_cookie_purposes`, a new `cookie_purpose` vocabulary), entered on the system form; a system with none renders as before. Scope in 3b (under its old number S61). was S65 until D-152; was S64 until D-131; S63 until D-115; S61, S58 before |
-| **S67** | **Compliance heartbeat — scheduled checks** | **23 Nov (D-201):** runs every night on production without errors, nothing found so no email (correct); a dev dry run finds a system tied to no activity. Left: one real email seen. — **Built and deployed 18 Nov (D-188), nightly from 19 Nov 03:40 UTC.** Nightly `monitor_heartbeat.py`: stale legal holds, superseded versions nearing deletion, documents not reviewed in a year, systems tied to no activity — to the action plan, and one content-free email per company at most weekly. Website-drift crawl not built. Scope in 3b (under its old number S62). was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
+| **S67** | **Compliance heartbeat — scheduled checks** | **23 Nov (D-201):** runs every night on production without errors, nothing found so no email (correct); a dev dry run finds a system tied to no activity. Left: one real email seen. **26 Nov (D-218): the website-drift crawl built, not deployed.** — **Built and deployed 18 Nov (D-188), nightly from 19 Nov 03:40 UTC.** Nightly `monitor_heartbeat.py`: stale legal holds, superseded versions nearing deletion, documents not reviewed in a year, systems tied to no activity — to the action plan, and one content-free email per company at most weekly. Website-drift crawl not built. Scope in 3b (under its old number S62). was S66 until D-152; was S65 until D-131; S64 until D-115; S62, S59 before. `hold_set_on` shipped |
 | S68 | Evaluate a Streamlit alternative | was S67 until D-152; was S66 until D-131; S65 until D-115; S63, S60 before. Added 18 Sept. See the note below |
 | S69 | Import existing documents into the inventory | **On hold 23 Nov, by request.** was S68 until D-152; New 22 Oct (S66 until D-115, S67 until D-131). Read a client's existing privacy policy or RoPA to suggest vendors, systems and activities, suggest-and-confirm as in S48. The useful half of abandoned S11 — D-114 |
 | S70 | GDPR deletion | was S69 until D-152; New 5 Nov, moved out of S51 (the beta gate) by request — D-142. Deleting an account or a company and its data; includes deciding how a deleted company's audit trail ends (the append-only trigger, D-128). Its place before or after the beta is still to decide |
@@ -9252,6 +9252,56 @@ Admin → Companies → an account → Subscription tab → "Block this account"
 - **Deployed 25 Nov** (3dd0b94, migration first): tests pass on the server;
   Companies (block form shown) and Lifecycle (Blocked: 0) draw on production
   data without error; the heartbeat dry run runs with the blocked filter.
+
+### D-218 — The website-drift crawl, 26 Nov
+
+By the user ("can you make the website-drift crawl"), the check D-188 left
+out of S67. Is the privacy or cookie policy on the company's website the
+version in force? A policy adopted but not published informs nobody (Art. 12).
+
+**Decided by the user (26 Nov):**
+- **Where the policy is:** the client gives the web address (new
+  `client_documents.published_url`, asked when a policy is put in force, and
+  editable on an in-force row of the Documents page); left empty, RECOSA
+  looks for it: homepage links whose address or text names the policy, then
+  the usual paths.
+- **No JavaScript:** a plain fetch, no headless browser on the server. A
+  page with no readable text is reported as "could not be checked", never as
+  "not found" or "differs".
+
+**`website_drift.py`.** Compares word 5-grams of each stored version (the
+.docx, the newest 6 per language, in force and superseded, all languages)
+with the page: the share of the version found on the page (containment, as
+the page also carries the site's menu and footer). Measured on creagent's
+stored versions: distinct versions 0.11–0.34, identical 1.00, so MATCH 0.6;
+unrelated public pages (APD, Mozilla) ~0, so below 0.15 is "not found"
+rather than naming a random page as the policy. v2 against v3 one clause
+apart: the page shows the older version when it carries clearly more of the
+older one's own text (margin 0.2). States: matches, older, differs,
+not_found, unreadable. Pages identical to the homepage are dropped: many
+sites (creagent.be) answer every path with the same catch-all page.
+
+**Where it runs.** Nightly in `monitor_heartbeat.py`, before the rules; the
+result is stored in `clients.website_drift` (jsonb), and
+`heartbeat.website_drift()` turns it into findings (one key per document
+type, `heartbeat:drift:<type>`, whatever the state, so a change of state
+does not email the owner again). The action plan reads the stored result,
+never crawls, and reads it from the database, not the caller's client row:
+some pages pass a partial row, and a missing value would make the
+reconcile close the drift findings. A page that cannot be reached that
+night keeps the previous result.
+
+**Tested:** `test_website_drift.py` (matching inside menu and footer, one
+clause apart, identical versions, unrelated and partial pages, another
+language, catch-all and other-site links, the finding keys); every other
+test script passes. Dev: migration applied (`migration_d218_website_drift.sql`);
+dry run on dev: creagent.be (a JavaScript site in an iframe) → privacy and
+cookie "could not be checked", alongside its existing system finding; no
+errors. Discovery checked on two public sites: their real policy pages found.
+
+**Not checked:** the Documents page field in the app (not signed in); a
+"matches" or "older" on a real site, as no company on dev publishes a
+generated policy. **Not deployed.**
 
 ---
 

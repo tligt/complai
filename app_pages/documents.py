@@ -1114,6 +1114,7 @@ from zoneinfo import ZoneInfo as _ZI
 from datetime import datetime as _dt
 from database import get_signed_url, get_supabase_admin
 from cached_reads import load_document_files
+from website_drift import DOC_TYPES as _DRIFT_TYPES  # D-218
 
 def _fmt_ts(raw):
     try:
@@ -1291,6 +1292,9 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
     if st.session_state.get(open_key, False):
         _render_send_form(doc, slot_key, label, company)
 
+    if reg and reg.get("status") == "in_force" and reg.get("document_type") in _DRIFT_TYPES:
+        _render_published_url(reg)
+
     # Adoption (S27). Rendered here rather than under the generated document,
     # because this section runs on every rerun and the generation branch does
     # not — see the note above the templated path.
@@ -1383,12 +1387,27 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                         key=f"adopt_note_{reg['id']}",
                         placeholder=tr("e.g. Reviewed by counsel, sub-processor added"),
                     )
+                # D-218: where it is published, so the nightly check can compare
+                # the website with this version. Usually the same page as before.
+                _pub = None
+                if reg.get("document_type") in _DRIFT_TYPES:
+                    _pub = st.text_input(
+                        tr("Published at (web address, optional)"),
+                        value=(_live_here or {}).get("published_url") or "",
+                        key=f"adopt_url_{reg['id']}",
+                        placeholder="https://www.example.com/privacy",
+                        help=tr("The page on your website that shows this policy. "
+                                "RECOSA checks every night that it shows the version "
+                                "in force. Left empty, RECOSA looks for it on your "
+                                "website."),
+                    )
 
                 if st.button(tr("Confirm"), key=f"btn_adopt_go_{reg['id']}",
                              type="primary"):
                     _res = adopt_client_document(
                         reg["id"], user_id=reg["user_id"],
                         effective_from=_eff, change_comment=_note or None,
+                        published_url=_pub or None,
                     )
                     if _res:
                         st.session_state[adopt_key] = False
@@ -1402,6 +1421,34 @@ def _render_language_row(doc, slot_key, label, company, reg=None,
                             "changed — the previous version is still the one "
                             "that counts.")
                         )
+
+
+def _render_published_url(reg):
+    """D-218. The web address of a policy in force, and a way to change it.
+
+    Asked at adoption; this is for a version adopted before the field existed,
+    or a page that moved. Saved on the in-force row only: that is the one the
+    nightly check reads first.
+    """
+    url = reg.get("published_url") or ""
+    key = f"pub_open_{reg['id']}"
+    c1, c2 = st.columns([5, 1])
+    c1.caption(tr("Published at {url}").format(url=url) if url
+               else tr("Web address not given — RECOSA looks for it on your website."))
+    if c2.button(tr("Edit"), key=f"btn_{key}", use_container_width=True):
+        st.session_state[key] = not st.session_state.get(key, False)
+        st.rerun()
+    if st.session_state.get(key, False):
+        new = st.text_input(tr("Published at (web address, optional)"), value=url,
+                            key=f"pub_url_{reg['id']}",
+                            placeholder="https://www.example.com/privacy")
+        if st.button(tr("Save"), key=f"btn_pub_save_{reg['id']}", type="primary"):
+            from database import set_published_url
+            if set_published_url(reg["id"], new):
+                st.session_state[key] = False
+                st.rerun()
+            else:
+                st.warning(tr("Could not save the web address. Nothing has changed."))
 
 
 st.divider()

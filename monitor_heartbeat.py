@@ -1,9 +1,11 @@
 """
 RECOSA Compliance Heartbeat — S67 (D-188)
 
-Nightly. For every company: runs heartbeat.py's rules (stale legal holds,
-superseded versions nearing deletion, documents not reviewed in a year,
-systems tied to no activity), records what opened and closed in the task
+Nightly. For every company: crawls its website for the published privacy and
+cookie policies (website_drift.py, D-218, stored in clients.website_drift),
+runs heartbeat.py's rules (stale legal holds, superseded versions nearing
+deletion, documents not reviewed in a year, systems tied to no activity, the
+website showing another text than the version in force), records what opened and closed in the task
 history, and emails the company's owner ONE content-free message when there
 is something to look at.
 
@@ -36,6 +38,7 @@ load_dotenv()
 
 import heartbeat as HB
 import tasks as T
+import website_drift as WD
 from database import blocked_client_ids, get_document_versions, get_supabase_admin
 from email_sender import send_heartbeat_digest
 from obligations import DOCUMENT_TYPES
@@ -81,11 +84,30 @@ def refresh_filed_figures(sb, now: datetime, dry_run: bool = False) -> None:
     print(f"Filed figures (NBB): {len(due)} due, {done} {'would be ' if dry_run else ''}read.")
 
 
+def refresh_drift(sb, c: dict, now: datetime, dry_run: bool = False):
+    """D-218: crawl the company's site and store what it shows.
+
+    Its own try: a crawl that fails keeps yesterday's result, and never stops
+    the other checks. A dry run crawls but stores nothing.
+    """
+    try:
+        drift = WD.check_client(sb, c, now)
+    except Exception as e:
+        print(f"  {c['id']}: website drift not checked — {e}")
+        return c.get("website_drift")
+    if drift != c.get("website_drift") and not dry_run:
+        sb.table("clients").update({"website_drift": drift}).eq("id", c["id"]).execute()
+    for r in (drift or {}).get("results") or []:
+        print(f"      drift {r.get('document_type')}: {r.get('state')} ({r.get('score')})")
+    return drift
+
+
 def run(now: datetime | None = None, dry_run: bool = False) -> dict:
     now = now or datetime.now(timezone.utc)
     today = now.date()
     sb = get_supabase_admin()
-    clients = sb.table("clients").select("id, user_id, heartbeat_notified_at").execute().data or []
+    clients = sb.table("clients").select(
+        "id, user_id, heartbeat_notified_at, website_url, website_drift").execute().data or []
     print(f"RECOSA Heartbeat — {now:%Y-%m-%d %H:%M} UTC — {len(clients)} company(ies)"
           + (" — DRY RUN" if dry_run else ""))
     totals = {"opened": 0, "closed": 0, "sent": 0, "errors": 0}
@@ -98,8 +120,9 @@ def run(now: datetime | None = None, dry_run: bool = False) -> dict:
         try:
             systems = sb.table("systems").select("id, name, created_at").eq("client_id", cid).execute().data or []
             links = sb.table("activity_systems").select("system_id").eq("client_id", cid).execute().data or []
+            drift = refresh_drift(sb, c, now, dry_run)
             found = HB.findings(docs=get_document_versions(cid, sb), systems=systems,
-                                links=links, doc_labels=DOCUMENT_TYPES, today=today)
+                                links=links, drift=drift, doc_labels=DOCUMENT_TYPES, today=today)
             history = HB.scoped(sb.table("task_events").select("*").eq("client_id", cid)
                                 .order("created_at").limit(2000).execute().data or [])
             to_open = T.openings(found, history)
