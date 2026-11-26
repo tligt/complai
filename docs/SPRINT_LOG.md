@@ -9310,6 +9310,26 @@ generated policy.
   `heartbeat:drift:privacy_policy` opens and **the owner is emailed at the
   next 03:40 UTC run, the real email S67 still needed.**
 
+### D-219 — Link previews say RECOSA, not Streamlit, 26 Nov
+
+By the user: a LinkedIn post linking check.recosa.eu showed a "Streamlit"
+card. Previews read the raw HTML — Streamlit's own index.html, titled
+"Streamlit", with no Open Graph tags; `st.set_page_config` sets the title in
+JavaScript, which crawlers do not run.
+
+- `deploy/streamlit_head.py`, run at image build (next to the Umami edit,
+  D-175): `<title>RECOSA</title>`, a description, og:title "RECOSA — Free
+  compliance check", og:description, twitter:card summary. Idempotent.
+  `.dockerignore` keeps `deploy/` out, so one exception lets the script in
+  (the first build failed on it; update.sh stopped before restarting
+  anything).
+- One image for the three apps, so all three carry the same tags, written
+  for the free check — the only one linked publicly. No og:url (shared), no
+  og:image: no logo file in the repo, and recosa.eu has none either.
+- **Deployed 26 Nov** (d01626c): the tags served to a LinkedIn user agent
+  on check.recosa.eu; app, admin and quiz healthy. LinkedIn caches previews:
+  refresh through its Post Inspector.
+
 ---
 
 *End of record. Append at sprint close.*
