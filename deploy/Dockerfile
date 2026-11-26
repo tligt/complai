@@ -48,6 +48,11 @@ RUN pip install -r requirements.txt
 # the user, not a tested or final decision to track that too.
 RUN python3 -c "import streamlit, os; p = os.path.join(os.path.dirname(streamlit.__file__), 'static', 'index.html'); s = open(p, encoding='utf-8').read(); tag = '<script defer src=\"https://cloud.umami.is/script.js\" data-website-id=\"de0d5db7-3b2c-4dae-b5e5-9522a7dbfde5\" data-domains=\"recosa.eu,www.recosa.eu,app.recosa.eu,check.recosa.eu\"></script>\n'; open(p, 'w', encoding='utf-8').write(s.replace('</head>', tag + '</head>')) if '</head>' in s and 'umami' not in s else None"
 
+# D-219, 26 Nov: RECOSA's title and link-preview tags, same file — a link to
+# check.recosa.eu showed on LinkedIn as "Streamlit". See the script.
+COPY deploy/streamlit_head.py /tmp/streamlit_head.py
+RUN python3 /tmp/streamlit_head.py && rm /tmp/streamlit_head.py
+
 COPY --chown=recosa:recosa . .
 USER recosa
 
