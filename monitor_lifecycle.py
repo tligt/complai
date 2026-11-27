@@ -94,7 +94,7 @@ def run(dry_run: bool = False) -> None:
             for r in rows:
                 sent_by_flow.setdefault(r["flow"], {})[r["email_key"]] = _ts(r["sent_at"])
 
-            client = (sb.table("clients").select("id, company_name, legal_name, contact_email")
+            client = (sb.table("clients").select("id, company_name, legal_name, contact_email, regulations")
                       .eq("account_id", acc["id"]).order("created_at").limit(1)
                       .execute().data or [None])[0]
             lang = _lang(owner.get("ui_language"))
@@ -113,7 +113,7 @@ def run(dry_run: bool = False) -> None:
                         flow = OB.FLOW
                         detail = OB.first_pending(done) if key in OB.STEP_EMAILS + ("wrapup",) else None
                         email = OE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
-                                           company=company, done=done)
+                                           company=company, done=done, ends_at=ends, now=now)
                 else:
                     key = TE.next_email(day, set(sent_by_flow.get(TE.FLOW, {})))
                     if key:
@@ -149,7 +149,8 @@ def run(dry_run: bool = False) -> None:
             if dry_run:
                 print("  [dry run]" + line)
                 continue
-            if send_lifecycle_email(owner["email"], email.subject, email.text, email.html, email.sender):
+            if send_lifecycle_email(owner["email"], email.subject, email.text, email.html, email.sender,
+                                    email.reply_to):
                 if new_dates:
                     sb.table("accounts").update(new_dates).eq("id", acc["id"]).execute()
                 sb.table("lifecycle_emails").insert({

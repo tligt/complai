@@ -9461,6 +9461,38 @@ would make that date look less than certain.
   nothing left but the terms record and the suppression. Job dry run on dev.
   Not clicked: the app in the no-access phase.
 
+### D-223 — The lifecycle emails after the user's review, 27 Nov
+
+The user's review of the 18 emails (the same day, before D-221):
+
+- **Every email:** the header reads "RECOSA, your AI-powered EU compliance
+  co-pilot" (in the reader's language, alerts and notifications too); the
+  footer adds "© {year} CREAGENT SRL · RECOSA · recosa.eu".
+- **Footers say "signed up", not "subscribed"** (that means paying): an
+  onboarding one for the welcome, a trial one, and "because you tried RECOSA"
+  after the trial.
+- **Welcome, rewritten:** thanks, the trial and its end date, four things
+  RECOSA does, "you don't need to be an expert", the first step with its
+  button in the text, "nothing you do now is lost", "just reply".
+- **Step reminders (days 2, 4, 6):** "N days left in your trial — Step n",
+  opening "Don't forget: your trial is running…"; progress under the button.
+- **Day-1 note from Fabrice:** no footer (a service email; the stop link
+  still stops it). The day-21 "What stopped you?" keeps a way out, as a P.S.
+- **Day 10:** documents "out of" the total for the company's regulations
+  (`obligations.documents_for_regulations`), with how many are in force, and
+  how many are left to write; nothing built: "your regulations call for N
+  documents". **Prices:** one line from `pricing.py`, monthly and yearly
+  ("from €49 a month, or €539 a year"); the plans are on "Choose your plan".
+- **"Trial ended":** read-only until [day 45], then access closes, deleted on
+  [day 60] — the dates D-222 made real.
+- **Replies:** `SUPPORT_REPLY_TO` (a server setting) sends replies to the
+  lifecycle emails there; unset, they go to the sending address as before.
+  The personal ones and the deletion email's question reply to fabrice@.
+  To set once support@recosa.eu exists (tickets from it: its own sprint).
+- Checked: onboarding and lifecycle tests (new: welcome content, days left,
+  tagline in Dutch, copyright, reply-to on and off, "out of", prices), i18n
+  (34 new FR/NL texts). Review page: `docs/research/lifecycle_emails_review.html`.
+
 ---
 
 *End of record. Append at sprint close.*

@@ -15,7 +15,8 @@ from datetime import datetime
 
 from email_sender import email_layout
 from i18n import translate as tr
-from onboarding_emails import PERSONAL_SENDER, Email, _footer, _link, _paragraphs, _strip
+from onboarding_emails import (FOOT_EXPIRED, PERSONAL_SENDER, Email, _footer, _link, _paragraphs,
+                               _strip, support_reply_to)
 from trial_ending_emails import _plans_line, long_date
 
 CAMPAIGN = "expired_trial"
@@ -33,25 +34,34 @@ def compose(key: str, *, lang: str, base_url: str, stop_url: str, company: str |
             ask_feedback: bool = False) -> Email:
     company_txt = company or tr("your company", lang)
     ended = _date(ended_at, lang, now)
-    foot_html, foot_text = _footer(stop_url, lang)
+    foot_html, foot_text = _footer(stop_url, lang, FOOT_EXPIRED)
 
     if key == "why":
+        # Personal and plain; after the trial it is a win-back email, so it
+        # keeps a way to stop, said as a person would (the user, 27 Nov).
         text = (tr("Hello,", lang) + "\n\n"
                 + tr("Your RECOSA trial ended three weeks ago and you did not continue. That is "
                      "fine, but I would really like to know why. Was something missing, too "
                      "complicated, too expensive, or just not the right moment?", lang) + "\n\n"
                 + tr("One line in reply is enough. I read every answer myself.", lang) + "\n\n"
-                + "Fabrice\n" + tr("Founder, RECOSA", lang) + "\nrecosa.eu\n\n--\n" + foot_text)
+                + "Fabrice\n" + tr("Founder, RECOSA", lang) + "\nrecosa.eu\n\n"
+                + tr("P.S. Rather not get these emails? Click here and I'll stop: {url}",
+                     lang).format(url=stop_url))
         return Email(tr("What stopped you?", lang), text, None, PERSONAL_SENDER)
 
     if key == "ended":
+        import expired_trial as ET
+        c0, g0 = ET.plan_dates(ended_at, ended_at)   # day 45 and day 60
         subject = tr("Your RECOSA trial has ended", lang)
         ps = [_h.escape(tr("Your 14-day trial of RECOSA ended on {date}.", lang).format(date=ended)),
               _h.escape(tr("Everything you set up for {company} is kept. Choose a plan and you pick "
                            "up where you left off: your systems, documents and score are there, and "
                            "the alerts and reminders start again.", lang).format(company=company_txt)),
-              _h.escape(tr("In the meantime, you can still open RECOSA to see and download everything, "
-                           "read-only.", lang)),
+              # The user, 27 Nov: the dates make it real (#14, "kept until...").
+              _h.escape(tr("Until {closes} you can still open RECOSA to see and download everything, "
+                           "read-only. After that, access closes, and on {gone} the account and "
+                           "everything in it are deleted.", lang).format(
+                               closes=_date(c0, lang, now), gone=_date(g0, lang, now))),
               _h.escape(_plans_line(lang))]
     elif key == "missing":
         total, mine = missed
@@ -116,17 +126,18 @@ def compose(key: str, *, lang: str, base_url: str, stop_url: str, company: str |
         foot_html = foot_text = ""
         url = "https://www.recosa.eu" if path is None else _link(base_url, path, key, CAMPAIGN)
         html = email_layout(tr("Your RECOSA account", lang), _paragraphs(ps), cta, url,
-                            footer_note=foot_html, alert=key != "deleted")
+                            footer_note=foot_html, alert=key != "deleted", lang=lang)
         text = "\n\n".join(_strip(p) for p in ps) + f"\n\n{cta}: {url}"
         return Email(subject, text, html,
-                     reply_to=PERSONAL_SENDER if key == "deleted" and ask_feedback else None)
+                     reply_to=PERSONAL_SENDER if key == "deleted" and ask_feedback
+                     else support_reply_to())
     else:
         raise ValueError(f"Unknown expired-trial email: {key}")
 
     cta = tr("Choose my plan", lang)
     url = _link(base_url, "subscribe", key, CAMPAIGN)
     html = email_layout(tr("Your RECOSA account", lang), _paragraphs(ps), cta, url,
-                        footer_note=foot_html)
+                        footer_note=foot_html, lang=lang)
     text = "\n\n".join(_strip(p) for p in ps) + f"\n\n{cta}: {url}" + (
         f"\n\n--\n{foot_text}" if foot_text else "")
-    return Email(subject, text, html)
+    return Email(subject, text, html, reply_to=support_reply_to())

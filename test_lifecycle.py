@@ -39,7 +39,7 @@ check("date fr", TEE.long_date(d, "fr") == "8 décembre")
 check("date nl", TEE.long_date(d, "nl") == "8 december")
 
 # Every email, every language, with and without figures and a company
-FULL = {"systems": 6, "activities": 4, "documents": 5, "score": 62, "alerts": 11}
+FULL = {"systems": 6, "activities": 4, "documents": 5, "score": 62, "alerts": 11, "docs_total": 10, "in_force": 3}
 EMPTY = {"systems": 0, "activities": 0, "documents": 0, "score": None, "alerts": 0}
 for lang in ("en", "fr", "nl"):
     for company in ("Acme", None):
@@ -59,7 +59,9 @@ for lang in ("en", "fr", "nl"):
 e = TEE.compose("four_days", lang="en", base_url="b", stop_url="s", company="Acme", ends_at=d,
                 figures=FULL)
 check("figures shown", "6 systems and 4 processing activities" in e.text and "62%" in e.text)
-check("prices shown", "€49" in e.text and "€149" in e.text)
+check("prices: one line, monthly and yearly", "€49 a month" in e.text and "€539 a year" in e.text)
+check("out of: documents of the total, in force",
+      "of the" in e.text and "documents for your regulations generated" in e.text)
 e = TEE.compose("four_days", lang="en", base_url="b", stop_url="s", company="Acme", ends_at=d,
                 figures=EMPTY)
 check("nothing built: no figure list", "systems and" not in e.text and "still time" in e.text)

@@ -42,9 +42,26 @@ BRAND_DARK = "#003366"
 BRAND_ACCENT = "#14C7D5"
 
 
+TAGLINE = "your AI-powered EU compliance co-pilot"   # the user, 27 Nov
+
+
+def _brand_h1(lang: str = "en") -> str:
+    """The header's name, with what RECOSA is (until the brand is known)."""
+    import html as _h
+    return ('<h1 style="color:#fff;margin:0;font-size:22px">RECOSA'
+            '<span style="font-weight:normal;font-size:15px;color:#c9d6e3">, '
+            f'{_h.escape(tr(TAGLINE, lang))}</span></h1>')
+
+
+def _brand_footer() -> str:
+    from datetime import datetime as _dt
+    return (f'<p style="color:#6b7280;font-size:11px;margin:0">&copy; {_dt.now().year} '
+            'CREAGENT SRL &middot; RECOSA &middot; recosa.eu</p>')
+
+
 def email_layout(subtitle: str, body_html: str, cta_label: str | None = None,
                  cta_url: str | None = None, footer_note: str = "",
-                 alert: bool = False) -> str:
+                 alert: bool = False, lang: str = "en") -> str:
     """The shared shell. alert=True adds a red rule under the header for the
     emails that mean "act now" (incident alerts and missed deadlines)."""
     import html as _h
@@ -60,7 +77,7 @@ def email_layout(subtitle: str, body_html: str, cta_label: str | None = None,
 <body style="margin:0;padding:20px;background:#ffffff">
 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333">
   <div style="background:{BRAND_DARK};padding:20px 24px;border-radius:8px 8px 0 0;border-bottom:4px solid {rule}">
-    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+    {_brand_h1(lang)}
     <p style="color:#c9d6e3;margin:6px 0 0;font-size:13px">{_h.escape(subtitle)}</p>
   </div>
   <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2;line-height:1.55">
@@ -68,7 +85,7 @@ def email_layout(subtitle: str, body_html: str, cta_label: str | None = None,
     {cta}
   </div>
   <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;text-align:center">
-    {note}<p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+    {note}{_brand_footer()}
   </div>
 </div>
 </body></html>'''
@@ -152,6 +169,7 @@ def send_audit_report(
     <p>{_h.escape(tr("RECOSA shows you how to fix each issue, generates the documents you are missing and keeps checking your site.", lang))}</p>{more_checks_html(more, lang)}''',
         tr("Open RECOSA", lang), cta_url,
         footer_note=_h.escape(tr("Generated automatically from your website's public pages. Not legal advice.", lang)),
+        lang=lang,
     )
 
     payload = {
@@ -299,7 +317,7 @@ def send_incident_alert(to_emails: list[str], company: str, incident_title: str,
     <p>{html.escape(tr("Reporting deadlines may already be running. Open the incident for the steps, the deadlines and who does what. Do not forward this email outside the team.", lang))}</p>''',
             tr("Open the incident", lang), f"{base_url}/incidents",
             footer_note=html.escape(tr("Sent because you are on this company's incident team.", lang)),
-            alert=True,
+            alert=True, lang=lang,
         )
         response = requests.post(
             "https://api.brevo.com/v3/smtp/email",
@@ -347,7 +365,7 @@ def send_incident_reminder(to_emails: list[str], company: str, incident_title: s
     <p>{html.escape(tr("Send what you know now and follow up later: a late complete notification is worse than an early incomplete one. If a notification was already sent, record it in RECOSA to stop the clock.", lang))}</p>''',
             tr("Open the incident", lang), f"{base_url}/incidents",
             footer_note=html.escape(tr("Sent because an incident is open in RECOSA for this company.", lang)),
-            alert=overdue,
+            alert=overdue, lang=lang,
         )
         subject = (tr("Missed: incident deadline — {title}", lang) if overdue
                    else tr("Due soon: incident deadline — {title}", lang))
@@ -492,7 +510,7 @@ def send_regulatory_alert(update: dict) -> dict:
     {action_html}
     {link_html}''',
                 tr("View all alerts in RECOSA", lang), f"{base_url}/alerts",
-                footer_note=tr("EU-native compliance for SMEs.", lang),
+                footer_note=tr("EU-native compliance for SMEs.", lang), lang=lang,
             )
 
             try:
@@ -544,7 +562,8 @@ def _notify_config() -> tuple[str, str, str, str] | None:
     return api_key, from_email, from_name, base_url
 
 
-def _short_html(paragraphs: list[str], action: str, link: str, note: str = "") -> str:
+def _short_html(paragraphs: list[str], action: str, link: str, note: str = "",
+                lang: str = "en") -> str:
     """paragraphs are HTML (escape what you put in them); action and note are text."""
     import html as _h
     body = "".join(f'''
@@ -554,7 +573,7 @@ def _short_html(paragraphs: list[str], action: str, link: str, note: str = "") -
     return f"""
 <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto">
   <div style="background:#003366;padding:20px;border-radius:8px 8px 0 0">
-    <h1 style="color:#fff;margin:0;font-size:22px">RECOSA</h1>
+    {_brand_h1(lang)}
   </div>
   <div style="background:#f7f9fb;padding:24px;border:1px solid #e8edf2">{body}
     <p style="margin:0 0 18px">
@@ -566,7 +585,7 @@ def _short_html(paragraphs: list[str], action: str, link: str, note: str = "") -
   </div>
   <div style="background:#e8edf2;padding:14px;border-radius:0 0 8px 8px;
               text-align:center">
-    <p style="color:#6b7280;font-size:11px;margin:0">RECOSA &middot; recosa.eu</p>
+    {_brand_footer()}
   </div>
 </div>
 """
@@ -651,7 +670,7 @@ def send_ticket_reply_notification(
               "Nothing about your request is included in this email.", lang)
     action = tr("Open the request", lang)
     text_body = f"{intro.format(ref=label)}\n\n{action}: {link}\n\n{note}\nRECOSA - recosa.eu"
-    html_body = _short_html([intro.format(ref=f"<strong>{label}</strong>")], action, link, note)
+    html_body = _short_html([intro.format(ref=f"<strong>{label}</strong>")], action, link, note, lang)
     subject = tr("RECOSA support - new reply on request {ref}", lang).format(ref=label)
     return _post_short(cfg, to_email, subject, text_body, html_body, "Ticket reply notification")
 
@@ -687,7 +706,7 @@ def send_workspace_invite(
     html_body = _short_html(
         [what.format(inviter=f"<strong>{_h.escape(inviter_email or '')}</strong>",
                      company=f"<strong>{_h.escape(client_name or '')}</strong>"), _h.escape(how)],
-        action, link)
+        action, link, lang=lang)
     subject = tr("You've been given access to {company} on RECOSA", lang).format(company=client_name)
     return _post_short(cfg, to_email, subject, text_body, html_body, "Workspace invite notification")
 
@@ -712,7 +731,7 @@ def send_inbox_nudge(to_email: str, lang: str | None = None) -> bool:
     note = tr("For confidentiality, nothing about the task or the comment is included in this email.", lang)
     action = tr("Open my inbox", lang)
     text_body = f"{intro}\n\n{action}: {link}\n\n{note}\nRECOSA - recosa.eu"
-    html_body = _short_html([_h.escape(intro)], action, link, note)
+    html_body = _short_html([_h.escape(intro)], action, link, note, lang)
     return _post_short(cfg, to_email, tr("Something new for you in RECOSA", lang),
                        text_body, html_body, "Inbox nudge")
 
@@ -737,7 +756,7 @@ def send_heartbeat_digest(to_email: str, lang: str | None = None) -> bool:
     note = tr("For confidentiality, nothing about your company is included in this email.", lang)
     action = tr("Open the action plan", lang)
     text_body = f"{intro}\n{why}\n\n{action}: {link}\n\n{note}\nRECOSA - recosa.eu"
-    html_body = _short_html([_h.escape(intro), _h.escape(why)], action, link, note)
+    html_body = _short_html([_h.escape(intro), _h.escape(why)], action, link, note, lang)
     return _post_short(cfg, to_email, tr("Your compliance record in RECOSA", lang),
                        text_body, html_body, "Heartbeat digest")
 
@@ -759,6 +778,6 @@ def send_training_nudge(to_email: str, lang: str | None = None) -> bool:
     note = tr("For confidentiality, nothing about your staff is included in this email.", lang)
     action = tr("Open Training", lang)
     text_body = f"{intro}\n\n{action}: {link}\n\n{note}\nRECOSA - recosa.eu"
-    html_body = _short_html([_h.escape(intro)], action, link, note)
+    html_body = _short_html([_h.escape(intro)], action, link, note, lang)
     return _post_short(cfg, to_email, tr("Staff training due in RECOSA", lang),
                        text_body, html_body, "Training nudge")

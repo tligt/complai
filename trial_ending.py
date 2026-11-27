@@ -29,9 +29,14 @@ def next_email(day: int, sent: set[str]) -> str | None:
 
 def figures(sb, client: dict | None) -> dict[str, int | None]:
     """What the company built during its trial, for the day-10 email."""
-    out = {"systems": 0, "activities": 0, "documents": 0, "score": None, "alerts": 0}
+    out = {"systems": 0, "activities": 0, "documents": 0, "score": None, "alerts": 0,
+           "docs_total": 0, "in_force": 0}
     if not client:
         return out
+    # The user, 27 Nov: "out of" — what could be done, beside what was done.
+    from obligations import RETIRED_DOC_TYPES, documents_for_regulations
+    out["docs_total"] = len([d for d in documents_for_regulations(client.get("regulations") or [])
+                             if d not in RETIRED_DOC_TYPES])
     cid = client["id"]
 
     def _count(table: str, **eq) -> int:
@@ -42,10 +47,12 @@ def figures(sb, client: dict | None) -> dict[str, int | None]:
 
     out["systems"] = _count("systems")
     out["activities"] = _count("processing_activities")
-    docs = sb.table("client_documents").select("document_type").eq("client_id", cid) \
+    docs = sb.table("client_documents").select("document_type, status").eq("client_id", cid) \
         .in_("status", ["draft", "in_force"]).execute().data or []
     gen = sb.table("documents").select("document_type").eq("client_id", cid).execute().data or []
     out["documents"] = len({d["document_type"] for d in docs + gen if d.get("document_type")})
+    out["in_force"] = len({d["document_type"] for d in docs
+                           if d.get("status") == "in_force" and d.get("document_type")})
     gap = sb.table("gap_assessments").select("score_overall").eq("client_id", cid) \
         .order("created_at", desc=True).limit(1).execute().data
     out["score"] = gap[0].get("score_overall") if gap else None

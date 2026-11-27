@@ -76,7 +76,9 @@ for lang in ("en", "fr", "nl"):
                 try:
                     e = OE.compose(key, lang=lang, base_url="https://app.example", stop_url="https://app.example/?stop_emails=x",
                                    company=company, done=done)
-                    ok = bool(e.subject and e.text and "stop_emails=x" in e.text
+                    # The day-1 note has no footer (the user, 27 Nov).
+                    ok = bool(e.subject and e.text
+                              and ("stop_emails=x" in e.text) == (key != "personal")
                               and (e.html is None) == (key == "personal")
                               and "{" not in e.subject and "{" not in e.text)
                     check(f"compose {key} {lang} company={company} done={sum(done.values())}", ok)
@@ -89,6 +91,36 @@ check("step email links to the first pending step", "https://app.example/invento
 e = OE.compose("personal", lang="fr", base_url="b", stop_url="s", company="Acme", done=NONE_DONE)
 check("personal is from fabrice@recosa.eu", e.sender == ("Fabrice from RECOSA", "fabrice@recosa.eu"))
 check("personal in French", e.text.startswith("Bonjour"))
+check("personal: no footer, no stop link", "--" not in e.text and "stop" not in e.text.lower())
+
+# The user's review, 27 Nov
+from datetime import timedelta as _td
+ENDS = NOW + _td(days=12, hours=3)
+e = OE.compose("welcome", lang="en", base_url="https://app.example", stop_url="s", company="Acme",
+               done=NONE_DONE, ends_at=ENDS, now=NOW)
+check("welcome: thanks, date, features, button, nothing lost, reply",
+      e.text.startswith("Thank you for choosing RECOSA") and "until" in e.text
+      and "Your systems, mapped:" in e.text and "Complete my profile: https://app.example/company?" in e.text
+      and "Nothing you do now is lost." in e.text and "Just reply to this email" in e.text)
+check("welcome: footer says signed up, not subscribed",
+      "signed up for RECOSA" in e.text and "you subscribe to" not in e.text)
+check("welcome: header tagline", "your AI-powered EU compliance co-pilot" in e.html)
+check("welcome: copyright", "CREAGENT SRL" in e.html)
+e = OE.compose("step_a", lang="en", base_url="https://app.example", stop_url="s", company="Acme",
+               done={**NONE_DONE, "profile": True}, ends_at=ENDS, now=NOW)
+check("step: days left in subject and text", e.subject.startswith("13 days left")
+      and e.text.startswith("Don't forget: your 14-day RECOSA trial is running, with 13 days left"))
+check("step: progress after the button", e.text.index("Add my systems:") < e.text.index("1 of 5"))
+e = OE.compose("welcome", lang="nl", base_url="b", stop_url="s", company="Acme", done=NONE_DONE,
+               ends_at=ENDS, now=NOW)
+check("welcome: Dutch tagline", "uw AI-copiloot voor EU-compliance" in e.html)
+import os as _os
+_os.environ["SUPPORT_REPLY_TO"] = "support@recosa.eu"
+e = OE.compose("welcome", lang="en", base_url="b", stop_url="s", company="Acme", done=NONE_DONE)
+check("replies to support when set", e.reply_to == ("RECOSA support", "support@recosa.eu"))
+del _os.environ["SUPPORT_REPLY_TO"]
+e = OE.compose("welcome", lang="en", base_url="b", stop_url="s", company="Acme", done=NONE_DONE)
+check("no reply-to when not set", e.reply_to is None)
 
 print("All onboarding tests passed." if not failures else f"{len(failures)} failure(s).")
 raise SystemExit(1 if failures else 0)
