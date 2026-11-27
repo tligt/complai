@@ -21,8 +21,9 @@ be made on Framer without renumbering (docs/legal/CHANGES_TO_PASTE.md):
   Section 5: the live page's wording (it changed on Framer), with the user's
   sentence on logins, 27 Nov: no plan allows a shared login; users per plan
   are on the Pricing page (Starter 1, Professional 3, Enterprise unlimited).
-  !! Section 9 on the live page reads differently from this file (checked
-  27 Nov after publishing): to settle with the user.
+  Section 9: the user's wording, 27 Nov — the live page's new lines merged
+  with the notice periods it had dropped (reasonable notice for feature
+  changes, 30 days before discontinuing the service).
 -->
 
 # Terms of Service
@@ -121,8 +122,10 @@ We email you about your account and the service: setting up during your trial, t
 We aim to provide a reliable service but do not guarantee uninterrupted availability. We may:
 
 - Perform maintenance that temporarily affects access
-- Update or modify features with reasonable notice
-- Discontinue the service with 30 days' notice to subscribers
+- Update the platform to improve performance or compliance coverage
+- Add, modify or discontinue features, with reasonable notice when a change affects how you use RECOSA
+- Restrict access where necessary for security or legal reasons
+- Discontinue the service, with 30 days' notice to subscribers
 
 ## 10. Limitation of liability
 
