@@ -9530,11 +9530,26 @@ the EDPB, the DPAs and NOYB).
   réseaux, incident…; not "niss", which matches "fournisseur"): 1 of the 10
   current items kept, "Operational guidance for incident handling".
 - **ANSSI (FR)**, `cyber.gouv.fr/actualites/rss/`: France had no NIS2 source.
-- **Not added: CERT-FR.** Its alerts feed lists alerts from 2015 and 2024
-  (updates keep their first date), and the monitor has no age filter: the
-  first run would analyse and queue them. Its "avis" feed is current but
-  busy (several a day). Either needs a maximum age on items first.
+- **CERT-FR: see D-225.**
 - **Deployed 27 Nov** (b1b0881): apps healthy.
+
+### D-225 — The regulatory monitor skips items older than 30 days; CERT-FR alerts, 27 Nov
+
+By the user. CERT-FR's alerts feed lists alerts from 2015 and 2024 (an
+update keeps its first date): with no age limit, the first run would have
+summarised them (Mistral cost) and queued them.
+
+- `monitor.too_old()`, `MAX_ITEM_AGE_DAYS = 30`: applied to every source
+  right after fetching, before the repeat checks and the summary. An item
+  without a readable date is kept (as before); future dates (CNPD's events)
+  are kept. `test_monitor_age.py`.
+- **CERT-FR (Alerts)**, `cert.ssi.gouv.fr/alerte/feed/`: regulatory, NIS2, FR —
+  the critical alerts, the counterpart of the CCB and NCSC advisories. Today:
+  20 fetched, 0 within 30 days, so nothing until a new alert. Its "avis" feed
+  (20 within 30 days, all routine patch notices per Linux distribution) is
+  not added.
+- **Deployed 27 Nov** (fb1ce6f): apps healthy, the test passes on the server.
+  20 regulatory sources now.
 
 ---
 
