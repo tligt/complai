@@ -9330,6 +9330,20 @@ JavaScript, which crawlers do not run.
   on check.recosa.eu; app, admin and quiz healthy. LinkedIn caches previews:
   refresh through its Post Inspector.
 
+### D-220 — An approved alert shows how many users it was emailed to, 27 Nov
+
+By the user: after sending an alert, the item in the back office didn't say
+how many users it went to. D-207 only showed that once, in the message after
+approval, gone on the next rerun; nothing on the item read it back.
+
+- The approved view of a regulatory item now reads `client_alerts` for it:
+  "Emailed to N users" (with "of M matched" when some weren't emailed),
+  "Not emailed · M users matched" when "Send email" was off, or "Matched no
+  client". Users, not rows: one user with two companies has two alert rows
+  (RA-2026-0056 on dev: 2 rows, 1 user). A "Recipients" popover lists the
+  emails.
+- Counts checked against dev data; not clicked in the admin.
+
 ---
 
 *End of record. Append at sprint close.*

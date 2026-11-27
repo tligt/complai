@@ -460,6 +460,34 @@ with tab_reg:
         _sel = MQ.queue(updates, key="reg", found_field="detected_at",
                         reject=reject_regulatory_update)
 
+        def _dispatch_summary(u):
+            """D-220: who an approved alert reached, read back from
+            client_alerts, so it stays on the item after the one-time
+            message shown on approval (D-207) is gone."""
+            admin = get_supabase_admin()
+            rows = admin.table("client_alerts") \
+                .select("user_id, email_sent") \
+                .eq("update_id", u["id"]) \
+                .execute().data or []
+            matched = {r["user_id"] for r in rows}
+            emailed = {r["user_id"] for r in rows if r.get("email_sent")}
+            if not matched:
+                st.caption("📧 Matched no client, so it was sent to no one.")
+                return
+            n_e, n_m = len(emailed), len(matched)
+            if emailed:
+                st.caption(f"📧 Emailed to {n_e} user{'s' if n_e != 1 else ''}"
+                           + (f" (of {n_m} matched)" if n_e != n_m else ""))
+            else:
+                st.caption(f"📧 Not emailed · {n_m} user{'s' if n_m != 1 else ''} "
+                           "matched (shown in the app)")
+            if emailed:
+                profiles = admin.table("profiles").select("email") \
+                    .in_("id", list(emailed)).execute().data or []
+                with st.popover("Recipients"):
+                    for p in sorted(profiles, key=lambda p: p.get("email") or ""):
+                        st.write(p.get("email") or "—")
+
         @st.dialog("Review a regulatory update", width="large")
         def _review_reg(u):
             severity_icon = {"urgent": "🔴", "important": "🟡", "info": "🔵"}.get(u.get("severity", "info"), "🔵")
@@ -595,6 +623,7 @@ with tab_reg:
                         st.success("Approved")
                         kb = "✅" if u.get("kb_ingested") else "⏳"
                         st.caption(f"KB ingested: {kb}")
+                        _dispatch_summary(u)
 
                         # ── Publish-to-Pulse edit/unpublish toggle ──────
                         current_pulse = u.get("published_to_pulse", False)
