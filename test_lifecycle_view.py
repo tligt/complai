@@ -47,7 +47,8 @@ check("unknown day", LV.next_planned("trial", None, set()) is None)
 check("trial lane holds both flows", {f for _, _, f, _ in LV.LANES["trial"][1]} == {"onboarding", "trial_ending"})
 check("notices and the deletion shown as live (D-222)",
       [live for _, k, _, live in LV.LANES["dropout"][1]
-       if k in ("access_closing", "access_closed", "last_warning", "deleted")] == [True] * 4)
+       if k in ("access_closing", "access_closed", "deleted")] == [True] * 3)
+check("no day-55 reminder", "last_warning" not in [k for _, k, _, _ in LV.LANES["dropout"][1]])
 
 print("All lifecycle view tests passed." if not failures else f"{len(failures)} failure(s).")
 raise SystemExit(1 if failures else 0)

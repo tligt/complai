@@ -6,10 +6,12 @@ trial's end.
     day 0    ended           "your trial has ended": everything is kept
     day 7    missing         the regulatory updates since, and how many concern them
     day 21   why             plain text from Fabrice: "what stopped you?"
-    day 38   access_closing  "access closes on [date]: download what you need"  ┐ notices:
-    day 45   access_closed   "access closed; deleted on [date]"                 │ sent even
-    day 55   last_warning    "deleted in 5 days"                                ┘ if opted out
+    day 38   access_closing  "access closes on [date]: download what you need"  ┐ notices: sent
+    day 45   access_closed   "access closed; deleted on [date]"                 ┘ even if opted out
     day 60   deleted         the account is deleted (account_deletion.py), and a last email
+
+No reminder between day 45 and the deletion (the user, 27 Nov): the day-45
+notice gives the date, and a second warning would make it look less certain.
 
 Phases (agreed 27 Nov, D-222): read-only from the trial's end, no access from
 day 45 (the subscribe page only), deleted on day 60.
@@ -36,13 +38,11 @@ ACCESS_DAYS = 45            # read-only until then
 DELETE_AFTER_DAYS = 60      # no access from ACCESS_DAYS until then
 NO_ACCESS_DAYS = DELETE_AFTER_DAYS - ACCESS_DAYS
 ACCESS_NOTICE_DAYS = 7      # the "access closes" notice comes at least this long before
-LAST_WARNING_DAYS = 5       # the last warning, this long before the deletion
 DELETION_ACTIVE = True
 SCHEDULE = [("ended", 0), ("missing", 7), ("why", 21),
             ("access_closing", ACCESS_DAYS - ACCESS_NOTICE_DAYS),
-            ("access_closed", ACCESS_DAYS),
-            ("last_warning", DELETE_AFTER_DAYS - LAST_WARNING_DAYS)]
-DELETION_EMAILS = ("access_closing", "access_closed", "last_warning")
+            ("access_closed", ACCESS_DAYS)]
+DELETION_EMAILS = ("access_closing", "access_closed")
 WINBACK_EMAILS = ("ended", "missing", "why")
 
 
@@ -73,12 +73,7 @@ def next_email(day: int, sent: set[str], opted_out: bool = False,
     if day < 0:
         return None
     if closes_at and delete_after and now:
-        if now >= delete_after - timedelta(days=LAST_WARNING_DAYS) and now >= closes_at:
-            due = "last_warning"
-        elif now >= closes_at:
-            due = "access_closed"
-        else:
-            due = None
+        due = "access_closed" if now >= closes_at else None
         if due and due not in sent:
             return due
         if due:

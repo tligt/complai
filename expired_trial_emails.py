@@ -69,7 +69,7 @@ def compose(key: str, *, lang: str, base_url: str, stop_url: str, company: str |
                                "is kept.", lang).format(date=ended, company=company_txt))]
         ps.append(_h.escape(tr("Choose a plan and RECOSA keeps watch again: the regulatory alerts, "
                                "the deadlines and the checks.", lang)))
-    elif key in ("access_closing", "access_closed", "last_warning", "deleted"):
+    elif key in ("access_closing", "access_closed", "deleted"):
         import expired_trial as ET
         if not (closes_at and delete_after):
             closes_at, delete_after = ET.plan_dates(ended_at, now)
@@ -93,16 +93,6 @@ def compose(key: str, *, lang: str, base_url: str, stop_url: str, company: str |
                                "{company} is still kept, until {gone}: on that day the account and "
                                "everything in it are deleted, for good.", lang).format(
                                    closes=closes, company=company_txt, gone=gone)),
-                  _h.escape(tr("Choose a plan before then and you get it all back, as you left it.",
-                               lang)),
-                  _h.escape(kept)]
-            cta, path = tr("Choose my plan", lang), "subscribe"
-        elif key == "last_warning":
-            subject = tr("Last reminder: your RECOSA account is deleted on {date}", lang).format(date=gone)
-            ps = [_h.escape(tr("On {gone}, the account of {company} and everything in it — your "
-                               "systems, documents, assessments and history — will be deleted, for "
-                               "good. We cannot bring it back afterwards.", lang).format(
-                                   gone=gone, company=company_txt)),
                   _h.escape(tr("Choose a plan before then and you get it all back, as you left it.",
                                lang)),
                   _h.escape(kept)]

@@ -59,7 +59,7 @@ RECOSA does not accept liability for any compliance failures, regulatory fines, 
 - Every new account starts a free trial of 14 days, from the day you sign up — in the app, or from one of our free checks. No payment details are needed.
 - During the trial you can use every feature of the plan you chose.
 - If you do not subscribe, the trial ends automatically: nothing is charged. For 45 days after it ends you can still see and download everything you set up, but you cannot change it or create anything new. Then access closes.
-- An account whose trial ended without a subscription is deleted 60 days after the trial ended, with everything in it. We warn you by email before access closes, when it closes, and 5 days before the deletion. Subscribe before then and everything is kept.
+- An account whose trial ended without a subscription is deleted 60 days after the trial ended, with everything in it. We tell you by email a week before access closes, and again when it closes, with the date of the deletion. Subscribe before then and everything is kept.
 - One free trial per company. We may refuse or end a trial that is used to get around this.
 
 ## 5. Your account

@@ -96,16 +96,15 @@ check("closed: access_closed", ET.next_email(45, S1, False, c, g, c) == "access_
 check("closed, opted out: still sent", ET.next_email(45, S1, True, c, g, c) == "access_closed")
 S2 = S1 | {"access_closed"}
 check("day 50: nothing", ET.next_email(50, S2, False, c, g, ended + _td(days=50)) is None)
-check("day 55: last_warning", ET.next_email(55, S2, False, c, g, g - _td(days=5)) == "last_warning")
-S3 = S2 | {"last_warning"}
-check("day 58: nothing", ET.next_email(58, S3, False, c, g, g - _td(days=2)) is None)
+check("day 55: no reminder (the user, 27 Nov)", ET.next_email(55, S2, False, c, g, g - _td(days=5)) is None)
+S3 = S2
 check("access open before the date", not ET.access_closed(c, c - _td(seconds=1)))
 check("access closed on the date", ET.access_closed(c, c))
 check("no date: never closed", not ET.access_closed(None, ended + _td(days=400)))
 _ts = lambda v: v
 acc = {"status": "expired", "delete_after": g}
 check("deletion due: date reached, all notices", ET.deletion_due(acc, S3, g, _ts))
-check("not due: a notice missing", not ET.deletion_due(acc, S2, g + _td(days=9), _ts))
+check("not due: a notice missing", not ET.deletion_due(acc, S1, g + _td(days=9), _ts))
 check("not due: before the date", not ET.deletion_due(acc, S3, g - _td(seconds=1), _ts))
 check("not due: no date", not ET.deletion_due({"status": "expired"}, S3, g, _ts))
 check("not due: subscribed", not ET.deletion_due({**acc, "status": "active"}, S3, g, _ts))

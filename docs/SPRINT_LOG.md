@@ -9403,8 +9403,11 @@ and a user's own "delete my account" stay in S70.
 | 0–45 | read-only (D-215) | 0 ended, 7 missing, 21 why (win-back, stoppable) |
 | 38 | | **access_closing**: closes on [date], download now |
 | 45–60 | **none**: the subscribe page only, with the deletion date | 45 **access_closed**: deleted on [date] |
-| 55 | | **last_warning** |
 | 60 | **deleted** | **deleted**: done, what is kept |
+
+No reminder at day 55: written first, then dropped by the user the same day
+— the day-45 notice already gives the date, and another warning after it
+would make that date look less than certain.
 
 - **Dates fixed by the first notice** (`accounts.access_closes_at`,
   `delete_after`): access closes no sooner than 7 days after the notice,
@@ -9438,6 +9441,8 @@ and a user's own "delete my account" stay in S70.
 - **Found and fixed on dev:** a refused deletion had already removed the
   files (the check ran only in the second step); the checks now run before
   any file goes, and a refusal leaves the file (tested).
+- The deletion needs both notices sent; a failed send holds it back until
+  the job's next try succeeds.
 - Checked: `test_lifecycle.py` (phases, dates, late notices, deletion due,
   every email × language), `test_lifecycle_view.py`; on dev, a throwaway
   account with a company, a system, a file, a log entry, a lead, a terms
