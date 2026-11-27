@@ -9497,6 +9497,22 @@ The user's review of the 18 emails (the same day, before D-221):
   pass on the server; job dry run: nothing to send (the only account is the
   admin's). `SUPPORT_REPLY_TO` not set yet.
 
+### D-224 — The Italian and Spanish data protection authorities as regulatory sources, 27 Nov
+
+By the user, after looking at gdpr.news (not added: anonymous, the domain for
+sale, speculative "predictions", second-hand and slow — its news comes from
+the EDPB, the DPAs and NOYB).
+
+- **Garante Privacy (IT)**, `garanteprivacy.it/o/gpdp-rss/rss?t=news`, and
+  **AEPD (ES)**, `aepd.es/noticias/feed.xml`: regulatory, GDPR, countries IT
+  and ES. With no client there, an item reaches clients only if marked
+  EU-wide at approval. Both feeds fetch from the server (10 and 20 items).
+- **Italian sources:** the monitor accepts "it" (an English title, D-208) and
+  the alert says "source in Italian" (FR/NL translated). Spanish already was.
+- **Not yet:** the Dutch (AP) and Luxembourg (CNPD) authorities, though NL and
+  LU clients are supported (D-190); nor their NIS2 authorities.
+- **Deployed 27 Nov** (b1b0881): apps healthy.
+
 ---
 
 *End of record. Append at sprint close.*
