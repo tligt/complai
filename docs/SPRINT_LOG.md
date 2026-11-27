@@ -9385,6 +9385,11 @@ there and never accepted the terms.
 - Checked: record and read on dev; read-only, i18n, lifecycle and
   onboarding tests. The login prompt and the free-check checkbox not
   clicked.
+- **Deployed 27 Nov** (7a9fee0, migration first, then `deploy/update.sh`):
+  app, admin and quiz healthy; the app reads the new table on production
+  (an unknown user is "not accepted", so the check isn't failing open);
+  read-only and i18n tests pass on the server; no errors in the app or
+  quiz logs. The legal drafts are not published.
 
 ---
 
