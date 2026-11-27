@@ -41,7 +41,14 @@ def render_subscribe() -> None:
     else:
         st.title(tr("Unlock RECOSA"))
 
-    if status == "expired":
+    _acc = profile.get("account") or {}
+    if status == "expired" and st.session_state.get("access_closed") and _acc.get("delete_after"):
+        # D-222: days 45–60 after the trial, no access; deleted on day 60.
+        from display import fmt_date
+        st.warning(tr("🔒 **Your access to RECOSA has closed.** Everything you set up is kept "
+                      "until {date}, then deleted. Choose a plan before then and you get it "
+                      "all back, as you left it.").format(date=fmt_date(_acc["delete_after"][:10])))
+    elif status == "expired":
         st.info(tr("Your free trial has ended. Your data is kept — choose a plan to "
                 "continue where you left off."))
     elif status != "trial":

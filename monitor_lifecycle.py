@@ -5,6 +5,7 @@ hourly by cron (deploy/crontab). Was monitor_onboarding.py.
     on trial   days 0–9    onboarding      (flow 1, onboarding.py)
                days 10–13  trial ending    (flow 2, trial_ending.py)
     expired    days 0–59   expired trial   (flow 3, expired_trial.py), from the trial's end
+               day 60      deleted         (D-222, account_deletion.py), then a last email
 
     python monitor_lifecycle.py            # send
     python monitor_lifecycle.py --dry-run  # print what would be sent, send or change nothing
@@ -16,8 +17,9 @@ trial" for ever, in the back office too.
 At most one email per account per run, and none within 20 hours of the last
 lifecycle email of any flow. Left out: admins, test accounts (signup_source
 "test") and accounts with no owner email. The "stop these emails" link stops
-every email here except the deletion warnings (flow 3), which concern the
-service itself. Sent to the account's owner only, in their language; each
+every email here except the access and deletion notices (flow 3), which
+concern the service itself; so does an address on email_suppressions (kept
+after a deletion). Sent to the account's owner only, in their language; each
 send is recorded in lifecycle_emails, so nothing goes out twice.
 """
 
@@ -31,6 +33,7 @@ try:
 except ImportError:
     pass
 
+import account_deletion as AD
 import expired_trial as ET
 import expired_trial_emails as ETE
 import onboarding as OB
@@ -73,10 +76,18 @@ def run(dry_run: bool = False) -> None:
             if (not owner or not owner.get("email") or owner.get("role") == "admin"
                     or owner.get("signup_source") == "test"):
                 continue
-            opted_out = bool(owner.get("lifecycle_emails_off_at"))
+            opted_out = bool(owner.get("lifecycle_emails_off_at")) or bool(
+                sb.table("email_suppressions").select("email")
+                .eq("email", owner["email"].lower()).limit(1).execute().data)
 
             rows = sb.table("lifecycle_emails").select("flow, email_key, sent_at") \
                 .eq("account_id", acc["id"]).execute().data or []
+
+            # D-222: day 60, every notice sent: delete, then say so.
+            if status == "expired" and ET.deletion_due(
+                    acc, {r["email_key"] for r in rows if r["flow"] == ET.FLOW}, now, _ts):
+                _delete(sb, acc, owner, ends, now, base_url, dry_run)
+                continue
             if rows and now - max(_ts(r["sent_at"]) for r in rows) < OB.MIN_GAP:
                 continue
             sent_by_flow: dict[str, dict] = {}
@@ -90,7 +101,7 @@ def run(dry_run: bool = False) -> None:
             stop_url = f"{base_url}/?stop_emails={OB.stop_token(owner['id'])}"
             company = (client or {}).get("company_name")
 
-            flow, key, detail, email = None, None, None, None
+            flow, key, detail, email, new_dates = None, None, None, None, None
             if status == "trial":
                 if opted_out:
                     continue
@@ -113,13 +124,23 @@ def run(dry_run: bool = False) -> None:
                                             company=company, ends_at=ends, figures=figs)
             else:
                 day = ET.days_since(ends, now)
-                key = ET.next_email(day, set(sent_by_flow.get(ET.FLOW, {})), opted_out)
+                closes, gone = _ts(acc.get("access_closes_at")), _ts(acc.get("delete_after"))
+                key = ET.next_email(day, set(sent_by_flow.get(ET.FLOW, {})), opted_out,
+                                    closes, gone, now)
                 if key:
                     flow = ET.FLOW
+                    if key == "access_closing":
+                        # D-222: the dates are fixed by this first notice.
+                        closes, gone = ET.plan_dates(ends, now)
+                        new_dates = {"access_closes_at": closes.isoformat(),
+                                     "delete_after": gone.isoformat()}
                     missed = ET.missed_updates(sb, client, ends) if key == "missing" else (0, 0)
-                    detail = f"updates={missed[0]}, theirs={missed[1]}" if key == "missing" else None
+                    detail = (f"updates={missed[0]}, theirs={missed[1]}" if key == "missing"
+                              else f"closes {closes:%d %b}, deleted {gone:%d %b}"
+                              if key in ET.DELETION_EMAILS else None)
                     email = ETE.compose(key, lang=lang, base_url=base_url, stop_url=stop_url,
-                                        company=company, ended_at=ends, now=now, missed=missed)
+                                        company=company, ended_at=ends, now=now, missed=missed,
+                                        closes_at=closes, delete_after=gone)
             if not email:
                 continue
 
@@ -129,6 +150,8 @@ def run(dry_run: bool = False) -> None:
                 print("  [dry run]" + line)
                 continue
             if send_lifecycle_email(owner["email"], email.subject, email.text, email.html, email.sender):
+                if new_dates:
+                    sb.table("accounts").update(new_dates).eq("id", acc["id"]).execute()
                 sb.table("lifecycle_emails").insert({
                     "account_id": acc["id"], "user_id": owner["id"], "flow": flow,
                     "email_key": key, "detail": detail}).execute()
@@ -137,6 +160,28 @@ def run(dry_run: bool = False) -> None:
                 print("  NOT sent" + line)
         except Exception as e:
             print(f"  account {acc.get('id')}: {e}")
+
+
+def _delete(sb, acc, owner, ends, now, base_url, dry_run) -> None:
+    """D-222: delete an expired trial whose date has come, then email the
+    owner that it is done (captured before: the profile goes with it)."""
+    client = (sb.table("clients").select("company_name").eq("account_id", acc["id"])
+              .order("created_at").limit(1).execute().data or [None])[0]
+    company = (client or {}).get("company_name")
+    lang = _lang(owner.get("ui_language"))
+    if dry_run:
+        plan = AD.delete_account(sb, acc["id"], dry_run=True)
+        print(f"  [dry run] would delete account {acc['id']} ({owner['email']}, "
+              f"{company or 'no company'}, {plan['files']} files)")
+        return
+    result = AD.delete_account(sb, acc["id"])
+    print(f"  DELETED account {acc['id']} ({owner['email']}, {company or 'no company'}): "
+          f"{result['files']} files, {result['deleted']}")
+    email = ETE.compose("deleted", lang=lang, base_url=base_url, stop_url="", company=company,
+                        ended_at=ends, now=now, closes_at=_ts(acc.get("access_closes_at")),
+                        delete_after=_ts(acc.get("delete_after")))
+    if not send_lifecycle_email(owner["email"], email.subject, email.text, email.html, email.sender):
+        print(f"  deletion email NOT sent to {owner['email']}")
 
 
 if __name__ == "__main__":

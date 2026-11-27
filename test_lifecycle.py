@@ -75,29 +75,53 @@ check("day 7: missing", ET.next_email(7, {"ended"}) == "missing")
 check("day 21: why", ET.next_email(21, {"ended", "missing"}) == "why")
 check("late (day 9, nothing sent): only the latest", ET.next_email(9, set()) == "missing")
 check("day 30, all sent: nothing", ET.next_email(30, {"ended", "missing", "why"}) is None)
-check("deletion off: no warning on day 46", ET.next_email(46, {"ended", "missing", "why"}) is None)
-check("deletion on: warning on day 46",
-      ET.next_email(46, {"ended", "missing", "why"}, deletion_active=True) == "deletion_warning")
-check("deletion on: last warning on day 56",
-      ET.next_email(56, {"ended", "missing", "why", "deletion_warning"}, deletion_active=True) == "last_warning")
 check("opted out: no win-back", ET.next_email(0, set(), opted_out=True) is None)
-check("opted out: still the deletion warning",
-      ET.next_email(46, set(), opted_out=True, deletion_active=True) == "deletion_warning")
-check("day 60: over", ET.next_email(60, set(), deletion_active=True) is None)
-check("deletion is off for now", ET.DELETION_ACTIVE is False)
+WB = {"ended", "missing", "why"}
+# D-222: the first notice, dates not fixed yet
+check("day 38: access_closing", ET.next_email(38, WB) == "access_closing")
+check("day 38, opted out: still the notice", ET.next_email(38, set(), opted_out=True) == "access_closing")
+check("day 70, never noticed: the notice first, no skipping", ET.next_email(70, WB) == "access_closing")
 ended = datetime(2026, 12, 8, 10, tzinfo=timezone.utc)
+from datetime import timedelta as _td
+on_time = ended + _td(days=38)
+c, g = ET.plan_dates(ended, on_time)
+check("on time: closes day 45, deleted day 60", (c - ended).days == 45 and (g - ended).days == 60)
+late = ended + _td(days=50)
+c2, g2 = ET.plan_dates(ended, late)
+check("late notice: closes 7 days after it, deleted 15 days after that",
+      (c2 - late).days == 7 and (g2 - c2).days == 15)
+S1 = WB | {"access_closing"}
+check("before closing: nothing", ET.next_email(40, S1, False, c, g, ended + _td(days=40)) is None)
+check("closed: access_closed", ET.next_email(45, S1, False, c, g, c) == "access_closed")
+check("closed, opted out: still sent", ET.next_email(45, S1, True, c, g, c) == "access_closed")
+S2 = S1 | {"access_closed"}
+check("day 50: nothing", ET.next_email(50, S2, False, c, g, ended + _td(days=50)) is None)
+check("day 55: last_warning", ET.next_email(55, S2, False, c, g, g - _td(days=5)) == "last_warning")
+S3 = S2 | {"last_warning"}
+check("day 58: nothing", ET.next_email(58, S3, False, c, g, g - _td(days=2)) is None)
+check("access open before the date", not ET.access_closed(c, c - _td(seconds=1)))
+check("access closed on the date", ET.access_closed(c, c))
+check("no date: never closed", not ET.access_closed(None, ended + _td(days=400)))
+_ts = lambda v: v
+acc = {"status": "expired", "delete_after": g}
+check("deletion due: date reached, all notices", ET.deletion_due(acc, S3, g, _ts))
+check("not due: a notice missing", not ET.deletion_due(acc, S2, g + _td(days=9), _ts))
+check("not due: before the date", not ET.deletion_due(acc, S3, g - _td(seconds=1), _ts))
+check("not due: no date", not ET.deletion_due({"status": "expired"}, S3, g, _ts))
+check("not due: subscribed", not ET.deletion_due({**acc, "status": "active"}, S3, g, _ts))
+check("deletion is on", ET.DELETION_ACTIVE is True)
 check("deletion 60 days later", ET.deletion_date(ended).date().isoformat() == "2027-02-06")
 
 NOW3 = datetime(2026, 12, 20, tzinfo=timezone.utc)
 for lang in ("en", "fr", "nl"):
     for company in ("Acme", None):
         for missed in ((12, 3), (12, 0), (0, 0)):
-            for key, _ in ET.SCHEDULE:
+            for key in [k for k, _ in ET.SCHEDULE] + ["deleted"]:
                 try:
                     e = ETE.compose(key, lang=lang, base_url="https://app.example",
                                     stop_url="https://app.example/?stop_emails=x", company=company,
                                     ended_at=ended, now=NOW3, missed=missed)
-                    warning = key in ET.DELETION_EMAILS
+                    warning = key in ET.DELETION_EMAILS + ("deleted",)
                     ok = (bool(e.subject and e.text) and "{" not in e.subject and "{" not in e.text
                           and (e.html is None) == (key == "why")
                           and (("stop_emails=x" in e.text) != warning))
@@ -108,13 +132,20 @@ for lang in ("en", "fr", "nl"):
 e = ETE.compose("missing", lang="en", base_url="b", stop_url="s", company="Acme", ended_at=ended,
                 now=NOW3, missed=(12, 3))
 check("missing: counts shown", "12 regulatory updates" in e.text and "3 of them concern Acme" in e.text)
-e = ETE.compose("deletion_warning", lang="en", base_url="b", stop_url="s", company="Acme",
-                ended_at=ended, now=NOW3)
-check("warning: date with year when next year", "6 February 2027" in e.subject)
+e = ETE.compose("access_closed", lang="en", base_url="b", stop_url="s", company="Acme",
+                ended_at=ended, now=NOW3, closes_at=c, delete_after=g)
+check("notice: date with year when next year", "6 February 2027" in e.subject)
+check("notice: what is kept", "accepted our terms" in e.text and "stop" not in e.text.split("privacy")[-1])
+e = ETE.compose("access_closing", lang="fr", base_url="b", stop_url="s", company="Acme",
+                ended_at=ended, now=NOW3, closes_at=c, delete_after=g)
+check("access_closing: French, both dates", "22 janvier" in e.text and "6 février" in e.text)
+e = ETE.compose("deleted", lang="nl", base_url="b", stop_url="", company="Acme",
+                ended_at=ended, now=NOW3, closes_at=c, delete_after=g)
+check("deleted: Dutch, no stop link", "verwijderd" in e.subject and "stop_emails" not in e.text)
 e = ETE.compose("why", lang="nl", base_url="b", stop_url="s", company="Acme", ended_at=ended, now=NOW3)
 check("why: personal, Dutch", e.sender[1] == "fabrice@recosa.eu" and e.text.startswith("Hallo"))
 e = ETE.compose("ended", lang="en", base_url="b", stop_url="s", company="Acme", ended_at=ended, now=NOW3)
-check("ended: no read-only promise", "read-only" not in e.text.lower())
+check("ended: says read-only meanwhile (D-222)", "read-only" in e.text.lower())
 
 print("All lifecycle tests passed." if not failures else f"{len(failures)} failure(s).")
 raise SystemExit(1 if failures else 0)

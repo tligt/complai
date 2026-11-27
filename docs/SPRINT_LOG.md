@@ -9391,6 +9391,60 @@ there and never accepted the terms.
   read-only and i18n tests pass on the server; no errors in the app or
   quiz logs. The legal drafts are not published.
 
+### D-222 — An expired trial: read-only, then no access, then deleted on day 60, 27 Nov
+
+By the user ("go for the deletion job ... with an intermediate no-access
+phase of 15 days", option A: within the 60 days). Takes on the trial half of
+S70 (GDPR deletion); deleting a paying customer's account (flow 5, 120 days)
+and a user's own "delete my account" stay in S70.
+
+| Days after the trial | Access | Email |
+|---|---|---|
+| 0–45 | read-only (D-215) | 0 ended, 7 missing, 21 why (win-back, stoppable) |
+| 38 | | **access_closing**: closes on [date], download now |
+| 45–60 | **none**: the subscribe page only, with the deletion date | 45 **access_closed**: deleted on [date] |
+| 55 | | **last_warning** |
+| 60 | **deleted** | **deleted**: done, what is kept |
+
+- **Dates fixed by the first notice** (`accounts.access_closes_at`,
+  `delete_after`): access closes no sooner than 7 days after the notice,
+  deletion 15 days after that. A late job pushes the dates back instead of
+  skipping a notice; an account the job never emails (admin, test, no email)
+  gets no dates, so is never closed or deleted. The notices ignore the stop
+  link. App, emails and deletion read the same dates.
+- **Deletion** (`account_deletion.py`, `migration_d222_trial_deletion.sql`):
+  files first through the storage API (`account_deletion_files`), then
+  `delete_trial_account` in one transaction: companies and everything in
+  them, the account, the sign-in (cascading to the profile and every
+  user-keyed row, support requests included), free-check leads. Both run
+  `assert_trial_deletable` first: an expired trial past its date, never a
+  plan (or a block) in its history, not an admin's, no document under legal
+  hold. **Kept:** `terms_acceptances` (D-221) and the new
+  `email_suppressions` (an owner who had stopped the emails). Members
+  invited to the companies lose access; their own sign-ins stay.
+- **The audit trail (D-128, the decision S70 carried):** it ends with the
+  company. `audit_log_immutable()` lets a DELETE through only inside
+  `delete_trial_account`'s transaction (a transaction-local setting) and
+  only for that account's rows; UPDATE and every other DELETE stay refused
+  (checked on dev). `account_periods` already allowed it once the account
+  is gone.
+- The job deletes before its 20-hour pacing, then emails "deleted" (captured
+  before: the profile goes). `--dry-run` lists what it would delete.
+- Email texts: the "ended" email now says read-only meanwhile; the notices
+  say what is kept (the user's review, 27 Nov). Lifecycle page: the notices
+  and the deletion shown live. Legal drafts: the three phases; support
+  requests deleted with the account (the database cascades them), not "3
+  years".
+- **Found and fixed on dev:** a refused deletion had already removed the
+  files (the check ran only in the second step); the checks now run before
+  any file goes, and a refusal leaves the file (tested).
+- Checked: `test_lifecycle.py` (phases, dates, late notices, deletion due,
+  every email × language), `test_lifecycle_view.py`; on dev, a throwaway
+  account with a company, a system, a file, a log entry, a lead, a terms
+  record and an opt-out: refused before its date (file kept), then deleted —
+  nothing left but the terms record and the suppression. Job dry run on dev.
+  Not clicked: the app in the no-access phase.
+
 ---
 
 *End of record. Append at sprint close.*

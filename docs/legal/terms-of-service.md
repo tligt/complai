@@ -10,7 +10,7 @@ D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page
      sole trader. Now: CREAGENT SRL, its address and enterprise number.
   2. New section 4, the free trial: 14 days, no card, starts at sign-up,
      read-only afterwards, deleted 60 days after it ends unless you subscribe.
-     !! Publish only once the deletion job exists.
+     The deletion job is D-222: publish once it is live.
   3. Section 5 (your account): accepting these terms is recorded.
   4. Section 7 (subscription): the "credits" lines removed — RECOSA has no
      credits or top-ups; plans are monthly or yearly.
@@ -58,8 +58,8 @@ RECOSA does not accept liability for any compliance failures, regulatory fines, 
 
 - Every new account starts a free trial of 14 days, from the day you sign up — in the app, or from one of our free checks. No payment details are needed.
 - During the trial you can use every feature of the plan you chose.
-- If you do not subscribe, the trial ends automatically: nothing is charged. After it ends you can still see and download everything you set up, but you cannot change it or create anything new.
-- An account whose trial ended without a subscription is deleted 60 days after the trial ended, with everything in it. We warn you by email twice before that. Subscribe before then and everything is kept.
+- If you do not subscribe, the trial ends automatically: nothing is charged. For 45 days after it ends you can still see and download everything you set up, but you cannot change it or create anything new. Then access closes.
+- An account whose trial ended without a subscription is deleted 60 days after the trial ended, with everything in it. We warn you by email before access closes, when it closes, and 5 days before the deletion. Subscribe before then and everything is kept.
 - One free trial per company. We may refuse or end a trial that is used to get around this.
 
 ## 5. Your account

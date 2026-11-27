@@ -1641,5 +1641,22 @@
  "Please read and accept RECOSA's [Terms of Service]({terms}) and [Privacy Policy]({privacy}).": "Veuillez lire et accepter les [Conditions d'utilisation]({terms}) et la [Politique de confidentialité]({privacy}) de RECOSA.",
  "I agree to RECOSA's Terms of Service and Privacy Policy": "J'accepte les Conditions d'utilisation et la Politique de confidentialité de RECOSA",
  "Continue": "Continuer",
- "That didn't save. Please try again in a moment.": "L'enregistrement a échoué. Veuillez réessayer dans un instant."
+ "That didn't save. Please try again in a moment.": "L'enregistrement a échoué. Veuillez réessayer dans un instant.",
+ "In the meantime, you can still open RECOSA to see and download everything, read-only.": "En attendant, vous pouvez toujours ouvrir RECOSA pour consulter et télécharger tout, en lecture seule.",
+ "What we keep, as the law requires or allows: the record that you accepted our terms and, if you asked us to stop emailing you, your address on our do-not-email list. Details in our privacy policy.": "Ce que nous conservons, comme la loi l'exige ou le permet : la preuve que vous avez accepté nos conditions et, si vous nous avez demandé de ne plus vous écrire, votre adresse sur notre liste d'exclusion. Détails dans notre politique de confidentialité.",
+ "Your access to RECOSA closes on {date}": "Votre accès à RECOSA se ferme le {date}",
+ "Your trial ended on {ended}. Until {closes} you can still open RECOSA and download everything you set up for {company}: your documents, your records, your reports.": "Votre essai s'est terminé le {ended}. Jusqu'au {closes}, vous pouvez encore ouvrir RECOSA et télécharger tout ce que vous avez mis en place pour {company} : vos documents, vos registres, vos rapports.",
+ "On {closes} your access closes. Your data is kept for 15 more days, then deleted on {gone}.": "Le {closes}, votre accès se ferme. Vos données sont conservées 15 jours de plus, puis supprimées le {gone}.",
+ "Choose a plan before then and everything stays as it is.": "Choisissez une formule d'ici là et tout reste en l'état.",
+ "Download my documents": "Télécharger mes documents",
+ "Your access to RECOSA closed on {closes}. Everything you set up for {company} is still kept, until {gone}: on that day the account and everything in it are deleted, for good.": "Votre accès à RECOSA s'est fermé le {closes}. Tout ce que vous avez mis en place pour {company} est encore conservé, jusqu'au {gone} : ce jour-là, le compte et tout son contenu sont supprimés, définitivement.",
+ "Choose a plan before then and you get it all back, as you left it.": "Choisissez une formule d'ici là et vous retrouvez tout, tel que vous l'avez laissé.",
+ "Last reminder: your RECOSA account is deleted on {date}": "Dernier rappel : votre compte RECOSA est supprimé le {date}",
+ "On {gone}, the account of {company} and everything in it — your systems, documents, assessments and history — will be deleted, for good. We cannot bring it back afterwards.": "Le {gone}, le compte de {company} et tout son contenu — vos systèmes, documents, évaluations et historique — seront supprimés, définitivement. Nous ne pourrons pas les récupérer ensuite.",
+ "Your RECOSA account has been deleted": "Votre compte RECOSA a été supprimé",
+ "As announced, the account of {company} and everything in it have been deleted today.": "Comme annoncé, le compte de {company} et tout son contenu ont été supprimés aujourd'hui.",
+ "If you want to work with RECOSA again, you are welcome to sign up anew.": "Si vous souhaitez retravailler avec RECOSA, vous pouvez vous réinscrire à tout moment.",
+ "Visit recosa.eu": "Visiter recosa.eu",
+ "🔒 **Your access to RECOSA has closed.** Everything you set up is kept until {date}, then deleted. Choose a plan before then and you get it all back, as you left it.": "🔒 **Votre accès à RECOSA est fermé.** Tout ce que vous avez mis en place est conservé jusqu'au {date}, puis supprimé. Choisissez une formule d'ici là et vous retrouvez tout, tel que vous l'avez laissé.",
+ "🔒 **Your trial has ended: RECOSA is read-only until {date}.** Download what you need before then: after that, access closes. Choose a plan to keep everything.": "🔒 **Votre essai est terminé : RECOSA est en lecture seule jusqu'au {date}.** Téléchargez ce dont vous avez besoin d'ici là : ensuite, l'accès se ferme. Choisissez une formule pour tout conserver."
 }

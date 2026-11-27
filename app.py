@@ -333,8 +333,18 @@ _without_plan = (
 # D-215: an ended trial with a company keeps read-only access to everything
 # it built (readonly.py stops every write and AI call). Without a company
 # there is nothing to see: the subscribe page, as before.
+# D-222: from the date the notices fixed (day 45, expired_trial.py), no access
+# at all: the subscribe page only, until the deletion on day 60.
+import expired_trial as _ET
+from datetime import datetime, timezone
+_acc_dates = _profile.get("account") or {}
+_closes = _acc_dates.get("access_closes_at")
+access_closed = (_without_plan and _profile.get("subscription_status") == "expired"
+                 and _ET.access_closed(datetime.fromisoformat(_closes.replace("Z", "+00:00"))
+                                       if _closes else None, datetime.now(timezone.utc)))
+st.session_state["access_closed"] = access_closed
 read_only = (_without_plan and _profile.get("subscription_status") == "expired"
-             and bool(load_accessible_clients(user_id)))
+             and not access_closed and bool(load_accessible_clients(user_id)))
 limited_access = _without_plan and not read_only
 st.session_state["read_only"] = read_only
 
@@ -549,9 +559,17 @@ go_to_requested_page(pg, _sections)
 if read_only and pg.url_path != "subscribe":
     with st.container(border=True):
         _ro1, _ro2 = st.columns([4, 1], vertical_alignment="center")
-        _ro1.markdown(tr("🔒 **Your trial has ended: RECOSA is read-only.** You can see and "
-                         "download everything you set up, but not change it. Choose a plan "
-                         "to continue."))
+        if _closes:
+            # D-222: the date is fixed once the "access closes" notice went out.
+            from display import fmt_date as _fmt_date
+            _ro1.markdown(tr("🔒 **Your trial has ended: RECOSA is read-only until {date}.** "
+                             "Download what you need before then: after that, access closes. "
+                             "Choose a plan to keep everything.").format(
+                                 date=_fmt_date(_closes[:10])))
+        else:
+            _ro1.markdown(tr("🔒 **Your trial has ended: RECOSA is read-only.** You can see and "
+                             "download everything you set up, but not change it. Choose a plan "
+                             "to continue."))
         if _ro2.button(tr("Choose my plan"), type="primary", key="ro_choose_plan",
                        use_container_width=True):
             st.switch_page(subscribe_pg)

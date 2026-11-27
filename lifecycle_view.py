@@ -39,7 +39,8 @@ LANES = {
     "trial": (TRIAL_DAYS, [(d, k, OB.FLOW, True) for k, d in OB.SCHEDULE]
               + [(d, k, TE.FLOW, True) for k, d in TE.SCHEDULE]),
     "dropout": (ET.DELETE_AFTER_DAYS, [(d, k, ET.FLOW, ET.DELETION_ACTIVE or k not in ET.DELETION_EMAILS)
-                                       for k, d in ET.SCHEDULE]),
+                                       for k, d in ET.SCHEDULE]
+                + [(ET.DELETE_AFTER_DAYS, "deleted", ET.FLOW, ET.DELETION_ACTIVE)]),   # D-222
     "churned": (120, [(0, "read_only", "churned", False), (30, "since_you_left", "churned", False),
                       (60, "since_you_left_2", "churned", False), (90, "deletion_warning", "churned", False),
                       (113, "last_warning", "churned", False)]),
