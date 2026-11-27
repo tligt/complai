@@ -16,7 +16,7 @@ D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page
      credits or top-ups; plans are monthly or yearly.
   5. New section 10, emails: the service emails, and how to stop the others.
   6. Contact: the full address.
-  Open for the user: the enterprise number.
+  Enterprise number filled in 27 Nov.
   When published: set terms.TERMS_VERSION to the date below.
 -->
 
@@ -30,7 +30,7 @@ RECOSA ("we", "us", "our") is an AI-powered regulatory compliance platform opera
 
 CREAGENT SRL
 Rue de la Houlette 42 bte 42, 1170 Watermael-Boitsfort, Belgium
-Enterprise number: [BE 0xxx.xxx.xxx]
+Enterprise number: BE 0831.309.695
 Contact: contact@recosa.eu
 Website: https://recosa.eu
 

@@ -30,7 +30,7 @@ D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page:
      The deletion job is D-222 (read-only to day 45, no access to day 60,
      then deleted): publish once it is live.
  11. Contact: the controller's address.
-  Open for the user: the enterprise number; the two retention periods
+  Enterprise number filled in 27 Nov. Open for the user: the two retention periods
   marked [to confirm].
   When published: set terms.PRIVACY_VERSION to the date below.
 -->
@@ -47,7 +47,7 @@ RECOSA ("we", "us", "our") is an AI-powered regulatory compliance platform opera
 
 CREAGENT SRL
 Rue de la Houlette 42 bte 42, 1170 Watermael-Boitsfort, Belgium
-Enterprise number: [BE 0xxx.xxx.xxx]
+Enterprise number: BE 0831.309.695
 Contact: contact@recosa.eu
 Website: https://recosa.eu
 
