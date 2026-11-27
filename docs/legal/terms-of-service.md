@@ -18,8 +18,11 @@ be made on Framer without renumbering (docs/legal/CHANGES_TO_PASTE.md):
   5. Contact: the full address.
   Enterprise number filled in 27 Nov.
   terms.TERMS_VERSION = 2026-11-27, the date below.
-  !! Sections 5 and 9 on the live page read differently from this file
-  (checked 27 Nov after publishing): to settle with the user.
+  Section 5: the live page's wording (it changed on Framer), with the user's
+  sentence on logins, 27 Nov: no plan allows a shared login; users per plan
+  are on the Pricing page (Starter 1, Professional 3, Enterprise unlimited).
+  !! Section 9 on the live page reads differently from this file (checked
+  27 Nov after publishing): to settle with the user.
 -->
 
 # Terms of Service
@@ -73,11 +76,11 @@ When you accept these terms, we record your email address, the version of these 
 
 You agree not to:
 
-- Use RECOSA for any unlawful purpose
-- Attempt to reverse-engineer, scrape, or copy the platform
-- Share your account credentials with others (except as permitted under your plan)
-- Upload malicious content or attempt to compromise our systems
-- Use the platform to generate content that is false, misleading, or harmful
+- Use RECOSA for unlawful purposes
+- Attempt to reverse engineer, scrape, or interfere with the platform
+- Upload malicious code or content
+- Use the platform to generate misleading, fraudulent, or harmful compliance documents
+- Share your account credentials with others. Each user needs their own login; the number of users depends on your plan (see our Pricing page).
 
 We reserve the right to suspend or terminate accounts that violate these terms.
 
