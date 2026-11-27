@@ -9492,6 +9492,10 @@ The user's review of the 18 emails (the same day, before D-221):
 - Checked: onboarding and lifecycle tests (new: welcome content, days left,
   tagline in Dutch, copyright, reply-to on and off, "out of", prices), i18n
   (34 new FR/NL texts). Review page: `docs/research/lifecycle_emails_review.html`.
+- **Deployed 27 Nov** (fae3d47, `deploy/update.sh`): app, admin and quiz
+  healthy, no errors; onboarding, lifecycle, lifecycle view and i18n tests
+  pass on the server; job dry run: nothing to send (the only account is the
+  admin's). `SUPPORT_REPLY_TO` not set yet.
 
 ---
 
