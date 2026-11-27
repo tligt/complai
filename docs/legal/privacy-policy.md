@@ -30,8 +30,7 @@ D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page:
      The deletion job is D-222 (read-only to day 45, no access to day 60,
      then deleted): publish once it is live.
  11. Contact: the controller's address.
-  Enterprise number filled in 27 Nov. Open for the user: the two retention periods
-  marked [to confirm].
+  Enterprise number filled in 27 Nov; retention periods confirmed by the user, 27 Nov.
   When published: set terms.PRIVACY_VERSION to the date below.
 -->
 
@@ -137,10 +136,10 @@ We do not sell your data. We do not share your data with third parties for marke
 | Chat history | Until you delete it or close your account |
 | Generated documents | Until you delete them or close your account |
 | Everything in a trial account that was not followed by a subscription | Deleted 60 days after the trial ends. For the first 45 days you can still see and download everything; then access closes, and the account is deleted 15 days later. We tell you by email a week before access closes, and again when it closes, with the date of the deletion. |
-| Record that you accepted our terms (email, versions, date) | 10 years after the account is closed or deleted [to confirm] |
+| Record that you accepted our terms (email, versions, date) | 10 years after the account is closed or deleted |
 | Your email address, if you asked us to stop emailing you | As long as needed to respect that choice |
 | Support requests, and replies to our emails | Until account deletion |
-| Accounts blocked for fraud or abuse: the email address and the reason | 5 years after the block [to confirm] |
+| Accounts blocked for fraud or abuse: the email address and the reason | 5 years after the block |
 | Backups of our database | 35 days, after which deleted data is gone from them too |
 | Free check results and email (if you do not create an account) | 24 months |
 | Usage logs | 12 months rolling |
