@@ -9516,7 +9516,17 @@ the EDPB, the DPAs and NOYB).
   20 items fetched. The CNPD feed also lists its workshops (future dates,
   "//COMPLET//"): the analysis should mark them not relevant; reject any that
   reach the queue.
-- **Not yet:** the NIS2 authorities for NL and LU (BE has the CCB).
+- **NIS2, the same day (by the user):** **NCSC (NL)** news,
+  `feeds.ncsc.nl/nieuws.rss`, and **NCSC (NL, Advisories)**,
+  `advisories.ncsc.nl/rss/advisories` (the feeds its RSS page lists; like CCB
+  and CCB Advisories for BE); **CIRCL (LU)**, `circl.lu/pub/rss.xml`, the CSIRT
+  for companies (technical reports on critical vulnerabilities). Regulatory,
+  NIS2; 20 items each. The advisories feed is busy (several a day).
+- **Not added: the ILR**, Luxembourg's NIS2 authority. Its `/feed/` is empty,
+  and the page reader finds nothing: news is listed at `/actualites/` but
+  each item lives at `/actualite/…`, outside the listing path the reader
+  keeps to (9 Nov). It also covers telecoms, energy and post. Needs the
+  reader to accept another item path, plus a keyword filter.
 - **Deployed 27 Nov** (b1b0881): apps healthy.
 
 ---
