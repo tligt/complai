@@ -9509,8 +9509,14 @@ the EDPB, the DPAs and NOYB).
   EU-wide at approval. Both feeds fetch from the server (10 and 20 items).
 - **Italian sources:** the monitor accepts "it" (an English title, D-208) and
   the alert says "source in Italian" (FR/NL translated). Spanish already was.
-- **Not yet:** the Dutch (AP) and Luxembourg (CNPD) authorities, though NL and
-  LU clients are supported (D-190); nor their NIS2 authorities.
+- **Then, the same day: AP (NL)**, `autoriteitpersoonsgegevens.nl/feed/article/rss.xml`
+  (Dutch), and **CNPD (LU)**, `cnpd.public.lu/fr/actualites.rss` (French; no
+  link on the site, the public.lu feed address; served as text/html but valid
+  RSS): regulatory, GDPR, NL and LU — clients there get them as alerts. 10 and
+  20 items fetched. The CNPD feed also lists its workshops (future dates,
+  "//COMPLET//"): the analysis should mark them not relevant; reject any that
+  reach the queue.
+- **Not yet:** the NIS2 authorities for NL and LU (BE has the CCB).
 - **Deployed 27 Nov** (b1b0881): apps healthy.
 
 ---
