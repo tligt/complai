@@ -73,7 +73,8 @@ _ = translate   # outside pages only: pages reuse "_" as a throwaway name
 # An alert is written once, in English (D-168): the summary, what to do, and
 # its English title. The source article stays in its own language, so the
 # reader is told which before following the link.
-_SOURCE_LANGUAGE = {"fr": "in French", "nl": "in Dutch", "de": "in German", "es": "in Spanish"}
+_SOURCE_LANGUAGE = {"fr": "in French", "nl": "in Dutch", "de": "in German", "es": "in Spanish",
+                    "it": "in Italian"}
 
 
 def alert_title(update: dict | None) -> str:

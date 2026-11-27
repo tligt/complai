@@ -1691,5 +1691,6 @@
  "{left} more documents are waiting to be written for {company}: RECOSA does it in minutes.": "Nog {left} documenten wachten om voor {company} geschreven te worden: RECOSA doet het in enkele minuten.",
  "Your regulations call for {total} documents, and RECOSA can write them for {company} in minutes: four days are enough to set up the essentials.": "Uw regelgeving vraagt {total} documenten, en RECOSA kan ze in enkele minuten voor {company} schrijven: vier dagen volstaan om het essentiële op te zetten.",
  "Until {closes} you can still open RECOSA to see and download everything, read-only. After that, access closes, and on {gone} the account and everything in it are deleted.": "Tot {closes} kunt u RECOSA nog openen om alles te bekijken en te downloaden, alleen-lezen. Daarna sluit de toegang, en op {gone} worden het account en alles erin verwijderd.",
- "P.S. Rather not get these emails? Click here and I'll stop: {url}": "P.S. Liever geen e-mails meer? Klik hier en ik stop: {url}"
+ "P.S. Rather not get these emails? Click here and I'll stop: {url}": "P.S. Liever geen e-mails meer? Klik hier en ik stop: {url}",
+ "in Italian": "in het Italiaans"
 }

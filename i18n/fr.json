@@ -1691,5 +1691,6 @@
  "{left} more documents are waiting to be written for {company}: RECOSA does it in minutes.": "{left} autres documents attendent d'être rédigés pour {company} : RECOSA s'en charge en quelques minutes.",
  "Your regulations call for {total} documents, and RECOSA can write them for {company} in minutes: four days are enough to set up the essentials.": "Vos réglementations demandent {total} documents, et RECOSA peut les rédiger pour {company} en quelques minutes : quatre jours suffisent pour mettre en place l'essentiel.",
  "Until {closes} you can still open RECOSA to see and download everything, read-only. After that, access closes, and on {gone} the account and everything in it are deleted.": "Jusqu'au {closes}, vous pouvez encore ouvrir RECOSA pour tout consulter et télécharger, en lecture seule. Ensuite, l'accès se ferme, et le {gone} le compte et tout son contenu sont supprimés.",
- "P.S. Rather not get these emails? Click here and I'll stop: {url}": "P.S. Vous préférez ne plus recevoir ces e-mails ? Cliquez ici et j'arrête : {url}"
+ "P.S. Rather not get these emails? Click here and I'll stop: {url}": "P.S. Vous préférez ne plus recevoir ces e-mails ? Cliquez ici et j'arrête : {url}",
+ "in Italian": "en italien"
 }

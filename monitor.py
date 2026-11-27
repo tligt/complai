@@ -266,14 +266,14 @@ Analyse this regulatory news item and return ONLY valid JSON:
   "regulations": ["GDPR"|"NIS2"|"EU_AI_ACT"|"EPRIVACY"|"EAA"|"CONSUMER_RIGHTS"],
   "action_required": true/false,
   "action_description": "what SMEs need to do (empty if no action required)",
-  "language": "en|fr|nl"
+  "language": "en|fr|nl|de|es|it"
 }
 relevant: false if this is general news unrelated to compliance obligations.
 severity: urgent=immediate action needed, important=awareness required, info=general update.
 language: the language of the ORIGINAL source item (title/description you were given),
 not the language of your summary, which should always be written in English regardless.
 Use 'fr' for French, 'nl' for Dutch/Flemish, 'de' for German, 'es' for Spanish,
-'en' for English. If genuinely unclear,
+'it' for Italian, 'en' for English. If genuinely unclear,
 default to 'en'."""
 
         user_prompt = f"""SOURCE: {source_config['name']}
@@ -333,7 +333,8 @@ Is this relevant to EU SME compliance? Summarise and categorise."""
             ))
 
             lang = analysis.get("language", "en")
-            if lang not in ("en", "fr", "nl", "de", "es"):
+            # "it": the Garante (IT) as a source, 27 Nov.
+            if lang not in ("en", "fr", "nl", "de", "es", "it"):
                 lang = "en"
 
             results.append({
