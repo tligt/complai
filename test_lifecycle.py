@@ -141,6 +141,14 @@ check("access_closing: French, both dates", "22 janvier" in e.text and "6 févri
 e = ETE.compose("deleted", lang="nl", base_url="b", stop_url="", company="Acme",
                 ended_at=ended, now=NOW3, closes_at=c, delete_after=g)
 check("deleted: Dutch, no stop link", "verwijderd" in e.subject and "stop_emails" not in e.text)
+e = ETE.compose("deleted", lang="en", base_url="b", stop_url="", company="Acme",
+                ended_at=ended, now=NOW3, closes_at=c, delete_after=g, ask_feedback=True)
+check("deleted: asks why, replies to Fabrice",
+      "what stopped you" in e.text and e.reply_to[1] == "fabrice@recosa.eu" and e.sender is None)
+e = ETE.compose("deleted", lang="en", base_url="b", stop_url="", company="Acme",
+                ended_at=ended, now=NOW3, closes_at=c, delete_after=g, ask_feedback=False)
+check("deleted, opted out: no question, no reply-to",
+      "what stopped you" not in e.text and e.reply_to is None)
 e = ETE.compose("why", lang="nl", base_url="b", stop_url="s", company="Acme", ended_at=ended, now=NOW3)
 check("why: personal, Dutch", e.sender[1] == "fabrice@recosa.eu" and e.text.startswith("Hallo"))
 e = ETE.compose("ended", lang="en", base_url="b", stop_url="s", company="Acme", ended_at=ended, now=NOW3)

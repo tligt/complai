@@ -29,7 +29,8 @@ def _date(d: datetime, lang: str, now: datetime) -> str:
 
 def compose(key: str, *, lang: str, base_url: str, stop_url: str, company: str | None,
             ended_at: datetime, now: datetime, missed: tuple[int, int] = (0, 0),
-            closes_at: datetime | None = None, delete_after: datetime | None = None) -> Email:
+            closes_at: datetime | None = None, delete_after: datetime | None = None,
+            ask_feedback: bool = False) -> Email:
     company_txt = company or tr("your company", lang)
     ended = _date(ended_at, lang, now)
     foot_html, foot_text = _footer(stop_url, lang)
@@ -101,16 +102,24 @@ def compose(key: str, *, lang: str, base_url: str, stop_url: str, company: str |
             subject = tr("Your RECOSA account has been deleted", lang)
             ps = [_h.escape(tr("As announced, the account of {company} and everything in it have "
                                "been deleted today.", lang).format(company=company_txt)),
-                  _h.escape(kept),
-                  _h.escape(tr("If you want to work with RECOSA again, you are welcome to sign up "
-                               "anew.", lang))]
+                  _h.escape(kept)]
+            if ask_feedback:
+                # D-222 (the user, 27 Nov): the one place after the trial we
+                # ask why; not to someone who stopped our emails.
+                ps.append(_h.escape(tr("One last question, if you have a minute: what stopped you "
+                                       "from continuing with RECOSA? Just reply to this email — "
+                                       "Fabrice, who built RECOSA, reads every answer himself.",
+                                       lang)))
+            ps.append(_h.escape(tr("If you want to work with RECOSA again, you are welcome to sign "
+                                   "up anew.", lang)))
             cta, path = tr("Visit recosa.eu", lang), None
         foot_html = foot_text = ""
         url = "https://www.recosa.eu" if path is None else _link(base_url, path, key, CAMPAIGN)
         html = email_layout(tr("Your RECOSA account", lang), _paragraphs(ps), cta, url,
                             footer_note=foot_html, alert=key != "deleted")
         text = "\n\n".join(_strip(p) for p in ps) + f"\n\n{cta}: {url}"
-        return Email(subject, text, html)
+        return Email(subject, text, html,
+                     reply_to=PERSONAL_SENDER if key == "deleted" and ask_feedback else None)
     else:
         raise ValueError(f"Unknown expired-trial email: {key}")
 

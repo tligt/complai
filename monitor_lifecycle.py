@@ -86,7 +86,7 @@ def run(dry_run: bool = False) -> None:
             # D-222: day 60, every notice sent: delete, then say so.
             if status == "expired" and ET.deletion_due(
                     acc, {r["email_key"] for r in rows if r["flow"] == ET.FLOW}, now, _ts):
-                _delete(sb, acc, owner, ends, now, base_url, dry_run)
+                _delete(sb, acc, owner, ends, now, base_url, dry_run, opted_out)
                 continue
             if rows and now - max(_ts(r["sent_at"]) for r in rows) < OB.MIN_GAP:
                 continue
@@ -162,7 +162,7 @@ def run(dry_run: bool = False) -> None:
             print(f"  account {acc.get('id')}: {e}")
 
 
-def _delete(sb, acc, owner, ends, now, base_url, dry_run) -> None:
+def _delete(sb, acc, owner, ends, now, base_url, dry_run, opted_out=False) -> None:
     """D-222: delete an expired trial whose date has come, then email the
     owner that it is done (captured before: the profile goes with it)."""
     client = (sb.table("clients").select("company_name").eq("account_id", acc["id"])
@@ -179,8 +179,9 @@ def _delete(sb, acc, owner, ends, now, base_url, dry_run) -> None:
           f"{result['files']} files, {result['deleted']}")
     email = ETE.compose("deleted", lang=lang, base_url=base_url, stop_url="", company=company,
                         ended_at=ends, now=now, closes_at=_ts(acc.get("access_closes_at")),
-                        delete_after=_ts(acc.get("delete_after")))
-    if not send_lifecycle_email(owner["email"], email.subject, email.text, email.html, email.sender):
+                        delete_after=_ts(acc.get("delete_after")), ask_feedback=not opted_out)
+    if not send_lifecycle_email(owner["email"], email.subject, email.text, email.html, email.sender,
+                                email.reply_to):
         print(f"  deletion email NOT sent to {owner['email']}")
 
 

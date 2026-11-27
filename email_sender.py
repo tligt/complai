@@ -594,9 +594,11 @@ def _post_short(cfg, to_email: str, subject: str, text_body: str, html_body: str
 
 
 def send_lifecycle_email(to_email: str, subject: str, text_body: str,
-                         html_body: str | None, sender: tuple[str, str] | None = None) -> bool:
+                         html_body: str | None, sender: tuple[str, str] | None = None,
+                         reply_to: tuple[str, str] | None = None) -> bool:
     """D-212: an onboarding (later: trial, win-back) email. A personal one
-    (sender given) is plain text, from that person, and replies go to them."""
+    (sender given) is plain text, from that person, and replies go to them.
+    `reply_to` (D-222): from RECOSA, but replies go to that person."""
     cfg = _notify_config()
     if not (cfg and to_email):
         return False
@@ -606,8 +608,9 @@ def send_lifecycle_email(to_email: str, subject: str, text_body: str,
                "subject": subject, "textContent": text_body}
     if html_body:
         payload["htmlContent"] = html_body
-    if sender:
-        payload["replyTo"] = {"name": name, "email": address}
+    if sender or reply_to:
+        rn, ra = reply_to or (name, address)
+        payload["replyTo"] = {"name": rn, "email": ra}
     try:
         r = requests.post("https://api.brevo.com/v3/smtp/email",
                           headers={"api-key": api_key, "Content-Type": "application/json"},

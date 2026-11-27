@@ -9443,6 +9443,10 @@ would make that date look less than certain.
   any file goes, and a refusal leaves the file (tested).
 - The deletion needs both notices sent; a failed send holds it back until
   the job's next try succeeds.
+- **The "deleted" email asks why** (the user, 27 Nov): one line, "what
+  stopped you from continuing?", replies to fabrice@ (new `reply_to`: still
+  from RECOSA). Not to an owner who stopped our emails. No separate email
+  after the deletion: that would mean keeping the address just to ask.
 - Checked: `test_lifecycle.py` (phases, dates, late notices, deletion due,
   every email × language), `test_lifecycle_view.py`; on dev, a throwaway
   account with a company, a system, a file, a log entry, a lead, a terms

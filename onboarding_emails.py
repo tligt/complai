@@ -64,6 +64,7 @@ class Email:
     text: str
     html: str | None
     sender: tuple[str, str] | None = None     # (name, address); None: the default
+    reply_to: tuple[str, str] | None = None   # D-222: replies elsewhere than the sender
 
 
 def _link(base_url: str, path: str, key: str, campaign: str = "onboarding") -> str:
