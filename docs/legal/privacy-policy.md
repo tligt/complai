@@ -22,7 +22,8 @@ D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page:
      number) — the live page said "a sole trader" and named no one.
   8. Account data: an account is also created by the free check's sign-up,
      and starts the 14-day trial; the record that you accepted the terms.
-  9. New section: emails about your trial and account (onboarding, trial
+  9. New section 8 (after "7. Contact form submissions", so the live
+     numbers stay): emails about your trial and account (onboarding, trial
      ending, after the trial, deletion notices, regulatory alerts), and
      replies to them (support tickets; feedback to the founder).
  10. Retention: a trial not followed by a subscription is deleted 60 days
@@ -90,7 +91,13 @@ We use privacy-friendly analytics (Umami) on recosa.eu, on the free checks and o
 
 Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
 
-### 7. Emails about your trial and your account
+### 7. Contact form submissions
+
+If you contact us via the contact form, we collect your name, email, and message. We use this solely to respond to your enquiry.
+
+Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
+
+### 8. Emails about your trial and your account
 
 During your free trial we send you a few emails to help you set up RECOSA, and to remind you when the trial is about to end. While you use RECOSA, we send the regulatory alerts that concern your company.
 
@@ -107,12 +114,6 @@ Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
 If you reply to one of our emails, your reply and our answers are kept as a support request, with your email address and the account it concerns, so that we can answer you and follow up.
 
 Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
-
-### 8. Contact form submissions
-
-If you contact us via the contact form, we collect your name, email, and message. We use this solely to respond to your enquiry.
-
-Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
 
 ## Who we share data with
 
