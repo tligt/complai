@@ -9522,11 +9522,18 @@ the EDPB, the DPAs and NOYB).
   and CCB Advisories for BE); **CIRCL (LU)**, `circl.lu/pub/rss.xml`, the CSIRT
   for companies (technical reports on critical vulnerabilities). Regulatory,
   NIS2; 20 items each. The advisories feed is busy (several a day).
-- **Not added: the ILR**, Luxembourg's NIS2 authority. Its `/feed/` is empty,
-  and the page reader finds nothing: news is listed at `/actualites/` but
-  each item lives at `/actualite/…`, outside the listing path the reader
-  keeps to (9 Nov). It also covers telecoms, energy and post. Needs the
-  reader to accept another item path, plus a keyword filter.
+- **ILR (LU, NIS2)**, Luxembourg's NIS2 authority: its `/feed/` is empty and
+  its news page loads by JavaScript, but WordPress serves the news as RSS at
+  `ilr.lu/feed/?post_type=actualite` (not linked on the site). It also
+  regulates energy, telecoms and post, so `filter_keywords` keeps NIS2 items
+  only (nis 2, nis2, ilr/n, cybersécurité/cybersecurity, sécurité des
+  réseaux, incident…; not "niss", which matches "fournisseur"): 1 of the 10
+  current items kept, "Operational guidance for incident handling".
+- **ANSSI (FR)**, `cyber.gouv.fr/actualites/rss/`: France had no NIS2 source.
+- **Not added: CERT-FR.** Its alerts feed lists alerts from 2015 and 2024
+  (updates keep their first date), and the monitor has no age filter: the
+  first run would analyse and queue them. Its "avis" feed is current but
+  busy (several a day). Either needs a maximum age on items first.
 - **Deployed 27 Nov** (b1b0881): apps healthy.
 
 ---
