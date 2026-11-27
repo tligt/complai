@@ -216,6 +216,24 @@ def _get_attr(element, tag, attr, ns=None) -> str:
         return ""
 
 
+MAX_ITEM_AGE_DAYS = 30   # D-225
+
+
+def too_old(date_str: str, now: datetime | None = None,
+            max_days: int = MAX_ITEM_AGE_DAYS) -> bool:
+    """Published more than max_days ago. Unreadable or missing: not too old."""
+    iso = parse_published_date(date_str)
+    if not iso:
+        return False
+    try:
+        d = datetime.fromisoformat(iso)
+    except ValueError:
+        return False
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    return ((now or datetime.now(timezone.utc)) - d).days > max_days
+
+
 def parse_published_date(date_str: str) -> str | None:
     if not date_str:
         return None
@@ -527,6 +545,20 @@ def run_monitoring(triggered_by: str = "cron") -> dict:
             print(f"  {len(raw_items)} items fetched")
             source_stat["fetched"] = len(raw_items)
             total_fetched += len(raw_items)
+
+            # D-225: older than MAX_ITEM_AGE_DAYS is not news. Before
+            # summarising, so it costs no Mistral tokens. CERT-FR's alerts
+            # feed lists alerts from 2015 (an update keeps its first date).
+            # An item without a readable date is kept, as before.
+            fresh = []
+            for item in raw_items:
+                if too_old(item.get("published_raw", "")):
+                    total_skipped += 1
+                    source_stat["skipped"] += 1
+                    print(f"  ⤷ Too old, skipped: {item['title'][:60]}")
+                else:
+                    fresh.append(item)
+            raw_items = fresh
 
             # A repeat of this source's own recent items, before summarising
             # so it costs no Mistral tokens.
