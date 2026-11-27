@@ -288,6 +288,10 @@ def _signup(email: str, password: str, pending: dict, marketing: bool) -> tuple[
     try:
         user = r.json()
         user = user.get("user") or user
+        if user.get("id") and user.get("identities") != []:
+            # D-221: the ticked checkbox, kept as proof of what was agreed.
+            import terms
+            terms.record(user["id"], email, terms.SRC_CHECK)
         if user.get("id") and user.get("identities") != [] and not st.session_state.get("invite"):
             from database import start_trial
             if start_trial(user["id"]):
@@ -923,13 +927,22 @@ def _account_form(pending: dict) -> None:
         c1, c2 = st.columns(2)
         pw = c1.text_input("Choose a password (min. 8 characters)", type="password", key="acc_pw")
         pw2 = c2.text_input("Repeat the password", type="password", key="acc_pw2")
+        # D-221: this form creates an account and starts a trial, so the
+        # terms are accepted here too (it had no checkbox; the app's had).
+        import terms
+        agreed = st.checkbox("I agree to RECOSA's Terms of Service and Privacy Policy",
+                             value=False, key="acc_terms")
         marketing = st.checkbox(funnel.CONSENT_TEXT, value=False, key="acc_mkt")
         if ss.get("invite"):
             st.caption("With your invitation, this account gets full access to RECOSA "
                        "Professional, free during the beta.")
+        # D-221: says what the email is used for, the trial and account
+        # emails included (they used to read as "updates only if you tick").
         st.markdown(f'<div class="fc-fine">This creates your RECOSA account and starts your 14-day free trial of everything — no credit card. We use '
-                    f'your email to send the results and to log you in; updates only if you tick '
-                    f'the box. <a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy policy</a></div>',
+                    f'your email to send your results, to log you in, and for emails about your trial '
+                    f'and your account, which you can stop at any time. News and offers only if you '
+                    f'tick the second box. <a href="{terms.TERMS_URL}" target="_blank">Terms of Service</a> · '
+                    f'<a href="{PRIVACY_POLICY_URL}" target="_blank">Privacy Policy</a></div>',
                     unsafe_allow_html=True)
         go = st.form_submit_button("Get my full report", type="primary", use_container_width=True)
     if not go:
@@ -944,6 +957,8 @@ def _account_form(pending: dict) -> None:
         st.error("The password needs at least 8 characters.")
     elif pw != pw2:
         st.error("The passwords don't match.")
+    elif not agreed:
+        st.error("Please accept the Terms of Service and Privacy Policy to continue.")
     else:
         ok, msg = _signup(email, pw, pending, marketing)
         if not ok:

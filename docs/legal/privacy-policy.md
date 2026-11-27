@@ -15,19 +15,39 @@ Changes from the published version ("Last updated: June 2026"):
   5. Retention: free-check leads (24 months unless you sign up, D-115).
   6. Complaints: the Dutch and Luxembourg authorities (NL/LU supported, D-190).
   Umami's location (Frankfurt) confirmed by the user, 18 Nov.
-  PUBLISHED on Framer 18 Nov 2026; this file matches the live page.
+  PUBLISHED on Framer 18 Nov 2026.
+
+D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page:
+  7. Who we are: the controller named (CREAGENT SRL, address, enterprise
+     number) — the live page said "a sole trader" and named no one.
+  8. Account data: an account is also created by the free check's sign-up,
+     and starts the 14-day trial; the record that you accepted the terms.
+  9. New section: emails about your trial and account (onboarding, trial
+     ending, after the trial, deletion notices, regulatory alerts), and
+     replies to them (support tickets; feedback to the founder).
+ 10. Retention: a trial not followed by a subscription is deleted 60 days
+     after it ends; what is kept after deletion, and for how long; backups.
+     !! Publish only once the deletion job exists — until then nothing is
+     deleted, and the page would promise what we don't do.
+ 11. Contact: the controller's address.
+  Open for the user: the enterprise number; the retention periods marked
+  [to confirm].
+  When published: set terms.PRIVACY_VERSION to the date below.
 -->
 
 # Privacy Policy
 
-*Last updated: 18 November 2026*
+*Last updated: [publication date]*
 
 This Privacy Policy explains how RECOSA collects, uses, and protects personal data when you use our website, our free compliance checks and our AI-powered regulatory compliance platform.
 
 ## 1. Who we are
 
-RECOSA ("we", "us", "our") is an AI-powered regulatory compliance platform operated by a sole trader, based in Belgium.
+RECOSA ("we", "us", "our") is an AI-powered regulatory compliance platform operated by CREAGENT SRL, the controller of the personal data described in this policy.
 
+CREAGENT SRL
+Rue de la Houlette 42 bte 42, 1170 Watermael-Boitsfort, Belgium
+Enterprise number: [BE 0xxx.xxx.xxx]
 Contact: contact@recosa.eu
 Website: https://recosa.eu
 
@@ -35,9 +55,11 @@ Website: https://recosa.eu
 
 ### 1. Account data
 
-When you create an account, we collect your email address and password (hashed). We use this to authenticate you and provide access to the platform.
+When you create an account — in the app, or from a free check to see your full result — we collect your email address and password (hashed). We use this to authenticate you and provide access to the platform. Every new account starts a 14-day free trial.
 
-Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
+We also record that you accepted our Terms of Service and this Privacy Policy: your email address, the versions you accepted, and when.
+
+Legal basis: Performance of a contract (Article 6(1)(b) GDPR); for the record of acceptance, our legitimate interest in being able to show what was agreed (Article 6(1)(f) GDPR)
 
 ### 2. Company profile data
 
@@ -69,7 +91,25 @@ We use privacy-friendly analytics (Umami) on recosa.eu, on the free checks and o
 
 Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
 
-### 7. Contact form submissions
+### 7. Emails about your trial and your account
+
+During your free trial we send you a few emails to help you set up RECOSA, and to remind you when the trial is about to end. While you use RECOSA, we send the regulatory alerts that concern your company.
+
+Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
+
+After a trial ends without a subscription, we send up to three emails about what you are missing and to ask why you did not continue.
+
+Legal basis: Legitimate interests (Article 6(1)(f) GDPR) — keeping in touch with someone who tried our service. Every one of these emails has a link to stop them, and you can object at any time.
+
+Before we delete an account (see below), we warn you by email, even if you stopped the other emails.
+
+Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
+
+If you reply to one of our emails, your reply and our answers are kept as a support request, with your email address and the account it concerns, so that we can answer you and follow up.
+
+Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
+
+### 8. Contact form submissions
 
 If you contact us via the contact form, we collect your name, email, and message. We use this solely to respond to your enquiry.
 
@@ -96,6 +136,12 @@ We do not sell your data. We do not share your data with third parties for marke
 | Company profile | Until account deletion |
 | Chat history | Until you delete it or close your account |
 | Generated documents | Until you delete them or close your account |
+| Everything in a trial account that was not followed by a subscription | Deleted 60 days after the trial ends, after two warnings by email. Until then you can still see and download everything. |
+| Record that you accepted our terms (email, versions, date) | 10 years after the account is closed or deleted [to confirm] |
+| Your email address, if you asked us to stop emailing you | As long as needed to respect that choice |
+| Support requests, and replies to our emails | 3 years after the last message [to confirm] |
+| Accounts blocked for fraud or abuse: the email address and the reason | 5 years after the block [to confirm] |
+| Backups of our database | 35 days, after which deleted data is gone from them too |
 | Free check results and email (if you do not create an account) | 24 months |
 | Usage logs | 12 months rolling |
 | Contact form submissions | 12 months |
@@ -139,4 +185,4 @@ We may update this policy from time to time. We will notify registered users of 
 
 For any privacy-related questions or requests:
 Email: contact@recosa.eu
-Address: Brussels, Belgium
+Address: CREAGENT SRL, Rue de la Houlette 42 bte 42, 1170 Watermael-Boitsfort, Belgium

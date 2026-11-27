@@ -250,6 +250,26 @@ if _profile.get("role") != "admin" and _profile.get("subscription_status") == "b
 # on every page. The Account page saves it; read here on every run so a
 # change shows at once.
 st.session_state["ui_language"] = (_profile or {}).get("ui_language") or "en"
+# D-221: an account with no acceptance of the terms on record (signed up
+# through the free check before it asked, or before acceptance was saved)
+# accepts them once, here, before anything else. Not admins.
+if _profile.get("role") != "admin" and not st.session_state.get("terms_ok"):
+    import terms as _terms
+    if _terms.has_accepted(user_id):
+        st.session_state["terms_ok"] = True
+    else:
+        st.markdown("### " + tr("Before you continue"))
+        st.markdown(tr("Please read and accept RECOSA's [Terms of Service]({terms}) and "
+                       "[Privacy Policy]({privacy}).").format(terms=_terms.TERMS_URL,
+                                                             privacy=_terms.PRIVACY_URL))
+        _agree = st.checkbox(tr("I agree to RECOSA's Terms of Service and Privacy Policy"),
+                             key="terms_prompt_agree")
+        if st.button(tr("Continue"), type="primary", disabled=not _agree):
+            if _terms.record(user_id, st.session_state.user.email, _terms.SRC_LOGIN):
+                st.session_state["terms_ok"] = True
+                st.rerun()
+            st.error(tr("That didn't save. Please try again in a moment."))
+        st.stop()
 _funnel_state = st.session_state.pop("funnel", None)
 if _funnel_state and _funnel_state.get("pending"):
     # Logged in from the free check's link, or already logged in when it

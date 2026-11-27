@@ -1636,5 +1636,10 @@
  "The page on your website that shows this policy. RECOSA checks every night that it shows the version in force. Left empty, RECOSA looks for it on your website.": "De pagina op uw website die dit beleid toont. RECOSA controleert elke nacht of ze de versie toont die van kracht is. Leeg gelaten zoekt RECOSA ernaar op uw website.",
  "Published at {url}": "Gepubliceerd op {url}",
  "Web address not given — RECOSA looks for it on your website.": "Webadres niet opgegeven — RECOSA zoekt ernaar op uw website.",
- "Could not save the web address. Nothing has changed.": "Het webadres kon niet worden opgeslagen. Er is niets gewijzigd."
+ "Could not save the web address. Nothing has changed.": "Het webadres kon niet worden opgeslagen. Er is niets gewijzigd.",
+ "Before you continue": "Voordat u verdergaat",
+ "Please read and accept RECOSA's [Terms of Service]({terms}) and [Privacy Policy]({privacy}).": "Lees en aanvaard de [Gebruiksvoorwaarden]({terms}) en het [Privacybeleid]({privacy}) van RECOSA.",
+ "I agree to RECOSA's Terms of Service and Privacy Policy": "Ik ga akkoord met de Gebruiksvoorwaarden en het Privacybeleid van RECOSA",
+ "Continue": "Doorgaan",
+ "That didn't save. Please try again in a moment.": "Dat is niet opgeslagen. Probeer het zo meteen opnieuw."
 }

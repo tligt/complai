@@ -1636,5 +1636,10 @@
  "The page on your website that shows this policy. RECOSA checks every night that it shows the version in force. Left empty, RECOSA looks for it on your website.": "La page de votre site web qui affiche cette politique. RECOSA vérifie chaque nuit qu'elle affiche la version en vigueur. Laissée vide, RECOSA la cherche sur votre site web.",
  "Published at {url}": "Publiée à l'adresse {url}",
  "Web address not given — RECOSA looks for it on your website.": "Adresse web non indiquée — RECOSA la cherche sur votre site web.",
- "Could not save the web address. Nothing has changed.": "Impossible d'enregistrer l'adresse web. Rien n'a été modifié."
+ "Could not save the web address. Nothing has changed.": "Impossible d'enregistrer l'adresse web. Rien n'a été modifié.",
+ "Before you continue": "Avant de continuer",
+ "Please read and accept RECOSA's [Terms of Service]({terms}) and [Privacy Policy]({privacy}).": "Veuillez lire et accepter les [Conditions d'utilisation]({terms}) et la [Politique de confidentialité]({privacy}) de RECOSA.",
+ "I agree to RECOSA's Terms of Service and Privacy Policy": "J'accepte les Conditions d'utilisation et la Politique de confidentialité de RECOSA",
+ "Continue": "Continuer",
+ "That didn't save. Please try again in a moment.": "L'enregistrement a échoué. Veuillez réessayer dans un instant."
 }

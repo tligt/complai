@@ -17,7 +17,8 @@ app.py sets st.session_state["read_only"] for such an account. Then:
 
 What stays writable (WRITABLE): what an expired account still needs — its
 sign-in, its language and email preferences, support and the plan request,
-its billing company details, alerts marked as read, the funnel's counts.
+its billing company details, alerts marked as read, the funnel's counts,
+its acceptance of the terms (D-221).
 
 Scheduled jobs have no Streamlit session: never read-only.
 """
@@ -28,6 +29,7 @@ WRITABLE = {
     "profiles", "app_sessions", "audit_log", "funnel_events",
     "support_tickets", "message_threads", "messages", "notifications",
     "accounts", "client_alerts", "workspace_members", "answer_feedback",
+    "terms_acceptances",   # D-221: the login prompt for an account with none
 }
 # Bookkeeping a page writes while it draws (the action plan records task
 # history on load): refused like the rest, but without the "nothing was

@@ -618,6 +618,9 @@ def _signup_form(funnel: dict) -> None:
             pending_result=funnel.get("pending"),
         )
         mark_leads_converted(new_email, res.user.id)
+        # D-221: the ticked checkbox, kept as proof of what was agreed.
+        import terms as _terms
+        _terms.record(res.user.id, new_email, _terms.SRC_APP)
         _tool = (funnel.get("pending") or {}).get("tool")
         record_funnel_event("signup", _tool, source, funnel.get("utm"))
         import analytics   # D-180: the same steps, to Umami
