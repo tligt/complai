@@ -9343,6 +9343,8 @@ approval, gone on the next rerun; nothing on the item read it back.
   (RA-2026-0056 on dev: 2 rows, 1 user). A "Recipients" popover lists the
   emails.
 - Counts checked against dev data; not clicked in the admin.
+- **Deployed 27 Nov** (8caa71c, `deploy/update.sh`): app, admin and quiz
+  healthy.
 
 ---
 
