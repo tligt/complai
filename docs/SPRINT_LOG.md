@@ -9447,6 +9447,13 @@ would make that date look less than certain.
   stopped you from continuing?", replies to fabrice@ (new `reply_to`: still
   from RECOSA). Not to an owner who stopped our emails. No separate email
   after the deletion: that would mean keeping the address just to ask.
+- **Deployed 27 Nov** (eef50a4, migration first, then `deploy/update.sh`):
+  the audit log still refuses a DELETE outside the function on production;
+  app, admin and quiz healthy, no errors; lifecycle, lifecycle view, i18n
+  and read-only tests pass on the server; the hourly cron line in place.
+  Production dry run: one expired account (the admin's), nothing to send,
+  close or delete. **The privacy policy and terms drafts can now be
+  published** (enterprise number and two retention periods to fill in).
 - Checked: `test_lifecycle.py` (phases, dates, late notices, deletion due,
   every email × language), `test_lifecycle_view.py`; on dev, a throwaway
   account with a company, a system, a file, a log entry, a lead, a terms
