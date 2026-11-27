@@ -4,7 +4,7 @@ RECOSA's Terms of Service — the source for https://www.recosa.eu/terms-of-serv
 like the privacy policy (D-196). Draft by Claude for the user's review — not
 legal advice.
 
-D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page
+D-221, 27 Nov 2026 — PUBLISHED on Framer 27 Nov 2026. Changes from the previous page
 ("Last updated: June 2026"), kept to the live page's numbering so they can
 be made on Framer without renumbering (docs/legal/CHANGES_TO_PASTE.md):
   1. Who we are: "CREAGENT SRL, sole trader" — an SRL is a company, not a
@@ -17,12 +17,14 @@ be made on Framer without renumbering (docs/legal/CHANGES_TO_PASTE.md):
   4. Section 8 (data and privacy): retention named; the emails we send.
   5. Contact: the full address.
   Enterprise number filled in 27 Nov.
-  When published: set terms.TERMS_VERSION to the date below.
+  terms.TERMS_VERSION = 2026-11-27, the date below.
+  !! Sections 5 and 9 on the live page read differently from this file
+  (checked 27 Nov after publishing): to settle with the user.
 -->
 
 # Terms of Service
 
-*Last updated: [publication date]*
+*Last updated: 27 November 2026*
 
 ## 1. Who we are
 

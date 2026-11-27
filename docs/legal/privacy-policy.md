@@ -17,7 +17,8 @@ Changes from the published version ("Last updated: June 2026"):
   Umami's location (Frankfurt) confirmed by the user, 18 Nov.
   PUBLISHED on Framer 18 Nov 2026.
 
-D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page:
+D-221, 27 Nov 2026 — PUBLISHED on Framer 27 Nov 2026; this file matches the
+live page (subsections numbered 2.1–2.8 there). Changes from the previous version:
   7. Who we are: the controller named (CREAGENT SRL, address, enterprise
      number) — the live page said "a sole trader" and named no one.
   8. Account data: an account is also created by the free check's sign-up,
@@ -32,12 +33,12 @@ D-221, 27 Nov 2026 — DRAFT, NOT YET PUBLISHED. Changes from the live page:
      then deleted): publish once it is live.
  11. Contact: the controller's address.
   Enterprise number filled in 27 Nov; retention periods confirmed by the user, 27 Nov.
-  When published: set terms.PRIVACY_VERSION to the date below.
+  terms.PRIVACY_VERSION = 2026-11-27, the date below.
 -->
 
 # Privacy Policy
 
-*Last updated: [publication date]*
+*Last updated: 27 November 2026*
 
 This Privacy Policy explains how RECOSA collects, uses, and protects personal data when you use our website, our free compliance checks and our AI-powered regulatory compliance platform.
 
@@ -53,7 +54,7 @@ Website: https://recosa.eu
 
 ## What data we collect and why
 
-### 1. Account data
+### 2.1 Account data
 
 When you create an account — in the app, or from a free check to see your full result — we collect your email address and password (hashed). We use this to authenticate you and provide access to the platform. Every new account starts a 14-day free trial.
 
@@ -61,43 +62,43 @@ We also record that you accepted our Terms of Service and this Privacy Policy: y
 
 Legal basis: Performance of a contract (Article 6(1)(b) GDPR); for the record of acceptance, our legitimate interest in being able to show what was agreed (Article 6(1)(f) GDPR)
 
-### 2. Company profile data
+### 2.2 Company profile data
 
 When you set up your compliance profile, we collect your company name, sector, country, and company size. We use this to personalise your compliance experience and determine which regulations apply to you.
 
 Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
 
-### 3. Free compliance checks
+### 2.3 Free compliance checks
 
 When you use our free checks (the website check and the GDPR, NIS2 and AI Act Quick Checks), we record your answers and, for the website check, the address of the website checked. If you ask to receive your full result, we collect your email address and send it to you. If you tick the box, we also send you occasional updates on GDPR, NIS2 and the AI Act; you can unsubscribe at any time.
 
 Legal basis: Performance of a contract at your request — sending the result you asked for (Article 6(1)(b) GDPR); consent for the updates (Article 6(1)(a) GDPR)
 
-### 4. Usage data
+### 2.4 Usage data
 
 We collect data about how you use RECOSA — questions asked, documents generated, audits run, and feature usage. We use this to improve the platform and monitor for abuse.
 
 Legal basis: Legitimate interests (Article 6(1)(f) GDPR) — specifically, improving our service and protecting it from misuse
 
-### 5. Chat and document content
+### 2.5 Chat and document content
 
 Questions you ask and documents you generate are stored to provide the service (conversation history, document access). We do not use your content to train AI models.
 
 Legal basis: Performance of a contract (Article 6(1)(b) GDPR)
 
-### 6. Website analytics
+### 2.6 Website analytics
 
 We use privacy-friendly analytics (Umami) on recosa.eu, on the free checks and on the login page, to understand how visitors use them (page views, traffic sources, the steps taken). It sets no cookies and collects no personally identifiable information.
 
 Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
 
-### 7. Contact form submissions
+### 2.7 Contact form submissions
 
 If you contact us via the contact form, we collect your name, email, and message. We use this solely to respond to your enquiry.
 
 Legal basis: Legitimate interests (Article 6(1)(f) GDPR)
 
-### 8. Emails about your trial and your account
+### 2.8 Emails about your trial and your account
 
 During your free trial we send you a few emails to help you set up RECOSA, and to remind you when the trial is about to end. While you use RECOSA, we send the regulatory alerts that concern your company.
 
